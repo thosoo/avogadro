@@ -106,7 +106,7 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
         auxNeeded = false;
     }
     ui.basisAuxBasisSetCombo->setEnabled(auxNeeded);
-    ui.basisAuxECPCheck->setEnabled(false);
+//    ui.basisAuxECPCheck->setEnabled(false);
 
     bool auxCorrNeeded;
     if (controlData->mp2Enabled() || controlData->ccsdEnabled()) {
@@ -115,7 +115,7 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
         auxCorrNeeded = false;
     }
     ui.basisAuxCorrBasisSetCombo->setEnabled(auxCorrNeeded);
-    ui.basisAuxCorrECPCheck->setEnabled(false);
+//    ui.basisAuxCorrECPCheck->setEnabled(false);
     m_basic = true;
     m_advanced = false;
 }
@@ -149,12 +149,12 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
       connect (ui.basisBasisSetCombo, SIGNAL(currentIndexChanged(int)), this,  SLOT (setBasisBasisSet(int )));
       connect (ui.basisAuxBasisSetCombo, SIGNAL(currentIndexChanged(int)), this, SLOT( setBasisAuxBasisSet (int )));
       connect (ui.basisAuxCorrBasisSetCombo, SIGNAL(currentIndexChanged(int)), this, SLOT( setBasisAuxCorrBasisSet (int )));
-      connect (ui.basisECPCheck, SIGNAL(toggled(bool)), this, SLOT(setBasisUseEPC (bool )));
-      connect (ui.basisAuxECPCheck, SIGNAL(toggled (bool)), this, SLOT( setBasisUseAuxEPC (bool )));
-      connect (ui.basisAuxCorrECPCheck, SIGNAL(toggled (bool)), this, SLOT( setBasisUseAuxCorrEPC (bool )));
-      connect (ui.basisRelativisticGroup, SIGNAL(toggled(bool)), this, SLOT(setBasisUseRel(bool)));
-      connect (ui.basisRelativisticCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setBasisRel(int )));
-      connect (ui.basisDKHSpin, SIGNAL(valueChanged(int)), this, SLOT(setBasisDKHOrder(int)));
+//      connect (ui.basisECPCheck, SIGNAL(toggled(bool)), this, SLOT(setBasisUseEPC (bool )));
+//      connect (ui.basisAuxECPCheck, SIGNAL(toggled (bool)), this, SLOT( setBasisUseAuxEPC (bool )));
+//      connect (ui.basisAuxCorrECPCheck, SIGNAL(toggled (bool)), this, SLOT( setBasisUseAuxCorrEPC (bool )));
+//      connect (ui.basisRelativisticGroup, SIGNAL(toggled(bool)), this, SLOT(setBasisUseRel(bool)));
+//      connect (ui.basisRelativisticCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setBasisRel(int )));
+//      connect (ui.basisDKHSpin, SIGNAL(valueChanged(int)), this, SLOT(setBasisDKHOrder(int)));
 
       // Advanced Control Slots
       connect(ui.advancedTree, SIGNAL(clicked(QModelIndex)), this, SLOT(advancedItemClicked(QModelIndex)));
@@ -262,14 +262,13 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
       ui.advancedStacked->setCurrentIndex(i);
   }
 
-  void OrcaInputDialog::initComboboxes()
+void  OrcaInputDialog::initComboboxes()
   {
       meta = new QMetaObject (OrcaExtension::staticMetaObject);
       QStringList items;
       for (int i=0; i < meta->enumeratorCount(); ++i) {
           items.clear();
           QMetaEnum m = meta->enumerator(i);
-          qDebug() << "//" << m.name() << "//";
           QString enumType = m.name();
           if (enumType == "DFTFunctionalType") {
               dftData->setEnumDFT(m);
@@ -286,15 +285,17 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
                   items[j].prepend("def2-");
               }
               ui.basicBasisSetCombo->addItems(items);
+
               ui.basisBasisSetCombo->addItems(items);
-              for (int j=0; j<items.size();j++) {
-                  items[j].append("/J");
+
+              for (int j=0; j<m.keyCount();j++) {
+                  items[j].append("/C");
               }
-              ui.basisAuxBasisSetCombo->addItems(items);
-
-              items.replaceInStrings("/J", "/C");
-
               ui.basisAuxCorrBasisSetCombo->addItems(items);
+
+              items.clear();
+              items << "def2/J";
+              ui.basisAuxBasisSetCombo->addItems(items);   // Only one aux-basisset available
           } else if (enumType == "gridType") {
 
               dftData->setEnumGrid(m);
@@ -340,16 +341,16 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
       ui.basisBasisSetCombo->setCurrentIndex(basisData->getBasis());
       ui.basisAuxBasisSetCombo->setCurrentIndex(basisData->getAuxBasis());
       ui.basisAuxCorrBasisSetCombo->setCurrentIndex(basisData->getAuxCorrBasis());
+      ui.basisRelativisticGroup->hide();
+//      ui.basisECPCheck->setChecked(basisData->EPCEnabled());
+//      ui.basisAuxECPCheck->setChecked(basisData->auxEPCEnabled());
+//      ui.basisAuxCorrECPCheck->setChecked(basisData->auxCorrEPCEnabled());
 
-      ui.basisECPCheck->setChecked(basisData->EPCEnabled());
-      ui.basisAuxECPCheck->setChecked(basisData->auxEPCEnabled());
-      ui.basisAuxCorrECPCheck->setChecked(basisData->auxCorrEPCEnabled());
-
-      ui.basisRelativisticGroup->setChecked(basisData->relEnabled());
-      ui.basisRelativisticCombo->setEnabled(basisData->relEnabled());
-      ui.basisRelativisticCombo->setCurrentIndex(basisData->getRel());
-      ui.basisDKHSpin->setVisible(basisData->dkhEnabled());
-      ui.basisDKHLabel->setVisible(basisData->dkhEnabled());
+//      ui.basisRelativisticGroup->setChecked(basisData->relEnabled());
+//      ui.basisRelativisticCombo->setEnabled(basisData->relEnabled());
+//      ui.basisRelativisticCombo->setCurrentIndex(basisData->getRel());
+//      ui.basisDKHSpin->setVisible(basisData->dkhEnabled());
+//      ui.basisDKHLabel->setVisible(basisData->dkhEnabled());
   }
 
   void OrcaInputDialog::initControlData()
@@ -490,10 +491,14 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
   {
       // Disconnect the old molecule first...
 
+//      qDebug() << " molecule = " << molecule;
+//      cout  << "m_molecule = " << m_molecule<< endl;
       if (m_molecule)
         disconnect(m_molecule, 0, this, 0);
 
       m_molecule = molecule;
+
+      cout  << "m_molecule = " << m_molecule<< endl;
 
       // Set multiplicity to the OB value
 
@@ -631,63 +636,63 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
       updateAdvancedSetup();
   }
 
-  void OrcaInputDialog::setBasisUseEPC(bool value)
-  {
-      basisData->setEPCChecked(value);
-      basisData->setAuxEPCChecked (value);
-      basisData->setAuxCorrEPCChecked (value);
-      updateAdvancedSetup();
+//  void OrcaInputDialog::setBasisUseEPC(bool value)
+//  {
+//      basisData->setEPCChecked(value);
+////      basisData->setAuxEPCChecked (value);
+////      basisData->setAuxCorrEPCChecked (value);
+//      updateAdvancedSetup();
 
-  }
-  void OrcaInputDialog::setBasisUseAuxEPC (bool value)
-  {
-      basisData->setAuxEPCChecked (value);
-      updateAdvancedSetup();
-  }
+//  }
+//  void OrcaInputDialog::setBasisUseAuxEPC (bool value)
+//  {
+//      basisData->setAuxEPCChecked (value);
+//      updateAdvancedSetup();
+//  }
 
-  void OrcaInputDialog::setBasisUseAuxCorrEPC (bool value)
-  {
-      basisData->setAuxCorrEPCChecked (value);
-      updateAdvancedSetup();
-  }
-  void OrcaInputDialog::setBasisUseRel(bool value)
-  {
-      basisData->setRelChecked(value);
-      if (value) {
-          ui.basisRelativisticCombo->setEnabled(true);
-          if (basisData->dkhEnabled()) {
-              ui.basisDKHSpin->setVisible(true);
-              ui.basisDKHLabel->setVisible(true);
-          }
-      } else {
-          ui.basisDKHSpin->setVisible(false);
-          ui.basisDKHLabel->setVisible(false);
-      }
-      updateAdvancedSetup();
-  }
+//  void OrcaInputDialog::setBasisUseAuxCorrEPC (bool value)
+//  {
+//      basisData->setAuxCorrEPCChecked (value);
+//      updateAdvancedSetup();
+//  }
+//  void OrcaInputDialog::setBasisUseRel(bool value)
+//  {
+//      basisData->setRelChecked(value);
+//      if (value) {
+//          ui.basisRelativisticCombo->setEnabled(true);
+//          if (basisData->dkhEnabled()) {
+//              ui.basisDKHSpin->setVisible(true);
+//              ui.basisDKHLabel->setVisible(true);
+//          }
+//      } else {
+//          ui.basisDKHSpin->setVisible(false);
+//          ui.basisDKHLabel->setVisible(false);
+//      }
+//      updateAdvancedSetup();
+//  }
 
-  void OrcaInputDialog::setBasisRel(int n)
-  {
-      basisData->setRel(n);
-      if (n == DKH) {
-          basisData->setDKHChecked(true);
-          ui.basisDKHSpin->setVisible(true);
-          ui.basisDKHLabel->setVisible(true);
-      } else {
-          basisData->setDKHChecked(false);
-          ui.basisDKHSpin->setVisible(false);
-          ui.basisDKHLabel->setVisible(false);
-      }
+//  void OrcaInputDialog::setBasisRel(int n)
+//  {
+//      basisData->setRel(n);
+//      if (n == DKH) {
+//          basisData->setDKHChecked(true);
+//          ui.basisDKHSpin->setVisible(true);
+//          ui.basisDKHLabel->setVisible(true);
+//      } else {
+//          basisData->setDKHChecked(false);
+//          ui.basisDKHSpin->setVisible(false);
+//          ui.basisDKHLabel->setVisible(false);
+//      }
 
-      updateAdvancedSetup();
-  }
+//      updateAdvancedSetup();
+//  }
 
 
-  void OrcaInputDialog::setBasisDKHOrder(int n)
-  {
-      basisData->setDKHOrder(n);
-      updateAdvancedSetup();
-  }
+//  void OrcaInputDialog::setBasisDKHOrder(int n)
+//  {
+//      basisData->setDKHOrder(n);
+//      updateAdvancedSetup();
+//  }
 
 //
 // Set Advanced Control Widgets
@@ -746,7 +751,6 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
       QStringList noRijCosXDFT;
       for (int i=0; i < meta.enumeratorCount(); ++i) {
           QMetaEnum m = meta.enumerator(i);
-          qDebug() << "//" << m.name() << "//";
           QString enumType = m.name();
           if (enumType == "DFTNoCosXType") {
               for (int j=0; j<m.keyCount();j++) {
@@ -1077,7 +1081,7 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
           charge = controlData->getCharge();
           multiplicity = controlData->getMultiplicity();
 
-          mol << "## avogadro generated ORCA input file \n# Advanced Mode\n";
+          mol << "# avogadro generated ORCA input file \n# Advanced Mode\n";
 
           // write the comment / comment
 
@@ -1109,7 +1113,10 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
 
           // Basis Set(s)
 
-          mol <<  basisData->getBasisTxt() << " ";
+//          if (basisData->relEnabled()) {
+//              mol <<  basisData->getRelTxt() << "-" ;
+//          }
+          mol << basisData->getBasisTxt() << " ";
 
           if (controlData->cosXEnabled() || controlData->dftEnabled()) {
               mol << basisData->getAuxBasisTxt() << " ";
@@ -1117,16 +1124,16 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
           if (controlData->mp2Enabled()) {
               mol << basisData->getAuxCorrBasisTxt() << " ";
           }
-          if (basisData->EPCEnabled()) {
-              mol << "EPC{" << basisData->getBasisTxt();
-              if (controlData->cosXEnabled() || controlData->dftEnabled()) {
-                  mol  << "," << basisData->getAuxBasisTxt();
-              }
-              if (controlData->mp2Enabled()) {
-                  mol << "," << basisData->getAuxCorrBasisTxt();
-              }
-              mol << "} ";
-          }
+//          if (basisData->EPCEnabled()) {
+//              mol << "EPC{" << basisData->getBasisTxt();
+//              if (controlData->cosXEnabled() || controlData->dftEnabled()) {
+//                  mol  << "," << basisData->getAuxBasisTxt();
+//              }
+//              if (controlData->mp2Enabled()) {
+//                  mol << "," << basisData->getAuxCorrBasisTxt();
+//              }
+//              mol << "} ";
+//          }
           if (dataData->getPrintLevel() != 0) {
               mol << dataData->getPrintLevelTxt() << " ";
           }
@@ -1138,13 +1145,13 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
               mol << cosXData->getGridTxt() << " " << cosXData->getFinalGridTxt() << " ";
           }
           mol << scfData->getAccuracyTxt() << " ";
-          if (basisData->relEnabled()) {
-              if (basisData->dkhEnabled()){
-                  mol << basisData->getRelTxt() << basisData->getDKHOrder() << " ";
-              } else {
-                  mol << basisData->getRelTxt() << " ";
-              }
-          }
+//          if (basisData->relEnabled()) {
+////              if (basisData->dkhEnabled()){
+////                  mol << basisData->getRelTxt() << basisData->getDKHOrder() << " ";
+////              } else {
+//                  mol << basisData->getRelTxt() << " ";
+////              }
+//          }
           // SCF Block Infos
 
           mol << "\n";
@@ -1216,77 +1223,76 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
           }
           mol << "*\n";
 
-      } else if (m_molecule && (formatCheck == ZMATRIX)) {
+//      } else if (m_molecule && (formatCheck == ZMATRIX)) {
 
-          // Z-matrix
+//          // Z-matrix
 
-          QTextStream mol(&buffer);
-          mol.setFieldAlignment(QTextStream::AlignAccountingStyle);
-          mol << "* int " << charge << " " << multiplicity << "\n";
-          OBAtom *a, *b, *c;
-          double r, w, t;
+//          QTextStream mol(&buffer);
+//          mol.setFieldAlignment(QTextStream::AlignAccountingStyle);
+//          mol << "*int " << charge << " " << multiplicity << "\n";
+//          OBAtom *a, *b, *c;
+//          double r, w, t;
 
-          /* Taken from OpenBabel's gzmat file format converter */
-          std::vector<OBInternalCoord*> vic;
-          vic.push_back((OpenBabel::OBInternalCoord*)NULL);
-          OpenBabel::OBMol obmol = m_molecule->OBMol();
-          FOR_ATOMS_OF_MOL(atom, &obmol)
-                  vic.push_back(new OpenBabel::OBInternalCoord);
+//          /* Taken from OpenBabel's gzmat file format converter */
+//          std::vector<OBInternalCoord*> vic;
+//          vic.push_back((OpenBabel::OBInternalCoord*)NULL);
+//          OpenBabel::OBMol obmol = m_molecule->OBMol();
+//          FOR_ATOMS_OF_MOL(atom, &obmol)
+//                  vic.push_back(new OpenBabel::OBInternalCoord);
 
-          CartesianToInternal(vic, obmol);
+//          CartesianToInternal(vic, obmol);
 
-          FOR_ATOMS_OF_MOL(atom, &obmol)
-          {
-              a = vic[atom->GetIdx()]->_a;
-              b = vic[atom->GetIdx()]->_b;
-              c = vic[atom->GetIdx()]->_c;
+//          FOR_ATOMS_OF_MOL(atom, &obmol)
+//          {
+//              a = vic[atom->GetIdx()]->_a;
+//              b = vic[atom->GetIdx()]->_b;
+//              c = vic[atom->GetIdx()]->_c;
 
-              mol << qSetFieldWidth(3) << QString(etab.GetSymbol(atom->GetAtomicNum()));
+//              mol << qSetFieldWidth(3) << QString(etab.GetSymbol(atom->GetAtomicNum()));
 
-              if (atom->GetIdx() > 1)
-                  mol << qSetFieldWidth(0) << "  " << qSetFieldWidth(3) << QString::number(a->GetIdx())
-                      << qSetFieldWidth(0) << "  "<< qSetFieldWidth(4) << QString("r") + QString::number(atom->GetIdx());
+//              if (atom->GetIdx() > 1)
+//                  mol << qSetFieldWidth(0) << "  " << qSetFieldWidth(3) << QString::number(a->GetIdx())
+//                      << qSetFieldWidth(0) << "  "<< qSetFieldWidth(4) << QString("r") + QString::number(atom->GetIdx());
 
-              if (atom->GetIdx() > 2)
-                  mol << qSetFieldWidth(0) << "  " << qSetFieldWidth(3) << QString::number(b->GetIdx())
-                      << qSetFieldWidth(0) << "  "<< qSetFieldWidth(4) << QString("a") + QString::number(atom->GetIdx());
+//              if (atom->GetIdx() > 2)
+//                  mol << qSetFieldWidth(0) << "  " << qSetFieldWidth(3) << QString::number(b->GetIdx())
+//                      << qSetFieldWidth(0) << "  "<< qSetFieldWidth(4) << QString("a") + QString::number(atom->GetIdx());
 
-              if (atom->GetIdx() > 3)
-                  mol << qSetFieldWidth(0) << "  " << qSetFieldWidth(3) << QString::number(c->GetIdx())
-                      << qSetFieldWidth(0) << "  "<< qSetFieldWidth(4) << QString("d") + QString::number(atom->GetIdx());
+//              if (atom->GetIdx() > 3)
+//                  mol << qSetFieldWidth(0) << "  " << qSetFieldWidth(3) << QString::number(c->GetIdx())
+//                      << qSetFieldWidth(0) << "  "<< qSetFieldWidth(4) << QString("d") + QString::number(atom->GetIdx());
 
-              mol << qSetFieldWidth(0) << '\n';
-          }
+//              mol << qSetFieldWidth(0) << '\n';
+//          }
 
-          mol << " variables\n";
-          FOR_ATOMS_OF_MOL(atom, &obmol)
-          {
-              r = vic[atom->GetIdx()]->_dst;
-              w = vic[atom->GetIdx()]->_ang;
-              if (w < 0.0)
-                  w += 360.0;
-              t = vic[atom->GetIdx()]->_tor;
-              if (t < 0.0)
-                  t += 360.0;
-              if (atom->GetIdx() > 1)
-                  mol << "   r" << atom->GetIdx() << qSetFieldWidth(15)
-                      << qSetRealNumberPrecision(5) << forcepoint << fixed << right
-                      << r << qSetFieldWidth(0) << '\n';
-              if (atom->GetIdx() > 2)
-                  mol << "   a" << atom->GetIdx() << qSetFieldWidth(15)
-                      << qSetRealNumberPrecision(5) << forcepoint << fixed << right
-                      << w << qSetFieldWidth(0) << '\n';
-              if (atom->GetIdx() > 3)
-                  mol << "   d" << atom->GetIdx() << qSetFieldWidth(15)
-                      << qSetRealNumberPrecision(5) << forcepoint << fixed << right
-                      << t << qSetFieldWidth(0) << '\n';
-          }
-          mol << " end\n";
-          foreach (OpenBabel::OBInternalCoord *c, vic)
-              delete c;
-      } else if (m_molecule && (formatCheck == ZMATRIX_COMPACT)) {
-
-          // Compact ZMatrix
+//          mol << " variables\n";
+//          FOR_ATOMS_OF_MOL(atom, &obmol)
+//          {
+//              r = vic[atom->GetIdx()]->_dst;
+//              w = vic[atom->GetIdx()]->_ang;
+//              if (w < 0.0)
+//                  w += 360.0;
+//              t = vic[atom->GetIdx()]->_tor;
+//              if (t < 0.0)
+//                  t += 360.0;
+//              if (atom->GetIdx() > 1)
+//                  mol << "   r" << atom->GetIdx() << qSetFieldWidth(15)
+//                      << qSetRealNumberPrecision(5) << forcepoint << fixed << right
+//                      << r << qSetFieldWidth(0) << '\n';
+//              if (atom->GetIdx() > 2)
+//                  mol << "   a" << atom->GetIdx() << qSetFieldWidth(15)
+//                      << qSetRealNumberPrecision(5) << forcepoint << fixed << right
+//                      << w << qSetFieldWidth(0) << '\n';
+//              if (atom->GetIdx() > 3)
+//                  mol << "   d" << atom->GetIdx() << qSetFieldWidth(15)
+//                      << qSetRealNumberPrecision(5) << forcepoint << fixed << right
+//                      << t << qSetFieldWidth(0) << '\n';
+//          }
+//          mol << " end\n";
+//          foreach (OpenBabel::OBInternalCoord *c, vic)
+//              delete c;
+      } else if (m_molecule && (formatCheck == INTERNAL_COORDS)) {
+          // Internal coordinates
 
           QTextStream mol(&buffer);
 
@@ -1317,25 +1323,83 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
                   t += 360.0;
 
               mol << qSetFieldWidth(4) << right
-                  << QString(etab.GetSymbol(atom->GetAtomicNum())
-                             + QString::number(atom->GetIdx()));
+                  << QString(etab.GetSymbol(atom->GetAtomicNum()));
+
+              if (a) {
+                  mol << qSetFieldWidth(6) << right << QString::number(a->GetIdx());
+              } else {
+                  mol << qSetFieldWidth(6) << right << "0" ;
+              }
+              if (b) {
+                  mol << qSetFieldWidth(6) << right << QString::number(b->GetIdx());
+              } else {
+                  mol << qSetFieldWidth(6) << right << "0" ;
+              }
+              if (c) {
+                  mol << qSetFieldWidth(6) << right << QString::number(c->GetIdx());
+              } else {
+                  mol << qSetFieldWidth(6) << right << "0" ;
+              }
+              mol << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint << fixed << right << r;
+              mol << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint << fixed << right << w;
+              mol << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint << fixed << right << t;
+
+              mol << qSetFieldWidth(0) << '\n';
+          }
+          mol << "*\n";
+
+          foreach (OpenBabel::OBInternalCoord *c, vic)
+              delete c;
+
+      } else if (m_molecule && (formatCheck == ZMATRIX_COMPACT)) {
+//          // Compact ZMatrix
+
+          QTextStream mol(&buffer);
+
+          mol << "* gzmt " << charge << " " << multiplicity << "\n";
+
+          OBAtom *a, *b, *c;
+          double r, w, t;
+
+          /* Taken from OpenBabel's gzmat file format converter */
+          std::vector<OBInternalCoord*> vic;
+          vic.push_back((OpenBabel::OBInternalCoord*)NULL);
+          OpenBabel::OBMol obmol = m_molecule->OBMol();
+          FOR_ATOMS_OF_MOL(atom, &obmol)
+                  vic.push_back(new OpenBabel::OBInternalCoord);
+          CartesianToInternal(vic, obmol);
+
+          FOR_ATOMS_OF_MOL(atom, &obmol)
+          {
+              a = vic[atom->GetIdx()]->_a;
+              b = vic[atom->GetIdx()]->_b;
+              c = vic[atom->GetIdx()]->_c;
+              r = vic[atom->GetIdx()]->_dst;
+              w = vic[atom->GetIdx()]->_ang;
+              if (w < 0.0)
+                  w += 360.0;
+              t = vic[atom->GetIdx()]->_tor;
+              if (t < 0.0)
+                  t += 360.0;
+
+              mol << qSetFieldWidth(4) << right
+                  << QString(etab.GetSymbol(atom->GetAtomicNum()));
               if (atom->GetIdx() > 1)
                   mol << qSetFieldWidth(6) << right
-                      << QString(etab.GetSymbol(a->GetAtomicNum())
-                                 + QString::number(a->GetIdx())) << qSetFieldWidth(15)
+                      << QString::number(a->GetIdx()) << qSetFieldWidth(15)
                       << qSetRealNumberPrecision(5) << forcepoint << fixed << right << r;
               if (atom->GetIdx() > 2)
                   mol << qSetFieldWidth(6) << right
-                      << QString(etab.GetSymbol(b->GetAtomicNum())
-                                 + QString::number(b->GetIdx())) << qSetFieldWidth(15)
+                      << QString::number(b->GetIdx()) << qSetFieldWidth(15)
                       << qSetRealNumberPrecision(5) << forcepoint << fixed << right << w;
               if (atom->GetIdx() > 3)
                   mol << qSetFieldWidth(6) << right
-                      << QString(etab.GetSymbol(c->GetAtomicNum())
-                                 + QString::number(c->GetIdx())) << qSetFieldWidth(15)
+                      << QString::number(c->GetIdx()) << qSetFieldWidth(15)
                       << qSetRealNumberPrecision(5) << forcepoint << fixed << right << t;
               mol << qSetFieldWidth(0) << '\n';
           }
+          mol << "*\n";
+
           foreach (OpenBabel::OBInternalCoord *c, vic)
               delete c;
       }

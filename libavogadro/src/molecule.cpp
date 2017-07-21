@@ -66,7 +66,8 @@ namespace Avogadro{
                           invalidRings(true), invalidGroupIndices(true),
                           obmol(0), obunitcell(0),
                           obvibdata(0), obdosdata(0),
-                          obelectronictransitiondata(0)
+                          obelectronictransitiondata(0),
+                          obxrayorcadata(0)
     {}
     // These are logically cached variables and thus are marked as mutable.
     // Const objects should be logically constant (and not mutable)
@@ -105,6 +106,7 @@ namespace Avogadro{
       OpenBabel::OBDOSData *        obdosdata;
       OpenBabel::OBElectronicTransitionData *
                                     obelectronictransitiondata;
+      OpenBabel::OBXrayORCAData * obxrayorcadata;
   };
 
   Molecule::Molecule(QObject *parent) : Primitive(MoleculeType, parent),
@@ -1289,6 +1291,11 @@ namespace Avogadro{
       obmol.SetData(d->obelectronictransitiondata->Clone(&obmol));
     }
 
+
+    // Copy xray spectra data, if needed
+    if (d->obxrayorcadata != NULL) {
+      obmol.SetData(d->obxrayorcadata->Clone(&obmol));
+    }
     return obmol;
   }
 
@@ -1463,7 +1470,16 @@ namespace Avogadro{
       d->obelectronictransitiondata = etd;
     }
 
+    // Copy Xray spectra data
+    if (obmol->HasData(OpenBabel::OBGenericDataType::CustomData0)) {
+      OpenBabel::OBXrayORCAData *xrayorca =
+        static_cast<OpenBabel::OBXrayORCAData*>
+        (obmol->GetData(OpenBabel::OBGenericDataType::CustomData0));
+      d->obxrayorcadata = xrayorca;
+    }
+
     // Copy orbital energies, symbols, and occupations to dynamic properties (as QList<>)
+    qDebug() << "has data  = " << obmol->HasData(OpenBabel::OBGenericDataType::ElectronicData) << endl;
     if (obmol->HasData(OpenBabel::OBGenericDataType::ElectronicData)) {
       OpenBabel::OBOrbitalData *od =
         static_cast<OpenBabel::OBOrbitalData*>(obmol->GetData(OpenBabel::OBGenericDataType::ElectronicData));

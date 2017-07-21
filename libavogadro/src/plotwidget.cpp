@@ -210,12 +210,19 @@ namespace Avogadro {
         }
       }
     }
+
+//    qDebug() << "xmin = " << xmin;
+//    qDebug() << "xmax = " << xmax;
+//    qDebug() << "ymin = " << ymin;
+//    qDebug() << "ymax = " << ymax;
+
     double xspread = xmax - xmin;
     double yspread = ymax - ymin;
     xmin -= xspread * 0.05;
     xmax += xspread * 0.05;
     ymin -= yspread * 0.05;
     ymax += yspread * 0.05;
+
     setDefaultLimits( xmin, xmax, ymin, ymax );
   }
 
@@ -232,6 +239,7 @@ namespace Avogadro {
       y1 -= 0.5;
     }
     d->defaultDataRect = QRectF( x1, y1, x2 - x1, y2 - y1 );
+//    qDebug() << "( x1, y1, x2 - x1, y2 - y1 )  " <<  x1 << " " << y1 << " " <<  x2 - x1 << " " << y2 - y1  << endl;
     setLimits( x1, x2, y1, y2 );
   }
 
@@ -266,8 +274,17 @@ namespace Avogadro {
       YA2 = YA1 + 0.5;
       YA1 -= 0.5;
     }
-
+//    qDebug() << "xmin = " << XA1;
+//    qDebug() << "xmax = " << XA2;
+//    qDebug() << "xwidth = " << XA2 - XA1;
+//    qDebug() << "ymin = " << YA1;
+//    qDebug() << "yheight = " << YA2 - YA1;
     dataRect = QRectF( XA1, YA1, XA2 - XA1, YA2 - YA1 );
+
+//    qDebug() << "dataRect.x = " << dataRect.x();
+//    qDebug() << "dataRect.width= " << dataRect.width();
+//    qDebug() << "dataRect.y = " << dataRect.y();
+//    qDebug() << "dataRect.height = " << dataRect.height();
 
     q->axis( LeftAxis )->setTickMarks( dataRect.y(), dataRect.height() );
     q->axis( BottomAxis )->setTickMarks( dataRect.x(), dataRect.width() );

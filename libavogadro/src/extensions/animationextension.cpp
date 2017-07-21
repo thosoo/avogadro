@@ -35,6 +35,8 @@
 
 #include <QMessageBox>
 #include <QDir>
+#include <QDebug>
+
 
 #include <fstream>
 
@@ -261,7 +263,8 @@ namespace Avogadro {
                               tr( "Problem reading traj file %1").arg(trajfile));
         return;
       }
-
+        qDebug() << "tmpMol.NumAtoms()" << tmpMol.NumAtoms();
+        qDebug() << " m_molecule->numAtoms()" <<  m_molecule->numAtoms();
       if (tmpMol.NumAtoms() != m_molecule->numAtoms()) {
         QMessageBox::warning( NULL, tr( "Avogadro" ),
           tr( "Trajectory file %1 disagrees on the number of atoms in the present molecule").arg(trajfile));

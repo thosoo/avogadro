@@ -88,7 +88,7 @@ Scroll wheel: Zoom to cursor</string>
       <bool>true</bool>
      </property>
      <attribute name="horizontalHeaderVisible">
-      <bool>true</bool>
+      <bool>false</bool>
      </attribute>
      <attribute name="horizontalHeaderCascadingSectionResizes">
       <bool>false</bool>
@@ -97,7 +97,7 @@ Scroll wheel: Zoom to cursor</string>
       <bool>false</bool>
      </attribute>
      <attribute name="verticalHeaderVisible">
-      <bool>true</bool>
+      <bool>false</bool>
      </attribute>
      <column>
       <property name="text">
@@ -733,7 +733,7 @@ Scroll wheel: Zoom to cursor</string>
    <item row="4" column="6">
     <widget class="QPushButton" name="push_exportDressedData">
      <property name="text">
-      <string>Export Dressed Data</string>
+      <string>Export Spectra Data</string>
      </property>
     </widget>
    </item>

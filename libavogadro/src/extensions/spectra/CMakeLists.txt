@@ -11,5 +11,5 @@ avogadro_plugin_nogl(vibrationextension
 
 ### Spectra
 avogadro_plugin_nogl(spectraextension
-  "spectraextension.cpp;spectradialog.cpp;spectratype.cpp;abstract_ir.cpp;ir.cpp;nmr.cpp;dos.cpp;uv.cpp;cd.cpp;raman.cpp"
-  "spectradialog.ui;tab_ir_raman.ui;tab_nmr.ui;tab_dos.ui;tab_uv.ui;tab_cd.ui")
+  "spectraextension.cpp;spectradialog.cpp;spectratype.cpp;abstract_ir.cpp;ir.cpp;nmr.cpp;dos.cpp;uv.cpp;cd.cpp;raman.cpp;xray_em.cpp;xray_abs.cpp;abstract_xray.cpp"
+  "spectradialog.ui;tab_ir_raman.ui;tab_nmr.ui;tab_dos.ui;tab_uv.ui;tab_cd.ui;tab_xray.ui")
