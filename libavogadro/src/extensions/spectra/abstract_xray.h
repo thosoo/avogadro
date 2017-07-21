@@ -19,15 +19,15 @@
 
 //#ifdef OPENBABEL_IS_NEWER_THAN_2_2_99
 
-#ifndef SPECTRATYPE_UV_H
-#define SPECTRATYPE_UV_H
+#ifndef SPECTRATYPE_ABSTRACTXRAY_H
+#define SPECTRATYPE_ABSTRACTXRAY_H
 
 #include <QtCore/QHash>
 #include <QtCore/QVariant>
 
 #include "spectradialog.h"
 #include "spectratype.h"
-#include "ui_tab_uv.h"
+#include "ui_tab_xray.h"
 
 namespace Avogadro {
 
@@ -35,55 +35,59 @@ namespace Avogadro {
 #define cm_1_to_nm  1.e7
 #define eV_to_nm  1.e7/8065.54477
 
-  class UVSpectra : public SpectraType
+  class AbstractXRaySpectra : public SpectraType
   {
     Q_OBJECT
 
   public:
-    UVSpectra( SpectraDialog *parent = 0 );
-    ~UVSpectra();
+    AbstractXRaySpectra( SpectraDialog *parent = 0 );
 
-    void writeSettings();
-    void readSettings();
+    ~AbstractXRaySpectra(){}
 
-    bool checkForData(Molecule* mol);
-    void setupPlot(PlotWidget* plot);
+    virtual void setupPlot(PlotWidget * plot) = 0 ;
     
     void getCalculatedPlotObject(PlotObject *plotObject);
-  //  void setImportedData(const QList<double> & xList, const QList<double> & yList);
-  //  void getImportedPlotObject(PlotObject *plotObject);
-    QString getTSV();
-    QString getDataStream(PlotObject *plotObject);
-
-  private slots:
-        void changeLineShape(int);
-
-  private:
-    Ui::Tab_UV ui;
+    //  void setImportedData(const QList<double> & xList, const QList<double> & yList);
+    //  void getImportedPlotObject(PlotObject *plotObject);
 
     int getXminIdx(XUnits xunit);
     int getXmaxIdx(XUnits xunit);
     void getSortIdx(std::vector<double> &sortData);
+    void rearrangeYList(int min, int max);
+
+  protected slots:
+    void XRayTypeChanged(const QString & str);
+    void EnergyShiftSilderValueChanged(int);
+    void EnergyShiftSpinValueChanged(double);
+    void changeLineShape(int);
+
+  protected:
+    Ui::Tab_XRay ui;
+    std::vector<int> m_idx;
 
     XUnits m_XUnit;
-    YUVdata m_uvdata;
+    QString m_XRayType;
 
-    LineShape m_lineShape;          // gaussian or lorentzian peaks
+    LineShape m_lineShape;         // gaussian or lorentzian peaks
     int m_nPoints;                  // number of points of gaussian/lorentzian pulse
-
-    std::vector<int> m_idx;         // sort index for Y data
     double m_xmin, m_xmax;          // min/ max in current xunit
+    int m_XminIdx, m_XmaxIdx;       // idx of current xmin,xmax
     double m_xmin_org, m_xmax_org;  // min/max always in nm
+
+    double m_EnergyShift;           // shift in x-axis for compatibility in experiments
+    bool m_newShift;                // rescale x axis because of shift change
     bool m_resize;                  // resize x axis cause of new x unit
     bool m_newrange;                // resise x axis cause of new x range
+    std::vector<double> m_wavelength;
+    std::vector<double> m_wavenumber;
+    std::vector<double> m_energy;
 
-    std::vector<double> m_wavelength;   // wavelength in nm
-    std::vector<double> m_wavenumber;   // wavelength in cm-1
-    std::vector<double> m_energy;       // wavelength in eV
-
-        std::vector<double> m_edipole;  // transition electric dipole
-    //    std::vector<double> m_vdipole;    // transition velosity dipole
-    //    std::vector<double> m_combined;
+    std::vector<double> m_edipole;
+    std::vector<double> m_velosity;
+    std::vector<double> m_combined;
+    std::vector<double> m_D2;
+    std::vector<double> m_M2;
+    std::vector<double> m_Q2;
   };
 }
 

@@ -1,7 +1,7 @@
 /**********************************************************************
   SpectraDialog - Visualize spectral data from QM calculations
 
-  Copyright (C) 2010 by Konstantin Tokarev
+  Copyright (C) 2009 by David Lonie
 
   This file is part of the Avogadro molecular editor project.
   For more information, see <http://avogadro.cc/>
@@ -16,40 +16,47 @@
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public icense for more details.
  ***********************************************************************/
+
 //#ifdef OPENBABEL_IS_NEWER_THAN_2_2_99
 
-#ifndef SPECTRATYPE_RAMAN_H
-#define SPECTRATYPE_RAMAN_H
+#ifndef SPECTRATYPE_XRAY_ABS_H
+#define SPECTRATYPE_XRAY_ABS_H
 
-#include "abstract_ir.h"
+#include <QtCore/QHash>
+#include <QtCore/QVariant>
+
+#include "spectradialog.h"
+#include "abstract_xray.h"
+//#include "spectratype.h"
+#include "ui_tab_xray.h"
 
 namespace Avogadro {
 
-  class RamanSpectra : public AbstractIRSpectra
+
+#define cm_1_to_nm  1.e7
+#define eV_to_nm  1.e7/8065.54477
+
+  class XRayAbsSpectra : public AbstractXRaySpectra
   {
     Q_OBJECT
 
   public:
-    RamanSpectra( SpectraDialog *parent = 0 );
-    ~RamanSpectra();
+    XRayAbsSpectra( SpectraDialog *parent = 0 );
+    ~XRayAbsSpectra();
 
     void writeSettings();
     void readSettings();
 
     bool checkForData(Molecule* mol);
     void setupPlot(PlotWidget * plot);
-
+    
     void getCalculatedPlotObject(PlotObject *plotObject);
+  //  void setImportedData(const QList<double> & xList, const QList<double> & yList);
+  //  void getImportedPlotObject(PlotObject *plotObject);
     QString getTSV();
     QString getDataStream(PlotObject *plotObject);
-  private slots:
-    void updateT(double);
-    void updateW(double);
-
   private:
-    double m_W;
-    double m_T;
-    QList<double> m_yList_orig;
+
   };
 }
 

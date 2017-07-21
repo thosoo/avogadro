@@ -29,6 +29,7 @@ namespace Avogadro {
     
   enum ScalingType { LINEAR, RELATIVE };
 
+
   // Abstract data type - no instance of it can be created
   class AbstractIRSpectra : public SpectraType
   {
@@ -51,6 +52,7 @@ namespace Avogadro {
     void fwhmSliderPressed();
     void fwhmSliderReleased();    
     void changeScalingType(int);
+    void changeLineShape(int);
     void updateYAxis(QString);
     void rescaleFrequencies();
 
@@ -64,6 +66,8 @@ namespace Avogadro {
     QString m_yaxis;
     QList<double> m_xList_orig;
     ScalingType m_scalingType;
+    LineShape m_lineShape;         // gaussian or lorentzian peaks
+    int m_nPoints;                 // number of points of gaussian/lorentzian pulse
   };
 }
 

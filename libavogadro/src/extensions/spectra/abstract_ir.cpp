@@ -24,7 +24,8 @@ using namespace std;
 
 namespace Avogadro {
   AbstractIRSpectra::AbstractIRSpectra( SpectraDialog *parent ) :
-    SpectraType( parent ), m_scale(0.0), m_fwhm(0.0), m_labelYThreshold(0.0)
+    SpectraType( parent ), m_scale(0.0), m_fwhm(0.0), m_labelYThreshold(0.0),
+    m_lineShape(GAUSSIAN), m_nPoints(10)
     {
     ui.setupUi(m_tab_widget);
 
@@ -51,10 +52,14 @@ namespace Avogadro {
             this, SLOT(fwhmSliderReleased()));
     connect(ui.hs_FWHM, SIGNAL(valueChanged(int)),
             this, SLOT(updateFWHMSpin(int)));
+    connect(ui.spin_nPoints, SIGNAL(valueChanged(int)),
+            this, SIGNAL(plotDataChanged()));
     connect(ui.combo_yaxis, SIGNAL(currentIndexChanged(QString)),
             this, SLOT(updateYAxis(QString)));
     connect(ui.combo_scalingType, SIGNAL(currentIndexChanged(int)),
             this, SLOT(changeScalingType(int)));
+    connect(ui.combo_lineShape, SIGNAL(currentIndexChanged(int)),
+            this, SLOT(changeLineShape(int)));
   }
 
   void AbstractIRSpectra::getCalculatedPlotObject(PlotObject *plotObject) {
@@ -80,9 +85,12 @@ namespace Avogadro {
     } // End singlets
 
     else { // Get gaussians
-      // convert FWHM to sigma squared
-      gaussianWiden(plotObject, m_fwhm);
-
+        m_nPoints = ui.spin_nPoints->value();
+        if (m_lineShape == GAUSSIAN) {
+            gaussianWiden(plotObject, m_fwhm, m_nPoints);
+        } else {
+            lorentzianWiden (plotObject, m_fwhm, m_nPoints);
+        }
       // Normalization is probably screwed up, so renormalize the data
       double min, max;
       min = max = plotObject->points().first()->y();
@@ -183,6 +191,11 @@ namespace Avogadro {
   {
     m_scalingType = static_cast<ScalingType>(type);
     rescaleFrequencies();
+  }
+  void AbstractIRSpectra::changeLineShape(int type)
+  {
+    m_lineShape = static_cast<LineShape>(type);
+    emit plotDataChanged();
   }
 
   void AbstractIRSpectra::toggleLabels(bool enabled)

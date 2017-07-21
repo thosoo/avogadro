@@ -49,6 +49,7 @@ namespace Avogadro {
     //void setImportedData(const QList<double> & xList, const QList<double> & yList);
     //void getImportedPlotObject(PlotObject *plotObject);
     QString getTSV();
+    QString getDataStream(PlotObject *plotObject);
 
   private slots:
     void rotatoryTypeChanged(const QString & str);
@@ -57,6 +58,11 @@ namespace Avogadro {
     Ui::Tab_CD ui;
     QList<double> *m_yListVelocity, *m_yListLength;
     double m_fermi;
+
+    XUnits m_XUnit;
+    std::vector<double> m_wavelength;
+    std::vector<double> m_wavenumber;
+    std::vector<double> m_energy;
   };
 }
 

@@ -85,7 +85,17 @@ namespace Avogadro {
     }
     return str;
   }
-
+  QString SpectraType::getDataStream( PlotObject *plotObject, QString xTitle, QString yTitle)
+  {
+    QString str;
+    QTextStream out (&str);
+    QString format = "%1\t%2\n";
+    out << xTitle << "\t" << yTitle << "\n";
+    for(int i = 0; i< plotObject->points().size(); i++) {
+      out << format.arg(plotObject->points().at(i)->x(), 6, 'g').arg(plotObject->points().at(i)->y(), 6, 'g');
+    }
+    return str;
+  }
   void SpectraType::updateDataTable()
   {
     if ((!m_dialog) || (m_xList.size()==0))
@@ -93,11 +103,21 @@ namespace Avogadro {
     //m_dialog->getUi()->dataTable->clear();
     m_dialog->getUi()->dataTable->setRowCount(m_xList.size());
     QString format("%1");
+    int xfmtsize = 2;
+    int yfmtsize = 3;
+    if (abs(m_xList.at(0) - m_xList.at(m_xList.size()-1)) < 10) xfmtsize = 4;
+    yfmtsize = 6;
+    for (int i = 0; i < m_yList.size(); i++) {
+        if (m_yList.at(i) > 1.) {
+            yfmtsize = 3;
+            break;
+        }
+    }
     for (int i = 0; i < m_xList.size(); i++) {
-      QString xString = format.arg(m_xList.at(i), 0, 'f', 2);
+      QString xString = format.arg(m_xList.at(i), 0, 'f', xfmtsize);
       QString yString;
       if (i < m_yList.size()) {
-        yString = format.arg(m_yList.at(i), 0, 'f', 3);
+        yString = format.arg(m_yList.at(i), 0, 'f', yfmtsize);
       } else {
         yString = "-";
       }
@@ -118,23 +138,24 @@ namespace Avogadro {
   QList<double> SpectraType::getXPoints(double FWHM, uint dotsPerPeak)
   {
     QList<double> xPoints;
+
     for (int i = 0; i < m_xList.size(); i++) {
-      double x = m_xList.at(i) - (2*FWHM);
-      for (uint j = 0; j < dotsPerPeak; j++) {
-        xPoints << x;
-        x += 4*FWHM / (int(dotsPerPeak));
-      }
+        double x = m_xList.at(i) - (2*FWHM);
+        for (uint j = 0; j < dotsPerPeak; j++) {
+            xPoints << x;
+            x += 4*FWHM / (int(dotsPerPeak));
+        }
     }
     qSort(xPoints);
     return xPoints;
   }
 
-  void SpectraType::gaussianWiden(PlotObject *plotObject, const double fwhm)
+  void SpectraType::gaussianWiden(PlotObject *plotObject, const double fwhm, const int nPoints)
   {
       double s2	= pow( (fwhm / (2.0 * sqrt(2.0 * log(2.0)))), 2.0);
 
       // create points
-      QList<double> xPoints = getXPoints(fwhm, 10);
+      QList<double> xPoints = getXPoints(fwhm, nPoints);
       for (int i = 0; i < xPoints.size(); i++) {
         double x = xPoints.at(i);// already scaled!
         double y = 0;
@@ -146,7 +167,23 @@ namespace Avogadro {
         plotObject->addPoint(x,y);
       }
   }
+  void SpectraType::lorentzianWiden(PlotObject *plotObject, const double fwhm,const int nPoints)
+  {
+      double hwhm = fwhm/2.;
 
+      // create points
+      QList<double> xPoints = getXPoints(fwhm, nPoints);
+      for (int i = 0; i < xPoints.size(); i++) {
+        double x = xPoints.at(i);// already scaled!
+        double y = 0;
+        for (int j = 0; j < m_yList.size(); j++) {
+          double t = m_yList.at(j);
+          double x0 = m_xList.at(j);// already scaled!
+          y += t * hwhm /(M_PI *((x - x0)*(x - x0) + hwhm*hwhm));
+        }
+        plotObject->addPoint(x,y);
+      }
+  }
   void SpectraType::assignGaussianLabels(PlotObject *plotObject, bool findMax, double yThreshold)
   {
     for(int i = 1; i< plotObject->points().size()-1; i++) { // No border extremal points

@@ -173,6 +173,8 @@ namespace Avogadro
 
   void GaussianInputDialog::setMolecule(Molecule *molecule)
   {
+      qDebug() << " molecule = " << molecule;
+      qDebug() << "m_molecule = " << m_molecule;
     // Disconnect the old molecule first...
     if (m_molecule) {
       disconnect(m_molecule, 0, this, 0);

@@ -51,6 +51,8 @@ namespace Avogadro {
     settings.setValue("spectra/IR/gaussianWidth", m_fwhm);
     settings.setValue("spectra/IR/labelPeaks", ui.cb_labelPeaks->isChecked());
     settings.setValue("spectra/IR/yAxisUnits", ui.combo_yaxis->currentText());
+    settings.setValue("spectra/IR/lineShape", ui.combo_lineShape->currentIndex());
+    settings.setValue("spectra/IR/nPoints", ui.spin_nPoints->value());
   }
 
   void IRSpectra::readSettings() {
@@ -66,6 +68,10 @@ namespace Avogadro {
     updateYAxis(yunit);
     if (yunit == "Absorbance (%)")
       ui.combo_yaxis->setCurrentIndex(1);
+
+    ui.combo_lineShape->setCurrentIndex(settings.value("spectra/IR/lineShape", GAUSSIAN).toInt());
+    m_lineShape = LineShape(ui.combo_lineShape->currentIndex());
+    ui.spin_nPoints->setValue(settings.value("spectra/IR/nPoints",10).toInt());
     emit plotDataChanged();
   }
 
@@ -171,5 +177,9 @@ namespace Avogadro {
   QString IRSpectra::getTSV() {
     return SpectraType::getTSV("Frequencies", "Intensities");
   }
-  
+
+  QString IRSpectra::getDataStream(PlotObject *plotObject)
+  {
+      return SpectraType::getDataStream (plotObject, "Frequencies", "Intensities");
+  }
 }

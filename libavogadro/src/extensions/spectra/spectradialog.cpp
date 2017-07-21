@@ -26,6 +26,8 @@
 #include "uv.h"
 #include "cd.h"
 #include "raman.h"
+#include "xray_em.h"
+#include "xray_abs.h"
 
 #include <QtGui/QPen>
 #include <QtGui/QColor>
@@ -71,7 +73,8 @@ namespace Avogadro {
     m_spectra_uv = new UVSpectra(this);
     m_spectra_cd = new CDSpectra(this);
     m_spectra_raman = new RamanSpectra(this);
-
+    m_spectra_xray_abs = new XRayAbsSpectra(this);
+    m_spectra_xray_em = new XRayEmissionSpectra(this);
     // Initialize vars
     m_schemes = new QList<QHash<QString, QVariant> >;
 
@@ -79,6 +82,7 @@ namespace Avogadro {
     ui.tab_widget->hide();
     ui.dataTable->hide();
     ui.push_exportData->hide();
+    ui.push_exportDressedData->hide();
 
     // setting the limits for the plot
     ui.plot->setAntialiasing(true);
@@ -130,6 +134,8 @@ namespace Avogadro {
             this, SLOT(exportSpectra()));
     connect(ui.push_exportData, SIGNAL(clicked()),
             this, SLOT(exportSpectra()));
+    connect(ui.push_exportDressedData, SIGNAL(clicked()),
+            this, SLOT(exportDressedSpectra()));
     connect(ui.plot, SIGNAL(mouseOverPoint(double,double)),
             this, SLOT(showCoordinates(double,double)));
 
@@ -155,6 +161,8 @@ namespace Avogadro {
     delete m_spectra_uv;
     delete m_spectra_cd;
     delete m_spectra_raman;
+    delete m_spectra_xray_em;
+    delete m_spectra_xray_abs;
   }
 
   void SpectraDialog::setMolecule(Molecule *molecule)
@@ -170,7 +178,8 @@ namespace Avogadro {
     m_spectra_uv->clear();
     m_spectra_cd->clear();
     m_spectra_raman->clear();
-
+    m_spectra_xray_abs->clear();
+    m_spectra_xray_em->clear();
     updatePlot();
 
     // set the filename in the image export widget
@@ -231,8 +240,20 @@ namespace Avogadro {
       ui.tab_widget->addTab(m_spectra_raman->getTabWidget(), tr("&Raman Settings"));
     }
 
+    // Check for X-Ray absorption data
+    bool hasXRay_abs = m_spectra_xray_abs->checkForData(m_molecule);
+    if (hasXRay_abs) {
+      ui.combo_spectra->addItem(tr("X-Ray Abs", "X-Ray absorption spectrum"));
+      ui.tab_widget->addTab(m_spectra_xray_abs->getTabWidget(), tr("&X-Ray Abs. Settings"));
+    }
+    // Check for X-Ray emission data
+    bool hasXRay_em = m_spectra_xray_em->checkForData(m_molecule);
+    if (hasXRay_em) {
+      ui.combo_spectra->addItem(tr("X-Ray Em", "X-Ray emission spectrum"));
+      ui.tab_widget->addTab(m_spectra_xray_em->getTabWidget(), tr("&X-Ray Em. Settings"));
+    }
     // Change this when other spectra are added!!
-    if (!hasIR && !hasNMR && !hasDOS && !hasUV && !hasCD && !hasRaman) { // Actions if there are no spectra loaded
+    if (!hasIR && !hasNMR && !hasDOS && !hasUV && !hasCD && !hasRaman && !hasXRay_abs && !hasXRay_em) { // Actions if there are no spectra loaded
       qWarning() << "SpectraDialog::setMolecule: No spectra available!";
       ui.combo_spectra->addItem(tr("No data"));
       ui.push_colorCalculated->setEnabled(false);
@@ -498,6 +519,27 @@ namespace Avogadro {
     file.close();
   }
 
+  void SpectraDialog::exportDressedSpectra()
+  {
+    // Prepare filename
+    QFileInfo defaultFile(m_molecule->fileName());
+    QString defaultPath = defaultFile.canonicalPath();
+    if (defaultPath.isEmpty()) {
+      defaultPath = QDir::homePath();
+    }
+    QString defaultFileName = defaultPath + '/' + defaultFile.baseName() + ".tsv";
+    QString filename = QFileDialog::getSaveFileName(this, tr("Export Dressed Calculated Spectrum"), defaultFileName, tr("Tab Separated Values (*.tsv)"));
+
+    // Open file
+    QFile file (filename);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+      qWarning() << "Cannot open file " << filename << " for writing!";
+      return;
+    }
+    QTextStream out(&file);
+    if (currentSpectra()) out << currentSpectra()->getDataStream(m_calculatedSpectra);
+    file.close();
+  }
   void SpectraDialog::importSpectra()
   {
     // Setup filename
@@ -979,32 +1021,35 @@ namespace Avogadro {
     updatePlot();
   }
 
-  void SpectraDialog::toggleAdvanced() {
-    if (ui.tab_widget->isHidden()) {
-      ui.push_advanced->setText(tr("&Advanced <<"));
-      ui.tab_widget->show();
-      ui.dataTable->show();
-      ui.push_exportData->show();
-      QSize s = size();
-      s.setWidth(s.width() + ui.dataTable->size().width());
-      s.setHeight(s.height() + ui.tab_widget->size().height());
-      QRect rect = QApplication::desktop()->screenGeometry();
-      if (s.width() > rect.width() || s.height() > rect.height())
-        s = rect.size()*0.9;
-      resize(s);
-      move(rect.width()/2 - s.width()/2, rect.height()/2 - s.height()/2);
-    }
-    else {
-      ui.push_advanced->setText(tr("&Advanced >>"));
-      QSize s = size();
-      s.setWidth(s.width() - ui.dataTable->size().width());
-      s.setHeight(s.height() - ui.tab_widget->size().height());
-      resize(s);
-      ui.tab_widget->hide();
-      ui.dataTable->hide();
-      ui.push_exportData->hide();
-      QRect rect = QApplication::desktop()->screenGeometry();
-      move(rect.width()/2 - s.width()/2, rect.height()/2 - s.height()/2);
+  void SpectraDialog::toggleAdvanced()
+  {
+      if (ui.tab_widget->isHidden()) {
+          ui.push_advanced->setText(tr("&Advanced <<"));
+          ui.tab_widget->show();
+          ui.dataTable->show();
+          ui.push_exportData->show();
+          ui.push_exportDressedData->show();
+          QSize s = size();
+          s.setWidth(s.width() + ui.dataTable->size().width());
+          s.setHeight(s.height() + ui.tab_widget->size().height());
+          QRect rect = QApplication::desktop()->screenGeometry();
+          if (s.width() > rect.width() || s.height() > rect.height())
+              s = rect.size()*0.9;
+          resize(s);
+          move(rect.width()/2 - s.width()/2, rect.height()/2 - s.height()/2);
+      }
+      else {
+        ui.push_advanced->setText(tr("&Advanced >>"));
+        QSize s = size();
+        s.setWidth(s.width() - ui.dataTable->size().width());
+        s.setHeight(s.height() - ui.tab_widget->size().height());
+        resize(s);
+        ui.tab_widget->hide();
+        ui.dataTable->hide();
+        ui.push_exportData->hide();
+        ui.push_exportDressedData->hide();
+        QRect rect = QApplication::desktop()->screenGeometry();
+        move(rect.width()/2 - s.width()/2, rect.height()/2 - s.height()/2);
     }
   }
 
@@ -1030,7 +1075,7 @@ namespace Avogadro {
     QList< PlotPoint* > pointList;
     PlotObject *obj;
     PlotPoint *p;
-    double minX=0, maxX=0, minY=0, maxY=0, x=0, y=0;
+    double minX=9.9e30, maxX=0, minY=9.9e30, maxY=0, x=0, y=0;
     double x1, x2, y1, y2;
     foreach(obj, plotObjectList) {
       foreach (p, obj->points()) {
@@ -1057,8 +1102,11 @@ namespace Avogadro {
       y1 = minY-(maxY-minY)*0.1;
       y2 = maxY+(maxY-minY)*0.03;
     }
-    QRectF dataRect(x1,y1,x2,y2);
+
+    QRectF dataRect ( x1, y1, x2 - x1, y2 - y1 );
+
     QRectF fullRect(defaultRect.united(dataRect));
+
     if (defaultRect.width() < 0) {
       x1 = fullRect.left();
       x2 = fullRect.right();
@@ -1072,7 +1120,7 @@ namespace Avogadro {
       fullRect.setTop(x1);
     }
     ui.plot->setDefaultLimits(fullRect);
-    //qDebug() << fullRect.left() << fullRect.right() << fullRect.top() << fullRect.bottom();
+
     ui.plot->update();
   }
 
@@ -1096,9 +1144,14 @@ namespace Avogadro {
     else if (m_spectra == "UV")
       return m_spectra_uv;
     else if (m_spectra == "CD")
-      return m_spectra_cd;
+        return m_spectra_cd;
     else if (m_spectra == "Raman")
-      return m_spectra_raman;
+        return m_spectra_raman;
+    else if (m_spectra == "X-Ray Abs")
+        return m_spectra_xray_abs;
+    else if (m_spectra == "X-Ray Em")
+        return m_spectra_xray_em;
+
     return NULL;
   }
 
