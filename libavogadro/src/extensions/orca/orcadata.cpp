@@ -172,7 +172,7 @@ QString OrcaBasicData::getMethodTxt()
 QString OrcaBasicData::getBasisTxt()
 {
     // Translate the enum basis set to normal text
-    // enum basisType {SVP, TZVP, TZVPP, QZVP }
+    // enum basisType {SVP, TZVP, TZVPP, QZVPP }
     QString returnBasis = m_enumBasis.valueToKey(m_basisType);
     returnBasis.prepend("def2-");
     return returnBasis;
@@ -184,8 +184,8 @@ QString OrcaBasicData::getBasisTxt()
 //        return "def2-TZVP";
 //    case TZVPP:
 //        return "def2-TZVPP";
-//    case QZVP:
-//        return "def2-QZVP";
+//    case QZVPP:
+//        return "def2-QZVPP";
 //    default:
 //        return "";
 //    }
@@ -195,12 +195,12 @@ QString OrcaBasicData::getFormatTxt()
 {
     switch (m_coordsType)
     {
-    case ZMATRIX:
-        return "z-Matrix";
     case CARTESIAN:
-        return "*xyz";
+        return "* xyz";
+    case INTERNAL_COORDS:
+        return "* int";
     case ZMATRIX_COMPACT:
-        return "z-Matrix compact";
+        return "* gzmt";
     default:
         return "";
     }
@@ -212,34 +212,38 @@ OrcaBasisData::OrcaBasisData()
      m_auxBasis = OrcaExtension::SVP;
      m_auxCorrBasis = OrcaExtension::SVP;
 
-     m_useEPC = false;
-     m_useAuxEPC = false;
-     m_useAuxCorrEPC = false;
-     m_useRel = false;
-     m_useDKH = false;
-     m_rel = ZORA;
-     m_DKHOrder = 0;
+//     m_useEPC = false;
+
+//     m_useAuxEPC = false;
+//     m_useAuxCorrEPC = false;
+//     m_useRel = false;
+//     m_useDKH = false;
+//     m_rel = ZORA;
+//     m_DKHOrder = 0;
 }
 void OrcaBasisData::reset()
 {
      m_basis= OrcaExtension::SVP;
      m_auxBasis = OrcaExtension::SVP;
      m_auxCorrBasis = OrcaExtension::SVP;
-     m_useEPC = false;
-     m_useAuxEPC = false;
-     m_useAuxCorrEPC = false;
-     m_useRel = false;
-     m_useDKH = false;
-     m_rel = ZORA;
-     m_DKHOrder = 0;
+//     m_useEPC = false;
+//     m_useAuxEPC = false;
+//     m_useAuxCorrEPC = false;
+//     m_useRel = false;
+//     m_useDKH = false;
+//     m_rel = ZORA;
+//     m_DKHOrder = 0;
 }
 QString OrcaBasisData::getBasisTxt()
 {
     // Translate the enum basis set to normal text
-    // enum basisType {SVP, TZVP, TZVPP, QZVP }
+    // enum basisType {SVP, TZVP, TZVPP, QZVPP }
 
     QString returnBasis = m_enumBasis.valueToKey(m_basis);
     returnBasis.prepend("def2-");
+//    if (m_useEPC && !m_useRel) {
+//        returnBasis.append("-AE");
+//    }
     return returnBasis;
 
 }
@@ -249,41 +253,44 @@ QString OrcaBasisData::getAuxBasisTxt()
 {
     // Translate the enum basis set to normal text
     // used as auxilary basis
-    // enum basisType {SVP, TZVP, TZVPP, QZVP }
+    // enum basisType {SVP, TZVP, TZVPP, QZVPP }
 
-    QString returnBasis = m_enumBasis.valueToKey(m_auxBasis);
-    returnBasis.prepend("def2-");
-    returnBasis.append("/J");
-    return returnBasis;
+//    QString returnBasis = m_enumBasis.valueToKey(m_auxBasis);
+//    returnBasis.prepend("def2-");
+//    if (m_useEPC || m_useRel) {
+//        returnBasis.append("-AE");
+//    }
+//    returnBasis.append("/J");
+//    return returnBasis;
+    return "def2/J";
 }
 
 QString OrcaBasisData::getAuxCorrBasisTxt()
 {
     // Translate the enum basis set to normal text
     // used as correlation auxilary basis
-    // enum basisType {SVP, TZVP, TZVPP, QZVP }
+    // enum basisType {SVP, TZVP, TZVPP, QZVPP }
 
     QString returnBasis = m_enumBasis.valueToKey(m_auxCorrBasis);
     returnBasis.prepend("def2-");
     returnBasis.append("/C");
     return returnBasis;
+
 }
 
-QString OrcaBasisData::getRelTxt ()
-{
+//QString OrcaBasisData::getRelTxt ()
+//{
 
-    switch (m_rel)
-    {
-    case ZORA:
-        return "ZORA";
-    case IORA:
-        return "IORA";
-    case DKH:
-        return "DKH";
-    default:
-        return "";
-    }
-}
+//    switch (m_rel)
+//    {
+//    case ZORA:
+//        return "ZORA";
+//    case DKH:
+//        return "DKH";
+//    default:
+//        return "";
+//    }
+//}
 OrcaControlData::OrcaControlData()
 {
     m_multiplicity = 1;
@@ -492,10 +499,10 @@ QString OrcaDataData::getFormatTxt()
 {
     switch (m_coordsType)
     {
-    case ZMATRIX:
-        return "z-Matrix";
     case CARTESIAN:
         return "Cartesian";
+    case INTERNAL_COORDS:
+        return "Internal";
     case ZMATRIX_COMPACT:
         return "z-Matrix compact";
     default:

@@ -100,13 +100,13 @@ namespace Avogadro {
         void setBasisBasisSet(int n);
         void setBasisAuxBasisSet (int n);
         void setBasisAuxCorrBasisSet(int n);
-        void setBasisUseEPC (bool value);
-        void setBasisUseAuxEPC (bool value);
-        void setBasisUseAuxCorrEPC (bool value);
+//        void setBasisUseEPC (bool value);
+//        void setBasisUseAuxEPC (bool value);
+//        void setBasisUseAuxCorrEPC (bool value);
 
-        void setBasisUseRel (bool value);
-        void setBasisRel (int n);
-        void setBasisDKHOrder (int n);
+//        void setBasisUseRel (bool value);
+//        void setBasisRel (int n);
+//        void setBasisDKHOrder (int n);
 
         // Advanced Control Slots
 

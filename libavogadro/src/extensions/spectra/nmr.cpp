@@ -121,7 +121,7 @@ namespace Avogadro {
     else { // Get gaussians
       // convert FWHM to sigma squared
       double FWHM = ui.spin_FWHM->value();
-      gaussianWiden(plotObject, FWHM);
+      gaussianWiden(plotObject, FWHM,10);
       /*double s2	= pow( (FWHM / (2.0 * sqrt(2.0 * log(2.0)))), 2.0);
 
       // create points

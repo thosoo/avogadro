@@ -35,6 +35,8 @@
 
 namespace Avogadro {
 
+  enum LineShape { GAUSSIAN, LORENTZIAN , VOIGT};
+
   class SpectraDialog;
 
   // Abstract data type - no instance of it can be created
@@ -66,7 +68,8 @@ namespace Avogadro {
     QString getTSV(QString xTitle, QString yTitle);
     QString getDataStream(PlotObject *plotObject, QString xTitle, QString yTitle);
     void clear();
-    void gaussianWiden(PlotObject *plotObject, const double fwhm);
+    void gaussianWiden(PlotObject *plotObject, const double fwhm, const int nPoints);
+    void lorentzianWiden(PlotObject *plotObject, const double fwhm, const int nPoints);
     static void assignGaussianLabels(PlotObject *plotObject, bool findMax, double yThreshold=0);
 
   signals:
@@ -76,6 +79,9 @@ namespace Avogadro {
     SpectraDialog *m_dialog;
     QWidget *m_tab_widget;
     QList<double> m_xList, m_yList, m_xList_imp, m_yList_imp;
+    double m_yListMax;
+
+
   };
 }
 

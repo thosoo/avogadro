@@ -19,50 +19,44 @@
 
 //#ifdef OPENBABEL_IS_NEWER_THAN_2_2_99
 
-#ifndef SPECTRATYPE_CD_H
-#define SPECTRATYPE_CD_H
+#ifndef SPECTRATYPE_XRAY_ABS_H
+#define SPECTRATYPE_XRAY_ABS_H
 
-#include <QHash>
-#include <QVariant>
+#include <QtCore/QHash>
+#include <QtCore/QVariant>
 
 #include "spectradialog.h"
-#include "spectratype.h"
-#include "ui_tab_cd.h"
+#include "abstract_xray.h"
+//#include "spectratype.h"
+#include "ui_tab_xray.h"
 
 namespace Avogadro {
 
-  class CDSpectra : public SpectraType
+
+#define cm_1_to_nm  1.e7
+#define eV_to_nm  1.e7/8065.54477
+
+  class XRayAbsSpectra : public AbstractXRaySpectra
   {
     Q_OBJECT
 
   public:
-    CDSpectra( SpectraDialog *parent = 0 );
-    ~CDSpectra();
+    XRayAbsSpectra( SpectraDialog *parent = 0 );
+    ~XRayAbsSpectra();
 
     void writeSettings();
     void readSettings();
 
     bool checkForData(Molecule* mol);
     void setupPlot(PlotWidget * plot);
-
+    
     void getCalculatedPlotObject(PlotObject *plotObject);
-    //void setImportedData(const QList<double> & xList, const QList<double> & yList);
-    //void getImportedPlotObject(PlotObject *plotObject);
+  //  void setImportedData(const QList<double> & xList, const QList<double> & yList);
+  //  void getImportedPlotObject(PlotObject *plotObject);
     QString getTSV();
     QString getDataStream(PlotObject *plotObject);
-
-  private slots:
-    void rotatoryTypeChanged(const QString & str);
-
   private:
-    Ui::Tab_CD ui;
-    QList<double> *m_yListVelocity, *m_yListLength;
-    double m_fermi;
 
-    XUnits m_XUnit;
-    std::vector<double> m_wavelength;
-    std::vector<double> m_wavenumber;
-    std::vector<double> m_energy;
   };
 }
 
