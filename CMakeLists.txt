@@ -69,7 +69,7 @@ if (CMAKE_COMPILER_IS_GNUCXX)
   # Now check if we can use visibility to selectively export symbols
   # Get the GCC version - from KDE4 cmake files
   exec_program(${CMAKE_C_COMPILER} ARGS --version OUTPUT_VARIABLE	_gcc_version_info)
-  string (REGEX MATCH "[345]\\.[0-9]\\.[0-9]" _gcc_version "${_gcc_version_info}")
+  string (REGEX MATCH "[3-9]\\.[0-9]\\.[0-9]" _gcc_version "${_gcc_version_info}")
   # gcc on mac just reports: "gcc (GCC) 3.3 20030304 ..." without the
   # patch level, handle this here:
   if (NOT _gcc_version)
@@ -231,14 +231,7 @@ if(NOT Linguist_FOUND)
   message(WARNING " Qt4 Linguist not found, please install it if you want Avogadro translations")
 endif()
 
-find_package(Eigen3) # find and setup Eigen3 if available
-if(NOT EIGEN3_FOUND)
-   message(STATUS "Cannot find Eigen3, trying Eigen2")
-   find_package(Eigen2 REQUIRED) # Some version is required
-else()
-# Use Stage10 Eigen3 support
-   set (EIGEN2_SUPPORT_STAGE10_FULL_EIGEN2_API TRUE)
-endif()
+find_package(Eigen3 REQUIRED) # find and setup Eigen3 if available
 
 find_package(ZLIB REQUIRED)
 find_package(OpenBabel2 REQUIRED) # find and setup OpenBabel

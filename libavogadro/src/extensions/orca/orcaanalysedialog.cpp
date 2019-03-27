@@ -41,7 +41,6 @@
 #include <openbabel/mol.h>
 
 #include <Eigen/Geometry>
-#include <Eigen/LeastSquares>
 
 #include <vector>
 
@@ -307,7 +306,7 @@ bool OrcaAnalyseDialog::createAnimation()
 
     m_animation->setFrame(1);
     m_animation->setFps(10);
-    m_animation->setLoopCount(0);
+    m_animation->setLoop(true);
     m_animation->setFrames(m_curFrames);
     m_animation->setMolecule(m_molecule);
 
