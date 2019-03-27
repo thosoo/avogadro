@@ -99,7 +99,8 @@ namespace Avogadro {
     // Store in member vars
     m_xList.clear();
     m_yList.clear();
-
+    m_yListVelocity->clear();
+    m_yListLength->clear();
 
     switch (m_XUnit) {
 
@@ -126,7 +127,6 @@ namespace Avogadro {
       m_yListLength->append(rotl.at(i));
     for (uint i = 0; i < rotv.size(); i++)
       m_yListVelocity->append(rotv.at(i));
-
 
     rotatoryTypeChanged(ui.combo_rotatoryType->currentText());
 
@@ -259,6 +259,7 @@ namespace Avogadro {
       m_yList = (*m_yListVelocity);
     else if (str == "Length")
       m_yList = (*m_yListLength);
+
     emit plotDataChanged();
   }
 
