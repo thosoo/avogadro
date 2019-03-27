@@ -19,7 +19,7 @@
 
 #include <openbabel/generic.h>
 
-#include "xray_abs.h"
+#include "emission.h"
 #include "spectradialog.h"
 
 #include <QtGui/QMessageBox>
@@ -31,8 +31,8 @@ using namespace std;
 
 namespace Avogadro {
 
-XRayAbsSpectra::XRayAbsSpectra( SpectraDialog *parent ) :
-    AbstractXRaySpectra( parent )
+OrcaEmissionSpectra::OrcaEmissionSpectra( SpectraDialog *parent ) :
+    AbstractOrcaSpectra( parent )
 {
     readSettings();
     if (m_lineShape == GAUSSIAN || m_lineShape == LORENTZIAN) {
@@ -46,40 +46,41 @@ XRayAbsSpectra::XRayAbsSpectra( SpectraDialog *parent ) :
     }
 }
 
-XRayAbsSpectra::~XRayAbsSpectra() {
+OrcaEmissionSpectra::~OrcaEmissionSpectra() {
     // TODO: Anything to delete?
     writeSettings();
 }
 
-void XRayAbsSpectra::writeSettings() {
+void OrcaEmissionSpectra::writeSettings() {
     QSettings settings; // Already set up in avogadro/src/main.cpp
-    settings.setValue("spectra/XRay/Absoprtion/gaussianWidth", ui.spin_FWHM->value());
-    settings.setValue("spectra/XRay/Absoprtion/labelPeaks", ui.cb_labelPeaks->isChecked());
-    settings.setValue("spectra/XRay/Absoprtion/XUnits", ui.combo_XUnit->currentIndex());
-    settings.setValue("spectra/XRay/Absoprtion/lineShape", ui.combo_lineShape->currentIndex());
-    settings.setValue("spectra/XRay/Absorption/nPoints", ui.spin_nPoints->value());
+    settings.setValue("spectra/Orca/Emission/gaussianWidth", ui.spin_FWHM->value());
+    settings.setValue("spectra/Orca/Emission/labelPeaks", ui.cb_labelPeaks->isChecked());
+    settings.setValue("spectra/Orca/Emission/XUnits", ui.combo_XUnit->currentIndex());
+    settings.setValue("spectra/Orca/Emission/nPoints", ui.spin_nPoints->value());
+    settings.setValue("spectra/Orca/Emission/lineShape", ui.combo_lineShape->currentIndex());
 }
 
-void XRayAbsSpectra::readSettings() {
+void OrcaEmissionSpectra::readSettings() {
     QSettings settings; // Already set up in avogadro/src/main.cpp
-    ui.spin_FWHM->setValue(settings.value("spectra/XRay/Absoprtion/gaussianWidth",0.0).toDouble());
-    ui.cb_labelPeaks->setChecked(settings.value("spectra/XRay/Absoprtion/labelPeaks",false).toBool());
-    ui.spin_nPoints->setValue(settings.value("spectra/XRay/Absoprtion/nPoints",10).toInt());
-    ui.combo_lineShape->setCurrentIndex(settings.value("spectra/XRay/Absoprtion/lineShape", GAUSSIAN).toInt());
+    ui.spin_FWHM->setValue(settings.value("spectra/Orca/Emission/gaussianWidth",0.0).toDouble());
+    ui.cb_labelPeaks->setChecked(settings.value("spectra/Orca/Emission/labelPeaks",false).toBool());
+    ui.spin_nPoints->setValue(settings.value("spectra/Orca/Emission/nPoints",10).toInt());
+    ui.combo_lineShape->setCurrentIndex(settings.value("spectra/Orca/Emission/lineShape", GAUSSIAN).toInt());
     m_lineShape = LineShape(ui.combo_lineShape->currentIndex());
-    ui.combo_XUnit->setCurrentIndex(settings.value("spectra/XRay/Absoprtion/XUnits", WAVELENGTH).toInt());
+
+    ui.combo_XUnit->setCurrentIndex(settings.value("spectra/Orca/Emission/XUnits", WAVELENGTH).toInt());
     m_XUnit = XUnits(ui.combo_XUnit->currentIndex());
 //    m_EnergyShift = ui.spin_EnergyShift;
 }
 
-bool XRayAbsSpectra::checkForData(Molecule * mol) {
+bool OrcaEmissionSpectra::checkForData(Molecule * mol) {
 
     OpenBabel::OBMol obmol = mol->OBMol();
-    OpenBabel::OBXrayORCAData *osd = static_cast<OpenBabel::OBXrayORCAData*>(obmol.GetData("ORCASpectraData"));
+    OpenBabel::OBOrcaSpecData *osd = static_cast<OpenBabel::OBOrcaSpecData*>(obmol.GetData("OrcaSpectraData"));
 
     if (!osd) return false;
-    if (!osd->GetXRayData()) return false;
-    if (osd->GetAbsEDipole().size() == 0) return false;
+    if (!osd->GetSpecData()) return false;
+    if (osd->GetEmEDipole().size() == 0) return false;
 
     m_wavelength.resize(0);
     m_wavenumber.resize(0);
@@ -89,17 +90,17 @@ bool XRayAbsSpectra::checkForData(Molecule * mol) {
     std::vector<double> tmp_edipole, tmp_velosity, tmp_combined, tmp_D2, tmp_M2, tmp_Q2;
 
     // OK, we have valid data, so store them for later
-    m_wavelength = osd->GetAbsWavelengths();
+    m_wavelength = osd->GetEmWavelengths();
     // sort for ascending wavelength
     getSortIdx(m_wavelength);
 
-    tmp_edipole = osd->GetAbsEDipole();
-    if (osd->GetAbsVelocity().size() != 0)  tmp_velosity = osd->GetAbsVelocity();
-    if (osd->GetAbsCombined().size() != 0) {
-        tmp_combined = osd->GetAbsCombined();
-        tmp_D2 = osd->GetAbsD2();
-        tmp_M2 = osd->GetAbsM2();
-        tmp_Q2 = osd->GetAbsQ2();
+    tmp_edipole = osd->GetEmEDipole();
+    if (osd->GetEmVelosity().size() != 0)  tmp_velosity = osd->GetEmVelosity();
+    if (osd->GetEmCombined().size() != 0) {
+        tmp_combined = osd->GetEmCombined();
+        tmp_D2 = osd->GetEmD2();
+        tmp_M2 = osd->GetEmM2();
+        tmp_Q2 = osd->GetEmQ2();
     }
 
     // resort data
@@ -107,11 +108,11 @@ bool XRayAbsSpectra::checkForData(Molecule * mol) {
         m_edipole.push_back(tmp_edipole[m_idx[i]]);
     }
     for (uint i = 0; i < tmp_edipole.size(); i++){
-        if (osd->GetAbsCombined().size() != 0) {
+        if (osd->GetEmCombined().size() != 0) {
             m_combined.push_back(tmp_combined[m_idx[i]]);
-            m_D2.push_back(tmp_D2[m_idx[i]]*tmp_combined[m_idx[i]]);
-            m_M2.push_back(tmp_M2[m_idx[i]]*tmp_combined[m_idx[i]]);
-            m_Q2.push_back(tmp_Q2[m_idx[i]]*tmp_combined[m_idx[i]]);
+            m_D2.push_back(tmp_D2[m_idx[i]]);
+            m_M2.push_back(tmp_M2[m_idx[i]]);
+            m_Q2.push_back(tmp_Q2[m_idx[i]]);
         }
     }
 
@@ -124,6 +125,8 @@ bool XRayAbsSpectra::checkForData(Molecule * mol) {
     // Store in member vars
     m_xList.clear();
     m_yList.clear();
+
+    //    m_XUnit =  XUnits(ui.combo_XUnit->currentIndex());
     switch (m_XUnit) {
 
     case WAVELENGTH:
@@ -164,18 +167,18 @@ bool XRayAbsSpectra::checkForData(Molecule * mol) {
     ui.spin_Xmin->setValue(m_xmin);
     ui.spin_Xmax->setValue(m_xmax);
 
-    ui.combo_XRayType->clear();
-    if (m_edipole.size() != 0) ui.combo_XRayType->addItem("Transition Electric dipole");
-    if (m_velosity.size() != 0) ui.combo_XRayType->addItem("Electric velosity");
-    if (m_D2.size() != 0) ui.combo_XRayType->addItem("Electric dipole");
-    if (m_M2.size() != 0) ui.combo_XRayType->addItem("Magnetic dipole");
-    if (m_Q2.size() != 0) ui.combo_XRayType->addItem("Quadrupole dipole");
-    if (m_combined.size() != 0) ui.combo_XRayType->addItem("Combined");
-    XRayTypeChanged(ui.combo_XRayType->currentText());
+    ui.combo_OrcaSpecType->clear();
+    if (m_edipole.size() != 0) ui.combo_OrcaSpecType->addItem("Transition Electric dipole");
+    if (m_velosity.size() != 0) ui.combo_OrcaSpecType->addItem("Transition Electric velosity");
+    if (m_D2.size() != 0) ui.combo_OrcaSpecType->addItem("Electric dipole/total");
+    if (m_M2.size() != 0) ui.combo_OrcaSpecType->addItem("Magnetic dipole/total");
+    if (m_Q2.size() != 0) ui.combo_OrcaSpecType->addItem("Quadrupole dipole/total");
+    if (m_combined.size() != 0) ui.combo_OrcaSpecType->addItem("Combined");
+    OrcaSpecTypeChanged(ui.combo_OrcaSpecType->currentText());
     return true;
 }
 
-void XRayAbsSpectra::setupPlot(PlotWidget * plot) {
+void OrcaEmissionSpectra::setupPlot(PlotWidget * plot) {
     plot->scaleLimits();
     switch (m_XUnit) {
     case ENERGY_eV:
@@ -193,11 +196,12 @@ void XRayAbsSpectra::setupPlot(PlotWidget * plot) {
     plot->axis(PlotWidget::LeftAxis)->setLabel(tr("Intensity"));
 }
 
-void XRayAbsSpectra::getCalculatedPlotObject(PlotObject *plotObject){
-    AbstractXRaySpectra::getCalculatedPlotObject(plotObject);
+void OrcaEmissionSpectra::getCalculatedPlotObject(PlotObject *plotObject){
+    AbstractOrcaSpectra::getCalculatedPlotObject(plotObject);
 }
 
-QString XRayAbsSpectra::getTSV() {
+QString OrcaEmissionSpectra::getTSV()
+{
     switch (m_XUnit) {
     case ENERGY_eV:
         return SpectraType::getTSV ( "Energy (eV)" ,"Intensity");
@@ -213,7 +217,7 @@ QString XRayAbsSpectra::getTSV() {
         break;
     }
 }
-QString XRayAbsSpectra::getDataStream(PlotObject *plotObject)
+QString OrcaEmissionSpectra::getDataStream(PlotObject *plotObject)
 {
     switch (m_XUnit) {
     case ENERGY_eV:
@@ -223,7 +227,7 @@ QString XRayAbsSpectra::getDataStream(PlotObject *plotObject)
         return SpectraType::getDataStream ( plotObject, "Wavelength (nm)" ,"Intensity");
         break;
     case WAVENUMBER:
-        return SpectraType::getDataStream ( plotObject, "Wavenumber (cm-1)" ,"Intensity");
+        return SpectraType::getDataStream ( plotObject, "Wavenumber cm-1" ,"Intensity");
         break;
     default:
         return SpectraType::getDataStream ( plotObject, "Wavelength (nm)" ,"Intensity");

@@ -18,8 +18,7 @@
  ***********************************************************************/
 
 #include <openbabel/generic.h>
-
-#include "abstract_xray.h"
+#include "abstract_orcaspec.h"
 
 #include <QtGui/QMessageBox>
 #include <QtCore/QDebug>
@@ -28,9 +27,10 @@
 
 using namespace std;
 
+
 namespace Avogadro {
 
-AbstractXRaySpectra::AbstractXRaySpectra( SpectraDialog *parent ) :
+AbstractOrcaSpectra::AbstractOrcaSpectra( SpectraDialog *parent ) :
     SpectraType( parent ),m_lineShape(GAUSSIAN), m_nPoints(10)
 {
     ui.setupUi(m_tab_widget);
@@ -51,8 +51,8 @@ AbstractXRaySpectra::AbstractXRaySpectra( SpectraDialog *parent ) :
             this, SIGNAL(plotDataChanged()));
     connect(ui.combo_XUnit, SIGNAL(currentIndexChanged(int)),
             this, SIGNAL(plotDataChanged()));
-    connect(ui.combo_XRayType, SIGNAL(currentIndexChanged(QString)),
-            this, SLOT(XRayTypeChanged(QString)));
+    connect(ui.combo_OrcaSpecType, SIGNAL(currentIndexChanged(QString)),
+            this, SLOT(OrcaSpecTypeChanged(QString)));
 
     connect(ui.combo_lineShape, SIGNAL(currentIndexChanged(int)),
             this, SLOT(changeLineShape(int)));
@@ -65,14 +65,14 @@ AbstractXRaySpectra::AbstractXRaySpectra( SpectraDialog *parent ) :
     m_EnergyShift = ui.spin_EnergyShift->value();
     m_newShift = false;
 }
-void AbstractXRaySpectra::EnergyShiftSpinValueChanged(double value)
+void AbstractOrcaSpectra::EnergyShiftSpinValueChanged(double value)
 {
     m_EnergyShift = value;
     ui.hs_EnergyShift->setValue((int(m_EnergyShift)));
     m_newShift = true;
     emit plotDataChanged();
 }
-void AbstractXRaySpectra::EnergyShiftSilderValueChanged(int value)
+void AbstractOrcaSpectra::EnergyShiftSilderValueChanged(int value)
 {
     m_EnergyShift = double(value);
     ui.spin_EnergyShift->setValue(m_EnergyShift);
@@ -80,7 +80,7 @@ void AbstractXRaySpectra::EnergyShiftSilderValueChanged(int value)
     emit plotDataChanged();
 }
 
-void AbstractXRaySpectra::XRayTypeChanged(const QString & str)
+void AbstractOrcaSpectra::OrcaSpecTypeChanged(const QString & str)
 {
      m_yList.clear();
     int tmp_minIdx = m_XminIdx;
@@ -90,7 +90,8 @@ void AbstractXRaySpectra::XRayTypeChanged(const QString & str)
         tmp_maxIdx = m_XminIdx;
     }
     qDebug() << "str = " << str << endl;
-     if (str == "Electric dipole") {
+
+     if (str == "Transition Electric dipole") {
          for (int i = tmp_minIdx; i <= tmp_maxIdx; i++){
              m_yList.append(m_edipole.at(i));
          }
@@ -111,13 +112,13 @@ void AbstractXRaySpectra::XRayTypeChanged(const QString & str)
              m_yList.append(m_combined.at(i));
          }
      }
-    m_XRayType = str;
+    m_OrcaSpecType = str;
     emit plotDataChanged();
 }
 //
 // choose line shape - gaussian or lorentzian
 //
-void AbstractXRaySpectra::changeLineShape(int type)
+void AbstractOrcaSpectra::changeLineShape(int type)
 {
     m_lineShape = static_cast<LineShape>(type);
     if (m_lineShape == GAUSSIAN || m_lineShape == LORENTZIAN) {
@@ -132,7 +133,7 @@ void AbstractXRaySpectra::changeLineShape(int type)
     emit plotDataChanged();
 }
 
-void AbstractXRaySpectra::getCalculatedPlotObject(PlotObject *plotObject){
+void AbstractOrcaSpectra::getCalculatedPlotObject(PlotObject *plotObject){
     plotObject->clearPoints();
     double conv_unit[3]= {1., eV_to_nm, cm_1_to_nm};
 
@@ -294,33 +295,33 @@ void AbstractXRaySpectra::getCalculatedPlotObject(PlotObject *plotObject){
     }
     m_newShift = false;
 }
-void AbstractXRaySpectra::rearrangeYList(int min, int max)
+void AbstractOrcaSpectra::rearrangeYList(int min, int max)
 {
     m_yList.clear();
-    if (m_XRayType == "Transition Electric dipole") {
+    if (m_OrcaSpecType == "Transition Electric dipole") {
         for (int i = min; i <= max; i++){
             m_yList.append(m_edipole.at(i));
         }
-    } else if (m_XRayType == "Electric dipole") {
+    } else if (m_OrcaSpecType == "Electric dipole/total") {
         for (int i = min; i <= max; i++){
             m_yList.append(m_D2.at(i));
         }
-    } else if (m_XRayType == "Magnetic dipole") {
+    } else if (m_OrcaSpecType == "Magnetic dipole/total") {
         for (int i = min; i <= max; i++){
             m_yList.append(m_M2.at(i));
         }
-    } else if (m_XRayType == "Quadrupole dipole") {
+    } else if (m_OrcaSpecType == "Quadrupole dipole/total") {
         for (int i = min; i <= max; i++){
             m_yList.append(m_Q2.at(i));
         }
-    } else if (m_XRayType == "Combined") {
+    } else if (m_OrcaSpecType == "Combined") {
         for (int i = min; i <= max; i++){
             m_yList.append(m_combined.at(i));
         }
     }
 }
 
-int AbstractXRaySpectra::getXminIdx(XUnits xunit)
+int AbstractOrcaSpectra::getXminIdx(XUnits xunit)
 {
     int idx=m_wavelength.size()-1;
     //    qDebug() << "m_wavelength = " << m_wavelength.at(0) << "   " << m_wavelength.at(m_wavelength.size()-1);
@@ -357,7 +358,7 @@ int AbstractXRaySpectra::getXminIdx(XUnits xunit)
     }
     return idx;
 }
-int AbstractXRaySpectra::getXmaxIdx(XUnits xunit)
+int AbstractOrcaSpectra::getXmaxIdx(XUnits xunit)
 {
     int idx=m_wavelength.size()-1;
     //    qDebug() << "m_wavelength = " << m_wavelength.at(0) << "   " << m_wavelength.at(m_wavelength.size()-1);
@@ -394,7 +395,7 @@ int AbstractXRaySpectra::getXmaxIdx(XUnits xunit)
     return idx;
 }
 
-void  AbstractXRaySpectra::getSortIdx(std::vector<double> &sortData)
+void  AbstractOrcaSpectra::getSortIdx(std::vector<double> &sortData)
 {
 
     int length = sortData.size();

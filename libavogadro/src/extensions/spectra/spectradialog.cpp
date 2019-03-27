@@ -26,8 +26,9 @@
 #include "uv.h"
 #include "cd.h"
 #include "raman.h"
-#include "xray_em.h"
-#include "xray_abs.h"
+#include "energy.h"
+#include "emission.h"
+#include "absorption.h"
 
 #include <QtGui/QPen>
 #include <QtGui/QColor>
@@ -73,8 +74,9 @@ namespace Avogadro {
     m_spectra_uv = new UVSpectra(this);
     m_spectra_cd = new CDSpectra(this);
     m_spectra_raman = new RamanSpectra(this);
-    m_spectra_xray_abs = new XRayAbsSpectra(this);
-    m_spectra_xray_em = new XRayEmissionSpectra(this);
+    m_spectra_energy = new EnergySpectra(this);
+    m_spectra_absorption = new OrcaAbsSpectra(this);
+    m_spectra_emission = new OrcaEmissionSpectra(this);
     // Initialize vars
     m_schemes = new QList<QHash<QString, QVariant> >;
 
@@ -161,8 +163,9 @@ namespace Avogadro {
     delete m_spectra_uv;
     delete m_spectra_cd;
     delete m_spectra_raman;
-    delete m_spectra_xray_em;
-    delete m_spectra_xray_abs;
+    delete m_spectra_energy;
+    delete m_spectra_emission;
+    delete m_spectra_absorption;
   }
 
   void SpectraDialog::setMolecule(Molecule *molecule)
@@ -178,8 +181,9 @@ namespace Avogadro {
     m_spectra_uv->clear();
     m_spectra_cd->clear();
     m_spectra_raman->clear();
-    m_spectra_xray_abs->clear();
-    m_spectra_xray_em->clear();
+    m_spectra_energy->clear();
+    m_spectra_absorption->clear();
+    m_spectra_emission->clear();
     updatePlot();
 
     // set the filename in the image export widget
@@ -226,6 +230,13 @@ namespace Avogadro {
       ui.tab_widget->addTab(m_spectra_uv->getTabWidget(), tr("&UV Settings"));
     }
 
+    // Check for Energy data
+    bool hasEnergy = m_spectra_energy->checkForData(m_molecule);
+    if (hasEnergy) {
+      ui.combo_spectra->addItem(tr("Energy", "Energy spectrum"));
+      ui.tab_widget->addTab(m_spectra_energy->getTabWidget(), tr("&Energy Settings"));
+    }
+
     // Check for CD data
     bool hasCD = m_spectra_cd->checkForData(m_molecule);
     if (hasCD) {
@@ -240,20 +251,20 @@ namespace Avogadro {
       ui.tab_widget->addTab(m_spectra_raman->getTabWidget(), tr("&Raman Settings"));
     }
 
-    // Check for X-Ray absorption data
-    bool hasXRay_abs = m_spectra_xray_abs->checkForData(m_molecule);
-    if (hasXRay_abs) {
-      ui.combo_spectra->addItem(tr("X-Ray Abs", "X-Ray absorption spectrum"));
-      ui.tab_widget->addTab(m_spectra_xray_abs->getTabWidget(), tr("&X-Ray Abs. Settings"));
+    // Check for ORCA absorption data
+    bool hasAbsorption = m_spectra_absorption->checkForData(m_molecule);
+    if (hasAbsorption) {
+      ui.combo_spectra->addItem(tr("Absorption", "Absorption spectrum"));
+      ui.tab_widget->addTab(m_spectra_absorption->getTabWidget(), tr("&Absorption Settings"));
     }
-    // Check for X-Ray emission data
-    bool hasXRay_em = m_spectra_xray_em->checkForData(m_molecule);
-    if (hasXRay_em) {
-      ui.combo_spectra->addItem(tr("X-Ray Em", "X-Ray emission spectrum"));
-      ui.tab_widget->addTab(m_spectra_xray_em->getTabWidget(), tr("&X-Ray Em. Settings"));
+    // Check for ORCA emission data
+    bool hasEmission = m_spectra_emission->checkForData(m_molecule);
+    if (hasEmission) {
+      ui.combo_spectra->addItem(tr("Emission", "Emission spectrum"));
+      ui.tab_widget->addTab(m_spectra_emission->getTabWidget(), tr("&Emission Settings"));
     }
     // Change this when other spectra are added!!
-    if (!hasIR && !hasNMR && !hasDOS && !hasUV && !hasCD && !hasRaman && !hasXRay_abs && !hasXRay_em) { // Actions if there are no spectra loaded
+    if (!hasIR && !hasNMR && !hasDOS && !hasUV && !hasCD && !hasRaman && !hasEnergy && !hasAbsorption && !hasEmission) { // Actions if there are no spectra loaded
       qWarning() << "SpectraDialog::setMolecule: No spectra available!";
       ui.combo_spectra->addItem(tr("No data"));
       ui.push_colorCalculated->setEnabled(false);
@@ -1145,12 +1156,14 @@ namespace Avogadro {
       return m_spectra_uv;
     else if (m_spectra == "CD")
         return m_spectra_cd;
+    else if (m_spectra == "Energy")
+        return m_spectra_energy;
     else if (m_spectra == "Raman")
         return m_spectra_raman;
-    else if (m_spectra == "X-Ray Abs")
-        return m_spectra_xray_abs;
-    else if (m_spectra == "X-Ray Em")
-        return m_spectra_xray_em;
+    else if (m_spectra == "Absorption")
+        return m_spectra_absorption;
+    else if (m_spectra == "Emission")
+        return m_spectra_emission;
 
     return NULL;
   }

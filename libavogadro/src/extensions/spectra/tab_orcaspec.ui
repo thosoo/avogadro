@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>Tab_XRay</class>
- <widget class="QWidget" name="Tab_XRay">
+ <class>Tab_OrcaSpec</class>
+ <widget class="QWidget" name="Tab_OrcaSpec">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -20,12 +20,12 @@
       <item row="0" column="0">
        <widget class="QLabel" name="label">
         <property name="text">
-         <string>X-Ray Type</string>
+         <string>Spectra Type</string>
         </property>
        </widget>
       </item>
       <item row="0" column="1">
-       <widget class="QComboBox" name="combo_XRayType"/>
+       <widget class="QComboBox" name="combo_OrcaSpecType"/>
       </item>
       <item row="0" column="2">
        <widget class="QLabel" name="label_10">

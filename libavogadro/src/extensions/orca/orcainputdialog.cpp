@@ -491,14 +491,10 @@ void  OrcaInputDialog::initComboboxes()
   {
       // Disconnect the old molecule first...
 
-//      qDebug() << " molecule = " << molecule;
-//      cout  << "m_molecule = " << m_molecule<< endl;
       if (m_molecule)
         disconnect(m_molecule, 0, this, 0);
 
       m_molecule = molecule;
-
-      cout  << "m_molecule = " << m_molecule<< endl;
 
       // Set multiplicity to the OB value
 
@@ -1069,7 +1065,7 @@ void  OrcaInputDialog::initComboboxes()
 
           mol << "! " << basicData->getMethodTxt() << " " << basicData->getCalculationTxt() << " " << basicData->getBasisTxt();
           if (basicData->getMethod() == DFT) {
-              mol << " " << basicData->getBasisTxt() <<"/J";
+              mol << " " <<"def2/J";
           }
           mol << " \n";
       }

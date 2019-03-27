@@ -19,30 +19,29 @@
 
 //#ifdef OPENBABEL_IS_NEWER_THAN_2_2_99
 
-#ifndef SPECTRATYPE_ABSTRACTXRAY_H
-#define SPECTRATYPE_ABSTRACTXRAY_H
+#ifndef SPECTRATYPE_ABSTRACTORCASPEC_H
+#define SPECTRATYPE_ABSTRACTORCASPEC_H
 
 #include <QtCore/QHash>
 #include <QtCore/QVariant>
 
 #include "spectradialog.h"
 #include "spectratype.h"
-#include "ui_tab_xray.h"
+#include "ui_tab_orcaspec.h"
 
 namespace Avogadro {
-
 
 #define cm_1_to_nm  1.e7
 #define eV_to_nm  1.e7/8065.54477
 
-  class AbstractXRaySpectra : public SpectraType
+  class AbstractOrcaSpectra : public SpectraType
   {
     Q_OBJECT
 
   public:
-    AbstractXRaySpectra( SpectraDialog *parent = 0 );
+    AbstractOrcaSpectra( SpectraDialog *parent = 0 );
 
-    ~AbstractXRaySpectra(){}
+    ~AbstractOrcaSpectra(){}
 
     virtual void setupPlot(PlotWidget * plot) = 0 ;
     
@@ -56,17 +55,17 @@ namespace Avogadro {
     void rearrangeYList(int min, int max);
 
   protected slots:
-    void XRayTypeChanged(const QString & str);
+    void OrcaSpecTypeChanged(const QString & str);
     void EnergyShiftSilderValueChanged(int);
     void EnergyShiftSpinValueChanged(double);
     void changeLineShape(int);
 
   protected:
-    Ui::Tab_XRay ui;
+    Ui::Tab_OrcaSpec ui;
     std::vector<int> m_idx;
 
     XUnits m_XUnit;
-    QString m_XRayType;
+    QString m_OrcaSpecType;
 
     LineShape m_lineShape;         // gaussian or lorentzian peaks
     int m_nPoints;                  // number of points of gaussian/lorentzian pulse

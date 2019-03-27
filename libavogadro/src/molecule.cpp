@@ -67,7 +67,7 @@ namespace Avogadro{
                           obmol(0), obunitcell(0),
                           obvibdata(0), obdosdata(0),
                           obelectronictransitiondata(0),
-                          obxrayorcadata(0)
+                          obconformerdata(0),oborcaspecdata(0)
     {}
     // These are logically cached variables and thus are marked as mutable.
     // Const objects should be logically constant (and not mutable)
@@ -106,7 +106,9 @@ namespace Avogadro{
       OpenBabel::OBDOSData *        obdosdata;
       OpenBabel::OBElectronicTransitionData *
                                     obelectronictransitiondata;
-      OpenBabel::OBXrayORCAData * obxrayorcadata;
+      OpenBabel::OBConformerData *  obconformerdata;
+      OpenBabel::OBOrcaSpecData *   oborcaspecdata;
+
   };
 
   Molecule::Molecule(QObject *parent) : Primitive(MoleculeType, parent),
@@ -1291,10 +1293,14 @@ namespace Avogadro{
       obmol.SetData(d->obelectronictransitiondata->Clone(&obmol));
     }
 
+    // Copy conformer data, if needed
+    if (d->obconformerdata != NULL) {
+      obmol.SetData(d->obconformerdata->Clone(&obmol));
+    }
 
-    // Copy xray spectra data, if needed
-    if (d->obxrayorcadata != NULL) {
-      obmol.SetData(d->obxrayorcadata->Clone(&obmol));
+    // Copy Orca spectra data, if needed
+    if (d->oborcaspecdata != NULL) {
+      obmol.SetData(d->oborcaspecdata->Clone(&obmol));
     }
     return obmol;
   }
@@ -1405,7 +1411,6 @@ namespace Avogadro{
         residue->addBond(bond(obbond->GetIdx())->id());
       }
     }
-
     // Copy conformers, if present
     if (obmol->NumConformers() > 1) {
       for (int i = 0; i < obmol->NumConformers(); ++i) {
@@ -1447,6 +1452,7 @@ namespace Avogadro{
             atom->setForceVector(Eigen::Vector3d(force.x(), force.y(), force.z()));
           } // end setting forces on each atom
         } // forces
+        d->obconformerdata = cd;
       } // end if (cd)
     }  // end HasData(ConformerData)
 
@@ -1470,12 +1476,12 @@ namespace Avogadro{
       d->obelectronictransitiondata = etd;
     }
 
-    // Copy Xray spectra data
+    // Copy Orca spectra data
     if (obmol->HasData(OpenBabel::OBGenericDataType::CustomData0)) {
-      OpenBabel::OBXrayORCAData *xrayorca =
-        static_cast<OpenBabel::OBXrayORCAData*>
+      OpenBabel::OBOrcaSpecData *specorca =
+        static_cast<OpenBabel::OBOrcaSpecData*>
         (obmol->GetData(OpenBabel::OBGenericDataType::CustomData0));
-      d->obxrayorcadata = xrayorca;
+      d->oborcaspecdata = specorca;
     }
 
     // Copy orbital energies, symbols, and occupations to dynamic properties (as QList<>)

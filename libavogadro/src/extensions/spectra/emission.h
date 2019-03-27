@@ -19,16 +19,16 @@
 
 //#ifdef OPENBABEL_IS_NEWER_THAN_2_2_99
 
-#ifndef SPECTRATYPE_XRAY_EM_H
-#define SPECTRATYPE_XRAY_EM_H
+#ifndef SPECTRATYPE_EMISSION_H
+#define SPECTRATYPE_EMISSION_H
 
 #include <QtCore/QHash>
 #include <QtCore/QVariant>
 
 #include "spectradialog.h"
-#include "abstract_xray.h"
+#include "abstract_orcaspec.h"
 //#include "spectratype.h"
-#include "ui_tab_xray.h"
+#include "ui_tab_orcaspec.h"
 
 namespace Avogadro {
 
@@ -36,13 +36,13 @@ namespace Avogadro {
 #define cm_1_to_nm  1.e7
 #define eV_to_nm  1.e7/8065.54477
 
-  class XRayEmissionSpectra : public AbstractXRaySpectra
+  class OrcaEmissionSpectra : public AbstractOrcaSpectra
   {
     Q_OBJECT
 
   public:
-    XRayEmissionSpectra( SpectraDialog *parent = 0 );
-    ~XRayEmissionSpectra();
+    OrcaEmissionSpectra( SpectraDialog *parent = 0 );
+    ~OrcaEmissionSpectra();
 
     void writeSettings();
     void readSettings();

@@ -19,43 +19,52 @@
 
 //#ifdef OPENBABEL_IS_NEWER_THAN_2_2_99
 
-#ifndef SPECTRATYPE_XRAY_ABS_H
-#define SPECTRATYPE_XRAY_ABS_H
+#ifndef SPECTRATYPE_ENERGY_H
+#define SPECTRATYPE_ENERGY_H
 
-#include <QtCore/QHash>
-#include <QtCore/QVariant>
+#include <QHash>
+#include <QVariant>
 
 #include "spectradialog.h"
-#include "abstract_xray.h"
-//#include "spectratype.h"
-#include "ui_tab_xray.h"
+#include "spectratype.h"
+#include "ui_tab_energy.h"
+
+enum  YEnergyUnit {Y_ENERGY_kJ, Y_ENERGY_kcal, Y_ENERGY_eV};
 
 namespace Avogadro {
 
-
-#define cm_1_to_nm  1.e7
-#define eV_to_nm  1.e7/8065.54477
-
-  class XRayAbsSpectra : public AbstractXRaySpectra
+  class EnergySpectra : public SpectraType
   {
     Q_OBJECT
 
   public:
-    XRayAbsSpectra( SpectraDialog *parent = 0 );
-    ~XRayAbsSpectra();
+    EnergySpectra( SpectraDialog *parent = 0 );
+    ~EnergySpectra();
 
     void writeSettings();
     void readSettings();
 
     bool checkForData(Molecule* mol);
     void setupPlot(PlotWidget * plot);
-    
+
     void getCalculatedPlotObject(PlotObject *plotObject);
-  //  void setImportedData(const QList<double> & xList, const QList<double> & yList);
-  //  void getImportedPlotObject(PlotObject *plotObject);
+
     QString getTSV();
     QString getDataStream(PlotObject *plotObject);
+
+  private slots:
+    void energyTypeChanged(int);
+
   private:
+    Ui::Tab_Energy ui;
+    YEnergyUnit m_energyYUnit;
+
+    QList<double> *m_yListEnergykJ, *m_yListEnergyeV, *m_yListEnergykcal;
+    double m_fermi;
+
+    std::vector<double> m_numbers;
+    std::vector<double> m_energy;
+    uint m_nEnergies;
 
   };
 }
