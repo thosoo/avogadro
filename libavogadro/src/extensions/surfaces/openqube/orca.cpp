@@ -139,7 +139,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
     } else if (key.contains("Number of Electrons")) {
         list = key.split(' ', QString::SkipEmptyParts);
         m_electrons = list[5].toInt();
-    } else if (key.contains("SPIN UP ORBITALS")) {
+    } else if (key.contains("SPIN UP ORBITALS") && !m_openShell) {
         m_openShell = true; //not yet implemented
 
         QMessageBox msgBox;
@@ -250,6 +250,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
                 key = m_in->readLine().trimmed();
 
                 list = key.split(' ', QString::SkipEmptyParts);
+                if (list.size() == 0) break; // unexpected structure - suppose no more NewGTOs
             }
 
             // create input for gaussian basisset

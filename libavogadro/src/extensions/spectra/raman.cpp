@@ -61,6 +61,7 @@ namespace Avogadro {
     settings.setValue("spectra/Raman/laserWavenumber", m_W);
     settings.setValue("spectra/Raman/labelPeaks", ui.cb_labelPeaks->isChecked());
     settings.setValue("spectra/Raman/yAxisUnits", ui.combo_yaxis->currentText());
+    settings.setValue("spectra/Raman/lineShape", ui.combo_lineShape->currentIndex());
   }
 
   void RamanSpectra::readSettings() {
@@ -80,6 +81,9 @@ namespace Avogadro {
     updateYAxis(yunit);
     if (yunit == "Intensity")
       ui.combo_yaxis->setCurrentIndex(1);
+
+    ui.combo_lineShape->setCurrentIndex(settings.value("spectra/Raman/lineShape", GAUSSIAN).toInt());
+    m_lineShape = LineShape(ui.combo_lineShape->currentIndex());
     emit plotDataChanged();
   }
 
@@ -183,7 +187,12 @@ namespace Avogadro {
   }*/
 
   QString RamanSpectra::getTSV() {
-    return SpectraType::getTSV("Frequencies", "Activities");
+      return SpectraType::getTSV("Frequencies", "Activities");
+  }
+
+  QString RamanSpectra::getDataStream(PlotObject *plotObject)
+  {
+      return SpectraType::getDataStream(plotObject, "Frequencies" , "Activities");
   }
 
   void RamanSpectra::updateT(double T)

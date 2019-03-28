@@ -47,7 +47,8 @@ namespace Avogadro {
             this, SIGNAL(plotDataChanged()));
     connect(ui.combo_rotatoryType, SIGNAL(currentIndexChanged(QString)),
             this, SLOT(rotatoryTypeChanged(QString)));
-
+    connect(ui.combo_XUnit, SIGNAL(currentIndexChanged(int)),
+            this, SIGNAL(plotDataChanged()));
     readSettings();
   }
 
@@ -60,12 +61,15 @@ namespace Avogadro {
     QSettings settings; // Already set up in avogadro/src/main.cpp
     settings.setValue("spectra/CD/gaussianWidth", ui.spin_FWHM->value());
     settings.setValue("spectra/CD/labelPeaks", ui.cb_labelPeaks->isChecked());
+    settings.setValue("spectra/CD/XUnits", ui.combo_XUnit->currentIndex());
   }
 
   void CDSpectra::readSettings() {
     QSettings settings; // Already set up in avogadro/src/main.cpp
     ui.spin_FWHM->setValue(settings.value("spectra/CD/gaussianWidth",0.0).toDouble());
     ui.cb_labelPeaks->setChecked(settings.value("spectra/CD/labelPeaks",false).toBool());
+    ui.combo_XUnit->setCurrentIndex(settings.value("spectra/UV/XUnits", WAVELENGTH).toInt());
+    m_XUnit = XUnits(ui.combo_XUnit->currentIndex());
   }
 
   bool CDSpectra::checkForData(Molecule * mol) {
@@ -77,7 +81,14 @@ namespace Avogadro {
          etd->GetRotatoryStrengthsLength().size() == 0 ) return false;
 
     // OK, we have valid data, so store them for later
-    std::vector<double> wavelengths = etd->GetWavelengths();
+
+    m_wavelength = etd->GetWavelengths();
+    for (uint i = 0; i < m_wavelength.size(); i++){
+        m_wavenumber.push_back(1.e7/m_wavelength.at(i));
+        m_energy.push_back(1.e7/(8065.54477*m_wavelength.at(i))
+                           );
+    }
+//    std::vector<double> wavelengths = etd->GetWavelengths();
     std::vector<double> rotl = etd->GetRotatoryStrengthsLength();
     std::vector<double> rotv = etd->GetRotatoryStrengthsVelocity();
 
@@ -88,13 +99,34 @@ namespace Avogadro {
     // Store in member vars
     m_xList.clear();
     m_yList.clear();
-    for (uint i = 0; i < wavelengths.size(); i++)
-      m_xList.append(wavelengths.at(i));
+    m_yListVelocity->clear();
+    m_yListLength->clear();
+
+    switch (m_XUnit) {
+
+    case WAVELENGTH:
+        for (uint i = 0; i < m_wavelength.size(); i++){
+            m_xList.append(m_wavelength.at(i));
+        }
+        break;
+    case ENERGY_eV:
+        for (uint i = 0; i < m_wavelength.size(); i++){
+            m_xList.append(m_energy.at(i));
+        }
+        break;
+    case WAVENUMBER:
+        for (uint i = 0; i < m_wavelength.size(); i++){
+            m_xList.append(m_wavenumber.at(i));
+        }
+        break;
+    default:
+        break; // never hit here
+    }
+
     for (uint i = 0; i < rotl.size(); i++)
       m_yListLength->append(rotl.at(i));
     for (uint i = 0; i < rotv.size(); i++)
       m_yListVelocity->append(rotv.at(i));
-
 
     rotatoryTypeChanged(ui.combo_rotatoryType->currentText());
 
@@ -103,7 +135,19 @@ namespace Avogadro {
 
   void CDSpectra::setupPlot(PlotWidget * plot) {
     plot->scaleLimits();
-    plot->axis(PlotWidget::BottomAxis)->setLabel(tr("Wavelength (nm)"));
+    switch (m_XUnit) {
+    case ENERGY_eV:
+      plot->axis(PlotWidget::BottomAxis)->setLabel(tr("Energy (eV)"));
+      break;
+    case WAVELENGTH:
+      plot->axis(PlotWidget::BottomAxis)->setLabel(tr("Wavelength (nm)"));
+      break;
+    case WAVENUMBER:
+      plot->axis(PlotWidget::BottomAxis)->setLabel(tr("<HTML>Wavenumber (cm<sup>-1</sup>)</HTML>"));
+      break;
+    default:
+      break;
+    }
     plot->axis(PlotWidget::LeftAxis)->setLabel(tr("Intensity (arb. units)"));
   }
 
@@ -120,9 +164,32 @@ namespace Avogadro {
       ui.cb_labelPeaks->setEnabled(true);
     }
     if (!ui.cb_labelPeaks->isEnabled()) {
-      ui.cb_labelPeaks->setChecked(false);
+        ui.cb_labelPeaks->setChecked(false);
     }
 
+
+    if (m_XUnit != XUnits(ui.combo_XUnit->currentIndex())) {
+        m_XUnit = XUnits(ui.combo_XUnit->currentIndex());
+        switch (m_XUnit) {
+        case WAVELENGTH:
+            for (uint i = 0; i < m_wavelength.size(); i++){
+                m_xList.replace(i,m_wavelength.at(i));
+            }
+            break;
+        case ENERGY_eV:
+            for (uint i = 0; i < m_wavelength.size(); i++){
+                m_xList.replace(i,m_energy.at(i));
+            }
+            break;
+        case WAVENUMBER:
+            for (uint i = 0; i < m_wavelength.size(); i++){
+                m_xList.replace(i,m_wavenumber.at(i));
+            }
+            break;
+        default:
+            break; // never hit here
+        }
+    }
     if (m_xList.size() < 1 && m_yList.size() < 1) return;
 
     double wavelength, intensity;
@@ -180,11 +247,19 @@ namespace Avogadro {
     return SpectraType::getTSV("Wavelength (nm)", "Intensity (arb)");
   }
 
+
+  QString CDSpectra::getDataStream(PlotObject *plotObject)
+  {
+      return SpectraType::getDataStream(plotObject, "Wavelength (nm)", "Intensity (arb)");
+  }
+
+
   void CDSpectra::rotatoryTypeChanged(const QString & str) {
     if (str == "Velocity")
       m_yList = (*m_yListVelocity);
     else if (str == "Length")
       m_yList = (*m_yListLength);
+
     emit plotDataChanged();
   }
 

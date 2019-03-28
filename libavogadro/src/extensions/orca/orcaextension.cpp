@@ -71,7 +71,6 @@ namespace Avogadro {
 
       }
 
-
     // This block sets the text for menu entry
       QAction *action = new QAction(this);
       // Wrap all user visible strings in tr() so they can be translated
@@ -108,11 +107,12 @@ namespace Avogadro {
           // Create the dialog if needed
           if (!m_dialog) {
               m_dialog = new OrcaInputDialog(qobject_cast<QWidget*>(parent()));
+
+              if (m_molecule) {
+                  m_dialog->setMolecule(m_molecule);
+              }
+              m_dialog->setWindowTitle("Orca Input Parameters");
           }
-          if (m_molecule) {
-              m_dialog->setMolecule(m_molecule);
-          }
-          m_dialog->setWindowTitle("Orca Input Parameters");
           m_dialog->show();
 
           break;
@@ -139,6 +139,8 @@ namespace Avogadro {
     void OrcaExtension::setMolecule(Molecule *molecule)
     {
         m_molecule = molecule;
+        if (m_dialog)
+            m_dialog->setMolecule(molecule);
     }
 }
 //// Include Qt moc'd headers

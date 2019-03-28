@@ -49,14 +49,14 @@ namespace Avogadro {
 
 enum calculationType {SP, OPT, FREQ};
 enum methodType {RHF, DFT, MP2, CCSD};
-enum relType {ZORA, IORA, DKH};
+//enum relType {ZORA, DKH};
 enum accType {NORMALSCF, TIGHTSCF, VERYTIGHTSCF, EXTREMESCF};
 enum scfType {RKS, UKS};
 enum convType {DIIS, KDIIS};
 enum conv2ndType {SOSCF, NRSCF, AHSCF};
 
 
-enum coordType {CARTESIAN, ZMATRIX, ZMATRIX_COMPACT };
+enum coordType {CARTESIAN, INTERNAL_COORDS, ZMATRIX_COMPACT };
 enum printType {NOTHING, MINI, SMALL, NORMAL, LARGE};
 
 
@@ -194,35 +194,35 @@ public:
 
 
     // EPC
-    void setEPCChecked (bool value) {m_useEPC = value;}
-    bool EPCEnabled() {return m_useEPC;}
+//    void setEPCChecked (bool value) {m_useEPC = value;}
+//    bool EPCEnabled() {return m_useEPC;}
 
-    // Aux EPC
+//    // Aux EPC
 
-    void setAuxEPCChecked (bool value) {m_useAuxEPC = value;}
-    bool auxEPCEnabled() {return m_useAuxEPC;}
+//    void setAuxEPCChecked (bool value) {m_useAuxEPC = value;}
+//    bool auxEPCEnabled() {return m_useAuxEPC;}
 
 
-    // Correlation Aux EPC
+//    // Correlation Aux EPC
 
-    void setAuxCorrEPCChecked (bool value) {m_useAuxCorrEPC = value;}
-    bool auxCorrEPCEnabled() {return m_useAuxCorrEPC;}
+//    void setAuxCorrEPCChecked (bool value) {m_useAuxCorrEPC = value;}
+//    bool auxCorrEPCEnabled() {return m_useAuxCorrEPC;}
 
     // Relativistic
 
-    void setRelChecked (bool n) {m_useRel = n;}
-    bool relEnabled() {return m_useRel;}
+//    void setRelChecked (bool n) {m_useRel = n;}
+//    bool relEnabled() {return m_useRel;}
 
-    void setDKHChecked (bool n) {m_useDKH = n;}
-    bool dkhEnabled () {return m_useDKH;}
+//    void setDKHChecked (bool n) {m_useDKH = n;}
+//    bool dkhEnabled () {return m_useDKH;}
 
-    void setRel(int n) {m_rel = relType (n);}
-    void setRel (relType n) {m_rel = n;}
-    relType getRel () {return m_rel;}
-    QString getRelTxt ();
+//    void setRel(int n) {m_rel = relType (n);}
+//    void setRel (relType n) {m_rel = n;}
+//    relType getRel () {return m_rel;}
+//    QString getRelTxt ();
 
-    void setDKHOrder(int n){m_DKHOrder = n;}
-    int getDKHOrder(){return m_DKHOrder;}
+//    void setDKHOrder(int n){m_DKHOrder = n;}
+//    int getDKHOrder(){return m_DKHOrder;}
 
     // reset to default values
 
@@ -235,14 +235,14 @@ private:
     OrcaExtension::basisType m_auxBasis;
     OrcaExtension::basisType m_auxCorrBasis;
 
-    bool m_useEPC;
-    bool m_useAuxEPC;
-    bool m_useAuxCorrEPC;
+//    bool m_useEPC;
+//    bool m_useAuxEPC;
+//    bool m_useAuxCorrEPC;
 
-    bool m_useRel;
-    bool m_useDKH;
-    relType m_rel;
-    int m_DKHOrder;
+//    bool m_useRel;
+//    bool m_useDKH;
+//    relType m_rel;
+//    int m_DKHOrder;
 };
 
 class OrcaControlData {

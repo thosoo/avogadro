@@ -77,7 +77,7 @@ namespace Avogadro {
 
     enum DFTFunctionalType {LDA, BP, BLYP, PW91, B3LYP, B3PW, PBEO, TPSS, TPSSH, M06L};
     enum DFTNoCosXType {NoBP, NoBLYP, NoPW91, NoTPSS};
-    enum basisType {SVP, TZVP, TZVPP, QZVP};
+    enum basisType {SVP, TZVP, TZVPP, QZVPP};
     enum gridType {Default, None, Grid3, Grid4, Grid5, Grid6, Grid7, Grid8};
     enum finalgridType {fDefault, fNone, fGrid4, fGrid5, fGrid6, fGrid7, fGrid8, fGrid9};
 

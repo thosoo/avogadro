@@ -37,6 +37,10 @@
 
 #include "ui_spectradialog.h"
 
+
+enum XUnits {WAVELENGTH, ENERGY_eV, WAVENUMBER};
+enum YUVdata {EDIPOLE, VDIPOLE, COMBINED_DIPOLE};
+
 namespace Avogadro {
 
   class SpectraType;
@@ -46,6 +50,9 @@ namespace Avogadro {
   class UVSpectra;
   class CDSpectra;
   class RamanSpectra;
+  class EnergySpectra;
+  class OrcaEmissionSpectra;
+  class OrcaAbsSpectra;
 
   class SpectraDialog : public QDialog
   {
@@ -58,7 +65,7 @@ namespace Avogadro {
     void setMolecule(Molecule *molecule);
     void writeSettings() const;
     void readSettings();
-    Ui::SpectraDialog * getUi() {return &ui;};
+    Ui::SpectraDialog * getUi() {return &ui;}
     void labelsUp(bool up);
 
   public slots:
@@ -86,6 +93,7 @@ namespace Avogadro {
     void removeScheme();
     void renameScheme();
     void exportSpectra();
+    void exportDressedSpectra();
     void saveImageFileDialog();
     void showCoordinates(double x,double y);
 
@@ -101,13 +109,15 @@ namespace Avogadro {
     UVSpectra *m_spectra_uv;
     CDSpectra *m_spectra_cd;
     RamanSpectra *m_spectra_raman;
-
+    EnergySpectra *m_spectra_energy;
+    OrcaEmissionSpectra *m_spectra_emission;
+    OrcaAbsSpectra *m_spectra_absorption;
     Molecule *m_molecule;
     int m_scheme;
     QList<QHash<QString, QVariant> > *m_schemes;
 
     QString m_spectra;
-    SpectraType * currentSpectra();
+    SpectraType *currentSpectra();
     PlotObject *m_calculatedSpectra;
     PlotObject *m_importedSpectra;
     PlotObject *m_nullSpectra;
