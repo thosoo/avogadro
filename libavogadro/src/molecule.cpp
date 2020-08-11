@@ -67,7 +67,7 @@ namespace Avogadro{
                           obmol(0), obunitcell(0),
                           obvibdata(0), obdosdata(0),
                           obelectronictransitiondata(0),
-                          obconformerdata(0),oborcaspecdata(0)
+                          obconformerdata(0),oborcaspecdata(0), oborcanearirdata(0)
     {}
     // These are logically cached variables and thus are marked as mutable.
     // Const objects should be logically constant (and not mutable)
@@ -108,6 +108,7 @@ namespace Avogadro{
                                     obelectronictransitiondata;
       OpenBabel::OBConformerData *  obconformerdata;
       OpenBabel::OBOrcaSpecData *   oborcaspecdata;
+      OpenBabel::OBOrcaNearIRData * oborcanearirdata;
 
   };
 
@@ -1048,7 +1049,6 @@ namespace Avogadro{
         delete m_atomConformers[i];
     }
     m_atomConformers.clear();
-
     // add the new conformers
     for (unsigned int i = 0; i < conformers.size(); ++i) {
       if (conformers[i]->size() != size)
@@ -1063,13 +1063,16 @@ namespace Avogadro{
 
   void Molecule::clearConformers()
   {
-    if (m_atomConformers.size() > 1) {
-      for (unsigned int i = 1; i < m_atomConformers.size(); ++i)
-        delete m_atomConformers[i];
-      m_atomConformers.resize(1);
-      m_atomPos = m_atomConformers[0];
-    }
-    m_currentConformer = 0;
+      if (m_atomConformers.size() > 1) {
+
+          for (unsigned int i = 1; i < m_atomConformers.size(); ++i) {
+              delete m_atomConformers[i];
+          }
+          m_atomConformers.resize(1);
+
+          m_atomPos = m_atomConformers[0];
+      }
+      m_currentConformer = 0;
   }
 
   unsigned int Molecule::numConformers() const
@@ -1302,6 +1305,10 @@ namespace Avogadro{
     if (d->oborcaspecdata != NULL) {
       obmol.SetData(d->oborcaspecdata->Clone(&obmol));
     }
+    // Copy Orca NearIR spectra data, if needed
+    if (d->oborcanearirdata != NULL) {
+      obmol.SetData(d->oborcanearirdata->Clone(&obmol));
+    }
     return obmol;
   }
 
@@ -1445,6 +1452,7 @@ namespace Avogadro{
 
         // check for validity (i.e., we have some forces, one for each atom
         std::vector< std::vector<OpenBabel::vector3> > allForces = cd->GetForces();
+
         if (allForces.size() && allForces[0].size() == numAtoms()) {
           OpenBabel::vector3 force;
           foreach (Atom *atom, m_atomList) { // loop through each atom
@@ -1477,15 +1485,23 @@ namespace Avogadro{
     }
 
     // Copy Orca spectra data
+    qDebug() << "has Orca spectra data  = " << obmol->HasData(OpenBabel::OBGenericDataType::CustomData0) << endl;
     if (obmol->HasData(OpenBabel::OBGenericDataType::CustomData0)) {
       OpenBabel::OBOrcaSpecData *specorca =
         static_cast<OpenBabel::OBOrcaSpecData*>
         (obmol->GetData(OpenBabel::OBGenericDataType::CustomData0));
       d->oborcaspecdata = specorca;
     }
-
+    // Copy Orca NearIR spectra data
+    qDebug() << "has NearIR spectra data  = " << obmol->HasData(OpenBabel::OBGenericDataType::CustomData1) << endl;
+    if (obmol->HasData(OpenBabel::OBGenericDataType::CustomData1)) {
+      OpenBabel::OBOrcaNearIRData *nearIRData =
+        static_cast<OpenBabel::OBOrcaNearIRData*>
+        (obmol->GetData(OpenBabel::OBGenericDataType::CustomData1));
+      d->oborcanearirdata = nearIRData;
+    }
     // Copy orbital energies, symbols, and occupations to dynamic properties (as QList<>)
-    qDebug() << "has data  = " << obmol->HasData(OpenBabel::OBGenericDataType::ElectronicData) << endl;
+    qDebug() << "has orbital energies data  = " << obmol->HasData(OpenBabel::OBGenericDataType::ElectronicData) << endl;
     if (obmol->HasData(OpenBabel::OBGenericDataType::ElectronicData)) {
       OpenBabel::OBOrbitalData *od =
         static_cast<OpenBabel::OBOrbitalData*>(obmol->GetData(OpenBabel::OBGenericDataType::ElectronicData));

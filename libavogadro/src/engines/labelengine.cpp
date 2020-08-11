@@ -153,7 +153,7 @@ namespace Avogadro {
           str = QString("%L1").arg(a->formalCharge());
         break;
       case 6: // Partial charge
-        str = QString("%L1").arg(const_cast<Atom *>(a)->partialCharge(), 0, 'g', 2);
+        str = QString("%L1").arg(const_cast<Atom *>(a)->partialCharge(), 0, '1', 1);
         break;
       case 7: // Element name
         str = ElementTranslator::name(a->atomicNumber());

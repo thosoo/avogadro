@@ -24,11 +24,11 @@
 
 namespace Avogadro {
 
-  class IRSpectra : public AbstractIRSpectra
-  {
+class IRSpectra : public AbstractIRSpectra
+{
     Q_OBJECT
 
-  public:
+public:
     IRSpectra( SpectraDialog *parent = 0 );
     ~IRSpectra();
 
@@ -42,7 +42,7 @@ namespace Avogadro {
     void setImportedData(const QList<double> & xList, const QList<double> & yList);
     QString getTSV();
     QString getDataStream(PlotObject *plotObject);
-  };
+};
 }
 
 #endif

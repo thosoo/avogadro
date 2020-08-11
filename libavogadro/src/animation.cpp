@@ -31,6 +31,7 @@
 #include <Eigen/Core>
 
 #include <QTimer>
+#include <QDebug>
 
 using namespace OpenBabel;
 using Eigen::Vector3d;
@@ -71,10 +72,8 @@ namespace Avogadro {
       return; // we can't save the current conformers
 
     if (d->framesSet) {
-      m_originalConformers.clear();
-      for (unsigned int i = 0; i < molecule->numConformers(); ++i) {
-        m_originalConformers.push_back(molecule->conformer(i));
-      }
+        m_originalConformers.clear();
+        m_originalConformers = molecule->conformers();
     }
   }
 
@@ -190,9 +189,7 @@ namespace Avogadro {
     if (!m_originalConformers.empty())
       m_originalConformers.clear();
     if (m_molecule) {
-      for (unsigned int i = 0; i < m_molecule->numConformers(); ++i) {
-        m_originalConformers.push_back(m_molecule->conformer(i));
-      }
+        m_originalConformers = m_molecule->conformers();
     }
  
     d->framesSet = true;

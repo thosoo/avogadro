@@ -75,7 +75,8 @@ void OrcaAbsSpectra::readSettings() {
 bool OrcaAbsSpectra::checkForData(Molecule * mol) {
 
     OpenBabel::OBMol obmol = mol->OBMol();
-    OpenBabel::OBOrcaSpecData *osd = static_cast<OpenBabel::OBOrcaSpecData*>(obmol.GetData("OrcaSpectraData"));
+    //OpenBabel::OBOrcaSpecData *osd = static_cast<OpenBabel::OBOrcaSpecData*>(obmol.GetData("OrcaSpectraData"));
+    OpenBabel::OBOrcaSpecData *osd = static_cast<OpenBabel::OBOrcaSpecData*>(obmol.GetData(OpenBabel::OBGenericDataType::CustomData0));
 
     if (!osd) return false;
     if (!osd->GetSpecData()) return false;
