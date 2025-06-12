@@ -10,17 +10,28 @@ set(CMAKE_AUTORCC ON)
 set(QT_LIBRARIES Qt5::Widgets Qt5::Gui Qt5::OpenGL Qt5::Network Qt5::Core)
 set(QT_QTNETWORK_LIBRARY Qt5::Network)
 set(QT_DEFINITIONS "")
+set(QT_INCLUDES
+  ${Qt5Widgets_INCLUDE_DIRS}
+  ${Qt5Gui_INCLUDE_DIRS}
+  ${Qt5OpenGL_INCLUDE_DIRS}
+  ${Qt5Network_INCLUDE_DIRS}
+  ${Qt5Core_INCLUDE_DIRS}
+)
+include_directories(${QT_INCLUDES})
 
 function(qt4_wrap_cpp outfiles)
-  qt5_wrap_cpp(${outfiles} ${ARGN})
+  qt5_wrap_cpp("${outfiles}" ${ARGN})
+  set(${outfiles} ${${outfiles}} PARENT_SCOPE)
 endfunction()
 
 function(qt4_wrap_ui outfiles)
-  qt5_wrap_ui(${outfiles} ${ARGN})
+  qt5_wrap_ui("${outfiles}" ${ARGN})
+  set(${outfiles} ${${outfiles}} PARENT_SCOPE)
 endfunction()
 
 function(qt4_add_resources outfiles)
-  qt5_add_resources(${outfiles} ${ARGN})
+  qt5_add_resources("${outfiles}" ${ARGN})
+  set(${outfiles} ${${outfiles}} PARENT_SCOPE)
 endfunction()
 
 function(qt4_automoc)

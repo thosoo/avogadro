@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 2.8.9)
 project(Avogadro) # the name of your project
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # The Avogadro version number, currently used by the Avogadro library too
 set(Avogadro_VERSION_MAJOR 1)
