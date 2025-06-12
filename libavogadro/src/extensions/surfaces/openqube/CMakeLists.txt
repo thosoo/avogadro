@@ -1,4 +1,4 @@
-find_package(Qt4 4.6 REQUIRED)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../../../../cmake/Qt5Compat.cmake)
 find_package(Eigen3)
 if(NOT EIGEN3_FOUND)
   message(STATUS "Cannot find Eigen3, trying Eigen2")
@@ -7,7 +7,7 @@ else()
   set (EIGEN2_SUPPORT_STAGE10_FULL_EIGEN2_API TRUE)
 endif()
 
-include_directories(${QT_INCLUDE_DIR} ${EIGEN2_INCLUDE_DIR})
+include_directories(${Qt5Widgets_INCLUDE_DIRS} ${EIGEN2_INCLUDE_DIR})
 
 # Headers for our public API
 set(openqube_HDRS
