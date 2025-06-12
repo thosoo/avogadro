@@ -26,7 +26,7 @@
 
 #include <avogadro/glwidget.h>
 
-#include <QtGui/QHBoxLayout>
+#include <QtWidgets/QHBoxLayout>
 
 #include <QtCore/QDebug>
 

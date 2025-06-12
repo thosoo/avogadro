@@ -40,8 +40,8 @@
 
 #include <QtCore/QDebug>
 #include <QtCore/QtPlugin>
-#include <QtGui/QLabel>
-#include <QtGui/QVBoxLayout>
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QVBoxLayout>
 
 using namespace std;
 using namespace OpenBabel;

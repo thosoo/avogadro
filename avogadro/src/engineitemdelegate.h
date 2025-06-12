@@ -25,7 +25,7 @@
 #ifndef ENGINEITEMDELEGATE_H
 #define ENGINEITEMDELEGATE_H
 
-#include <QtGui/QStyledItemDelegate>
+#include <QtWidgets/QStyledItemDelegate>
 
 namespace Avogadro
 {

@@ -34,12 +34,12 @@
 
 #include <QtCore/QMutex>
 #include <QtCore/QThread>
-#include <QtGui/QAction>
-#include <QtGui/QPushButton>
-#include <QtGui/QComboBox>
-#include <QtGui/QCheckBox>
-#include <QtGui/QSpinBox>
-#include <QtGui/QUndoStack>
+#include <QtWidgets/QAction>
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QComboBox>
+#include <QtWidgets/QCheckBox>
+#include <QtWidgets/QSpinBox>
+#include <QtWidgets/QUndoStack>
 
 namespace Avogadro {
 

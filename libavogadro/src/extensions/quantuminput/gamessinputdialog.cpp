@@ -27,8 +27,8 @@
 #include <avogadro/atom.h>
 #include <avogadro/bond.h>
 
-#include <QtGui/QPushButton>
-#include <QtGui/QButtonGroup>
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QButtonGroup>
 #include <QtWidgets/QMessageBox>
 //#include <QtGui/QFileDialog>
 

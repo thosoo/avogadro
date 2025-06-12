@@ -26,12 +26,12 @@
 #include <QtCore/QDir>
 #include <QtCore/QDebug>
 
-#include <QtGui/QButtonGroup>
+#include <QtWidgets/QButtonGroup>
 #include <QtGui/QDoubleValidator>
-#include <QtGui/QFileDialog>
-#include <QtGui/QHeaderView>
-#include <QtGui/QProgressDialog>
-#include <QtGui/QPushButton>
+#include <QtWidgets/QFileDialog>
+#include <QtWidgets/QHeaderView>
+#include <QtWidgets/QProgressDialog>
+#include <QtWidgets/QPushButton>
 
 #include <avogadro/molecule.h>
 

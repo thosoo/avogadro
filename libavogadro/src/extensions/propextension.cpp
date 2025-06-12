@@ -30,12 +30,12 @@
 
 #include <QtCore/QAbstractTableModel>
 #include <QtGui/QSortFilterProxyModel>
-#include <QtGui/QSizePolicy>
-#include <QtGui/QHeaderView>
-#include <QtGui/QAction>
-#include <QtGui/QDialog>
-#include <QtGui/QScrollBar>
-#include <QtGui/QVBoxLayout>
+#include <QtWidgets/QSizePolicy>
+#include <QtWidgets/QHeaderView>
+#include <QtWidgets/QAction>
+#include <QtWidgets/QDialog>
+#include <QtWidgets/QScrollBar>
+#include <QtWidgets/QVBoxLayout>
 
 #include <QtCore/QDebug>
 

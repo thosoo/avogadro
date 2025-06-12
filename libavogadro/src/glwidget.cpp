@@ -39,7 +39,7 @@
 #include <QtGui/QPainter>
 #include <QtGui/QPaintEngine>
 #include <QtWidgets/QUndoStack>
-#include <QtGui/QLabel>
+#include <QtWidgets/QLabel>
 
 #ifdef Q_WS_MAC
 # include <OpenGL/glu.h>

@@ -58,12 +58,12 @@
 
 #include <QtGui/QClipboard>
 #include <QtGui/QInputDialog>
-#include <QtGui/QLabel>
+#include <QtWidgets/QLabel>
 #include <QtWidgets/QMessageBox>
-#include <QtGui/QMainWindow>
-#include <QtGui/QTableView>
-#include <QtGui/QStandardItemModel>
-#include <QtGui/QScrollBar>
+#include <QtWidgets/QMainWindow>
+#include <QtWidgets/QTableView>
+#include <QtWidgets/QStandardItemModel>
+#include <QtWidgets/QScrollBar>
 
 #include <QtCore/QDebug>
 #include <QtCore/QSettings>
