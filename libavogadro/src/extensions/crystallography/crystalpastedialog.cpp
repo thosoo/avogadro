@@ -27,6 +27,9 @@
 #include <avogadro/atom.h>
 #include <avogadro/obeigenconv.h>
 
+#include <openbabel/elements.h>
+#include <openbabel/unitcell.h>
+
 #include <QtGui/QMessageBox>
 
 namespace Avogadro {
@@ -246,7 +249,7 @@ namespace Avogadro {
       // that converts cleanly into atomic numbers:
       QList<unsigned int> atomicNums;
       for (int i = 0; i < symbolList.size(); ++i) {
-        atomicNums.append(OpenBabel::etab.GetAtomicNum
+        atomicNums.append(OpenBabel::OBElements::GetAtomicNum
                           (symbolList.at(i).toStdString().c_str()));
       }
       int startInd = -1;
@@ -311,7 +314,7 @@ namespace Avogadro {
       unsigned int atomicNum = it->toUInt(&ok);
       // If this doesn't work, try passing the string to OB's translator
       if (!ok) {
-        atomicNum = OpenBabel::etab.GetAtomicNum(it->toStdString().c_str());
+        atomicNum = OpenBabel::OBElements::GetAtomicNum(it->toStdString().c_str());
       }
       compAtomicNums.append(atomicNum);
     }

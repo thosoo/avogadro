@@ -32,6 +32,7 @@
 #include <openbabel/mol.h>
 #include <openbabel/atom.h>
 #include <openbabel/parsmart.h>
+#include <openbabel/elements.h>
 
 #include <QtPlugin>
 #include <QHBoxLayout>
@@ -132,7 +133,7 @@ namespace Avogadro {
     // Start with the default "element color"
     QColor newcolor;
     if (atom->atomicNumber()) {
-      std::vector<double> rgb = OpenBabel::etab.GetRGB(atom->atomicNumber());
+      std::vector<double> rgb = OpenBabel::OBElements::GetRGB(atom->atomicNumber());
       newcolor.setRgbF(rgb[0], rgb[1], rgb[2]);
     } else {
       newcolor.setRgbF(0.2f, 0.2f, 0.2f);

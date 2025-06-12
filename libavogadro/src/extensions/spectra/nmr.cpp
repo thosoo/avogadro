@@ -26,6 +26,7 @@
 #include <openbabel/mol.h>
 #include <openbabel/generic.h>
 #include <openbabel/obiter.h>
+#include <openbabel/elements.h>
 
 using namespace std;
 using namespace OpenBabel;
@@ -217,7 +218,7 @@ namespace Avogadro {
 
     // Extract data from obmol
     FOR_ATOMS_OF_MOL(atom,obmol) {
-      QString symbol = QString(OpenBabel::etab.GetSymbol(atom->GetAtomicNum()));
+      QString symbol = QString(OpenBabel::OBElements::GetSymbol(atom->GetAtomicNum()));
       double shift   = QString(atom->GetData("NMR Isotropic Shift")->GetValue().c_str()).toFloat();
       QList<double> *list = new QList<double>;
       if (m_NMRdata->contains(symbol)) {

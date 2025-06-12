@@ -31,6 +31,7 @@
 
 // for OpenBabel::etab
 #include <openbabel/mol.h>
+#include <openbabel/elements.h>
 
 namespace Avogadro {
 
@@ -94,7 +95,7 @@ namespace Avogadro {
         clearKeyPressBuffer();
       } else {
         // try parsing as a symbol
-        element  = OpenBabel::etab.GetAtomicNum(m_keyPressBuffer.toLatin1().data());
+        element  = OpenBabel::OBElements::GetAtomicNum(m_keyPressBuffer.toLatin1().data());
       }
     }
 

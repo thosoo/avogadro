@@ -34,6 +34,7 @@
 
 #include <openbabel/mol.h>
 #include <openbabel/generic.h>
+#include <openbabel/elements.h>
 
 #include <QMessageBox>
 #include <QCoreApplication>
@@ -268,7 +269,7 @@ namespace Avogadro {
     rad.reserve(m_molecule->numAtoms());
 
     foreach (Atom *atom, m_molecule->atoms())
-      rad.push_back(OpenBabel::etab.GetCovalentRad(atom->atomicNumber()));
+      rad.push_back(OpenBabel::OBElements::GetCovalentRad(atom->atomicNumber()));
 
     foreach (Atom *atom1, m_molecule->atoms()) {
       foreach (Atom *atom2, nbrs.nbrs(atom1)) {

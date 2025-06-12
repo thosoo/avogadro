@@ -77,6 +77,7 @@
 #include <openbabel/mol.h>
 #include <openbabel/builder.h>
 #include <openbabel/forcefield.h>
+#include <openbabel/elements.h>
 
 #ifdef ENABLE_PYTHON
 #include <avogadro/pythonerror.h>
@@ -1999,7 +2000,7 @@ protected:
 
   int GetAtomicNum(string name, int &iso)
   {
-    int n = OpenBabel::etab.GetAtomicNum(name.c_str(), iso);
+    int n = OpenBabel::OBElements::GetAtomicNum(name.c_str(), iso);
     if (iso != 0)
       return 0;  // "D" ot "T"
     if (n != 0)
@@ -2012,9 +2013,9 @@ protected:
       if (name == (*i)->GetSymbol())
       return((*i)->GetAtomicNum());*/
 
-    for (unsigned int i=0; i<etab.GetNumberOfElements(); i++)
-      if (!QString::compare(name.c_str(), etab.GetName(i).c_str(), Qt::CaseInsensitive))
-	      return i;
+    for (unsigned int i=0; i<OpenBabel::OBElements::GetNumberOfElements(); i++)
+      if (!QString::compare(name.c_str(), OpenBabel::OBElements::GetName(i).c_str(), Qt::CaseInsensitive))
+              return i;
 
     if (!QString::compare(name.c_str(), "Deuterium", Qt::CaseInsensitive))
       {
@@ -2271,7 +2272,7 @@ protected:
     QStringList ids;
     for (QList<Atom*>::const_iterator it = atoms.constBegin(),
            it_end = atoms.constEnd(); it != it_end; ++it) {
-      ids << OpenBabel::etab.GetSymbol((*it)->atomicNumber());
+      ids << OpenBabel::OBElements::GetSymbol((*it)->atomicNumber());
     }
 
     // Fractional coordinates

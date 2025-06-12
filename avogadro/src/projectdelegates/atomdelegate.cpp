@@ -26,6 +26,7 @@
 #include <avogadro/atom.h>
 
 #include <openbabel/mol.h>
+#include <openbabel/elements.h>
 
 #include <QDebug>
 #include <QString>
@@ -81,7 +82,7 @@ namespace Avogadro
     model()->insertRows(m_label, 0, molecule->numAtoms());
     for (int i = 0; i < m_label->childCount(); ++i) {
       ProjectTreeItem *item = m_label->child(i);
-      item->setData(0, QString(OpenBabel::etab.GetSymbol(molecule->atom(i)->atomicNumber())));
+      item->setData(0, QString(OpenBabel::OBElements::GetSymbol(molecule->atom(i)->atomicNumber())));
       item->setData(1, QString("%1").arg(i));
       // set the primitive
       PrimitiveList primitives;
@@ -101,7 +102,7 @@ namespace Avogadro
     // add the new primitive to the end
     model()->insertRows(m_label, m_label->childCount(), 1);
     ProjectTreeItem *item = m_label->child(m_label->childCount() - 1);
-    item->setData(0, QString(OpenBabel::etab.GetSymbol(atom->atomicNumber())));
+    item->setData(0, QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber())));
     item->setData(1, QString("%1").arg(primitive->index())); 
     // set the primitive
     PrimitiveList primitives;
@@ -122,7 +123,7 @@ namespace Avogadro
     Atom *atom = static_cast<Atom*>(primitive);
     
     ProjectTreeItem *item = m_label->child(primitive->index());
-    item->setData(0, QString(OpenBabel::etab.GetSymbol(atom->atomicNumber())));
+    item->setData(0, QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber())));
     item->setData(1, QString("%1").arg(primitive->index())); 
  
 

@@ -49,6 +49,7 @@
 #include <openbabel/generic.h>
 #include <openbabel/forcefield.h>
 #include <openbabel/obiter.h>
+#include <openbabel/elements.h>
 
 #include <QtCore/QDir>
 #include <QtCore/QDebug>
@@ -1235,7 +1236,7 @@ namespace Avogadro{
         if (!atomLabel.isEmpty())
           r->SetAtomID(a, atomLabel.toStdString());
         else {
-          r->SetAtomID(a, OpenBabel::etab.GetSymbol(avoAtom->atomicNumber()));
+          r->SetAtomID(a, OpenBabel::OBElements::GetSymbol(avoAtom->atomicNumber()));
           r->SetHetAtom(a, true);
         }
       }

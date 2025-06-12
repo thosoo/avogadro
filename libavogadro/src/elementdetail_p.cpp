@@ -28,6 +28,7 @@
 #include "elementtranslator.h"
 
 #include <openbabel/mol.h>
+#include <openbabel/elements.h>
 
 #include <QGraphicsSceneMouseEvent>
 #include <QPainter>
@@ -65,11 +66,11 @@ namespace Avogadro{
     QFontMetrics fm(font);
     int pixelHeight = fm.height();
 
-    QString symbol = OpenBabel::etab.GetSymbol(m_element);
+    QString symbol = OpenBabel::OBElements::GetSymbol(m_element);
     QString name(ElementTranslator::name(m_element));
-    QString mass = QString("%L1").arg(OpenBabel::etab.GetMass(m_element), 0, 'f', 3);
+    QString mass = QString("%L1").arg(OpenBabel::OBElements::GetMass(m_element), 0, 'f', 3);
 
-    std::vector<double> color = OpenBabel::etab.GetRGB(m_element);
+    std::vector<double> color = OpenBabel::OBElements::GetRGB(m_element);
     QColor m_color;
     m_color.setRgbF(color[0], color[1], color[2]);
 
