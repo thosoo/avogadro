@@ -43,6 +43,7 @@
 #include <vector>
 
 #include <openbabel/mol.h>
+#include <openbabel/bond.h>
 #include <openbabel/math/vector3.h>
 #include <openbabel/griddata.h>
 #include <openbabel/grid.h>
@@ -65,10 +66,10 @@ namespace Avogadro{
     public:
       MoleculePrivate() : farthestAtom(0), invalidGeomInfo(true),
                           invalidRings(true), invalidGroupIndices(true),
-                          obmol(0), obunitcell(0),
-                          obvibdata(0), obdosdata(0),
-                          obelectronictransitiondata(0),
-                          obconformerdata(0),oborcaspecdata(0)
+                         obmol(0), obunitcell(0),
+                         obvibdata(0), obdosdata(0),
+                         obelectronictransitiondata(0),
+                         obconformerdata(0)
     {}
     // These are logically cached variables and thus are marked as mutable.
     // Const objects should be logically constant (and not mutable)
@@ -108,7 +109,6 @@ namespace Avogadro{
       OpenBabel::OBElectronicTransitionData *
                                     obelectronictransitiondata;
       OpenBabel::OBConformerData *  obconformerdata;
-      OpenBabel::OBOrcaSpecData *   oborcaspecdata;
 
   };
 
@@ -1261,7 +1261,7 @@ namespace Avogadro{
     obmol.EndModify();
 
     // Copy energy
-    obmol.SetEnergy(this->energy() / KCAL_TO_KJ);
+    obmol.SetEnergy(this->energy() / OpenBabel::KCAL_TO_KJ);
 
     // Copy unit cells
     if (d->obunitcell != NULL) {
@@ -1299,10 +1299,6 @@ namespace Avogadro{
       obmol.SetData(d->obconformerdata->Clone(&obmol));
     }
 
-    // Copy Orca spectra data, if needed
-    if (d->oborcaspecdata != NULL) {
-      obmol.SetData(d->oborcaspecdata->Clone(&obmol));
-    }
     return obmol;
   }
 
@@ -1332,9 +1328,10 @@ namespace Avogadro{
         int numCarbons = 0;
         int numHydrogens = 0;
         for (OpenBabel::OBAtom *obatom = obmol->BeginAtom(i); obatom; obatom = obmol->NextAtom(i)) {
-          if (obatom->IsCarbon())
+          int atomicNum = obatom->GetAtomicNum();
+          if (atomicNum == 6)
             numCarbons++;
-          if (obatom->IsHydrogen())
+          if (atomicNum == 1)
             numHydrogens++;
         }
         // Here's the heuristic. If there are >4 carbons and/or carbon + hydrogen (e.g. methane),
@@ -1431,7 +1428,7 @@ namespace Avogadro{
       // energies and forces will be set below
     } else {
       // one conformer, so use setEnergy
-      setEnergy(obmol->GetEnergy() * KCAL_TO_KJ);
+      setEnergy(obmol->GetEnergy() * OpenBabel::KCAL_TO_KJ);
     }
 
     // Copy conformer data (e.g., energies, forces) if present and valid
@@ -1441,7 +1438,7 @@ namespace Avogadro{
         // copy energies -- should be one for each conformer
         std::vector<double> energies = cd->GetEnergies();
         for (unsigned int i = 0; i < energies.size(); ++i)
-          energies[i] *= KCAL_TO_KJ;
+          energies[i] *= OpenBabel::KCAL_TO_KJ;
         setEnergies(energies);
 
         // check for validity (i.e., we have some forces, one for each atom
@@ -1477,13 +1474,7 @@ namespace Avogadro{
       d->obelectronictransitiondata = etd;
     }
 
-    // Copy Orca spectra data
-    if (obmol->HasData(OpenBabel::OBGenericDataType::CustomData0)) {
-      OpenBabel::OBOrcaSpecData *specorca =
-        static_cast<OpenBabel::OBOrcaSpecData*>
-        (obmol->GetData(OpenBabel::OBGenericDataType::CustomData0));
-      d->oborcaspecdata = specorca;
-    }
+    // Orca spectra data not supported with Open Babel 3
 
     // Copy orbital energies, symbols, and occupations to dynamic properties (as QList<>)
     qDebug() << "has data  = " << obmol->HasData(OpenBabel::OBGenericDataType::ElectronicData) << endl;
