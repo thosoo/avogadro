@@ -29,6 +29,7 @@
 #include <QtPlugin>
 
 #include <openbabel/mol.h>
+#include <openbabel/elements.h>
 
 namespace Avogadro {
 

@@ -18,11 +18,11 @@ jobs:
       run: |
         mkdir build
         cd build
-        cmake .. -DCMAKE_BUILD_TYPE=Release
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_VERBOSE_MAKEFILE=ON
     - name: Build
       run: |
         cd build
-        make -j$(nproc)
+        make -j$(nproc) VERBOSE=1
     - name: Test
       run: |
         cd build

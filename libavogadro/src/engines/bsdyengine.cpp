@@ -37,6 +37,7 @@
 #include <QDebug>
 
 #include <openbabel/mol.h>
+#include <openbabel/elements.h>
 
 using namespace std;
 using namespace Eigen;
