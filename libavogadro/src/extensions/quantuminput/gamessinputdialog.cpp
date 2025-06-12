@@ -2013,7 +2013,7 @@ namespace Avogadro {
   // Data Slots
   void GamessInputDialog::setDataTitle( const QString &text )
   {
-    m_inputData->Data->SetTitle( text.toAscii().constData() );
+    m_inputData->Data->SetTitle( text.toLatin1().constData() );
   }
 
   void GamessInputDialog::setDataCoordinate( int index )

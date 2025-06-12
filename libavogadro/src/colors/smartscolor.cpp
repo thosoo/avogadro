@@ -105,7 +105,7 @@ namespace Avogadro {
   void SmartsColor::smartsChanged(QString newPattern)
   {
     _smartsString = newPattern;
-    _pattern->Init(_smartsString.toAscii());
+    _pattern->Init(_smartsString.toLatin1());
     emit changed();
   }
 

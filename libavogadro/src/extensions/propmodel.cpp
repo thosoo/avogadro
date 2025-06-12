@@ -608,7 +608,7 @@ namespace Avogadro {
         if (ok)
           atom->setAtomicNumber(atomicNumber);
         else
-          atom->setAtomicNumber(OpenBabel::etab.GetAtomicNum(value.toString().toAscii()));
+          atom->setAtomicNumber(OpenBabel::etab.GetAtomicNum(value.toString().toLatin1()));
 
         m_molecule->update();
         m_validCache = false;

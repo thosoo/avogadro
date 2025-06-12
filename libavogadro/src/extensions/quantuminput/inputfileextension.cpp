@@ -179,7 +179,7 @@ namespace Avogadro
   {
     QApplication::setOverrideCursor(Qt::WaitCursor);
     OBConversion conv;
-    OBFormat     *inFormat = conv.FormatFromExt( filename.toAscii() );
+    OBFormat     *inFormat = conv.FormatFromExt( filename.toLatin1() );
     if ( !inFormat || !conv.SetInFormat( inFormat ) ) {
       QApplication::restoreOverrideCursor();
       QMessageBox::warning(m_widget, tr("Avogadro"),

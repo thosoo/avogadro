@@ -125,7 +125,7 @@ namespace Avogadro {
                                              m_smilesString, &ok);
       if (ok && !smiles.isEmpty()) {
         m_smilesString = smiles; // save for settings
-        std::string SmilesString(smiles.toAscii());
+        std::string SmilesString(smiles.toLatin1());
 
         QList<Primitive *> selectedAtoms = widget->selectedPrimitives().subList(Primitive::AtomType);
         if (!selectedAtoms.empty()) {

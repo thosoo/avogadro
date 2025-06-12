@@ -122,7 +122,7 @@ void ReadFileThread::run()
   OpenBabel::OBConversion conv;
   OpenBabel::OBFormat *inFormat;
   if (!m_moleculeFile->m_fileType.isEmpty() &&
-      !conv.SetInFormat(m_moleculeFile->m_fileType.toAscii().data())) {
+      !conv.SetInFormat(m_moleculeFile->m_fileType.toLatin1().data())) {
     // Input format not supported
     m_moleculeFile->m_error.append(
           QObject::tr("File type '%1' is not supported for reading.")
@@ -130,7 +130,7 @@ void ReadFileThread::run()
     return;
   }
   else {
-    inFormat = conv.FormatFromExt(m_moleculeFile->m_fileName.toAscii().data());
+    inFormat = conv.FormatFromExt(m_moleculeFile->m_fileName.toLatin1().data());
     if (!inFormat || !conv.SetInFormat(inFormat)) {
       // Input format not supported
       m_moleculeFile->m_error
@@ -144,7 +144,7 @@ void ReadFileThread::run()
   if (!m_moleculeFile->m_fileOptions.isEmpty()) {
     foreach(const QString &option, m_moleculeFile
             ->m_fileOptions.split('\n', QString::SkipEmptyParts)) {
-      conv.AddOption(option.toAscii().data(), OBConversion::INOPTIONS);
+      conv.AddOption(option.toLatin1().data(), OBConversion::INOPTIONS);
     }
   }
 

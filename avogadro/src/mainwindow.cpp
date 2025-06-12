@@ -1577,11 +1577,11 @@ protected:
         savedSetting = new OBPairData;
         attribute = "Avogadro:" + key;
         // Convert from QString to char*
-        savedSetting->SetAttribute(attribute.toAscii().constData());
+        savedSetting->SetAttribute(attribute.toLatin1().constData());
 
         value = settings.value(key).toString();
         // Convert from QString to char*
-        savedSetting->SetValue(value.toAscii().constData());
+        savedSetting->SetValue(value.toLatin1().constData());
         savedSetting->SetOrigin(userInput);
         obmol.SetData(savedSetting);
       }
@@ -1957,7 +1957,7 @@ protected:
     } else if ( mimeData->hasText() ) {
       pasteFormat = conv.FindFormat( "xyz" );
 
-      text = mimeData->text().toAscii();
+      text = mimeData->text().toLatin1();
     }
 
     if ( text.length() == 0 )

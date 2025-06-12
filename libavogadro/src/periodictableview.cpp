@@ -94,7 +94,7 @@ namespace Avogadro {
         clearKeyPressBuffer();
       } else {
         // try parsing as a symbol
-        element  = OpenBabel::etab.GetAtomicNum(m_keyPressBuffer.toAscii().data());
+        element  = OpenBabel::etab.GetAtomicNum(m_keyPressBuffer.toLatin1().data());
       }
     }
 

@@ -159,7 +159,7 @@ namespace Avogadro
     QApplication::setOverrideCursor(Qt::WaitCursor);
 
 /*    OBConversion conv;
-    OBFormat     *inFormat = conv.FormatFromExt(( fileName.toAscii() ).data() );
+    OBFormat     *inFormat = conv.FormatFromExt(( fileName.toLatin1() ).data() );
     if ( !inFormat || !conv.SetInFormat( inFormat ) ) {
       QApplication::restoreOverrideCursor();
       QMessageBox::warning(m_fileImportDialog, tr("Avogadro"),
@@ -168,7 +168,7 @@ namespace Avogadro
     }
 
     ifstream ifs;
-    ifs.open((fileName.toAscii()).data());
+    ifs.open((fileName.toLatin1()).data());
     if (!ifs) { // shouldn't happen, already checked file above
       QApplication::restoreOverrideCursor();
       QMessageBox::warning(m_fileImportDialog, tr("Avogadro"),

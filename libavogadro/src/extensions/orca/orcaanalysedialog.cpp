@@ -1067,12 +1067,12 @@ QString OrcaAnalyseDialog::readOutputFile()
         OBAtom *atom  = m_obmol->NewAtom();
         int atomicNum;
         if (atomicLabel) {
-            atomicNum = etab.GetAtomicNum(atomText.at(i).toAscii());
+            atomicNum = etab.GetAtomicNum(atomText.at(i).toLatin1());
         } else {
             atomicNum = atomText.at(i).toInt();
         }
 
-        ret <<  atomicNum << " " <<  atomText.at(i).toAscii() << "\n";
+        ret <<  atomicNum << " " <<  atomText.at(i).toLatin1() << "\n";
         atom->SetAtomicNum(atomicNum);
         atom->SetVector(geo.at(i).x(), geo.at(i).y(),geo.at(i).z()); //set coordinates
 
