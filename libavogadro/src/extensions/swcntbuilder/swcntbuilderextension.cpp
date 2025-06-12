@@ -174,4 +174,3 @@ namespace SWCNTBuilder {
 
 }
 
-Q_EXPORT_PLUGIN2(swcntbuilderextension, SWCNTBuilder::SWCNTBuilderExtensionFactory)

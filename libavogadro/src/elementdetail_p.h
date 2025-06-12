@@ -45,6 +45,7 @@ namespace Avogadro{
   Q_OBJECT
 #if QT_VERSION >= 0x40600
   Q_INTERFACES(QGraphicsItem)
+    Q_PLUGIN_METADATA(IID "net.sourceforge.avogadro.pluginfactory/1.5")
 #endif
 
   public:

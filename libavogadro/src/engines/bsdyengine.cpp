@@ -91,12 +91,12 @@ namespace Avogadro
   {
     double radiusCovalent(const Atom *atom)
     {
-      return OpenBabel::etab.GetCovalentRad(atom->atomicNumber());
+      return OpenBabel::OBElements::GetCovalentRad(atom->atomicNumber());
     }
 
     double radiusVdW(const Atom *atom)
     {
-      return OpenBabel::etab.GetVdwRad(atom->atomicNumber());
+      return OpenBabel::OBElements::GetVdwRad(atom->atomicNumber());
     }
   } // End of anonymous namespace
 
@@ -523,4 +523,3 @@ namespace Avogadro
 
 }
 
- Q_EXPORT_PLUGIN2( bsdyengine, Avogadro::BSDYEngineFactory )

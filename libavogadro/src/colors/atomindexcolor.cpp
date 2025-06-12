@@ -83,5 +83,4 @@ namespace Avogadro {
 
 }
 
-Q_EXPORT_PLUGIN2(atomindexcolor, Avogadro::AtomIndexColorFactory)
 

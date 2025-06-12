@@ -293,5 +293,4 @@ namespace Avogadro {
 
 }
 
-Q_EXPORT_PLUGIN2(residuecolor, Avogadro::ResidueColorFactory)
 

@@ -806,4 +806,3 @@ namespace Avogadro {
 
 }
 
-Q_EXPORT_PLUGIN2(selectrotatetool, Avogadro::SelectRotateToolFactory)

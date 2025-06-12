@@ -249,5 +249,4 @@ namespace Avogadro
 
 } // End namespace Avogadro
 
-Q_EXPORT_PLUGIN2(inputfileextension, Avogadro::InputFileExtensionFactory)
 

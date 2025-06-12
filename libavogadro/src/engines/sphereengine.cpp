@@ -249,4 +249,3 @@ namespace Avogadro {
 
 }
 
-Q_EXPORT_PLUGIN2(sphereengine, Avogadro::SphereEngineFactory)
