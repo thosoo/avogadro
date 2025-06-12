@@ -343,5 +343,3 @@ msym_thresholds_t sloppy_thresholds = {
   }
 
 } // end namespace Avogadro
-
-                 Avogadro::SymmetryExtensionFactory)

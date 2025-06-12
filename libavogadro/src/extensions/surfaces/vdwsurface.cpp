@@ -35,7 +35,7 @@
 
 #include <cmath>
 
-#include <QtConcurrentMap>
+#include <QtConcurrent/QtConcurrentMap>
 #include <QFuture>
 #include <QFutureWatcher>
 #include <QReadWriteLock>

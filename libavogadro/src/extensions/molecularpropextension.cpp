@@ -285,5 +285,3 @@ namespace Avogadro {
   }
 
 } // end namespace Avogadro
-
-                 Avogadro::MolecularPropertiesExtensionFactory)

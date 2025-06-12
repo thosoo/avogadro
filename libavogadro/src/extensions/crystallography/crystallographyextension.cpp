@@ -2972,5 +2972,3 @@ namespace Avogadro
 
 } // end namespace Avogadro
 
-                 Avogadro::CrystallographyExtensionFactory)
-
