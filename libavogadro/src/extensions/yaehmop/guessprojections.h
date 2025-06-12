@@ -24,6 +24,7 @@
 
 #include <openbabel/generic.h>
 #include <openbabel/mol.h>
+#include <openbabel/elements.h>
 
 #include <Eigen/Dense>
 
@@ -65,7 +66,7 @@ static QString guessTypedAtomProjections(const Avogadro::Molecule* mol)
   std::vector<std::string> atomicSymbols;
   QList<Avogadro::Atom*> atoms = mol->atoms();
   for (size_t i = 0; i < atoms.size(); ++i)
-    atomicSymbols.push_back(OpenBabel::etab.GetSymbol(atoms[i]->atomicNumber()));
+    atomicSymbols.push_back(OpenBabel::OBElements::GetSymbol(atoms[i]->atomicNumber()));
 
   QString ret;
   std::vector<std::string> alreadyLookedAt;
@@ -91,7 +92,7 @@ static QString displayAtomNumbers(const Avogadro::Molecule* mol)
   QString ret;
   for (size_t i = 0; i < atoms.size(); ++i) {
     unsigned int atomicNumber = atoms[i]->atomicNumber();
-    QString symbol = OpenBabel::etab.GetSymbol(atomicNumber);
+    QString symbol = OpenBabel::OBElements::GetSymbol(atomicNumber);
     const Eigen::Vector3d& pos = *atoms[i]->pos();
     ret += (QString("# ") + symbol + " (");
     ret += (QString::number(pos[0]) + ", " +
@@ -128,7 +129,7 @@ static QString guessOrbitalProjections(const Avogadro::Molecule* mol)
 
     for (size_t angInd = 0; angInd < angMaxInd; ++angInd) {
       ret += "# ";
-      ret += (QString(OpenBabel::etab.GetSymbol(atomicNum)) + " ");
+      ret += (QString(OpenBabel::OBElements::GetSymbol(atomicNum)) + " ");
       if (angInd == 0)
         ret += "s";
       else if (angInd == 1)
@@ -182,7 +183,7 @@ static QString guessDetailedOrbitalProjections(const Avogadro::Molecule* mol)
     const Eigen::Vector3d& pos = *atoms[i]->pos();
 
     ret += "# ";
-    ret += OpenBabel::etab.GetSymbol(atoms[i]->atomicNumber());
+    ret += OpenBabel::OBElements::GetSymbol(atoms[i]->atomicNumber());
     ret += (QString(" (") + QString::number(pos[0]) + ", " +
                              QString::number(pos[1]) + ", " +
                              QString::number(pos[2]) +
@@ -244,7 +245,7 @@ static QString displayOrbitalNumbers(const Avogadro::Molecule* mol)
     const Eigen::Vector3d& pos = *atoms[i]->pos();
 
     ret += "# ";
-    ret += OpenBabel::etab.GetSymbol(atoms[i]->atomicNumber());
+    ret += OpenBabel::OBElements::GetSymbol(atoms[i]->atomicNumber());
     ret += (QString(" (") + QString::number(pos[0]) + ", " +
                              QString::number(pos[1]) + ", " +
                              QString::number(pos[2]) +

@@ -32,10 +32,11 @@
 #include <avogadro/primitivelist.h>
 
 #include <openbabel/mol.h>
+#include <openbabel/elements.h>
 
 #include <cmath>
 
-#include <QtConcurrentMap>
+#include <QtConcurrent/QtConcurrentMap>
 #include <QFuture>
 #include <QFutureWatcher>
 #include <QReadWriteLock>
@@ -77,7 +78,7 @@ namespace Avogadro
         for (unsigned int i = 0; i < m_atomPos.size(); ++i) {
           Atom *atom = static_cast<Atom*>(atoms.at(i));
           m_atomPos[i] = *atom->pos();
-          m_atomRadius[i] = OpenBabel::etab.GetVdwRad(atom->atomicNumber());
+          m_atomRadius[i] = OpenBabel::OBElements::GetVdwRad(atom->atomicNumber());
         }
 
         return;
@@ -90,7 +91,7 @@ namespace Avogadro
 
     for (unsigned int i = 0; i < m_atomPos.size(); ++i) {
       m_atomPos[i] = *mol->atom(i)->pos();
-      m_atomRadius[i] = OpenBabel::etab.GetVdwRad(mol->atom(i)->atomicNumber());
+      m_atomRadius[i] = OpenBabel::OBElements::GetVdwRad(mol->atom(i)->atomicNumber());
     }
   }
 

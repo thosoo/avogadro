@@ -28,6 +28,7 @@
 #include <avogadro/atom.h>
 
 #include <openbabel/mol.h>
+#include <openbabel/elements.h>
 
 #include <QString>
 #include <QTextStream>
@@ -274,7 +275,7 @@ namespace Avogadro
         for (unsigned int idx = 0; idx < fragList[frag].size(); ++idx) {
           Atom *atom = m_molecule->atom(fragList[frag][idx] - 1);
           mol << qSetFieldWidth(4) << right
-              << QString(OpenBabel::etab.GetSymbol(atom->atomicNumber()))
+              << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()))
               << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint
               << fixed << right << atom->pos()->x() << atom->pos()->y()
               << atom->pos()->z()
@@ -304,19 +305,19 @@ namespace Avogadro
         c = vic[atom->GetIdx()]->_c;
 
         mol << qSetFieldWidth(4) << right
-            << QString(etab.GetSymbol(atom->GetAtomicNum())
+            << QString(OpenBabel::OBElements::GetSymbol(atom->GetAtomicNum())
                        + QString::number(atom->GetIdx()))
             << qSetFieldWidth(0);
         if (atom->GetIdx() > 1)
-          mol << ' ' << QString(etab.GetSymbol(a->GetAtomicNum())
+          mol << ' ' << QString(OpenBabel::OBElements::GetSymbol(a->GetAtomicNum())
                                 + QString::number(a->GetIdx()))
               << " r" << atom->GetIdx();
         if (atom->GetIdx() > 2)
-          mol << ' ' << QString(etab.GetSymbol(b->GetAtomicNum())
+          mol << ' ' << QString(OpenBabel::OBElements::GetSymbol(b->GetAtomicNum())
                                 + QString::number(b->GetIdx()))
               << " a" << atom->GetIdx();
         if (atom->GetIdx() > 3)
-          mol << ' ' << QString(etab.GetSymbol(c->GetAtomicNum())
+          mol << ' ' << QString(OpenBabel::OBElements::GetSymbol(c->GetAtomicNum())
                                 + QString::number(c->GetIdx()))
               << " d" << atom->GetIdx();
         mol << '\n';
@@ -376,21 +377,21 @@ namespace Avogadro
           t += 360.0;
 
         mol << qSetFieldWidth(4) << right
-            << QString(etab.GetSymbol(atom->GetAtomicNum())
+            << QString(OpenBabel::OBElements::GetSymbol(atom->GetAtomicNum())
                        + QString::number(atom->GetIdx()));
         if (atom->GetIdx() > 1)
           mol << qSetFieldWidth(6) << right
-              << QString(etab.GetSymbol(a->GetAtomicNum())
+              << QString(OpenBabel::OBElements::GetSymbol(a->GetAtomicNum())
                          + QString::number(a->GetIdx())) << qSetFieldWidth(15)
               << qSetRealNumberPrecision(5) << forcepoint << fixed << right << r;
         if (atom->GetIdx() > 2)
           mol << qSetFieldWidth(6) << right
-                 << QString(etab.GetSymbol(b->GetAtomicNum())
+                 << QString(OpenBabel::OBElements::GetSymbol(b->GetAtomicNum())
                          + QString::number(b->GetIdx())) << qSetFieldWidth(15)
               << qSetRealNumberPrecision(5) << forcepoint << fixed << right << w;
         if (atom->GetIdx() > 3)
           mol << qSetFieldWidth(6) << right
-              << QString(etab.GetSymbol(c->GetAtomicNum())
+              << QString(OpenBabel::OBElements::GetSymbol(c->GetAtomicNum())
                          + QString::number(c->GetIdx())) << qSetFieldWidth(15)
               << qSetRealNumberPrecision(5) << forcepoint << fixed << right << t;
         mol << qSetFieldWidth(0) << '\n';

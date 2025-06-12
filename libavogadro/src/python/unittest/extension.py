@@ -2,7 +2,9 @@ import Avogadro
 import unittest
 from numpy import *
 
-from PyQt4.Qt import *
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 import sys
 
 class TestExtension(unittest.TestCase):

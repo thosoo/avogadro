@@ -248,14 +248,14 @@ namespace Avogadro
 
     qDebug() << " parsing " << strData.length() << " format "<< info.suffix() << " mime: " << contentType;
 
-    if ( info.suffix().isEmpty() || !conv.SetInFormat(info.suffix().toAscii()) ) {
+    if ( info.suffix().isEmpty() || !conv.SetInFormat(info.suffix().toLatin1()) ) {
       // we might not get an extension, so
       // try to guess from the content type
-      OBFormat *format = OBConversion::FormatFromMIME(contentType.toAscii());
+      OBFormat *format = OBConversion::FormatFromMIME(contentType.toLatin1());
       if (!format || !conv.SetInFormat(format)) {
         // last try, use the m_moleculeName
         info.setFile(*m_moleculeName);
-        if ( info.suffix().isEmpty() || !conv.SetInFormat(info.suffix().toAscii()) ) {
+        if ( info.suffix().isEmpty() || !conv.SetInFormat(info.suffix().toLatin1()) ) {
           // nothing is working!
           return;
         }
@@ -282,4 +282,3 @@ namespace Avogadro
 
 } // End namespace Avogadro
 
-Q_EXPORT_PLUGIN2(networkfetchextension, Avogadro::NetworkFetchExtensionFactory)

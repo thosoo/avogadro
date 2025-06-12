@@ -1,6 +1,7 @@
 import Avogadro
 import unittest
-from PyQt4.QtGui import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 from numpy import *
 from util import *
 

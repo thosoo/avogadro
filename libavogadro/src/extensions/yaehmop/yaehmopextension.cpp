@@ -24,6 +24,7 @@
 
 #include <openbabel/generic.h>
 #include <openbabel/mol.h>
+#include <openbabel/elements.h>
 
 #include <QAction>
 #include <QCoreApplication>
@@ -1853,7 +1854,7 @@ namespace Avogadro
     std::vector<std::string> atomicSymbols;
     for (int i = 0; i < atoms.size(); ++i) {
       atomicNums.push_back(atoms[i]->atomicNumber());
-      atomicSymbols.push_back(OpenBabel::etab.GetSymbol(atomicNums[i]));
+      atomicSymbols.push_back(OpenBabel::OBElements::GetSymbol(atomicNums[i]));
     }
     size_t numValElectrons = numValenceElectrons(atomicNums);
     size_t numKPoints = 0;
@@ -2054,7 +2055,7 @@ namespace Avogadro
 
     // Now loop through atom positions and add them
     for (int i = 0; i < numAtoms; ++i) {
-      QString symbol = OpenBabel::etab.GetSymbol(atoms[i]->atomicNumber());
+      QString symbol = OpenBabel::OBElements::GetSymbol(atoms[i]->atomicNumber());
       const Vector3d& pos = *atoms[i]->pos();
       input += (QString::number(i + 1) + " ");
       input += (symbol + " ");
@@ -2261,5 +2262,4 @@ namespace Avogadro
 
 } // end namespace Avogadro
 
-Q_EXPORT_PLUGIN2(yaehmopextension, Avogadro::YaehmopExtensionFactory)
 

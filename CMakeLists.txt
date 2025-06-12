@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 2.8.9)
 project(Avogadro) # the name of your project
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # The Avogadro version number, currently used by the Avogadro library too
 set(Avogadro_VERSION_MAJOR 1)
@@ -223,12 +225,13 @@ endif()
 
 set(I18N_LANGUAGE "" CACHE STRING "Build i18n only for selected language")
 
-find_package(Qt4 4.6.0 REQUIRED) # find and setup Qt4 for this project
+include(cmake/Qt5Compat.cmake)
+find_package(Qt5 REQUIRED COMPONENTS Widgets Gui OpenGL Network LinguistTools Core Concurrent)
 find_package(OpenGL REQUIRED) # find and setup OpenGL
 find_package(X11) # find and setup X11 (not required for Mac and Windows)
 find_package(Linguist) # find and setup Linguist
 if(NOT Linguist_FOUND)
-  message(WARNING " Qt4 Linguist not found, please install it if you want Avogadro translations")
+  message(WARNING "Qt5 Linguist not found, please install it if you want Avogadro translations")
 endif()
 
 find_package(Eigen3 REQUIRED) # find and setup Eigen3 if available

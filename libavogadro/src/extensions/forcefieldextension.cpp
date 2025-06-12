@@ -755,5 +755,4 @@ namespace Avogadro
 
 } // end namespace Avogadro
 
-Q_EXPORT_PLUGIN2(forcefieldextension, Avogadro::ForceFieldExtensionFactory)
 

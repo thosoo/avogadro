@@ -152,7 +152,7 @@ void MoleculeFileTest::readFile()
   OpenBabel::OBMol mol = m_molecule->OBMol();
   OBConversion conv;
   conv.SetOutFormat("sdf");
-  std::ofstream ofs(filename.toAscii().data());
+  std::ofstream ofs(filename.toLatin1().data());
   QVERIFY( ofs );
   // write the molecule 4 times...
   conv.Write(&mol, &ofs);
@@ -163,7 +163,7 @@ void MoleculeFileTest::readFile()
 
 
 
-  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toAscii().data());
+  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), true );
@@ -172,7 +172,7 @@ void MoleculeFileTest::readFile()
       static_cast<std::vector<int>::size_type>(4) );
 
 
-  ofs.open(filename.toAscii().data());
+  ofs.open(filename.toLatin1().data());
   QVERIFY( ofs );
   // write the molecule 4 times...
   conv.Write(&mol, &ofs);
@@ -181,7 +181,7 @@ void MoleculeFileTest::readFile()
   conv.Write(&mol, &ofs);
   conv.Write(&mol, &ofs);
 
-  moleculeFile = MoleculeFile::readFile(filename.toAscii().data());
+  moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), false );
@@ -208,7 +208,7 @@ void MoleculeFileTest::readWriteConformers()
   QString filename = "moleculefiletest_tmp.sdf";
   QVERIFY( MoleculeFile::writeConformers(m_molecule, filename) );
 
-  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toAscii().data());
+  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), true );
@@ -220,13 +220,13 @@ void MoleculeFileTest::readWriteConformers()
 void MoleculeFileTest::replaceMolecule()
 {
   QString filename = "moleculefiletest_tmp.smi";
-  std::ofstream ofs(filename.toAscii().data());
+  std::ofstream ofs(filename.toLatin1().data());
   ofs << "c1ccccc1  phenyl" << std::endl;
   ofs << "c1ccccc1N  aniline" << std::endl;
   ofs << "c1ccccc1C  toluene" << std::endl;
   ofs.close();
 
-  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toAscii().data());
+  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), false );
@@ -287,13 +287,13 @@ void MoleculeFileTest::replaceMolecule()
 void MoleculeFileTest::appendMolecule()
 {
   QString filename = "moleculefiletest_tmp.smi";
-  std::ofstream ofs(filename.toAscii().data());
+  std::ofstream ofs(filename.toLatin1().data());
   ofs << "c1ccccc1  phenyl" << std::endl;
   ofs << "c1ccccc1N  aniline" << std::endl;
   ofs << "c1ccccc1C  toluene" << std::endl;
   ofs.close();
 
-  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toAscii().data());
+  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), false );

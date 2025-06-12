@@ -32,6 +32,7 @@
 #include <openbabel/mol.h>
 #include <openbabel/atom.h>
 #include <openbabel/residue.h>
+#include <openbabel/elements.h>
 
 #include <QDebug>
 
@@ -169,7 +170,7 @@ namespace Avogadro {
         residue = atom->residue();
 
       // default is to color by element if no residue is specified
-      std::vector<double> rgb = OpenBabel::etab.GetRGB( atom->atomicNumber() );
+      std::vector<double> rgb = OpenBabel::OBElements::GetRGB( atom->atomicNumber() );
 
       if (!residue) {
         m_channels[0] = rgb[0];
@@ -293,5 +294,4 @@ namespace Avogadro {
 
 }
 
-Q_EXPORT_PLUGIN2(residuecolor, Avogadro::ResidueColorFactory)
 
