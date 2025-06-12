@@ -24,7 +24,7 @@
 #include "ui_cetranslatewidget.h"
 
 #include <QtCore/QTimer>
-#include <QtGui/QDockWidget>
+#include <QtWidgets/QDockWidget>
 
 #include <Eigen/Core>
 

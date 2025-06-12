@@ -226,7 +226,7 @@ endif()
 set(I18N_LANGUAGE "" CACHE STRING "Build i18n only for selected language")
 
 include(cmake/Qt5Compat.cmake)
-find_package(Qt5 REQUIRED COMPONENTS Widgets Gui OpenGL Network LinguistTools Core)
+find_package(Qt5 REQUIRED COMPONENTS Widgets Gui OpenGL Network LinguistTools Core Concurrent)
 find_package(OpenGL REQUIRED) # find and setup OpenGL
 find_package(X11) # find and setup X11 (not required for Mac and Windows)
 find_package(Linguist) # find and setup Linguist

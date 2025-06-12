@@ -32,7 +32,7 @@
 #include <QtCore/QObject>
 #include <QtCore/QList>
 #include <QtCore/QString>
-#include <QtGui/QDockWidget>
+#include <QtWidgets/QDockWidget>
 #include <QtGui/QUndoCommand>
 
 namespace OpenBabel {

@@ -7,7 +7,10 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-set(QT_LIBRARIES Qt5::Widgets Qt5::Gui Qt5::OpenGL Qt5::Network Qt5::Core)
+set(QT_LIBRARIES Qt5::Widgets Qt5::Gui Qt5::OpenGL Qt5::Network Qt5::Core Qt5::Concurrent)
+set(QT_QTCORE_LIBRARY Qt5::Core)
+set(QT_QTGUI_LIBRARY Qt5::Gui)
+set(QT_QTOPENGL_LIBRARY Qt5::OpenGL)
 set(QT_QTNETWORK_LIBRARY Qt5::Network)
 set(QT_DEFINITIONS "")
 set(QT_INCLUDES
