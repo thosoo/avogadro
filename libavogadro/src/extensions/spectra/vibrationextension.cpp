@@ -35,7 +35,7 @@
 
 #include <QtGui/QAction>
 #include <QtGui/QCloseEvent>
-#include <QtGui/QMessageBox>
+#include <QtWidgets/QMessageBox>
 #include <QtCore/QDebug>
 
 using namespace std;

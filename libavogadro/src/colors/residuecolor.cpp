@@ -170,20 +170,21 @@ namespace Avogadro {
         residue = atom->residue();
 
       // default is to color by element if no residue is specified
-      std::vector<double> rgb = OpenBabel::OBElements::GetRGB( atom->atomicNumber() );
+      double r, g, b;
+      OpenBabel::OBElements::GetRGB(atom->atomicNumber(), &r, &g, &b);
 
       if (!residue) {
-        m_channels[0] = rgb[0];
-        m_channels[1] = rgb[1];
-        m_channels[2] = rgb[2];
+        m_channels[0] = r;
+        m_channels[1] = g;
+        m_channels[2] = b;
         m_channels[3] = 1.0;
         return;
       }
       residueName = residue->name();
       if (residueName.compare("UNK", Qt::CaseInsensitive) == 0) {
-        m_channels[0] = rgb[0];
-        m_channels[1] = rgb[1];
-        m_channels[2] = rgb[2];
+        m_channels[0] = r;
+        m_channels[1] = g;
+        m_channels[2] = b;
         m_channels[3] = 1.0;
         return;
       }

@@ -32,7 +32,7 @@
 #include <QtCore/QMutex>
 #include <QtCore/QThread>
 #include <QtGui/QAction>
-#include <QtGui/QMessageBox>
+#include <QtWidgets/QMessageBox>
 
 using namespace Avogadro;
 

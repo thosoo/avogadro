@@ -29,7 +29,7 @@
 
 #include <QtGui/QPushButton>
 #include <QtGui/QButtonGroup>
-#include <QtGui/QMessageBox>
+#include <QtWidgets/QMessageBox>
 //#include <QtGui/QFileDialog>
 
 #include <QtCore/QDebug>

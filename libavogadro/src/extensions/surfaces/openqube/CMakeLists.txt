@@ -55,7 +55,8 @@ set_target_properties(OpenQube PROPERTIES
 target_link_libraries(OpenQube
   ${QT_QTCORE_LIBRARY}
   ${QT_QTGUI_LIBRARY}
-  Qt5::Concurrent)
+  Qt5::Concurrent
+  Qt5::Widgets)
 
 add_executable(qube qube.cpp)
 target_link_libraries(qube OpenQube ${QT_LIBRARIES})

@@ -49,9 +49,10 @@ namespace Avogadro{
     m_symbol = OpenBabel::OBElements::GetSymbol(m_element);
     if(!m_symbol.isEmpty())
       m_valid = true;
-    std::vector<double> color = OpenBabel::OBElements::GetRGB(m_element);
+    double r, g, b;
+    OpenBabel::OBElements::GetRGB(m_element, &r, &g, &b);
     m_color = new QColor();
-    m_color->setRgbF(color[0], color[1], color[2]);
+    m_color->setRgbF(r, g, b);
     // Set some custom data to make it easy to figure out which element we are
     setData(0, m_element);
   }

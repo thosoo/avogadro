@@ -33,7 +33,7 @@
 #include <QtGui/QAction>
 #include <QtGui/QDialog>
 #include <QtGui/QClipboard>
-#include <QtGui/QMessageBox>
+#include <QtWidgets/QMessageBox>
 
 #include <QtCore/QDebug>
 #include <QtCore/QStringList>

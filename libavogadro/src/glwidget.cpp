@@ -34,11 +34,11 @@
 #include "glpainter_p.h"
 #include "glhit.h"
 
-#include <QtGui/QMessageBox>
+#include <QtWidgets/QMessageBox>
 #include <QtGui/QPen>
 #include <QtGui/QPainter>
 #include <QtGui/QPaintEngine>
-#include <QtGui/QUndoStack>
+#include <QtWidgets/QUndoStack>
 #include <QtGui/QLabel>
 
 #ifdef Q_WS_MAC

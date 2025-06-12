@@ -29,7 +29,7 @@
 #include <openbabel/obconversion.h>
 
 #include <QtGui/QAction>
-#include <QtGui/QMessageBox>
+#include <QtWidgets/QMessageBox>
 #include <QtCore/QString>
 #include <QtCore/QDebug>
 #include <QtCore/QTimer>

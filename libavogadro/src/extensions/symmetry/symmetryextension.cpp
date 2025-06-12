@@ -27,7 +27,7 @@
 #include <avogadro/atom.h>
 
 #include <QtGui/QAction>
-#include <QtGui/QMessageBox>
+#include <QtWidgets/QMessageBox>
 #include <QtCore/QString>
 #include <QDebug>
 

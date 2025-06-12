@@ -38,7 +38,7 @@
 #include <QtGui/QFileDialog>
 #include <QtGui/QFontDialog>
 #include <QtGui/QInputDialog>
-#include <QtGui/QMessageBox>
+#include <QtWidgets/QMessageBox>
 #include <QtGui/QPixmap>
 #include <QtCore/QSettings>
 #include <QtGui/QListWidgetItem>

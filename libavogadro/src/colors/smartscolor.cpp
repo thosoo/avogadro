@@ -133,8 +133,9 @@ namespace Avogadro {
     // Start with the default "element color"
     QColor newcolor;
     if (atom->atomicNumber()) {
-      std::vector<double> rgb = OpenBabel::OBElements::GetRGB(atom->atomicNumber());
-      newcolor.setRgbF(rgb[0], rgb[1], rgb[2]);
+      double r, g, b;
+      OpenBabel::OBElements::GetRGB(atom->atomicNumber(), &r, &g, &b);
+      newcolor.setRgbF(r, g, b);
     } else {
       newcolor.setRgbF(0.2f, 0.2f, 0.2f);
     }

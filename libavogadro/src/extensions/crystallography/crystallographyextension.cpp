@@ -59,7 +59,7 @@
 #include <QtGui/QClipboard>
 #include <QtGui/QInputDialog>
 #include <QtGui/QLabel>
-#include <QtGui/QMessageBox>
+#include <QtWidgets/QMessageBox>
 #include <QtGui/QMainWindow>
 #include <QtGui/QTableView>
 #include <QtGui/QStandardItemModel>

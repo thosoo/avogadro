@@ -30,7 +30,7 @@
 
 #include <QtGui/QAction>
 #include <QtGui/QInputDialog>
-#include <QtGui/QMessageBox>
+#include <QtWidgets/QMessageBox>
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkReply>
 #include <QtNetwork/QSslSocket>
