@@ -38,8 +38,8 @@
 #include <avogadro/molecule.h>
 
 #include <QtCore/QDebug>
-#include <QtGui/QColorDialog>
-#include <QtGui/QFontDialog>
+#include <QtWidgets/QColorDialog>
+#include <QtWidgets/QFontDialog>
 //#include <QtGui/QPainter>
 
 #include <openbabel/mol.h>

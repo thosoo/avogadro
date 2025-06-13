@@ -10,9 +10,10 @@ if(WIN32)
 endif()
 
 # Provide a list of plugins that should be built statically, or ALL
-set(Avogadro_STATIC_PLUGINS bsdyengine navigatetool elementcolor
+# Disable static plugins by default to simplify Qt5 builds.
+set(Avogadro_STATIC_PLUGINS ""
   CACHE STRING
-  "List of plugins to build statically (default is bsdyengine, elementcolor, navigatetool). Use ALL to build all plugins statically.")
+  "List of plugins to build statically. Use ALL to build all plugins statically.")
 
 # Create an empty variable to accumulate statically linked plugins in
 set(plugins_built_static "" CACHE INTERNAL "Static Avogadro plugins")
