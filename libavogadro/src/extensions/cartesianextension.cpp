@@ -32,6 +32,8 @@
 #include <openbabel/math/matrix3x3.h>
 #include <openbabel/math/vector3.h>
 #include <openbabel/generic.h>
+#include <openbabel/atom.h>
+#include <openbabel/mol.h>
 
 #include <QAction>
 #include <QDialog>
@@ -272,13 +274,10 @@ namespace Avogadro
                 continue;
 
               // Try to find element name or symbol inside it
-              int n,iso;
+              int n;
               QString s = data.at(i);
               while (s.length()!=0) { // recognize name with number
-                iso = 0;
-                n = OpenBabel::OBElements::GetAtomicNum(s.toStdString().c_str(), iso);
-                if (iso != 0)
-                  n = 1;
+                n = OpenBabel::OBElements::GetAtomicNum(s.toStdString().c_str());
 
                 if (n!=0) {
                   NameCol=i;
@@ -307,7 +306,7 @@ namespace Avogadro
         continue;
       }
       double x=0, y=0, z=0;
-      int _n=0,_iso=0;
+      int _n=0;
       OBAtom *atom  = mol->NewAtom();
       QStringList s_data = coordStrings.at(N).trimmed().split(QRegExp("\\s+|,|;"));
       if (s_data.size() != data.size()) {
@@ -329,10 +328,7 @@ namespace Avogadro
 
               QString _s = s_data.at(i);
               while (_s.length()!=0) { // recognize name with number
-                _iso=0;
-                _n = OpenBabel::OBElements::GetAtomicNum(_s.toStdString().c_str(), _iso);
-                if (_iso != 0)
-                  _n = 1;
+                _n = OpenBabel::OBElements::GetAtomicNum(_s.toStdString().c_str());
 
                 if (_n!=0)
                   break;
