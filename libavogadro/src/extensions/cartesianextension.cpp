@@ -30,9 +30,9 @@
 
 #include <openbabel/elements.h>
 
-#include <QtGui/QAction>
-#include <QtGui/QDialog>
-#include <QtGui/QClipboard>
+#include <QAction>
+#include <QDialog>
+#include <QClipboard>
 #include <QtWidgets/QMessageBox>
 
 #include <QtCore/QDebug>

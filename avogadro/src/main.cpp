@@ -34,7 +34,7 @@
 // Qt Includes
 #include <QApplication>
 #include <QMessageBox>
-#include <QtCore/QTranslator>
+#include <QTranslator>
 #include <QSystemLocale>
 #include <QGLFormat>
 #include <QDebug>
