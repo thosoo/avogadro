@@ -89,6 +89,8 @@
 #include <cstdlib>
 
 #include <openbabel/mol.h>
+#include <openbabel/generic.h>
+#include <openbabel/math/vector3.h>
 
 using namespace OpenBabel;
 using namespace Eigen;
