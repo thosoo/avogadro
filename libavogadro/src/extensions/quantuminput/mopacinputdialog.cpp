@@ -449,7 +449,7 @@ namespace Avogadro
               t += 360.0;
 
             mol << qSetFieldWidth(4) << right
-                << QString(etab.GetSymbol(atom->GetAtomicNum()));
+                << QString(OpenBabel::OBElements::GetSymbol(atom->GetAtomicNum()));
 
             QString buffer = QString("%1 %2 %3 %4 %5 %6")
               .arg(r, 10, 'f', 6)
