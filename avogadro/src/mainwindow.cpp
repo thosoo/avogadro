@@ -2013,9 +2013,9 @@ protected:
       if (name == (*i)->GetSymbol())
       return((*i)->GetAtomicNum());*/
 
-    for (unsigned int i=0; i<OpenBabel::OBElements::GetNumberOfElements(); i++)
-      if (!QString::compare(name.c_str(), OpenBabel::OBElements::GetName(i).c_str(), Qt::CaseInsensitive))
-              return i;
+    for (unsigned int i = 0; i < OpenBabel::OBElements::GetNumberOfElements(); ++i)
+      if (!QString::compare(name.c_str(), OpenBabel::OBElements::GetName(i), Qt::CaseInsensitive))
+        return i;
 
     if (!QString::compare(name.c_str(), "Deuterium", Qt::CaseInsensitive))
       {
