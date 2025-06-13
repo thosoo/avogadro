@@ -33,6 +33,7 @@
 #include <openbabel/math/vector3.h>
 #include <openbabel/generic.h>
 #include <openbabel/mol.h>
+#include <openbabel/atom.h>
 
 #include <QAction>
 #include <QDialog>
