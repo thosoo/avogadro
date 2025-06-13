@@ -31,7 +31,7 @@
 #include <openbabel/elements.h>
 #include <openbabel/math/matrix3x3.h>
 #include <openbabel/math/vector3.h>
-#include <openbabel/unitcell.h>
+#include <openbabel/generic.h>
 
 #include <QAction>
 #include <QDialog>

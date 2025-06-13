@@ -28,7 +28,7 @@
 #include <avogadro/obeigenconv.h>
 
 #include <openbabel/elements.h>
-#include <openbabel/unitcell.h>
+#include <openbabel/generic.h>
 
 #include <QtWidgets/QMessageBox>
 
