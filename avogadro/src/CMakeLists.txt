@@ -36,7 +36,7 @@ if(GLEW_FOUND)
   include_directories(${GLEW_INCLUDE_DIR})
 endif()
 
-include(${QT_USE_FILE})
+
 
 option(QtTesting "Enable Qt Testing framework?" OFF)
 if(QtTesting)

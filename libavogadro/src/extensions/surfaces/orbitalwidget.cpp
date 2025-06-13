@@ -40,7 +40,7 @@ namespace Avogadro {
     m_sortedTableModel->setSourceModel(m_tableModel);
 
     ui.table->setModel(m_sortedTableModel);
-    ui.table->horizontalHeader()->setResizeMode(QHeaderView::ResizeToContents);
+    ui.table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
     ui.table->setItemDelegateForColumn(OrbitalTableModel::C_Status, new ProgressBarDelegate(this));
     ui.table->setItemDelegateForColumn(OrbitalTableModel::C_Symmetry, new HTMLDelegate(this));
 
@@ -120,7 +120,7 @@ namespace Avogadro {
       m_tableModel->setOrbital(list.at(i));
     }
 
-    ui.table->horizontalHeader()->setResizeMode(QHeaderView::ResizeToContents);
+    ui.table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
 
     // Sort table
     m_sortedTableModel->sort(0, Qt::AscendingOrder);

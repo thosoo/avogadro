@@ -37,6 +37,10 @@
 #include <avogadro/primitivelist.h>
 
 #include <openbabel/mol.h>
+#include <openbabel/atom.h>
+#include <openbabel/bond.h>
+#include <openbabel/elements.h>
+#include <openbabel/obiter.h>
 
 #include <Eigen/Geometry>
 
@@ -626,7 +630,7 @@ namespace Avogadro {
     foreach(Primitive *item, selectedAtoms) {
       // Atom::pos() returns a pointer to the position
       atom = static_cast<Atom*>(item);
-      atomMass = OpenBabel::etab.GetMass(atom->atomicNumber()); // TODO: Does not consider isotopes
+      atomMass = OpenBabel::OBElements::GetMass(atom->atomicNumber()); // TODO: Does not consider isotopes
       selectedCenter += *(static_cast<Atom*>(item)->pos()) * atomMass;
       totalMass += atomMass;
     }
@@ -806,4 +810,3 @@ namespace Avogadro {
 
 }
 
-Q_EXPORT_PLUGIN2(selectrotatetool, Avogadro::SelectRotateToolFactory)

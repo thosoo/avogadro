@@ -147,4 +147,3 @@ namespace Avogadro {
 //#include "orcaextension.moc"
 
 // Set up for the plugin to work correctly
-Q_EXPORT_PLUGIN2(orcaextension, Avogadro::OrcaExtensionFactory)

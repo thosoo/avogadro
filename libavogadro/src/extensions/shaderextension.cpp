@@ -441,5 +441,4 @@ namespace Avogadro
 
 } // End namespace Avogadro
 
-Q_EXPORT_PLUGIN2(shaderextension, Avogadro::ShaderExtensionFactory)
 
