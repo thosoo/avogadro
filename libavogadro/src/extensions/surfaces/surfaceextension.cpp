@@ -677,4 +677,3 @@ namespace Avogadro
 
 } // End namespace Avogadro
 
-Q_EXPORT_PLUGIN2(surfaceextension, Avogadro::SurfaceExtensionFactory)

@@ -1,4 +1,6 @@
-from PyQt4.Qt import *
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 from numpy import *
 import Avogadro
 import sys

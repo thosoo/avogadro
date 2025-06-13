@@ -46,7 +46,7 @@ namespace Avogadro
     {
       prepareToCatchError();
       // try to import the module
-      m_module = import(m_moduleName.toAscii().data());
+      m_module = import(m_moduleName.toLatin1().data());
       // import doesn't really reload the module if it was already loaded
       // to be save, we always reload it
       m_module = object(handle<>(PyImport_ReloadModule(m_module.ptr())));

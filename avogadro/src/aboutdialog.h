@@ -20,7 +20,7 @@
 #ifndef ABOUTDIALOG_H
 #define ABOUTDIALOG_H
 
-#include <QtGui/QDialog>
+#include <QtWidgets/QDialog>
 
 namespace Avogadro {
   class AboutDialog : public QDialog

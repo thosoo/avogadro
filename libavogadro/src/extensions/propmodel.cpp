@@ -31,6 +31,10 @@
 #include <avogadro/bond.h>
 
 #include <openbabel/mol.h>
+#include <openbabel/atom.h>
+#include <openbabel/bond.h>
+#include <openbabel/generic.h>
+#include <openbabel/elements.h>
 #include <Eigen/Geometry>
 
 #include <limits>
@@ -55,9 +59,9 @@ namespace Avogadro {
   {
     unsigned int gi = a->groupIndex();
     if (gi != 0) {
-      return QString(OpenBabel::etab.GetSymbol(a->atomicNumber())) + QString("%L1").arg(gi);
+      return QString(OpenBabel::OBElements::GetSymbol(a->atomicNumber())) + QString("%L1").arg(gi);
     } else {
-      return QString(OpenBabel::etab.GetSymbol(a->atomicNumber()));
+      return QString(OpenBabel::OBElements::GetSymbol(a->atomicNumber()));
     }
   }
 
@@ -72,23 +76,23 @@ namespace Avogadro {
         } else {
         bond = "-";
         }*/
-      return QString(OpenBabel::etab.GetSymbol(a->atomicNumber())) + '-' +
-      QString(OpenBabel::etab.GetSymbol(b->atomicNumber()));
+      return QString(OpenBabel::OBElements::GetSymbol(a->atomicNumber())) + '-' +
+      QString(OpenBabel::OBElements::GetSymbol(b->atomicNumber()));
   }
 
   inline QString angleTypeString (Atom *a, Atom *b, Atom *c)
   {
-    return QString(OpenBabel::etab.GetSymbol(a->atomicNumber())) +
-      QString(OpenBabel::etab.GetSymbol(b->atomicNumber())) +
-      QString(OpenBabel::etab.GetSymbol(c->atomicNumber()));
+    return QString(OpenBabel::OBElements::GetSymbol(a->atomicNumber())) +
+      QString(OpenBabel::OBElements::GetSymbol(b->atomicNumber())) +
+      QString(OpenBabel::OBElements::GetSymbol(c->atomicNumber()));
   }
 
   inline QString angleTypeString (Atom *a, Atom *b, Atom *c, Atom *d)
   {
-    return QString(OpenBabel::etab.GetSymbol(a->atomicNumber())) +
-      QString(OpenBabel::etab.GetSymbol(b->atomicNumber())) +
-      QString(OpenBabel::etab.GetSymbol(c->atomicNumber())) +
-      QString(OpenBabel::etab.GetSymbol(d->atomicNumber()));
+    return QString(OpenBabel::OBElements::GetSymbol(a->atomicNumber())) +
+      QString(OpenBabel::OBElements::GetSymbol(b->atomicNumber())) +
+      QString(OpenBabel::OBElements::GetSymbol(c->atomicNumber())) +
+      QString(OpenBabel::OBElements::GetSymbol(d->atomicNumber()));
   }
 
   PropertiesModel::PropertiesModel(Type type, QObject *parent)
@@ -608,7 +612,7 @@ namespace Avogadro {
         if (ok)
           atom->setAtomicNumber(atomicNumber);
         else
-          atom->setAtomicNumber(OpenBabel::etab.GetAtomicNum(value.toString().toAscii()));
+          atom->setAtomicNumber(OpenBabel::OBElements::GetAtomicNum(value.toString().toLatin1()));
 
         m_molecule->update();
         m_validCache = false;
@@ -932,7 +936,7 @@ namespace Avogadro {
                     tmpQVariantVector.clear();
 
                     // Element : Type : Valence : Formal Charge : Partial Charge
-                    tmpQVariantVector.push_back(QVariant(OpenBabel::etab.GetSymbol(obatom->GetAtomicNum())));
+                    tmpQVariantVector.push_back(QVariant(OpenBabel::OBElements::GetSymbol(obatom->GetAtomicNum())));
                     tmpQVariantVector.push_back(QVariant(obatom->GetType()));
                     tmpQVariantVector.push_back(QVariant(obatom->GetValence()));
                     tmpQVariantVector.push_back(QVariant(obatom->GetFormalCharge()));

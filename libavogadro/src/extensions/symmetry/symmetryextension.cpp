@@ -27,7 +27,7 @@
 #include <avogadro/atom.h>
 
 #include <QtGui/QAction>
-#include <QtGui/QMessageBox>
+#include <QtWidgets/QMessageBox>
 #include <QtCore/QString>
 #include <QDebug>
 
@@ -343,6 +343,3 @@ msym_thresholds_t sloppy_thresholds = {
   }
 
 } // end namespace Avogadro
-
-Q_EXPORT_PLUGIN2(symmetryextension,
-                 Avogadro::SymmetryExtensionFactory)

@@ -29,13 +29,13 @@
 #include <avogadro/primitivelist.h>
 
 #include <QtCore/QAbstractTableModel>
-#include <QtGui/QSortFilterProxyModel>
-#include <QtGui/QSizePolicy>
-#include <QtGui/QHeaderView>
-#include <QtGui/QAction>
-#include <QtGui/QDialog>
-#include <QtGui/QScrollBar>
-#include <QtGui/QVBoxLayout>
+#include <QSortFilterProxyModel>
+#include <QtWidgets/QSizePolicy>
+#include <QtWidgets/QHeaderView>
+#include <QAction>
+#include <QDialog>
+#include <QtWidgets/QScrollBar>
+#include <QtWidgets/QVBoxLayout>
 
 #include <QtCore/QDebug>
 
@@ -393,5 +393,4 @@ namespace Avogadro
 
 } // end namespace Avogadro
 
-Q_EXPORT_PLUGIN2( propextension, Avogadro::PropertiesExtensionFactory )
 

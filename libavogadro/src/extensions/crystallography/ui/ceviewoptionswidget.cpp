@@ -30,7 +30,7 @@
 
 #include <openbabel/mol.h>
 
-#include <QtGui/QColorDialog>
+#include <QtWidgets/QColorDialog>
 
 #include <QtCore/QDebug>
 

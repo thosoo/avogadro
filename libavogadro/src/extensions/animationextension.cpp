@@ -134,7 +134,7 @@ namespace Avogadro {
     else { //non xyz
 
       OBConversion conv;
-      OBFormat *inFormat = conv.FormatFromExt(( file.toAscii() ).data() );
+      OBFormat *inFormat = conv.FormatFromExt(( file.toLatin1() ).data() );
 
       if ( !inFormat || !conv.SetInFormat( inFormat ) ) {
         QMessageBox::warning( NULL, tr( "Avogadro" ),
@@ -302,5 +302,4 @@ namespace Avogadro {
 
 } // end namespace Avogadro
 
-Q_EXPORT_PLUGIN2(animationextension, Avogadro::AnimationExtensionFactory)
 

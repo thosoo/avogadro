@@ -31,6 +31,7 @@
 #include <avogadro/periodictableview.h>
 
 #include <openbabel/mol.h>
+#include <openbabel/elements.h>
 
 #include <Eigen/Geometry>
 
@@ -1210,7 +1211,7 @@ void  OrcaInputDialog::initComboboxes()
 
           foreach (Atom *atom, atoms) {
               mol << qSetFieldWidth(4) << right
-                  << QString(OpenBabel::etab.GetSymbol(atom->atomicNumber()))
+                  << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()))
                   << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint
                   << fixed << right << atom->pos()->x() << atom->pos()->y()
                   << atom->pos()->z()
@@ -1318,7 +1319,7 @@ void  OrcaInputDialog::initComboboxes()
                   t += 360.0;
 
               mol << qSetFieldWidth(4) << right
-                  << QString(etab.GetSymbol(atom->GetAtomicNum()));
+                  << QString(OpenBabel::OBElements::GetSymbol(atom->GetAtomicNum()));
 
               if (a) {
                   mol << qSetFieldWidth(6) << right << QString::number(a->GetIdx());
@@ -1378,7 +1379,7 @@ void  OrcaInputDialog::initComboboxes()
                   t += 360.0;
 
               mol << qSetFieldWidth(4) << right
-                  << QString(etab.GetSymbol(atom->GetAtomicNum()));
+                  << QString(OpenBabel::OBElements::GetSymbol(atom->GetAtomicNum()));
               if (atom->GetIdx() > 1)
                   mol << qSetFieldWidth(6) << right
                       << QString::number(a->GetIdx()) << qSetFieldWidth(15)

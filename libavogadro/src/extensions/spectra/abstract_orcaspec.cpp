@@ -20,7 +20,7 @@
 #include <openbabel/generic.h>
 #include "abstract_orcaspec.h"
 
-#include <QtGui/QMessageBox>
+#include <QtWidgets/QMessageBox>
 #include <QtCore/QDebug>
 
 #include <openbabel/mol.h>

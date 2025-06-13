@@ -20,7 +20,10 @@ else()
 
     # Use the newer PkgConfig stuff
     find_package(PkgConfig REQUIRED)
-    pkg_check_modules(OPENBABEL2 openbabel-2.0>=2.3.0)
+    pkg_check_modules(OPENBABEL2 openbabel-3)
+    if(NOT OPENBABEL2_FOUND)
+      pkg_check_modules(OPENBABEL2 openbabel-2.0>=2.3.0)
+    endif()
 
     # Maintain backwards compatibility with previous version of module
     if(OPENBABEL2_FOUND STREQUAL "1")

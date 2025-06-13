@@ -336,7 +336,7 @@ namespace Avogadro {
      if (!d->customLabel.isEmpty()) {
        obproperty = new OpenBabel::OBPairData;
        obproperty->SetAttribute("label");
-       obproperty->SetValue(d->customLabel.toAscii().data());
+       obproperty->SetValue(d->customLabel.toLatin1().data());
        obatom.SetData(obproperty);
      }
 
@@ -344,7 +344,7 @@ namespace Avogadro {
      if(!d->customColorName.isEmpty()) {
        obproperty = new OpenBabel::OBPairData;
        obproperty->SetAttribute("color");
-       obproperty->SetValue(d->customColorName.toAscii().data());
+       obproperty->SetValue(d->customColorName.toLatin1().data());
        obatom.SetData(obproperty);
      }
 
@@ -352,7 +352,7 @@ namespace Avogadro {
      if (d->customRadius) {
        obproperty = new OpenBabel::OBPairData;
        obproperty->SetAttribute("radius");
-       obproperty->SetValue(QString::number(d->customRadius).toAscii().data());
+       obproperty->SetValue(QString::number(d->customRadius).toLatin1().data());
        obatom.SetData(obproperty);
      }
 
@@ -381,7 +381,7 @@ namespace Avogadro {
      if (!m_customLabel.isEmpty()) {
        obproperty = new OpenBabel::OBPairData;
        obproperty->SetAttribute("label");
-       obproperty->SetValue(m_customLabel.toAscii().data());
+       obproperty->SetValue(m_customLabel.toLatin1().data());
        obatom.SetData(obproperty);
      }
 
@@ -389,7 +389,7 @@ namespace Avogadro {
      if(!m_customColorName.isEmpty()) {
        obproperty = new OpenBabel::OBPairData;
        obproperty->SetAttribute("color");
-       obproperty->SetValue(m_customColorName.toAscii().data());
+       obproperty->SetValue(m_customColorName.toLatin1().data());
        obatom.SetData(obproperty);
      }
 

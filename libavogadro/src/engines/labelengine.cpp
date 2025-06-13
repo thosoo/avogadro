@@ -38,11 +38,12 @@
 #include <avogadro/molecule.h>
 
 #include <QtCore/QDebug>
-#include <QtGui/QColorDialog>
-#include <QtGui/QFontDialog>
+#include <QtWidgets/QColorDialog>
+#include <QtWidgets/QFontDialog>
 //#include <QtGui/QPainter>
 
 #include <openbabel/mol.h>
+#include <openbabel/elements.h>
 
 using namespace std;
 using namespace Eigen;
@@ -134,19 +135,19 @@ namespace Avogadro {
         str = QString("%L1").arg(a->index() + 1);
         break;
       case 2: // Element Symbol
-        str = QString(OpenBabel::etab.GetSymbol(a->atomicNumber()));
+        str = QString(OpenBabel::OBElements::GetSymbol(a->atomicNumber()));
         break;
       case 3: // Symbol & Number in Group
         gi = a->groupIndex();
         if (gi != 0) {
-          str = QString(OpenBabel::etab.GetSymbol(a->atomicNumber())) + QString("%L1").arg(gi);
+          str = QString(OpenBabel::OBElements::GetSymbol(a->atomicNumber())) + QString("%L1").arg(gi);
         }
         else {
-          str = QString(OpenBabel::etab.GetSymbol(a->atomicNumber()));
+          str = QString(OpenBabel::OBElements::GetSymbol(a->atomicNumber()));
         }
         break;
       case 4: // Symbol & Atom Number
-        str = QString(OpenBabel::etab.GetSymbol(a->atomicNumber())) + QString("%L1").arg(a->index() + 1);
+        str = QString(OpenBabel::OBElements::GetSymbol(a->atomicNumber())) + QString("%L1").arg(a->index() + 1);
         break;
       case 5: // Formal charge
         if (a->formalCharge())
@@ -174,7 +175,7 @@ namespace Avogadro {
         QList<QByteArray> propertyNames = a->dynamicPropertyNames();
         // If this is a strange offset, use the element symbol
         if ( customIndex < 0 || customIndex >= propertyNames.size())
-          str = QString(OpenBabel::etab.GetSymbol(a->atomicNumber()));
+          str = QString(OpenBabel::OBElements::GetSymbol(a->atomicNumber()));
         else
           str = a->property(propertyNames[customIndex].data()).toString();
      }
@@ -434,4 +435,3 @@ namespace Avogadro {
   }
 }
 
-Q_EXPORT_PLUGIN2(labelengine, Avogadro::LabelEngineFactory)

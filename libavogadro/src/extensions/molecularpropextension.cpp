@@ -29,7 +29,7 @@
 #include <openbabel/obconversion.h>
 
 #include <QtGui/QAction>
-#include <QtGui/QMessageBox>
+#include <QtWidgets/QMessageBox>
 #include <QtCore/QString>
 #include <QtCore/QDebug>
 #include <QtCore/QTimer>
@@ -285,6 +285,3 @@ namespace Avogadro {
   }
 
 } // end namespace Avogadro
-
-Q_EXPORT_PLUGIN2(molecularpropextension,
-                 Avogadro::MolecularPropertiesExtensionFactory)

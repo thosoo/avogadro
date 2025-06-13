@@ -35,7 +35,9 @@
 #include <QPointer>
 
 #include <openbabel/mol.h>
+#include <openbabel/atom.h>
 #include <openbabel/obconversion.h>
+#include <openbabel/chains.h>
 
 // Included in obconversion.h
 //#include <iostream>
@@ -135,12 +137,12 @@ namespace Avogadro {
     // Construct the OpenBabel objects, set the file type
     OBConversion conv;
     OBFormat *inFormat;
-    if (!m_fileType.isEmpty() && !conv.SetInFormat(m_fileType.toAscii())) {
+    if (!m_fileType.isEmpty() && !conv.SetInFormat(m_fileType.toLatin1())) {
       // Input format not supported
       m_error.append(tr("File type '%1' is not supported for reading.").arg(m_fileType));
       return 0;
     } else {
-      inFormat = conv.FormatFromExt(m_fileName.toAscii());
+      inFormat = conv.FormatFromExt(m_fileName.toLatin1());
       if (!inFormat || !conv.SetInFormat(inFormat)) {
         // Input format not supported
         m_error.append(tr("File type for file '%1' is not supported for reading.").arg(m_fileName));
@@ -152,7 +154,7 @@ namespace Avogadro {
     if (!m_fileOptions.isEmpty()) {
       foreach(const QString &option,
           m_fileOptions.split('\n', QString::SkipEmptyParts)) {
-        conv.AddOption(option.toAscii().data(), OBConversion::INOPTIONS);
+        conv.AddOption(option.toLatin1().data(), OBConversion::INOPTIONS);
       }
     }
 
@@ -190,12 +192,12 @@ namespace Avogadro {
     // Construct the OpenBabel objects, set the file type
     OBConversion conv;
     OBFormat *outFormat;
-    if (!m_fileType.isEmpty() && !conv.SetOutFormat(m_fileType.toAscii())) {
+    if (!m_fileType.isEmpty() && !conv.SetOutFormat(m_fileType.toLatin1())) {
       // Output format not supported
       m_error.append(tr("File type '%1' is not supported for writing.").arg(m_fileType));
       return false;
     } else {
-      outFormat = conv.FormatFromExt(m_fileName.toAscii());
+      outFormat = conv.FormatFromExt(m_fileName.toLatin1());
       if (!outFormat || !conv.SetOutFormat(outFormat)) {
         // Output format not supported
         m_error.append(tr("File type for file '%1' is not supported for writing.").arg(m_fileName));
@@ -206,7 +208,7 @@ namespace Avogadro {
     // Now attempt to open the file.new for writing
     ofstream ofs;
     QString newFilename(m_fileName.toLocal8Bit() + QLatin1String(".new"));
-    ofs.open(newFilename.toAscii().data()); // This handles utf8 file names etc
+    ofs.open(newFilename.toLatin1().data()); // This handles utf8 file names etc
     if (!ofs) {
       m_error.append(tr("Could not open file '%1' for writing.").arg(m_fileName));
       return false;
@@ -361,13 +363,13 @@ namespace Avogadro {
     // Construct the OpenBabel objects, set the file type
     OBConversion conv;
     OBFormat *inFormat;
-    if (!fileType.isEmpty() && !conv.SetInFormat(fileType.toAscii().data())) {
+    if (!fileType.isEmpty() && !conv.SetInFormat(fileType.toLatin1().data())) {
       // Input format not supported
       if (error)
         error->append(QObject::tr("File type '%1' is not supported for reading.").arg(fileType));
       return 0;
     } else {
-      inFormat = conv.FormatFromExt(fileName.toAscii().data());
+      inFormat = conv.FormatFromExt(fileName.toLatin1().data());
       if (!inFormat || !conv.SetInFormat(inFormat)) {
         // Input format not supported
         if (error)
@@ -380,7 +382,7 @@ namespace Avogadro {
     if (!fileOptions.isEmpty()) {
       foreach(const QString &option,
               fileOptions.split('\n', QString::SkipEmptyParts)) {
-        conv.AddOption(option.toAscii().data(), OBConversion::INOPTIONS);
+        conv.AddOption(option.toLatin1().data(), OBConversion::INOPTIONS);
       }
     }
 
@@ -439,7 +441,7 @@ namespace Avogadro {
     // Construct the OpenBabel objects, set the file type
     OBConversion conv;
     OBFormat *outFormat;
-    if (!fileType.isEmpty() && !conv.SetOutFormat(fileType.toAscii())) {
+    if (!fileType.isEmpty() && !conv.SetOutFormat(fileType.toLatin1())) {
       // Output format not supported
       if (error)
         error->append(QObject::tr("File type '%1' is not supported for writing.")
@@ -447,7 +449,7 @@ namespace Avogadro {
       return false;
     }
     else {
-      outFormat = conv.FormatFromExt(fileName.toAscii());
+      outFormat = conv.FormatFromExt(fileName.toLatin1());
       if (!outFormat || !conv.SetOutFormat(outFormat)) {
         // Output format not supported
         if (error)
@@ -460,7 +462,7 @@ namespace Avogadro {
     if (!fileOptions.isEmpty()) {
       foreach(const QString &option,
               fileOptions.split('\n', QString::SkipEmptyParts)) {
-        conv.AddOption(option.toAscii().data(), OBConversion::OUTOPTIONS);
+        conv.AddOption(option.toLatin1().data(), OBConversion::OUTOPTIONS);
       }
     }
 
@@ -544,13 +546,13 @@ namespace Avogadro {
     // Construct the OpenBabel objects, set the file type
     OBConversion conv;
     OBFormat *outFormat;
-    if (!fileType.isEmpty() && !conv.SetOutFormat(fileType.toAscii())) {
+    if (!fileType.isEmpty() && !conv.SetOutFormat(fileType.toLatin1())) {
       // Output format not supported
       if (error)
         error->append(QObject::tr("File type '%1' is not supported for writing.").arg(fileType));
       return false;
     } else {
-      outFormat = conv.FormatFromExt(fileName.toAscii());
+      outFormat = conv.FormatFromExt(fileName.toLatin1());
       if (!outFormat || !conv.SetOutFormat(outFormat)) {
         // Output format not supported
         if (error)
@@ -612,7 +614,7 @@ namespace Avogadro {
       // Construct the OpenBabel objects, set the file type
       OpenBabel::OBConversion conv;
       // OBFormats are "POSCAR" and "CONTCAR"
-      if (!conv.SetInFormat(qfile.baseName().toAscii().data())) {
+      if (!conv.SetInFormat(qfile.baseName().toLatin1().data())) {
         // Input format not supported
         moleculeFile->m_error.append(
             QObject::tr("File type '%1' is not supported for reading.").arg(qfile.baseName()));

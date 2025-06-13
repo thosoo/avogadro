@@ -32,13 +32,13 @@
 
 #include <QtGui/QPen>
 #include <QtGui/QColor>
-#include <QtGui/QColorDialog>
+#include <QtWidgets/QColorDialog>
 #include <QtGui/QButtonGroup>
 #include <QtGui/QDoubleValidator>
 #include <QtGui/QFileDialog>
-#include <QtGui/QFontDialog>
+#include <QtWidgets/QFontDialog>
 #include <QtGui/QInputDialog>
-#include <QtGui/QMessageBox>
+#include <QtWidgets/QMessageBox>
 #include <QtGui/QPixmap>
 #include <QtCore/QSettings>
 #include <QtGui/QListWidgetItem>
