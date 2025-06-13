@@ -35,7 +35,9 @@
 #include <QPointer>
 
 #include <openbabel/mol.h>
+#include <openbabel/atom.h>
 #include <openbabel/obconversion.h>
+#include <openbabel/chains.h>
 
 // Included in obconversion.h
 //#include <iostream>

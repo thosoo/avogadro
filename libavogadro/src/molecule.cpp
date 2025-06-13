@@ -43,6 +43,8 @@
 #include <vector>
 
 #include <openbabel/mol.h>
+#include <openbabel/atom.h>
+#include <openbabel/ring.h>
 #include <openbabel/bond.h>
 #include <openbabel/math/vector3.h>
 #include <openbabel/griddata.h>
@@ -672,9 +674,11 @@ namespace Avogadro{
       case 55:
       case 85:
       case 87:
+#if OB_VERSION < OB_VERSION_CHECK(3,0,0)
         obatom->SetImplicitValence(1);
         obatom->SetHyb(1);
         obmol.SetImplicitValencePerceived();
+#endif
         break;
 
       case 4:
@@ -683,15 +687,19 @@ namespace Avogadro{
       case 38:
       case 56:
       case 88:
+#if OB_VERSION < OB_VERSION_CHECK(3,0,0)
         obatom->SetImplicitValence(2);
         obatom->SetHyb(2);
         obmol.SetImplicitValencePerceived();
+#endif
         break;
 
       case 84: // Po
+#if OB_VERSION < OB_VERSION_CHECK(3,0,0)
         obatom->SetImplicitValence(2);
         obatom->SetHyb(3);
         obmol.SetImplicitValencePerceived();
+#endif
         break;
 
       default: // do nothing
@@ -705,7 +713,7 @@ namespace Avogadro{
     unsigned int numberAtoms = numAtoms();
     int j = 0;
     for (unsigned int i = numberAtoms+1; i <= obmol.NumAtoms(); ++i, ++j) {
-      if (obmol.GetAtom(i)->IsHydrogen()) {
+      if (obmol.GetAtom(i)->GetAtomicNum() == 1) {
         OpenBabel::OBAtom *obatom = obmol.GetAtom(i);
         Atom *atom;
         if (atomIds.isEmpty())
