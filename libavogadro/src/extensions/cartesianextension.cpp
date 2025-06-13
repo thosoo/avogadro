@@ -480,7 +480,8 @@ namespace Avogadro
 
           case GAMESS2:
             coordStream.setFieldWidth(12);
-            coordStream << left << QString(OpenBabel::OBElements::GetName(atom->atomicNumber()).c_str());
+            coordStream << left
+                        << QString::fromLatin1(OpenBabel::OBElements::GetName(atom->atomicNumber()));
             coordStream.setFieldWidth(3);
             coordStream << right << atom->atomicNumber();
             coordStream.setFieldWidth(2);
