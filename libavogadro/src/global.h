@@ -26,7 +26,7 @@
 #ifndef GLOBAL_H
 #define GLOBAL_H
 
-#include <QTranslator>
+#include <QtCore/QTranslator>
 #include <QPointer>
 
 /**
