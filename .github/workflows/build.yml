@@ -21,7 +21,7 @@ jobs:
           -DCMAKE_VERBOSE_MAKEFILE=ON
     - name: Build
       run: |
-        cmake --build build -- -j$(nproc) VERBOSE=1
+        cmake --build build -- -j1 VERBOSE=1
     - name: Test
       run: |
         ctest --test-dir build --output-on-failure
