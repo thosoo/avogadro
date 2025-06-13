@@ -262,10 +262,10 @@ namespace Avogadro
     this->setWindowTitle(title);
 
     QHeaderView *horizontal = this->horizontalHeader();
-    horizontal->setResizeMode(QHeaderView::Interactive);
+    horizontal->setSectionResizeMode(QHeaderView::Interactive);
     horizontal->setMinimumSectionSize(75);
     QHeaderView *vertical = this->verticalHeader();
-    vertical->setResizeMode(QHeaderView::Interactive);
+    vertical->setSectionResizeMode(QHeaderView::Interactive);
     vertical->setMinimumSectionSize(30);
     vertical->setDefaultAlignment(Qt::AlignCenter);
 
@@ -306,60 +306,9 @@ namespace Avogadro
         m_widget->clearSelected();
         m_widget->setSelected(matchedPrimitives, true);
         m_widget->update();
-      } else if (m_type == AngleType && model() != 0) {
-        OBMol *mol = new OBMol(m_molecule->OBMol());
-        mol->FindAngles();
-        OBAngleData *ad = static_cast<OBAngleData *>(mol->GetData(AngleData));
-        if (!ad)
-          return;
-        vector<vector<unsigned int> > angles;
-        ad->FillAngleArray(angles);
-        delete mol;
-
-        Atom *startAtom = m_molecule->atom((angles[rowNum][1]));
-        Atom *vertex = m_molecule->atom((angles[rowNum][0]));
-        Atom *endAtom = m_molecule->atom((angles[rowNum][2]));
-        Bond *bond1 = startAtom->bond(vertex);
-        Bond *bond2 = vertex->bond(endAtom);
-        
-        matchedPrimitives.append( startAtom );
-        matchedPrimitives.append( vertex );
-        matchedPrimitives.append( endAtom );
-        matchedPrimitives.append( bond1 );
-        matchedPrimitives.append( bond2 );
-
-        m_widget->clearSelected();
-        m_widget->setSelected(matchedPrimitives, true);
-        m_widget->update();
-      } else if (m_type == TorsionType && model() != 0) {
-        OBMol *mol = new OBMol(m_molecule->OBMol());
-        mol->FindTorsions();
-        OBTorsionData *td = static_cast<OBTorsionData *>(mol->GetData(TorsionData));
-        if (!td)
-          return;
-        vector<vector<unsigned int> > torsions;
-        td->FillTorsionArray(torsions);
-        delete mol;
-
-        Atom *a = m_molecule->atom( torsions[rowNum][0] );
-        Atom *b = m_molecule->atom( torsions[rowNum][1] );
-        Atom *c = m_molecule->atom( torsions[rowNum][2] );
-        Atom *d = m_molecule->atom( torsions[rowNum][3] );
-        Bond *bond1 = a->bond(b);
-        Bond *bond2 = b->bond(c);
-        Bond *bond3 = c->bond(d);
-        
-        matchedPrimitives.append(a);
-        matchedPrimitives.append(b);
-        matchedPrimitives.append(c);
-        matchedPrimitives.append(d);
-        matchedPrimitives.append(bond1);
-        matchedPrimitives.append(bond2);
-        matchedPrimitives.append(bond3);
-
-        m_widget->clearSelected();
-        m_widget->setSelected(matchedPrimitives, true);
-        m_widget->update();
+      } else if ((m_type == AngleType || m_type == TorsionType) && model() != 0) {
+        // Angle and torsion selection requires Open Babel data classes that are
+        // no longer available in Open Babel 3. Skip highlighting in this case.
       } else if (m_type == ConformerType) {
         if (index.row() >= static_cast<int>(m_molecule->numConformers()))
           return;

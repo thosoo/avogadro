@@ -938,7 +938,7 @@ namespace Avogadro {
                     // Element : Type : Valence : Formal Charge : Partial Charge
                     tmpQVariantVector.push_back(QVariant(OpenBabel::OBElements::GetSymbol(obatom->GetAtomicNum())));
                     tmpQVariantVector.push_back(QVariant(obatom->GetType()));
-                    tmpQVariantVector.push_back(QVariant(obatom->GetValence()));
+                    tmpQVariantVector.push_back(QVariant(obatom->GetTotalValence()));
                     tmpQVariantVector.push_back(QVariant(obatom->GetFormalCharge()));
                     tmpQVariantVector.push_back(QVariant(obatom->GetPartialCharge()));
 

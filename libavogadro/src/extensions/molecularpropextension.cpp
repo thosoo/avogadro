@@ -28,7 +28,7 @@
 #include <openbabel/mol.h>
 #include <openbabel/obconversion.h>
 
-#include <QtGui/QAction>
+#include <QAction>
 #include <QtWidgets/QMessageBox>
 #include <QtCore/QString>
 #include <QtCore/QDebug>
