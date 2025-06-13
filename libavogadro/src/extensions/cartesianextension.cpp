@@ -29,6 +29,9 @@
 #include <avogadro/primitivelist.h>
 
 #include <openbabel/elements.h>
+#include <openbabel/math/matrix3x3.h>
+#include <openbabel/math/vector3.h>
+#include <openbabel/unitcell.h>
 
 #include <QAction>
 #include <QDialog>
@@ -273,7 +276,7 @@ namespace Avogadro
               QString s = data.at(i);
               while (s.length()!=0) { // recognize name with number
                 iso = 0;
-                n = OpenBabel::OBElements::GetAtomicNum(s.toStdString(), iso);
+                n = OpenBabel::OBElements::GetAtomicNum(s.toStdString().c_str(), iso);
                 if (iso != 0)
                   n = 1;
 
@@ -327,7 +330,7 @@ namespace Avogadro
               QString _s = s_data.at(i);
               while (_s.length()!=0) { // recognize name with number
                 _iso=0;
-                _n = OpenBabel::OBElements::GetAtomicNum(_s.toStdString(), _iso);
+                _n = OpenBabel::OBElements::GetAtomicNum(_s.toStdString().c_str(), _iso);
                 if (_iso != 0)
                   _n = 1;
 
