@@ -29,7 +29,7 @@
 #include <avogadro/primitivelist.h>
 
 #include <QtCore/QAbstractTableModel>
-#include <QtGui/QSortFilterProxyModel>
+#include <QtWidgets/QSortFilterProxyModel>
 #include <QtWidgets/QSizePolicy>
 #include <QtWidgets/QHeaderView>
 #include <QtWidgets/QAction>

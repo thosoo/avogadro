@@ -33,7 +33,7 @@
 #include <QtCore/QList>
 #include <QtCore/QString>
 #include <QtWidgets/QDockWidget>
-#include <QtGui/QUndoCommand>
+#include <QtWidgets/QUndoCommand>
 
 namespace OpenBabel {
   class OBVibrationData;

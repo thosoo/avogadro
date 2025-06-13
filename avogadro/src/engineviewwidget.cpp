@@ -32,7 +32,7 @@
 
 #include <QtWidgets/QTreeView>
 #include <QtWidgets/QHeaderView>
-#include <QtGui/QSortFilterProxyModel>
+#include <QtWidgets/QSortFilterProxyModel>
 #include <QtWidgets/QVBoxLayout>
 
 namespace Avogadro {
