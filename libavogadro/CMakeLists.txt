@@ -88,8 +88,8 @@ function(avogadro_plugin_nogl plugin_name src_list)
     set_target_properties(${plugin_name} PROPERTIES
       COMPILE_FLAGS "-DQT_STATICPLUGIN ${CMAKE_SHARED_LIBRARY_CXX_FLAGS}")
   endif()
-  target_link_libraries(${plugin_name} ${LINK_LIBS} ${QT_QTCORE_LIBRARY}
-                        ${QT_QTGUI_LIBRARY} ${OPENBABEL2_LIBRARIES})
+  target_link_libraries(${plugin_name} ${LINK_LIBS} ${QT_LIBRARIES}
+                        ${OPENBABEL2_LIBRARIES})
   set_target_properties(${plugin_name} PROPERTIES
                         OUTPUT_NAME ${plugin_name}
                         PREFIX ""

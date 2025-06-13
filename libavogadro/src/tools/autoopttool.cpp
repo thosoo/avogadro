@@ -37,6 +37,7 @@
 #include <openbabel/obiter.h>
 #include <openbabel/mol.h>
 #include <openbabel/obconversion.h>
+#include <openbabel/generic.h>
 
 #include <QtCore/QDebug>
 #include <QtCore/QtPlugin>
