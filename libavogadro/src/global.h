@@ -26,8 +26,8 @@
 #ifndef GLOBAL_H
 #define GLOBAL_H
 
-#include <QtCore/QTranslator>
-#include <QtCore/QPointer>
+#include <QTranslator>
+#include <QPointer>
 
 /**
  * Version check macro. Intended to be used in constructions like

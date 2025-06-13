@@ -205,5 +205,4 @@ namespace Avogadro
 
 } // End namespace Avogadro
 
-Q_EXPORT_PLUGIN2(povrayextension, Avogadro::POVRayExtensionFactory)
 

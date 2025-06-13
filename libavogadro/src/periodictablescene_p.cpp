@@ -194,7 +194,8 @@ namespace Avogadro {
     if (event->button() != Qt::LeftButton)
       return;
 
-    QGraphicsItem *item = QGraphicsScene::itemAt(event->scenePos());
+    QGraphicsItem *item =
+      QGraphicsScene::itemAt(event->scenePos(), QTransform());
     if (item->data(0).toInt() > 0 && item->data(0).toInt() < 119)
       emit(elementChanged(item->data(0).toInt()));
 

@@ -648,7 +648,7 @@ namespace Avogadro {
   void PlotWidget::mouseMoveEvent(QMouseEvent *event)
   {
     if (event->buttons() & Qt::RightButton) {
-      QPointF pixelDelta = event->posF() - mouseClickOrigin; // How far the mouse has moved in QFrame coords.
+      QPointF pixelDelta = event->localPos() - mouseClickOrigin; // How far the mouse has moved in QFrame coords.
       QPointF unitPerPixel (-dataRect().width() / pixRect().width(), dataRect().height() / pixRect().height()); // get conversion factor
       QPointF unitDelta (pixelDelta.x() * unitPerPixel.x(), pixelDelta.y() * unitPerPixel.y()); // How far the mouse has moved in axis coords
       // New limits
@@ -682,7 +682,7 @@ namespace Avogadro {
         }
       }
       setLimits(newX1, newX2, newY1, newY2);
-      mouseClickOrigin = event->posF();
+      mouseClickOrigin = event->localPos();
     }
 
     if (event->buttons() & Qt::MidButton) {
@@ -692,7 +692,7 @@ namespace Avogadro {
 
     // "mouseover" events
     if (event->button() == Qt::NoButton) {
-      QPointF p_data = mapFrameToData(event->posF());
+      QPointF p_data = mapFrameToData(event->localPos());
       emit mouseOverPoint(p_data.x(), p_data.y());
     }
 
@@ -715,15 +715,15 @@ namespace Avogadro {
   void PlotWidget::mousePressEvent(QMouseEvent *event)
   {
     if (event->buttons() & Qt::RightButton) {
-      mouseClickOrigin = event->posF();
+      mouseClickOrigin = event->localPos();
     }
     if (event->buttons() & Qt::MidButton) {
-      mouseClickOrigin = event->posF();
+      mouseClickOrigin = event->localPos();
     }
     if (event->buttons() & Qt::LeftButton) {
       QPointF pF ( mapToWidget(mapFrameToData(event->pos())));
       QPoint p_widget ( static_cast<int>(pF.x()), static_cast<int>(pF.y()));
-      QPointF p_data = mapFrameToData(event->posF());
+      QPointF p_data = mapFrameToData(event->localPos());
       PlotPoint *p_near = pointNearestPoint(p_widget);
       emit pointClicked(p_data.x(), p_data.y());
       emit pointClicked(pointsUnderPoint(p_widget));
@@ -747,7 +747,7 @@ namespace Avogadro {
   {
     if (event->button() & Qt::MidButton) {
       // map coords
-      QPointF p1 = mapFrameToData(event->posF());
+      QPointF p1 = mapFrameToData(event->localPos());
       QPointF p2 = mapFrameToData(mouseClickOrigin);
 
       // get coords:

@@ -51,9 +51,9 @@ namespace Avogadro {
 
     // make sure the table stretches across the dialog as it resizes
     QHeaderView *horizontal = ui.ConstraintsTableView->horizontalHeader();
-    horizontal->setResizeMode(QHeaderView::Stretch);
+    horizontal->setSectionResizeMode(QHeaderView::Stretch);
     QHeaderView *vertical = ui.ConstraintsTableView->verticalHeader();
-    vertical->setResizeMode(QHeaderView::Stretch);
+    vertical->setSectionResizeMode(QHeaderView::Stretch);
 
   }
 

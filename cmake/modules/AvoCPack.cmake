@@ -167,7 +167,7 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
     #
     install(DIRECTORY ${python_DIR}/lib/site-packages/numpy DESTINATION bin/lib/site-packages)
     #
-    # PyQt4
+    # PyQt5
     #
     find_path(pyqt_DIR "pyqtconfig.py.in" PATHS
         "C:/src/PyQt-win-gpl-4.4.4"
@@ -179,7 +179,7 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
       "${pyqt_DIR}/QtGui/QtGui.pyd"
       "${pyqt_DIR}/QtOpenGL/QtOpenGL.pyd"
       "${pyqt_DIR}/QtCore/QtCore.pyd")
-    install(FILES ${pyqt_DEPS} DESTINATION bin/lib/site-packages/PyQt4)
+    install(FILES ${pyqt_DEPS} DESTINATION bin/lib/site-packages/PyQt5)
     #
     # Avogadro python module
     #

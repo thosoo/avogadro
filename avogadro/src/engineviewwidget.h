@@ -25,7 +25,7 @@
 #ifndef ENGINEVIEWWIDGET_H
 #define ENGINEVIEWWIDGET_H
 
-#include <QtGui/QWidget>
+#include <QtWidgets/QWidget>
 
 class QModelIndex;
 class QTreeView;

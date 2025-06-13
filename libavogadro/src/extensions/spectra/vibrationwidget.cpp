@@ -26,12 +26,12 @@
 #include <QtCore/QDir>
 #include <QtCore/QDebug>
 
-#include <QtGui/QButtonGroup>
+#include <QtWidgets/QButtonGroup>
 #include <QtGui/QDoubleValidator>
-#include <QtGui/QFileDialog>
-#include <QtGui/QHeaderView>
-#include <QtGui/QProgressDialog>
-#include <QtGui/QPushButton>
+#include <QtWidgets/QFileDialog>
+#include <QtWidgets/QHeaderView>
+#include <QtWidgets/QProgressDialog>
+#include <QtWidgets/QPushButton>
 
 #include <avogadro/molecule.h>
 
@@ -51,7 +51,7 @@ namespace Avogadro {
 
     // Make sure the columns span the whole width of the table widget
     QHeaderView *horizontal = ui.vibrationTable->horizontalHeader();
-    horizontal->setResizeMode(QHeaderView::Stretch);
+    horizontal->setSectionResizeMode(QHeaderView::Stretch);
     ui.editFilter->setValidator(new QDoubleValidator(0, 1e6, 10, ui.editFilter));
 
     m_indexMap = new std::vector<int>;
@@ -109,7 +109,7 @@ namespace Avogadro {
     }
 
     ui.vibrationTable->horizontalHeader()->show();
-    ui.vibrationTable->horizontalHeader()->setResizeMode(QHeaderView::Stretch);
+    ui.vibrationTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 
     // OK, we have valid vibrations, so add them to the table
     vector<double> frequencies = m_vibrations->GetFrequencies();
