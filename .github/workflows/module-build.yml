@@ -20,7 +20,8 @@ jobs:
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - id: gen
         run: |
-          mapfile -t targets < <(cmake --build build --target help | awk '/^\S/{print $1}')
+          mapfile -t targets < <(cmake --build build --target help |
+            grep -v '^\.' | awk '{print $1}')
           printf -v list '["%s"' "${targets[0]}"
           for t in "${targets[@]:1}"; do
             list+=",\"$t\""
