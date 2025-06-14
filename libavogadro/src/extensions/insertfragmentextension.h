@@ -23,6 +23,7 @@
 #define INSERTFRAGMENTEXTENSION_H
 
 #include <avogadro/extension.h>
+#include <QAction>
 
 #include "insertfragmentdialog.h"
 
