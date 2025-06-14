@@ -29,6 +29,7 @@
 
 #include <openbabel/mol.h>
 #include <openbabel/obiter.h>
+#include <openbabel/atom.h>
 
 #include <QAction>
 #include <QInputDialog>
