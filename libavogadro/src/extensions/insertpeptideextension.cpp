@@ -30,6 +30,7 @@
 #include <openbabel/atom.h>
 #include <openbabel/elements.h>
 #include <openbabel/internalcoord.h>
+#include <openbabel/bitvec.h>
 
 #include <QDebug>
 #include <QAction>
