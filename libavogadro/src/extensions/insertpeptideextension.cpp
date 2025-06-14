@@ -34,6 +34,7 @@
 
 #include <QDebug>
 #include <QAction>
+#include <QButtonGroup>
 
 using namespace std;
 using namespace OpenBabel;
