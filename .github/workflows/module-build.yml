@@ -21,7 +21,8 @@ jobs:
       - id: gen
         run: |
           mapfile -t targets < <(cmake --build build --target help |
-            grep -v '^\.' | awk '{print $1}')
+            awk '/^[A-Za-z0-9_-]+/ {print $1}' |
+            grep -vE '^(all|clean|install|help|The)$')
           printf -v list '["%s"' "${targets[0]}"
           for t in "${targets[@]:1}"; do
             list+=",\"$t\""
