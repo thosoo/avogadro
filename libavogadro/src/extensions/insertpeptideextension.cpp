@@ -30,7 +30,6 @@
 #include <openbabel/atom.h>
 #include <openbabel/elements.h>
 #include <openbabel/internalcoord.h>
-#include <openbabel/bitvec.h>
 #include <openbabel/data.h>
 
 #include <QDebug>
@@ -222,10 +221,8 @@ namespace Avogadro {
     if (obfragment.NumAtoms()) {
       // Don't do all this work, if there's nothing to do
       InternalToCartesian(vic,obfragment);
-      OBBitVec allAtoms;
-      allAtoms.SetRangeOn(0, obfragment.NumAtoms());
-      allAtoms.SetBitOff(obfragment.NumAtoms() - 1); // Don't add bonds for the terminus
-      resdat.AssignBonds(obfragment, allAtoms);
+      // Assign residue-based bonds in the new fragment
+      resdat.AssignBonds(obfragment);
       
       // some of the fragments still miss bonds
       obfragment.ConnectTheDots();
