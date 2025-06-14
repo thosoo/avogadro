@@ -277,7 +277,7 @@ namespace Avogadro
               int n;
               QString s = data.at(i);
               while (s.length()!=0) { // recognize name with number
-                n = OpenBabel::OBElements::GetAtomicNum(s.toStdString().c_str());
+                n = OpenBabel::OBElements::GetAtomicNum(s.toLatin1().constData());
 
                 if (n!=0) {
                   NameCol=i;
@@ -328,7 +328,7 @@ namespace Avogadro
 
               QString _s = s_data.at(i);
               while (_s.length()!=0) { // recognize name with number
-                _n = OpenBabel::OBElements::GetAtomicNum(_s.toStdString().c_str());
+                _n = OpenBabel::OBElements::GetAtomicNum(_s.toLatin1().constData());
 
                 if (_n!=0)
                   break;
