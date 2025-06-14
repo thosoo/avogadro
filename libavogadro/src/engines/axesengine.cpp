@@ -423,4 +423,3 @@ namespace Avogadro {
   }
 }
 
-Q_EXPORT_PLUGIN2(axesengine, Avogadro::AxesEngineFactory)

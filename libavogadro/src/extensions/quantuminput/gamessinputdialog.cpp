@@ -27,9 +27,9 @@
 #include <avogadro/atom.h>
 #include <avogadro/bond.h>
 
-#include <QtGui/QPushButton>
-#include <QtGui/QButtonGroup>
-#include <QtGui/QMessageBox>
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QButtonGroup>
+#include <QtWidgets/QMessageBox>
 //#include <QtGui/QFileDialog>
 
 #include <QtCore/QDebug>
@@ -2013,7 +2013,7 @@ namespace Avogadro {
   // Data Slots
   void GamessInputDialog::setDataTitle( const QString &text )
   {
-    m_inputData->Data->SetTitle( text.toAscii().constData() );
+    m_inputData->Data->SetTitle( text.toLatin1().constData() );
   }
 
   void GamessInputDialog::setDataCoordinate( int index )

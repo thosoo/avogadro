@@ -28,6 +28,9 @@
 #include <avogadro/atom.h>
 #include <avogadro/bond.h>
 #include <openbabel/mol.h>
+#include <openbabel/atom.h>
+#include <openbabel/bond.h>
+#include <openbabel/obiter.h>
 #include <Eigen/Core>
 
 #include <QTimer>

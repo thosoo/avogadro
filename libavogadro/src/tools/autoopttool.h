@@ -34,12 +34,12 @@
 
 #include <QtCore/QMutex>
 #include <QtCore/QThread>
-#include <QtGui/QAction>
-#include <QtGui/QPushButton>
-#include <QtGui/QComboBox>
-#include <QtGui/QCheckBox>
-#include <QtGui/QSpinBox>
-#include <QtGui/QUndoStack>
+#include <QtWidgets/QAction>
+#include <QtWidgets/QPushButton>
+#include <QtWidgets/QComboBox>
+#include <QtWidgets/QCheckBox>
+#include <QtWidgets/QSpinBox>
+#include <QtWidgets/QUndoStack>
 
 namespace Avogadro {
 
@@ -192,6 +192,7 @@ namespace Avogadro {
   {
     Q_OBJECT
     Q_INTERFACES(Avogadro::PluginFactory)
+    Q_PLUGIN_METADATA(IID "net.sourceforge.avogadro.pluginfactory/1.5")
     AVOGADRO_TOOL_FACTORY(AutoOptTool)
   };
 

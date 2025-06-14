@@ -1,0 +1,48 @@
+name: Module Build
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+
+jobs:
+  generate-targets:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.gen.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake qtbase5-dev qttools5-dev qttools5-dev-tools libqt5opengl5-dev libeigen3-dev libopenbabel-dev zlib1g-dev libglu1-mesa-dev
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - id: gen
+        run: |
+          mapfile -t targets < <(cmake --build build --target help |
+            awk '/^[A-Za-z0-9_-]+/ {print $1}' |
+            grep -vE '^(all|clean|install|help|The)$')
+          printf -v list '["%s"' "${targets[0]}"
+          for t in "${targets[@]:1}"; do
+            list+=",\"$t\""
+          done
+          list+=']'
+          echo "matrix={\"target\":$list}" >> "$GITHUB_OUTPUT"
+
+  build-module:
+    needs: generate-targets
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.generate-targets.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake qtbase5-dev qttools5-dev qttools5-dev-tools libqt5opengl5-dev libeigen3-dev libopenbabel-dev zlib1g-dev libglu1-mesa-dev
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --target ${{ matrix.target }} -- -j1 VERBOSE=1

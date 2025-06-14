@@ -13,8 +13,7 @@ cmake_minimum_required(VERSION 2.6)
 # Find the Avogadro library if it is installed
 find_package(Avogadro REQUIRED)
  
-set(QT_MIN_VERSION "4.5.0")
-find_package(Qt4 REQUIRED)
+include(${Avogadro_DIR}/../../cmake/Qt5Compat.cmake)
 
 # Activate this line if you need direct use of OpenBabel
 #find_package(OpenBabel2 REQUIRED)

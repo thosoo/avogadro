@@ -28,6 +28,7 @@
 #include <openbabel/mol.h>
 #include <openbabel/residue.h>
 #include <openbabel/atom.h>
+#include <openbabel/elements.h>
 
 #include <QDebug>
 
@@ -116,7 +117,7 @@ namespace Avogadro {
 
     double amideLength = 1.34;
     double bondAngle = 120.0;
-    const char chain = m_dialog->chainNumberCombo->currentText().toAscii()[0];
+    const char chain = m_dialog->chainNumberCombo->currentText().toLatin1()[0];
 
     // Now the work begins
     // Get the sequence (in lower case)
@@ -392,7 +393,7 @@ namespace Avogadro {
     filename += residue + ".zmat";
 
     ifstream ifs;
-    ifs.open(filename.toAscii());
+    ifs.open(filename.toLatin1());
 
     if (!ifs) { // file doesn't exist
       qDebug() << " Cannot open residue file: " << filename;
@@ -422,7 +423,7 @@ namespace Avogadro {
       tokenize(vs, buffer);
 
       atom = mol.NewAtom();
-      atom->SetAtomicNum(etab.GetAtomicNum(vs[0].c_str()));
+      atom->SetAtomicNum(OpenBabel::OBElements::GetAtomicNum(vs[0].toLatin1()));
       atom->SetPartialCharge(atof(vs[7].c_str()));
       res->InsertAtom(atom);
       res->SetHetAtom(atom, false);
@@ -476,7 +477,7 @@ namespace Avogadro {
       res->InsertAtom(atom);
       res->SetHetAtom(atom, false);
       res->SetSerialNum(atom, mol.NumAtoms());
-      res->SetAtomID(atom, atomID.toAscii().data());
+      res->SetAtomID(atom, atomID.toLatin1().data());
 
       OBInternalCoord *coord = new OBInternalCoord;
       coord->_dst = distance;
@@ -495,4 +496,3 @@ namespace Avogadro {
 
 } // end namespace Avogadro
 
-Q_EXPORT_PLUGIN2(insertpeptideextension, Avogadro::InsertPeptideExtensionFactory)

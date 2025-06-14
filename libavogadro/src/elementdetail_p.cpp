@@ -28,6 +28,7 @@
 #include "elementtranslator.h"
 
 #include <openbabel/mol.h>
+#include <openbabel/elements.h>
 
 #include <QGraphicsSceneMouseEvent>
 #include <QPainter>
@@ -65,13 +66,14 @@ namespace Avogadro{
     QFontMetrics fm(font);
     int pixelHeight = fm.height();
 
-    QString symbol = OpenBabel::etab.GetSymbol(m_element);
+    QString symbol = OpenBabel::OBElements::GetSymbol(m_element);
     QString name(ElementTranslator::name(m_element));
-    QString mass = QString("%L1").arg(OpenBabel::etab.GetMass(m_element), 0, 'f', 3);
+    QString mass = QString("%L1").arg(OpenBabel::OBElements::GetMass(m_element), 0, 'f', 3);
 
-    std::vector<double> color = OpenBabel::etab.GetRGB(m_element);
+    double r, g, b;
+    OpenBabel::OBElements::GetRGB(m_element, &r, &g, &b);
     QColor m_color;
-    m_color.setRgbF(color[0], color[1], color[2]);
+    m_color.setRgbF(r, g, b);
 
     // Draw the element detail border and fill with the element colour
     painter->setBrush(m_color);
@@ -83,7 +85,7 @@ namespace Avogadro{
     font.setPixelSize(24);
     QFontMetrics fm2(font);
     pixelHeight = fm2.height();
-    int pixelWidth = fm2.width(symbol);
+    int pixelWidth = fm2.horizontalAdvance(symbol);
     painter->setFont(font);
     QRectF symbolRect(-10, -m_height/2 + 8, pixelWidth, pixelHeight);
     painter->drawText(symbolRect, Qt::AlignCenter, symbol);

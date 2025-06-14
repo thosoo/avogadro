@@ -52,17 +52,18 @@
 
 #include <openbabel/generic.h>
 #include <openbabel/mol.h>
+#include <openbabel/elements.h>
 
 #include <Eigen/LU>
 
 #include <QtGui/QClipboard>
 #include <QtGui/QInputDialog>
-#include <QtGui/QLabel>
-#include <QtGui/QMessageBox>
-#include <QtGui/QMainWindow>
-#include <QtGui/QTableView>
-#include <QtGui/QStandardItemModel>
-#include <QtGui/QScrollBar>
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QMessageBox>
+#include <QtWidgets/QMainWindow>
+#include <QtWidgets/QTableView>
+#include <QtWidgets/QStandardItemModel>
+#include <QtWidgets/QScrollBar>
 
 #include <QtCore/QDebug>
 #include <QtCore/QSettings>
@@ -974,7 +975,7 @@ namespace Avogadro
          it != it_end;
          ++it) {
       result <<
-        OpenBabel::etab.GetSymbol((*it)->atomicNumber());
+        OpenBabel::OBElements::GetSymbol((*it)->atomicNumber());
     }
     return result;
   }
@@ -1104,7 +1105,7 @@ namespace Avogadro
     // Add new atoms
     for (int i = 0; i < ids.size(); ++i) {
       Atom *atom = mol->addAtom();
-      atom->setAtomicNumber(OpenBabel::etab.GetAtomicNum
+      atom->setAtomicNumber(OpenBabel::OBElements::GetAtomicNum
                             (ids[i].toStdString().c_str()));
       atom->setPos(coords[i]);
     }
@@ -1522,7 +1523,7 @@ namespace Avogadro
     // Store the covalent radius for each atom
     rad.reserve(m_molecule->numAtoms());
     foreach (Atom *atom, m_molecule->atoms())
-      rad.push_back(OpenBabel::etab.GetCovalentRad(atom->atomicNumber()));
+      rad.push_back(OpenBabel::OBElements::GetCovalentRad(atom->atomicNumber()));
 
     foreach (Atom *atom1, m_molecule->atoms()) {
       foreach (Atom *atom2, nbrs.nbrs(atom1)) {
@@ -2971,7 +2972,4 @@ namespace Avogadro
   }
 
 } // end namespace Avogadro
-
-Q_EXPORT_PLUGIN2(crystallographyextension,
-                 Avogadro::CrystallographyExtensionFactory)
 

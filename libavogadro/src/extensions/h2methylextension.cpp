@@ -134,5 +134,4 @@ namespace Avogadro {
 
 } // end namespace Avogadro
 
-Q_EXPORT_PLUGIN2(h2methylextension, Avogadro::H2MethylExtensionFactory)
 

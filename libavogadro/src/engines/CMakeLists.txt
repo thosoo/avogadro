@@ -1,5 +1,3 @@
-include(${QT_USE_FILE})
-
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 set(DESTINATION_DIR ${Avogadro_PLUGIN_INSTALL_DIR}/engines)
