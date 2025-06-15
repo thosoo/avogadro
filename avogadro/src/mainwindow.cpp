@@ -78,6 +78,7 @@
 #include <openbabel/builder.h>
 #include <openbabel/forcefield.h>
 #include <openbabel/elements.h>
+#include <openbabel/generic.h>
 
 #ifdef ENABLE_PYTHON
 #include <avogadro/pythonerror.h>
@@ -98,6 +99,7 @@
 #include <QSettings>
 #include <QStandardItem>
 #include <QStackedLayout>
+#include <QMimeData>
 #include <QTabWidget>
 #include <QTextEdit>
 #include <QTimer>
@@ -2000,11 +2002,10 @@ protected:
 
   int GetAtomicNum(string name, int &iso)
   {
-    int n = OpenBabel::OBElements::GetAtomicNum(name.c_str(), iso);
-    if (iso != 0)
-      return 0;  // "D" ot "T"
+    iso = 0;
+    int n = OpenBabel::OBElements::GetAtomicNum(name.c_str());
     if (n != 0)
-      return n;  // other element symbols
+      return n;  // element symbol matched
 
     // not match => we've got IUPAC name
 
@@ -2013,7 +2014,7 @@ protected:
       if (name == (*i)->GetSymbol())
       return((*i)->GetAtomicNum());*/
 
-    for (unsigned int i = 0; i < OpenBabel::OBElements::GetNumberOfElements(); ++i)
+    for (unsigned int i = 1; i <= 118; ++i)
       if (!QString::compare(name.c_str(), OpenBabel::OBElements::GetName(i), Qt::CaseInsensitive))
         return i;
 

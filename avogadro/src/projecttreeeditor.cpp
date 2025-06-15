@@ -54,7 +54,7 @@ namespace Avogadro {
     ui.setupUi(this);
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
-    ui.treeWidget->header()->setMovable(false);
+    ui.treeWidget->header()->setSectionsMovable(false);
 
     ui.itemTypeCombo->addItem(tr("Label"));
     ui.itemTypeCombo->addItem(tr("Molecule"));
