@@ -49,7 +49,6 @@ namespace Avogadro {
   using OpenBabel::vector3;
   using OpenBabel::OBMol;
   using OpenBabel::OBAtom;
-  using OpenBabel::OBMolAtomIter;
   using OpenBabel::SpaceGroup;
   using std::list;
   using std::vector;

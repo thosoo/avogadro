@@ -42,7 +42,6 @@ namespace Avogadro
 {
   using OpenBabel::OBAtom;
   using OpenBabel::OBInternalCoord;
-  using OpenBabel::OBMolAtomIter;
   using OpenBabel::OBElements;
 
 #ifdef Q_WS_WIN
