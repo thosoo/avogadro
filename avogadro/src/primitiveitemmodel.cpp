@@ -117,7 +117,7 @@ namespace Avogadro {
       emit layoutAboutToBeChanged(); // we need to tell the view that the data is going to change
 
       int last = d->size[parentRow]++;
-      beginInsertRows(createIndex(parentRow, 0, 0), last, last);
+      beginInsertRows(createIndex(parentRow, 0, static_cast<void*>(nullptr)), last, last);
       if(d->molecule)
         d->moleculeCache[parentRow].append(primitive);
       endInsertRows();
@@ -133,7 +133,8 @@ namespace Avogadro {
     if(parentRow < d->size.size())
     {
       int row = primitiveIndex(primitive);
-      emit dataChanged(createIndex(row, 0, primitive), createIndex(row, 0, primitive));
+      emit dataChanged(createIndex(row, 0, static_cast<void*>(primitive)),
+                       createIndex(row, 0, static_cast<void*>(primitive)));
     }
   }
 
@@ -147,7 +148,7 @@ namespace Avogadro {
         return;
       emit layoutAboutToBeChanged(); // we need to tell the view that the data is going to change
 
-      beginRemoveRows(createIndex(parentRow, 0, 0), row, row);
+      beginRemoveRows(createIndex(parentRow, 0, static_cast<void*>(nullptr)), row, row);
       if(d->molecule)
         d->moleculeCache[parentRow].remove(row);
       d->size[parentRow]--;
@@ -202,7 +203,7 @@ namespace Avogadro {
       if(newSize < oldSize) {
         d->size[row] = newSize;
         emit layoutAboutToBeChanged(); // we need to tell the view that the data is going to change
-        beginRemoveRows(createIndex(row,0,0), newSize, oldSize-1);
+        beginRemoveRows(createIndex(row, 0, static_cast<void*>(nullptr)), newSize, oldSize-1);
         // this is a minor hack to simplify things although it doesn't currently update the view
         endRemoveRows();
         emit layoutChanged();
@@ -210,7 +211,7 @@ namespace Avogadro {
       else if(newSize > oldSize) {
         d->size[row] = newSize;
         emit layoutAboutToBeChanged(); // we need to tell the view that the data is going to change
-        beginInsertRows(createIndex(row,0,0), oldSize, newSize-1);
+        beginInsertRows(createIndex(row, 0, static_cast<void*>(nullptr)), oldSize, newSize-1);
         endInsertRows();
         emit layoutChanged(); // we need to tell the view that the data is going to change
       }
@@ -225,7 +226,7 @@ namespace Avogadro {
     Primitive *primitive = static_cast<Primitive *>(index.internalPointer());
     if(primitive) {
       int row = d->rowTypeMap.key(primitive->type());
-      return createIndex(row, 0, 0);
+      return createIndex(row, 0, static_cast<void*>(nullptr));
     }
     return QModelIndex();
   }
