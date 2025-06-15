@@ -44,6 +44,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QMessageBox>
+#include <QAction>
 
 using OpenQube::BasisSet;
 using OpenQube::GaussianSet;
