@@ -36,7 +36,7 @@ namespace Avogadro
 
     public:
       //! Constructor
-      explicit AnimationDialog( QWidget *parent = 0, Qt::WindowFlags f = 0 );
+      explicit AnimationDialog( QWidget *parent = 0, Qt::WindowFlags f = {} );
       //! Desconstructor
       ~AnimationDialog();
 

@@ -31,7 +31,7 @@ namespace Avogadro
   Q_OBJECT
 
   public:
-    explicit SuperCellDialog( QWidget *parent = 0, Qt::WindowFlags f = 0 );
+    explicit SuperCellDialog( QWidget *parent = 0, Qt::WindowFlags f = {} );
     ~SuperCellDialog();
 
     int aCells();

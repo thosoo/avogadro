@@ -30,8 +30,8 @@ namespace SWCNTBuilder {
 
   public:
     explicit SWCNTBuilderWidget(const QString &title,
-                                QWidget *parent = 0, Qt::WindowFlags f = 0 );
-    explicit SWCNTBuilderWidget(QWidget *parent = 0, Qt::WindowFlags f = 0 );
+                                QWidget *parent = 0, Qt::WindowFlags f = {} );
+    explicit SWCNTBuilderWidget(QWidget *parent = 0, Qt::WindowFlags f = {} );
     virtual ~SWCNTBuilderWidget();
 
     enum LengthUnit {

@@ -38,7 +38,7 @@ namespace Avogadro
   Q_OBJECT
 
   public:
-    explicit GAMESSUKInputDialog(QWidget *parent = 0, Qt::WindowFlags f = 0 );
+    explicit GAMESSUKInputDialog(QWidget *parent = 0, Qt::WindowFlags f = {} );
     ~GAMESSUKInputDialog();
 
     void setMolecule(Molecule *molecule);

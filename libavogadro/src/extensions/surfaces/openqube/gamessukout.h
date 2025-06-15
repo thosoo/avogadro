@@ -39,8 +39,9 @@ namespace OpenQube
 class OPENQUBE_EXPORT GUKBasisSet
 {
 public:
-  GUKBasisSet() {};
-  ~GUKBasisSet() {};
+  GUKBasisSet()
+    : nShell(0), nBasisFunctions(0), nElectrons(0) {}
+  ~GUKBasisSet() {}
 
   void outputCoord();
   void outputBasis();

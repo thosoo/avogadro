@@ -36,7 +36,7 @@ namespace Avogadro
   Q_OBJECT
 
   public:
-    explicit QChemInputDialog(QWidget *parent = 0, Qt::WindowFlags f = 0 );
+    explicit QChemInputDialog(QWidget *parent = 0, Qt::WindowFlags f = {} );
     ~QChemInputDialog();
 
     void setMolecule(Molecule *molecule);

@@ -47,7 +47,7 @@ namespace Avogadro {
       };
 
       //! Constructor
-      explicit OrbitalWidget( QWidget *parent = 0, Qt::WindowFlags f = 0 );
+      explicit OrbitalWidget( QWidget *parent = 0, Qt::WindowFlags f = {} );
       //! Deconstructor
       virtual ~OrbitalWidget();
 

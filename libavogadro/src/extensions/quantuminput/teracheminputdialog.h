@@ -37,7 +37,7 @@ namespace Avogadro
   Q_OBJECT
 
   public:
-    explicit TeraChemInputDialog(QWidget *parent = 0, Qt::WindowFlags f = 0 );
+    explicit TeraChemInputDialog(QWidget *parent = 0, Qt::WindowFlags f = {} );
     ~TeraChemInputDialog();
 
     void setMolecule(Molecule *molecule);

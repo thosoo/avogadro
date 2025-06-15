@@ -48,7 +48,7 @@ namespace Avogadro {
     Q_OBJECT
 
   public:
-    explicit OrcaInputDialog(QWidget *parent = 0, Qt::WindowFlags f = 0 );
+    explicit OrcaInputDialog(QWidget *parent = 0, Qt::WindowFlags f = {} );
     virtual ~OrcaInputDialog();
 
         void setMolecule(Molecule *molecule);

@@ -39,7 +39,7 @@ namespace Avogadro
 
     public:
       //! Constructor
-      explicit ConstraintsDialog( QWidget *parent = 0, Qt::WindowFlags f = 0 );
+      explicit ConstraintsDialog( QWidget *parent = 0, Qt::WindowFlags f = {} );
       //! Desconstructor
       ~ConstraintsDialog();
 

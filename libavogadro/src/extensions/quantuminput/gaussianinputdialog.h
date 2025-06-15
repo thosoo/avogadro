@@ -40,7 +40,7 @@ namespace Avogadro
     Q_OBJECT
 
   public:
-    explicit GaussianInputDialog(QWidget *parent = 0, Qt::WindowFlags f = 0 );
+    explicit GaussianInputDialog(QWidget *parent = 0, Qt::WindowFlags f = {} );
     ~GaussianInputDialog();
 
     void setMolecule(Molecule *molecule);

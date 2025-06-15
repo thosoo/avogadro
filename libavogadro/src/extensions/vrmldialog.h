@@ -43,7 +43,7 @@ namespace Avogadro
 		Q_OBJECT
 
 	public:
-		explicit VRMLDialog(QWidget* parent = 0, Qt::WindowFlags f = 0);
+		explicit VRMLDialog(QWidget* parent = 0, Qt::WindowFlags f = {});
 		~VRMLDialog();
 
 

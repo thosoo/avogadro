@@ -85,7 +85,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
     if (m_in->atEnd())
         return;
 
-    QStringList list = key.split(' ', QString::SkipEmptyParts);
+    QStringList list = key.split(' ', Qt::SkipEmptyParts);
     int numGTOs;
 
     // Big switch statement checking for various things we are interested in
@@ -106,7 +106,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
 
             // Number of groups of distinct atoms
             key = m_in->readLine();
-            list = key.split(' ', QString::SkipEmptyParts);
+            list = key.split(' ', Qt::SkipEmptyParts);
             if (list.size() > 3) {
                 m_nGroups = list[2].toInt();
             } else {
@@ -137,7 +137,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
     } else if (key.contains("NUMBER OF CARTESIAN GAUSSIAN BASIS")) {
         m_currentMode = NotParsing; // no longer reading GTOs
     } else if (key.contains("Number of Electrons")) {
-        list = key.split(' ', QString::SkipEmptyParts);
+        list = key.split(' ', Qt::SkipEmptyParts);
         m_electrons = list[5].toInt();
     } else if (key.contains("SPIN UP ORBITALS") && !m_openShell) {
         m_openShell = true; //not yet implemented
@@ -166,15 +166,14 @@ void ORCAOutput::processLine(GaussianSet *basis)
     } else {
 
         vector <vector <double> > columns;
-        unsigned int numColumns, numRows;
-        numColumns = 0;
-        numRows = 0;
+        int numColumns = 0;
+        int numRows = 0;
         // parsing a line -- what mode are we in?
 
         switch (m_currentMode) {
         case Atoms: {
             if (key.isEmpty()) break;
-            list = key.split(' ', QString::SkipEmptyParts);
+            list = key.split(' ', Qt::SkipEmptyParts);
             while (!key.isEmpty()){
                 if (list.size() < 8) {
                     break;
@@ -186,7 +185,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
                 basis->moleculeRef().addAtom(pos, int (list[2].toDouble()));
                 m_atomLabel +=list[1].trimmed();
                 key = m_in->readLine().trimmed();
-                list = key.split(' ', QString::SkipEmptyParts);
+                list = key.split(' ', Qt::SkipEmptyParts);
             }
             m_currentMode = NotParsing;
             break;
@@ -196,7 +195,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
             if (key.isEmpty())
                 break;
             numGTOs = 0;
-            list = key.split(' ', QString::SkipEmptyParts);
+            list = key.split(' ', Qt::SkipEmptyParts);
             int nShells;
             // init all vectors etc.
             m_basisAtomLabel.clear();
@@ -214,7 +213,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
 
                 key = m_in->readLine().trimmed();
 
-                list = key.split(' ', QString::SkipEmptyParts);
+                list = key.split(' ', Qt::SkipEmptyParts);
 
                 nShells = 0;
                 m_basisFunctions.push_back(new std::vector<std::vector<Eigen::Vector2d> *>);
@@ -230,7 +229,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
                     for (int i=0;i<nFunc;i++) {
                         key = m_in->readLine().trimmed();
 
-                        list = key.split(' ', QString::SkipEmptyParts);
+  list = key.split(' ', Qt::SkipEmptyParts);
                         m_basisFunctions.at(numGTOs)->at(nShells)->at(i).x() = list[1].toDouble();          // exponent
                         m_basisFunctions.at(numGTOs)->at(nShells)->at(i).y() = list[2].toDouble();          // coeff
                     }
@@ -238,7 +237,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
                     nShells++;
                     key = m_in->readLine().trimmed();
 
-                    list = key.split(' ', QString::SkipEmptyParts);
+                    list = key.split(' ', Qt::SkipEmptyParts);
                 }
                 m_orcaShellTypes.push_back(std::vector<orbital>(shellTypes.size()));
                 m_orcaShellTypes.at(numGTOs) =  shellTypes;
@@ -249,7 +248,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
                 key = m_in->readLine().trimmed();
                 key = m_in->readLine().trimmed();
 
-                list = key.split(' ', QString::SkipEmptyParts);
+                list = key.split(' ', Qt::SkipEmptyParts);
                 if (list.size() == 0) break; // unexpected structure - suppose no more NewGTOs
             }
 
@@ -293,13 +292,13 @@ void ORCAOutput::processLine(GaussianSet *basis)
                 while (rx.indexIn(key) != -1){          // avoid wrong splitting
                     key.insert(rx.indexIn(key)+1, " ");
                 }
-                list = key.split(' ', QString::SkipEmptyParts);
+                list = key.split(' ', Qt::SkipEmptyParts);
 
                 numColumns = list.size() - 2;
                 columns.resize(numColumns);
                 while (list.size() > 2) {
                     orcaOrbitals += list[1];
-                    for (unsigned int i = 0; i < numColumns; ++i) {
+                    for (int i = 0; i < numColumns; ++i) {
                         columns[i].push_back(list[i + 2].toDouble());
                     }
 
@@ -308,7 +307,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
                         key.insert(rx.indexIn(key)+1, " ");
                     }
 
-                    list = key.split(' ', QString::SkipEmptyParts);
+                    list = key.split(' ', Qt::SkipEmptyParts);
                     if (list.size() != numColumns+2)
                         break;
 
@@ -317,11 +316,11 @@ void ORCAOutput::processLine(GaussianSet *basis)
                 int idx = 0;
                 while (idx<orcaOrbitals.size()){
                     if (orcaOrbitals.at(idx).contains("pz")) {
-                        for (uint i=0;i<numColumns;i++){
+                        for (int i = 0; i < numColumns; ++i){
                             qSwap (columns[i].at(idx),columns[i].at(idx+1));
                         }
                         idx++;
-                        for (uint i=0;i<numColumns;i++){
+                        for (int i = 0; i < numColumns; ++i){
                             qSwap (columns[i].at(idx),columns[i].at(idx+1));
                         }
                         idx++;
@@ -332,9 +331,9 @@ void ORCAOutput::processLine(GaussianSet *basis)
                 }
 
                 // Now we need to re-order the MO coeffs, so we insert one MO at a time
-                for (unsigned int i = 0; i < numColumns; ++i) {
+                for (int i = 0; i < numColumns; ++i) {
                     numRows = columns[i].size();
-                    for (unsigned int j = 0; j < numRows; ++j) {
+                    for (int j = 0; j < numRows; ++j) {
                         m_MOcoeffs.push_back(columns[i][j]);
                     }
                 }
@@ -362,13 +361,13 @@ void ORCAOutput::processLine(GaussianSet *basis)
                     while (rx.indexIn(key) != -1){          // avoid wrong splitting
                         key.insert(rx.indexIn(key)+1, " ");
                     }
-                    list = key.split(' ', QString::SkipEmptyParts);
+                    list = key.split(' ', Qt::SkipEmptyParts);
                     numColumns = list.size() - 2;
                     columns.resize(numColumns);
                     while (list.size() > 2) {
                         orcaOrbitals += list[1];
                         //                    columns.resize(numColumns);
-                        for (unsigned int i = 0; i < numColumns; ++i) {
+                        for (int i = 0; i < numColumns; ++i) {
                             columns[i].push_back(list[i + 2].toDouble());
                         }
 
@@ -376,7 +375,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
                         while (rx.indexIn(key) != -1){          // avoid wrong splitting
                             key.insert(rx.indexIn(key)+1, " ");
                         }
-                        list = key.split(' ', QString::SkipEmptyParts);
+                        list = key.split(' ', Qt::SkipEmptyParts);
                         if (list.size() != numColumns+2)
                             break;
 
@@ -385,11 +384,11 @@ void ORCAOutput::processLine(GaussianSet *basis)
                     int idx = 0;
                     while (idx<orcaOrbitals.size()){
                         if (orcaOrbitals.at(idx).contains("pz")) {
-                            for (uint i=0;i<numColumns;i++){
+                        for (int i=0; i<numColumns; ++i){
                                 qSwap (columns[i].at(idx),columns[i].at(idx+1));
                             }
                             idx++;
-                            for (uint i=0;i<numColumns;i++){
+                        for (int i=0; i<numColumns; ++i){
                                 qSwap (columns[i].at(idx),columns[i].at(idx+1));
                             }
                             idx++;
@@ -400,9 +399,9 @@ void ORCAOutput::processLine(GaussianSet *basis)
                     }
 
                     // Now we need to re-order the MO coeffs, so we insert one MO at a time
-                    for (unsigned int i = 0; i < numColumns; ++i) {
-                        numRows = columns[i].size();
-                        for (unsigned int j = 0; j < numRows; ++j) {
+                for (int i = 0; i < numColumns; ++i) {
+                    numRows = columns[i].size();
+                    for (int j = 0; j < numRows; ++j) {
 
                             m_MOcoeffs.push_back(columns[i][j]);
                         }
@@ -519,8 +518,8 @@ void ORCAOutput::calculateDensityMatrix()
         for (unsigned int i = 0; i < m_numBasisFunctions; ++i)
             moMatrix.coeffRef(i, j) = m_MOcoeffs[i + j*m_numBasisFunctions];
 
-    for (int j = 0; j < m_numBasisFunctions; j++) {
-        for (int i = 0; i< m_numBasisFunctions; i++) {
+    for (unsigned int j = 0; j < m_numBasisFunctions; ++j) {
+        for (unsigned int i = 0; i < m_numBasisFunctions; ++i) {
             m_density(i,j) = 0.;
             double density = 0.;
             for (int k = 0; k < m_homo; k++) {

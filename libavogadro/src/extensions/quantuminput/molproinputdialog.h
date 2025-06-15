@@ -36,7 +36,7 @@ namespace Avogadro
   Q_OBJECT
 
   public:
-    explicit MolproInputDialog(QWidget *parent = 0, Qt::WindowFlags f = 0 );
+    explicit MolproInputDialog(QWidget *parent = 0, Qt::WindowFlags f = {} );
     ~MolproInputDialog();
 
     void setMolecule(Molecule *molecule);

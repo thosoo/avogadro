@@ -36,7 +36,7 @@ namespace Avogadro
   {
   Q_OBJECT
   public:
-    explicit InputDialog(QWidget *parent = 0, Qt::WindowFlags f = 0 );
+    explicit InputDialog(QWidget *parent = 0, Qt::WindowFlags f = {} );
     virtual ~InputDialog();
 
     // TODO: other enums also must be shared

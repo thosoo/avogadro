@@ -59,7 +59,7 @@ namespace Avogadro {
     Q_OBJECT
 
   public:
-    explicit SpectraDialog( QWidget *parent = 0, Qt::WindowFlags f = 0 );
+    explicit SpectraDialog( QWidget *parent = 0, Qt::WindowFlags f = {} );
     ~SpectraDialog();
 
     void setMolecule(Molecule *molecule);

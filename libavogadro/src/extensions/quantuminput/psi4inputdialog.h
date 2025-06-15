@@ -37,7 +37,7 @@ namespace Avogadro
   Q_OBJECT
 
   public:
-    explicit Psi4InputDialog(QWidget *parent = 0, Qt::WindowFlags f = 0 );
+    explicit Psi4InputDialog(QWidget *parent = 0, Qt::WindowFlags f = {} );
     ~Psi4InputDialog();
 
     void setMolecule(Molecule *molecule);

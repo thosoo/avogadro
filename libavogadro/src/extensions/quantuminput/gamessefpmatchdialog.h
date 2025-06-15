@@ -48,7 +48,7 @@ namespace Avogadro
       };
 
       explicit GamessEfpMatchDialog(QAbstractItemModel *model, Type = EFPType,
-                           QWidget *parent = 0, Qt::WindowFlags f = 0);
+                           QWidget *parent = 0, Qt::WindowFlags f = {});
 
       ~GamessEfpMatchDialog();
 

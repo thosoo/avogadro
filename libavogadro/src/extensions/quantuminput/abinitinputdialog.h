@@ -40,7 +40,7 @@ namespace Avogadro
     Q_OBJECT
 
   public:
-    explicit AbinitInputDialog(QWidget *parent = 0, Qt::WindowFlags f = 0 );
+    explicit AbinitInputDialog(QWidget *parent = 0, Qt::WindowFlags f = {} );
     ~AbinitInputDialog();
 
     void setMolecule(Molecule *molecule);

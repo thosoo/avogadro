@@ -311,7 +311,7 @@ namespace Avogadro {
   {
     if (lis.size () > 2) {
       std::vector<Eigen::Vector3f> ilist, out;
-      Eigen::Vector3f lasti;
+      Eigen::Vector3f lasti = Eigen::Vector3f::Zero();
       for (unsigned int i = 1; i < lis.size () -1; i++) {
         Eigen::Vector3f i1, i2;
         interpolate(lis[i-1], lis[i], lis[i+1], i1, i2);

@@ -97,7 +97,9 @@ extern "C" {
         int n;                                  // Principal
         int l;                                  // Azimuthal
         int m;                                  // Liniear combination of magnetic quantum number (e.g. 2pz = 0, 2px = 1, 2py = -1)
-        char name[8];                           // Name
+        // Allow a little extra room for naming orbitals such as
+        // "100d10+" which may exceed eight characters
+        char name[16];                          // Name
     } msym_orbital_t;
     
     

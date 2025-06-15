@@ -55,7 +55,7 @@ class OrcaAnalyseDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit OrcaAnalyseDialog(QWidget *parent = 0, Qt::WindowFlags f = 0 );
+    explicit OrcaAnalyseDialog(QWidget *parent = 0, Qt::WindowFlags f = {} );
     virtual ~OrcaAnalyseDialog();
 
 

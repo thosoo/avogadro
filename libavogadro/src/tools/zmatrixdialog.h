@@ -42,7 +42,7 @@ namespace Avogadro {
   {
     Q_OBJECT
   public:
-    explicit ZMatrixDialog(QWidget *parent = 0, Qt::WindowFlags f = 0);
+    explicit ZMatrixDialog(QWidget *parent = 0, Qt::WindowFlags f = {});
     ~ZMatrixDialog();
 
   public slots:
