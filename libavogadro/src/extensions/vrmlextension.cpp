@@ -36,6 +36,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
 #include <QProcess>
 #include <QFileInfo>
 #include <QDebug>
+#include <QAction>
 
 namespace Avogadro
 {
