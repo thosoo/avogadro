@@ -28,6 +28,7 @@
 #include <avogadro/color.h>
 #include <avogadro/glwidget.h>
 #include <avogadro/primitivelist.h>
+#include <QAction>
 
 #include <openbabel/mol.h>
 #include <openbabel/obiter.h>
