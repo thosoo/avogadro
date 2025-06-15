@@ -28,7 +28,7 @@ namespace Avogadro
 {
   void SaveDialog::updateDefaultSuffix()
   {
-    const QString filter = selectedFilter();
+    const QString filter = selectedNameFilter();
     QString suffix;
     int i = filter.indexOf("*.");
     if(i != -1)
@@ -58,7 +58,7 @@ namespace Avogadro
     setWindowTitle(windowTitle);
     if(!(defaultDirectory.isEmpty())) setDirectory(defaultDirectory);
     if(!(defaultFileName.isEmpty())) selectFile(defaultFileName);
-    setFilters(filters);
+    setNameFilters(filters);
     setFileMode(QFileDialog::AnyFile);
     setAcceptMode(QFileDialog::AcceptSave);
     setConfirmOverwrite(true);
@@ -97,12 +97,12 @@ namespace Avogadro
                                           filters.join(";;"), &defaultFilter);
 #else
     QPointer<SaveDialog> dialog = new SaveDialog(widget, windowTitle, defaultDirectory, fileName, filters, defaultSuffix);
-    dialog->selectFilter(defaultFilter);
+    dialog->selectNameFilter(defaultFilter);
     dialog->updateDefaultSuffix();
     if(dialog->exec())
     {
       result = dialog->selectedFiles().first();
-      defaultFilter = dialog->selectedFilter();
+      defaultFilter = dialog->selectedNameFilter();
     }
     delete dialog;
 #endif
