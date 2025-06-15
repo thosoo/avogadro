@@ -29,6 +29,7 @@
 #include <avogadro/atom.h>
 
 #include <openbabel/mol.h>
+#include <openbabel/generic.h>
 
 #include <QString>
 #include <QTextStream>

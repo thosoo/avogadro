@@ -34,8 +34,6 @@
 #include "tubegen/TubuleBasis.h"
 #include "tubegen/CrystalCell.h"
 
-// Needed for OB macros
-using OpenBabel::OBMolAtomIter;
 
 namespace SWCNTBuilder
 {
