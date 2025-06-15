@@ -31,6 +31,7 @@
 #include <openbabel/obconversion.h>
 
 #include <QDebug>
+#include <QAction>
 
 using namespace std;
 using namespace OpenBabel;
