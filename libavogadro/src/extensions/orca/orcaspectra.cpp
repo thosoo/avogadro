@@ -24,6 +24,7 @@
 #include "orcaspectra.h"
 
 #include <avogadro/plotobject.h>
+#include <QMessageBox>
 
 #include <vector>
 using namespace Eigen;

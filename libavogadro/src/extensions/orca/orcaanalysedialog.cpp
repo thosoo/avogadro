@@ -40,6 +40,9 @@
 #include <avogadro/primitivelist.h>
 #include <openbabel/mol.h>
 #include <openbabel/elements.h>
+#include <openbabel/atom.h>
+#include <openbabel/generic.h>
+#include <openbabel/math/vector3.h>
 
 #include <Eigen/Geometry>
 
