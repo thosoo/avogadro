@@ -1,10 +1,10 @@
 Requirements
 ============
- -- CMake 2.8.9 or later (2.8.11 recommended)
- -- Qt 4.6.0 or later (4.8.5 recommended)
- -- OpenBabel 2.3.x or later (development version from 
+ -- CMake 2.8.9 or later (3.0 or later recommended)
+ -- Qt 5.0 or later
+ -- OpenBabel 2.3.x or later (development version from
   http://github.com/openbabel/openbabel is recommended)
- -- Eigen 2.0.x or later (3.x also supported)
+ -- Eigen 3.x
 
 
 Basic Installation
@@ -47,7 +47,7 @@ installation locations.
 
    -DOPENBABEL2_INCLUDE_DIR : specify the OpenBabel2 include directory
 
-   -DEIGEN2_INCLUDE_DIR : specify the Eigen include directory
+   -DEIGEN3_INCLUDE_DIR : specify the Eigen include directory
 
    -DENABLE_PYTHON : specify whether to build Boost.Python interpreter
                     (default = TRUE)
