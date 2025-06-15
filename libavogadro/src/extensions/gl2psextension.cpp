@@ -28,8 +28,8 @@
 #include <QtCore/QStringList>
 #include <QtCore/QDebug>
 
-#include <QtGui/QAction>
-#include <QtGui/QFileDialog>
+#include <QtWidgets/QAction>
+#include <QtWidgets/QFileDialog>
 
 // Include the GL2PS header
 #include "gl2ps.h"

@@ -38,6 +38,7 @@
 #include "ui/ceabstracteditor.h"
 #include "ui/cecoordinateeditor.h"
 #include "ui/cematrixeditor.h"
+#include <QtWidgets/QAction>
 #include "ui/ceparametereditor.h"
 #include "ui/ceslabbuilder.h"
 #include "ui/cetranslatewidget.h"

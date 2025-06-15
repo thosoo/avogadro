@@ -28,8 +28,8 @@
 #include <avogadro/glwidget.h>
 #include <avogadro/toolgroup.h>
 
-#include <QtGui/QAction>
-#include <QtGui/QInputDialog>
+#include <QtWidgets/QAction>
+#include <QtWidgets/QInputDialog>
 #include <QtWidgets/QMessageBox>
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkReply>
