@@ -12,10 +12,16 @@ jobs:
       matrix: ${{ steps.gen.outputs.matrix }}
     steps:
       - uses: actions/checkout@v3
+      - name: Cache apt packages
+        uses: actions/cache@v3
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-${{ hashFiles('.github/apt-packages.txt') }}
+          restore-keys: ${{ runner.os }}-apt-
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake qtbase5-dev qttools5-dev qttools5-dev-tools libqt5opengl5-dev libeigen3-dev libopenbabel-dev zlib1g-dev libglu1-mesa-dev
+          sudo xargs -a .github/apt-packages.txt apt-get install -y
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - id: gen
@@ -38,10 +44,16 @@ jobs:
       matrix: ${{ fromJson(needs.generate-targets.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v3
+      - name: Cache apt packages
+        uses: actions/cache@v3
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-${{ hashFiles('.github/apt-packages.txt') }}
+          restore-keys: ${{ runner.os }}-apt-
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake qtbase5-dev qttools5-dev qttools5-dev-tools libqt5opengl5-dev libeigen3-dev libopenbabel-dev zlib1g-dev libglu1-mesa-dev
+          sudo xargs -a .github/apt-packages.txt apt-get install -y
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
