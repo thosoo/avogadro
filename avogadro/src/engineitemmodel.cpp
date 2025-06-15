@@ -64,7 +64,12 @@ namespace Avogadro {
   {
     disconnect(engine, SIGNAL(changed()), this, SLOT(engineChanged()));
     // FIXME: hack to get remove working
+#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
+    beginResetModel();
+    endResetModel();
+#else
     reset();
+#endif
   }
 
   void EngineItemModel::engineChanged()
@@ -186,7 +191,12 @@ namespace Avogadro {
 
   void EngineItemModel::clear()
   {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
+    beginResetModel();
+    endResetModel();
+#else
     reset();
+#endif
   }
 
 } // end namespace Avogadro
