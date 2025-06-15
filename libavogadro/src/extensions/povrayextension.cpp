@@ -36,6 +36,7 @@
 #include <QProcess>
 #include <QFileInfo>
 #include <QDebug>
+#include <QAction>
 
 namespace Avogadro
 {
