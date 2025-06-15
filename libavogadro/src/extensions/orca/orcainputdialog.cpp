@@ -28,10 +28,13 @@
 #include <avogadro/molecule.h>
 #include <avogadro/atom.h>
 #include <avogadro/bond.h>
+#include <openbabel/atom.h>
 #include <avogadro/periodictableview.h>
 
 #include <openbabel/mol.h>
 #include <openbabel/elements.h>
+#include <openbabel/obiter.h>
+#include <openbabel/internalcoord.h>
 
 #include <Eigen/Geometry>
 
