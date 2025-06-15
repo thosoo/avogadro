@@ -425,7 +425,7 @@ namespace Avogadro {
       tokenize(vs, buffer);
 
       atom = mol.NewAtom();
-      atom->SetAtomicNum(OpenBabel::OBElements::GetAtomicNum(vs[0].toLatin1()));
+      atom->SetAtomicNum(OpenBabel::OBElements::GetAtomicNum(vs[0].c_str()));
       atom->SetPartialCharge(atof(vs[7].c_str()));
       res->InsertAtom(atom);
       res->SetHetAtom(atom, false);
