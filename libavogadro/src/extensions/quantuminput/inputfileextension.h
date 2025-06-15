@@ -29,6 +29,7 @@
 #include <avogadro/extension.h>
 
 #include <QtCore/QHash>
+#include <QAction>
 
 #include "inputdialog.h"
 
