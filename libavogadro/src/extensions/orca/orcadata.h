@@ -25,7 +25,7 @@
 #ifndef ORCADATA_H
 #define ORCADATA_H
 
-#include <QtGui/QDialog>
+#include <QDialog>
 #include <QtCore/QSettings>
 
 #include <avogadro/molecule.h>

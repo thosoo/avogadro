@@ -30,7 +30,7 @@
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QButtonGroup>
 #include <QtWidgets/QMessageBox>
-//#include <QtGui/QFileDialog>
+//#include <QFileDialog>
 
 #include <QtCore/QDebug>
 #include <QtCore/QFile>

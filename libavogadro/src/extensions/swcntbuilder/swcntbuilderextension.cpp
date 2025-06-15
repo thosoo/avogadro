@@ -31,7 +31,7 @@
 #include <QtCore/QDebug>
 #include <QtCore/QMutex>
 #include <QtCore/QThread>
-#include <QtGui/QAction>
+#include <QAction>
 #include <QtWidgets/QMessageBox>
 
 using namespace Avogadro;

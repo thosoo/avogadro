@@ -26,7 +26,7 @@
 #include <avogadro/molecule.h>
 #include <avogadro/atom.h>
 
-#include <QtGui/QAction>
+#include <QAction>
 #include <QtWidgets/QMessageBox>
 #include <QtCore/QString>
 #include <QDebug>

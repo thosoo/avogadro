@@ -22,7 +22,7 @@
 #include <avogadro/dockwidget.h>
 
 #include <QtCore/QSettings>
-#include <QtGui/QApplication>
+#include <QApplication>
 
 #include <Eigen/Core>
 

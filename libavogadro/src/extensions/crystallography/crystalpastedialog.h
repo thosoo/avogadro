@@ -25,7 +25,7 @@
 
 #include <QtCore/QString>
 
-#include <QtGui/QDialog>
+#include <QDialog>
 
 #include "ui_crystalpastedialog.h"
 

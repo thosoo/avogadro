@@ -22,7 +22,7 @@
   02110-1301, USA.
  **********************************************************************/
 
-#include <QtGui/QDialog>
+#include <QDialog>
 #include <QtCore/QSettings>
 #include <QtDebug>
 #include "orcadata.h"

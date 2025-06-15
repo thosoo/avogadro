@@ -24,7 +24,7 @@
 
 #include "inputdialog.h"
 #include <QtCore/QString>
-#include <QtGui/QFileDialog>
+#include <QFileDialog>
 #include <QtCore/QDebug>
 
 namespace Avogadro
