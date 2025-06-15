@@ -20,8 +20,8 @@
 #ifndef SPECTRADIALOG_H
 #define SPECTRADIALOG_H
 
-#include <QtGui/QDialog>
-#include <QtGui/QShowEvent>
+#include <QDialog>
+#include <QShowEvent>
 
 #include <QtCore/QHash>
 #include <QtCore/QVariant>

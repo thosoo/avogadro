@@ -28,7 +28,7 @@
 #include <avogadro/molecule.h>
 
 #include <QtCore/QSettings>
-#include <QtGui/QDialog>
+#include <QDialog>
 
 namespace Avogadro
 {   

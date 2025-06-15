@@ -56,14 +56,14 @@
 
 #include <Eigen/LU>
 
-#include <QtGui/QClipboard>
-#include <QtGui/QInputDialog>
-#include <QtWidgets/QLabel>
-#include <QtWidgets/QMessageBox>
-#include <QtWidgets/QMainWindow>
-#include <QtWidgets/QTableView>
-#include <QtWidgets/QStandardItemModel>
-#include <QtWidgets/QScrollBar>
+#include <QClipboard>
+#include <QInputDialog>
+#include <QLabel>
+#include <QMessageBox>
+#include <QMainWindow>
+#include <QTableView>
+#include <QStandardItemModel>
+#include <QScrollBar>
 
 #include <QtCore/QDebug>
 #include <QtCore/QSettings>
