@@ -39,6 +39,7 @@
 #include <QMessageBox>
 #include <QCoreApplication>
 #include <QDebug>
+#include <QAction>
 
 namespace Avogadro {
 
