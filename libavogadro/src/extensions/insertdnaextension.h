@@ -20,6 +20,7 @@
 #define INSERTDNAEXTENSION_H
 
 #include <avogadro/extension.h>
+#include <QAction>
 
 namespace Avogadro {
 
