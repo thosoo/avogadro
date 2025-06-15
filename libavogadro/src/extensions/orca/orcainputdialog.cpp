@@ -38,6 +38,7 @@
 #include <vector>
 
 #include <QtGui>
+#include <QButtonGroup>
 
 #include <QString>
 #include <QTextStream>
