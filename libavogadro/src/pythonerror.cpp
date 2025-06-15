@@ -81,7 +81,7 @@ namespace Avogadro
           QString exp("sys.path.insert(0,\"");
           exp.append(path);
           exp.append("\")");
-          exec(exp.toAscii().data(), main_namespace, main_namespace);
+          exec(exp.toLatin1().data(), main_namespace, main_namespace);
         }
       } catch (const error_already_set &) {
         catchError();

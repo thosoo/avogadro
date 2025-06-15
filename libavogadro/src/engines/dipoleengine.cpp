@@ -182,4 +182,3 @@ namespace Avogadro {
 
 }
 
-Q_EXPORT_PLUGIN2(dipoleengine, Avogadro::DipoleEngineFactory)

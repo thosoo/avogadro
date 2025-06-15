@@ -18,7 +18,7 @@
 #ifndef DOCKWIDGET_H
 #define DOCKWIDGET_H
 
-#include <QtGui/QDockWidget>
+#include <QtWidgets/QDockWidget>
 
 #include <avogadro/global.h> // For A_EXPORT
 

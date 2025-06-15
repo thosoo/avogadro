@@ -300,9 +300,9 @@ namespace Avogadro {
     m_bLoop = settings.value("bLoop", 0.2).toDouble();
     m_cLoop = settings.value("cLoop", 0.0).toDouble();
      
-    m_helixColor = settings.value("cHelixColor", Qt::red).value<QColor>();
-    m_sheetColor = settings.value("cSheetColor", Qt::yellow).value<QColor>();
-    m_loopColor = settings.value("cLoopColor", Qt::green).value<QColor>();
+    m_helixColor = settings.value("cHelixColor", QColor(Qt::red)).value<QColor>();
+    m_sheetColor = settings.value("cSheetColor", QColor(Qt::yellow)).value<QColor>();
+    m_loopColor = settings.value("cLoopColor", QColor(Qt::green)).value<QColor>();
 
     if (m_molecule) {
       m_mesh = m_molecule->meshById(settings.value("meshId", 0).toInt());
@@ -380,4 +380,3 @@ namespace Avogadro {
  
 }
 
-Q_EXPORT_PLUGIN2(cartoonengine, Avogadro::CartoonEngineFactory)

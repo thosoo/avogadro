@@ -37,11 +37,12 @@
 #include <openbabel/obiter.h>
 #include <openbabel/mol.h>
 #include <openbabel/obconversion.h>
+#include <openbabel/generic.h>
 
 #include <QtCore/QDebug>
 #include <QtCore/QtPlugin>
-#include <QtGui/QLabel>
-#include <QtGui/QVBoxLayout>
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QVBoxLayout>
 
 using namespace std;
 using namespace OpenBabel;
@@ -640,4 +641,3 @@ namespace Avogadro {
 
 }
 
-Q_EXPORT_PLUGIN2(autoopttool, Avogadro::AutoOptToolFactory)

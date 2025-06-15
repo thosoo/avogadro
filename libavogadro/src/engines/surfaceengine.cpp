@@ -502,4 +502,3 @@ namespace Avogadro {
 
 }
 
-Q_EXPORT_PLUGIN2(surfaceengine, Avogadro::SurfaceEngineFactory)

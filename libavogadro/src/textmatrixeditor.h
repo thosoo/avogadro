@@ -29,7 +29,7 @@
 
 #include <avogadro/global.h> // For A_EXPORT
 
-#include <QtGui/QTextEdit>
+#include <QtWidgets/QTextEdit>
 
 #include <Eigen/Core>
 

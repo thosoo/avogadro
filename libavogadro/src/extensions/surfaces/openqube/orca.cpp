@@ -20,7 +20,7 @@
 #include <QtCore/QStringList>
 #include <QtCore/QString>
 #include <QtCore/QDebug>
-#include <QtGui>
+#include <QtWidgets/QMessageBox>
 
 #include <avogadro/fragment.h>
 

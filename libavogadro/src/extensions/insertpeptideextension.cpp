@@ -28,8 +28,13 @@
 #include <openbabel/mol.h>
 #include <openbabel/residue.h>
 #include <openbabel/atom.h>
+#include <openbabel/elements.h>
+#include <openbabel/internalcoord.h>
+#include <openbabel/data.h>
 
 #include <QDebug>
+#include <QAction>
+#include <QButtonGroup>
 
 using namespace std;
 using namespace OpenBabel;
@@ -116,7 +121,7 @@ namespace Avogadro {
 
     double amideLength = 1.34;
     double bondAngle = 120.0;
-    const char chain = m_dialog->chainNumberCombo->currentText().toAscii()[0];
+    const char chain = m_dialog->chainNumberCombo->currentText().toLatin1()[0];
 
     // Now the work begins
     // Get the sequence (in lower case)
@@ -217,10 +222,8 @@ namespace Avogadro {
     if (obfragment.NumAtoms()) {
       // Don't do all this work, if there's nothing to do
       InternalToCartesian(vic,obfragment);
-      OBBitVec allAtoms;
-      allAtoms.SetRangeOn(0, obfragment.NumAtoms());
-      allAtoms.SetBitOff(obfragment.NumAtoms() - 1); // Don't add bonds for the terminus
-      resdat.AssignBonds(obfragment, allAtoms);
+      // Assign residue-based bonds in the new fragment
+      resdat.AssignBonds(obfragment);
       
       // some of the fragments still miss bonds
       obfragment.ConnectTheDots();
@@ -392,7 +395,7 @@ namespace Avogadro {
     filename += residue + ".zmat";
 
     ifstream ifs;
-    ifs.open(filename.toAscii());
+    ifs.open(filename.toLatin1());
 
     if (!ifs) { // file doesn't exist
       qDebug() << " Cannot open residue file: " << filename;
@@ -422,7 +425,7 @@ namespace Avogadro {
       tokenize(vs, buffer);
 
       atom = mol.NewAtom();
-      atom->SetAtomicNum(etab.GetAtomicNum(vs[0].c_str()));
+      atom->SetAtomicNum(OpenBabel::OBElements::GetAtomicNum(vs[0].c_str()));
       atom->SetPartialCharge(atof(vs[7].c_str()));
       res->InsertAtom(atom);
       res->SetHetAtom(atom, false);
@@ -476,7 +479,7 @@ namespace Avogadro {
       res->InsertAtom(atom);
       res->SetHetAtom(atom, false);
       res->SetSerialNum(atom, mol.NumAtoms());
-      res->SetAtomID(atom, atomID.toAscii().data());
+      res->SetAtomID(atom, atomID.toLatin1().data());
 
       OBInternalCoord *coord = new OBInternalCoord;
       coord->_dst = distance;
@@ -495,4 +498,3 @@ namespace Avogadro {
 
 } // end namespace Avogadro
 
-Q_EXPORT_PLUGIN2(insertpeptideextension, Avogadro::InsertPeptideExtensionFactory)

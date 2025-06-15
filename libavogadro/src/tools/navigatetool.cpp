@@ -382,4 +382,3 @@ namespace Avogadro {
 
 }
 
-Q_EXPORT_PLUGIN2(navigatetool, Avogadro::NavigateToolFactory)

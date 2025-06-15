@@ -115,7 +115,7 @@ namespace Avogadro {
       conv.AddOption("1", OBConversion::INOPTIONS);
     // Add the number of turns
     QString turns = QString("%1").arg(m_dialog->bpTurnsSpin->value());
-    conv.AddOption("t", OBConversion::INOPTIONS, turns.toAscii().data());
+    conv.AddOption("t", OBConversion::INOPTIONS, turns.toLatin1().data());
 
     OBMol obfragment;
     if (!conv.ReadString(&obfragment, sequence.toStdString()) )
@@ -236,4 +236,3 @@ namespace Avogadro {
 
 } // end namespace Avogadro
 
-Q_EXPORT_PLUGIN2(insertdnaextension, Avogadro::InsertDNAExtensionFactory)

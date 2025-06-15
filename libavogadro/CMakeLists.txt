@@ -10,9 +10,10 @@ if(WIN32)
 endif()
 
 # Provide a list of plugins that should be built statically, or ALL
-set(Avogadro_STATIC_PLUGINS bsdyengine navigatetool elementcolor
+# Disable static plugins by default to simplify Qt5 builds.
+set(Avogadro_STATIC_PLUGINS ""
   CACHE STRING
-  "List of plugins to build statically (default is bsdyengine, elementcolor, navigatetool). Use ALL to build all plugins statically.")
+  "List of plugins to build statically. Use ALL to build all plugins statically.")
 
 # Create an empty variable to accumulate statically linked plugins in
 set(plugins_built_static "" CACHE INTERNAL "Static Avogadro plugins")
@@ -87,8 +88,8 @@ function(avogadro_plugin_nogl plugin_name src_list)
     set_target_properties(${plugin_name} PROPERTIES
       COMPILE_FLAGS "-DQT_STATICPLUGIN ${CMAKE_SHARED_LIBRARY_CXX_FLAGS}")
   endif()
-  target_link_libraries(${plugin_name} ${LINK_LIBS} ${QT_QTCORE_LIBRARY}
-                        ${QT_QTGUI_LIBRARY} ${OPENBABEL2_LIBRARIES})
+  target_link_libraries(${plugin_name} ${LINK_LIBS} ${QT_LIBRARIES}
+                        ${OPENBABEL2_LIBRARIES})
   set_target_properties(${plugin_name} PROPERTIES
                         OUTPUT_NAME ${plugin_name}
                         PREFIX ""

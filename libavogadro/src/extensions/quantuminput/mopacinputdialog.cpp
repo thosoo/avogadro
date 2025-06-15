@@ -29,6 +29,7 @@
 #include <avogadro/atom.h>
 
 #include <openbabel/mol.h>
+#include <openbabel/elements.h>
 
 #include <QString>
 //#include <QTextStream>
@@ -42,7 +43,7 @@ namespace Avogadro
   using OpenBabel::OBAtom;
   using OpenBabel::OBInternalCoord;
   using OpenBabel::OBMolAtomIter;
-  using OpenBabel::etab;
+  using OpenBabel::OBElements;
 
 #ifdef Q_WS_WIN
   const QString MOPACInputDialog::mopacPath("C:\Program Files\MOPAC\MOPAC2009.exe");
@@ -411,7 +412,7 @@ namespace Avogadro
         QList<Atom *> atoms = m_molecule->atoms();
         foreach (Atom *atom, atoms) {
           mol << qSetFieldWidth(4) << right
-              << QString(OpenBabel::etab.GetSymbol(atom->atomicNumber()))
+              << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()))
               << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint
               << fixed << right
               << atom->pos()->x() << optimizationFlag
@@ -448,7 +449,7 @@ namespace Avogadro
               t += 360.0;
 
             mol << qSetFieldWidth(4) << right
-                << QString(etab.GetSymbol(atom->GetAtomicNum()));
+                << QString(OpenBabel::OBElements::GetSymbol(atom->GetAtomicNum()));
 
             QString buffer = QString("%1 %2 %3 %4 %5 %6")
               .arg(r, 10, 'f', 6)
