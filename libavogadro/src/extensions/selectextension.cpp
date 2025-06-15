@@ -32,6 +32,7 @@
 #include <avogadro/primitivelist.h>
 
 #include <openbabel/mol.h>
+#include <openbabel/atom.h>
 #include <openbabel/parsmart.h>
 
 #include <QLineEdit>
@@ -298,5 +299,4 @@ namespace Avogadro {
 
 } // end namespace Avogadro
 
-Q_EXPORT_PLUGIN2(selectextension, Avogadro::SelectExtensionFactory)
 

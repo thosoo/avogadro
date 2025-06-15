@@ -61,6 +61,7 @@ namespace Avogadro {
   {
     Q_OBJECT
     Q_INTERFACES(Avogadro::PluginFactory)
+    Q_PLUGIN_METADATA(IID "net.sourceforge.avogadro.pluginfactory/1.5")
         AVOGADRO_EXTENSION_FACTORY(QTAIMExtension)
       };
 

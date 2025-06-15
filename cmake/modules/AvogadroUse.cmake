@@ -3,9 +3,7 @@ include_directories(${Avogadro_INCLUDE_DIRS})
 link_directories(${Avogadro_LIBRARY_DIRS})
 
 # Set up the deps needed to compile an Avogadro plugin
-find_package(Qt4 REQUIRED)
-set(QT_USE_QTOPENGL true)
-include(${QT_USE_FILE})
+include("${CMAKE_CURRENT_LIST_DIR}/../Qt5Compat.cmake")
 add_definitions(${QT_DEFINITIONS})
 add_definitions(-DQT_PLUGIN)
 add_definitions(-DQT_SHARED)

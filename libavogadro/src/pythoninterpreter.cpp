@@ -67,7 +67,7 @@ namespace Avogadro {
   {
     try
     {
-      return boost::python::exec(command.toAscii().constData(), main, local);
+      return boost::python::exec(command.toLatin1().constData(), main, local);
     }
     catch(error_already_set const &)
     {
@@ -81,7 +81,7 @@ namespace Avogadro {
   {
     try
     {
-      return boost::python::eval(command.toAscii().constData(), main, local);
+      return boost::python::eval(command.toLatin1().constData(), main, local);
     }
     catch(error_already_set const &)
     {
@@ -141,7 +141,7 @@ namespace Avogadro {
     execWrapper("sys.stdout=CIO", main_namespace, local);
     execWrapper("sys.stderr=CIO", main_namespace, local);
 
-    object ignored = execWrapper(command.toAscii().constData(), main_namespace, local);
+    object ignored = execWrapper(command.toLatin1().constData(), main_namespace, local);
     object result = evalWrapper("str(CIO.getvalue())", main_namespace, local);
 
     try

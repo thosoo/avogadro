@@ -31,6 +31,7 @@
 
 #include <openbabel/conformersearch.h>
 
+#include <QAction>
 #include <QProgressDialog>
 #include <QWriteLocker>
 #include <QMutex>
@@ -755,5 +756,4 @@ namespace Avogadro
 
 } // end namespace Avogadro
 
-Q_EXPORT_PLUGIN2(forcefieldextension, Avogadro::ForceFieldExtensionFactory)
 
