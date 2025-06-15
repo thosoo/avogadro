@@ -36,6 +36,7 @@
 #include <QMessageBox>
 #include <QDir>
 #include <QDebug>
+#include <QAction>
 
 
 #include <fstream>
