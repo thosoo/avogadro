@@ -30,10 +30,10 @@
 #include <avogadro/engine.h>
 #include <avogadro/glwidget.h>
 
-#include <QtGui/QTreeView>
-#include <QtGui/QHeaderView>
-#include <QtGui/QSortFilterProxyModel>
-#include <QtGui/QVBoxLayout>
+#include <QtWidgets/QTreeView>
+#include <QtWidgets/QHeaderView>
+#include <QtWidgets/QSortFilterProxyModel>
+#include <QtWidgets/QVBoxLayout>
 
 namespace Avogadro {
 
@@ -67,8 +67,8 @@ namespace Avogadro {
     m_view->setTextElideMode(Qt::ElideMiddle);
     m_view->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_view->header()->setStretchLastSection(false);
-    m_view->header()->setResizeMode(0, QHeaderView::Stretch);
-    m_view->header()->setResizeMode(1, QHeaderView::Fixed);
+    m_view->header()->setSectionResizeMode(0, QHeaderView::Stretch);
+    m_view->header()->setSectionResizeMode(1, QHeaderView::Fixed);
     m_view->header()->resizeSection(1, 25);
 
     // Use the engine item delegate to display

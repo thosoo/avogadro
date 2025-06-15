@@ -8,8 +8,7 @@ project(ConformerPlotExtension)
 cmake_minimum_required(VERSION 2.6)
 
 # Set up Qt
-set(QT_MIN_VERSION "4.5.0")
-find_package(Qt4 REQUIRED)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../../../cmake/Qt5Compat.cmake)
 
 # Set up Avogadro
 find_package(Avogadro REQUIRED)

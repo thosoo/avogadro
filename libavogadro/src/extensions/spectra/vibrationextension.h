@@ -32,8 +32,8 @@
 #include <QtCore/QObject>
 #include <QtCore/QList>
 #include <QtCore/QString>
-#include <QtGui/QDockWidget>
-#include <QtGui/QUndoCommand>
+#include <QtWidgets/QDockWidget>
+#include <QtWidgets/QUndoCommand>
 
 namespace OpenBabel {
   class OBVibrationData;
@@ -98,6 +98,7 @@ namespace Avogadro {
   {
       Q_OBJECT
       Q_INTERFACES(Avogadro::PluginFactory)
+    Q_PLUGIN_METADATA(IID "net.sourceforge.avogadro.pluginfactory/1.5")
       AVOGADRO_EXTENSION_FACTORY(VibrationExtension)
   };
 

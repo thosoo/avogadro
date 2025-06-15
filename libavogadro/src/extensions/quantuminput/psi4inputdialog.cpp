@@ -28,6 +28,7 @@
 #include <avogadro/atom.h>
 
 #include <openbabel/mol.h>
+#include <openbabel/elements.h>
 
 #include <QString>
 #include <QTextStream>
@@ -236,7 +237,7 @@ namespace Avogadro
     QList<Atom *> atoms = m_molecule->atoms();
     foreach (Atom *atom, atoms) {
       mol << qSetFieldWidth(4) << right
-        << QString(OpenBabel::etab.GetSymbol(atom->atomicNumber()))
+        << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()))
         << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint
         << fixed << right << atom->pos()->x() << atom->pos()->y()
         << atom->pos()->z()

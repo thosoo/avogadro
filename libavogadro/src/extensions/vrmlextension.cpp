@@ -146,4 +146,3 @@ namespace Avogadro
 
 } // End namespace Avogadro
 
-Q_EXPORT_PLUGIN2(VRMLextension, Avogadro::VRMLExtensionFactory)
