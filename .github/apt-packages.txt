@@ -1,0 +1,10 @@
+build-essential
+cmake
+qtbase5-dev
+qttools5-dev
+qttools5-dev-tools
+libqt5opengl5-dev
+libeigen3-dev
+libopenbabel-dev
+zlib1g-dev
+libglu1-mesa-dev
