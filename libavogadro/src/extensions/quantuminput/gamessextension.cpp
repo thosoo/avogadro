@@ -33,6 +33,7 @@
 #include <openbabel/mol.h>
 #include <openbabel/obiter.h>
 #include <openbabel/obconversion.h>
+#include <openbabel/parsmart.h>
 
 #include <QDockWidget>
 #include <QPushButton>
