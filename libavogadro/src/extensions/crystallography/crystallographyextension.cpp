@@ -65,6 +65,7 @@
 #include <QTableView>
 #include <QStandardItemModel>
 #include <QScrollBar>
+#include <QHeaderView>
 
 #include <QtCore/QDebug>
 #include <QtCore/QSettings>
