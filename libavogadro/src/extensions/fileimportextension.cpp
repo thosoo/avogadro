@@ -37,6 +37,7 @@
 #include <QTextStream>
 #include <QFile>
 #include <QDebug>
+#include <QAction>
 
 #include <openbabel/mol.h>
 #include <openbabel/obconversion.h>
