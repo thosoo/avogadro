@@ -32,6 +32,8 @@
 #include <openbabel/mol.h>
 #include <openbabel/elements.h>
 #include <openbabel/obiter.h>
+#include <openbabel/atom.h>
+#include <openbabel/internalcoord.h>
 
 #include <QString>
 #include <QFileDialog>
