@@ -27,7 +27,7 @@
 #include <QtCore/QDebug>
 
 #include <QtWidgets/QButtonGroup>
-#include <QtGui/QDoubleValidator>
+#include <QDoubleValidator>
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QHeaderView>
 #include <QtWidgets/QProgressDialog>

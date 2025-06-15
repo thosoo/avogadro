@@ -33,8 +33,8 @@
 #include <openbabel/generic.h>
 #include <openbabel/mol.h>
 
-#include <QtGui/QAction>
-#include <QtGui/QCloseEvent>
+#include <QAction>
+#include <QCloseEvent>
 #include <QtWidgets/QMessageBox>
 #include <QtCore/QDebug>
 

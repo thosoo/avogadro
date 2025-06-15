@@ -30,20 +30,20 @@
 #include "emission.h"
 #include "absorption.h"
 
-#include <QtGui/QPen>
-#include <QtGui/QColor>
+#include <QPen>
+#include <QColor>
 #include <QtWidgets/QColorDialog>
-#include <QtGui/QButtonGroup>
-#include <QtGui/QDoubleValidator>
-#include <QtGui/QFileDialog>
+#include <QButtonGroup>
+#include <QDoubleValidator>
+#include <QFileDialog>
 #include <QtWidgets/QFontDialog>
-#include <QtGui/QInputDialog>
+#include <QInputDialog>
 #include <QtWidgets/QMessageBox>
-#include <QtGui/QPixmap>
+#include <QPixmap>
 #include <QtCore/QSettings>
-#include <QtGui/QListWidgetItem>
-#include <QtGui/QDesktopWidget>
-#include <QtGui/QToolTip>
+#include <QListWidgetItem>
+#include <QDesktopWidget>
+#include <QToolTip>
 
 #include <QtCore/QDebug>
 #include <QtCore/QFile>

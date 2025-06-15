@@ -21,7 +21,7 @@
 #ifndef SPECTRATYPE_H
 #define SPECTRATYPE_H
 
-#include <QtGui/QDialog>
+#include <QDialog>
 #include <QtCore/QHash>
 #include <QtCore/QVariant>
 #include <QtCore/QSettings>

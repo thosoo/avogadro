@@ -28,7 +28,7 @@
 #include "orcaanalysedialog.h"
 
 
-#include <QtGui/QAction>
+#include <QAction>
 #include <QMessageBox>
 #include <QDebug>
 #include <avogadro/periodictableview.h>
