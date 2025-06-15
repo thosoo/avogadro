@@ -333,10 +333,10 @@ namespace Avogadro {
       // dark
       QHash<QString, QVariant> dark;
       dark["name"] = tr("Dark");
-      dark["backgroundColor"] = Qt::black;
-      dark["foregroundColor"] = Qt::white;
-      dark["calculatedColor"] = Qt::red;
-      dark["importedColor"] = Qt::gray;
+      dark["backgroundColor"] = QColor(Qt::black);
+      dark["foregroundColor"] = QColor(Qt::white);
+      dark["calculatedColor"] = QColor(Qt::red);
+      dark["importedColor"] = QColor(Qt::gray);
       dark["font"] = QFont();
       new QListWidgetItem(dark["name"].toString(), ui.list_schemes);
       m_schemes->append(dark);
@@ -344,10 +344,10 @@ namespace Avogadro {
       // light
       QHash<QString, QVariant> light;
       light["name"] = tr("Light");
-      light["backgroundColor"] = Qt::white;
-      light["foregroundColor"] = Qt::black;
-      light["calculatedColor"] = Qt::red;
-      light["importedColor"] = Qt::gray;
+      light["backgroundColor"] = QColor(Qt::white);
+      light["foregroundColor"] = QColor(Qt::black);
+      light["calculatedColor"] = QColor(Qt::red);
+      light["importedColor"] = QColor(Qt::gray);
       light["font"] = QFont();
       new QListWidgetItem(light["name"].toString(), ui.list_schemes);
       m_schemes->append(light);
@@ -355,10 +355,10 @@ namespace Avogadro {
       // publication
       QHash<QString, QVariant> publication;
       publication["name"] = tr("Publication");
-      publication["backgroundColor"] = Qt::white;
-      publication["foregroundColor"] = Qt::black;
-      publication["calculatedColor"] = Qt::black;
-      publication["importedColor"] = Qt::gray;
+      publication["backgroundColor"] = QColor(Qt::white);
+      publication["foregroundColor"] = QColor(Qt::black);
+      publication["calculatedColor"] = QColor(Qt::black);
+      publication["importedColor"] = QColor(Qt::gray);
       publication["font"] = QFont("Century Schoolbook L", 13);
       new QListWidgetItem(publication["name"].toString(), ui.list_schemes);
       m_schemes->append(publication);
@@ -366,10 +366,10 @@ namespace Avogadro {
       // handdrawn
       QHash<QString, QVariant> handdrawn;
       handdrawn["name"] = tr("Handdrawn");
-      handdrawn["backgroundColor"] = Qt::white;
-      handdrawn["foregroundColor"] = Qt::gray;
-      handdrawn["calculatedColor"] = Qt::darkGray;
-      handdrawn["importedColor"] = Qt::lightGray;
+      handdrawn["backgroundColor"] = QColor(Qt::white);
+      handdrawn["foregroundColor"] = QColor(Qt::gray);
+      handdrawn["calculatedColor"] = QColor(Qt::darkGray);
+      handdrawn["importedColor"] = QColor(Qt::lightGray);
       handdrawn["font"] = QFont("Domestic Manners", 16);
       new QListWidgetItem(handdrawn["name"].toString(), ui.list_schemes);
       m_schemes->append(handdrawn);

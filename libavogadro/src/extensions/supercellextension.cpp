@@ -35,6 +35,8 @@
 #include <openbabel/mol.h>
 #include <openbabel/generic.h>
 #include <openbabel/elements.h>
+#include <openbabel/atom.h>
+#include <openbabel/obiter.h>
 
 #include <QMessageBox>
 #include <QCoreApplication>

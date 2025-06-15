@@ -54,6 +54,7 @@
 #include <QTime>
 #include <QDir>
 #include <QDebug>
+#include <QtWidgets/QAction>
 
 using Eigen::Vector3f;
 using Eigen::Vector3d;
