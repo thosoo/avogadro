@@ -29,6 +29,7 @@
 #include <avogadro/atom.h>
 
 #include <openbabel/mol.h>
+#include <openbabel/elements.h>
 
 #include <QString>
 #include <QTextStream>
@@ -276,7 +277,7 @@ namespace Avogadro
       QList<Atom *> atoms = m_molecule->atoms();
       foreach (Atom *atom, atoms) {
         mol << qSetFieldWidth(2) << left
-            << QString(OpenBabel::etab.GetSymbol(atom->atomicNumber()))
+            << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()))
             << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint
             << fixed << right << atom->pos()->x() << atom->pos()->y()
             << atom->pos()->z()
@@ -335,7 +336,7 @@ namespace Avogadro
         b = vic[atom->GetIdx()]->_b;
         c = vic[atom->GetIdx()]->_c;
 
-        mol << QString(etab.GetSymbol(atom->GetAtomicNum()));
+        mol << QString(OpenBabel::OBElements::GetSymbol(atom->GetAtomicNum()));
         if (atom->GetIdx() > 1)
           mol << ", " << QString::number(a->GetIdx())
               << ", r" << atom->GetIdx();
@@ -383,7 +384,7 @@ namespace Avogadro
         if (t < 0.0)
           t += 360.0;
 
-        mol << QString(etab.GetSymbol(atom->GetAtomicNum()));
+        mol << QString(OpenBabel::OBElements::GetSymbol(atom->GetAtomicNum()));
         if (atom->GetIdx() > 1)
           mol << ", " << QString::number(a->GetIdx()) << ", "
               << qSetRealNumberPrecision(5) << forcepoint 

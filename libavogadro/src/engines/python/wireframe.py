@@ -1,4 +1,6 @@
-from PyQt4.Qt import *
+from PyQt5.QtCore import *
+from PyQt5.QtGui import *
+from PyQt5.QtWidgets import *
 import Avogadro
 
 
@@ -68,7 +70,7 @@ class Engine(QObject):
       painter.drawLine(endAtom.pos, center, self.width)
 
   def readSettings(self, settings):
-    # As opposed to C++, in PyQt4 toInt() returns a tuple,
+    # As opposed to C++, in PyQt5 toInt() returns a tuple,
     # converted value is the first element
     self.width = settings.value("width", 1).toInt()[0]
 

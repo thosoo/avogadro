@@ -39,6 +39,7 @@
 #include <avogadro/extension.h>
 #include <avogadro/primitivelist.h>
 #include <openbabel/mol.h>
+#include <openbabel/elements.h>
 
 #include <Eigen/Geometry>
 
@@ -1067,12 +1068,12 @@ QString OrcaAnalyseDialog::readOutputFile()
         OBAtom *atom  = m_obmol->NewAtom();
         int atomicNum;
         if (atomicLabel) {
-            atomicNum = etab.GetAtomicNum(atomText.at(i).toAscii());
+            atomicNum = OpenBabel::OBElements::GetAtomicNum(atomText.at(i).toLatin1());
         } else {
             atomicNum = atomText.at(i).toInt();
         }
 
-        ret <<  atomicNum << " " <<  atomText.at(i).toAscii() << "\n";
+        ret <<  atomicNum << " " <<  atomText.at(i).toLatin1() << "\n";
         atom->SetAtomicNum(atomicNum);
         atom->SetVector(geo.at(i).x(), geo.at(i).y(),geo.at(i).z()); //set coordinates
 

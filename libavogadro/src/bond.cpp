@@ -28,7 +28,8 @@
  #include "molecule.h"
  #include "atom.h"
 
- #include <openbabel/mol.h>
+#include <openbabel/mol.h>
+#include <openbabel/bond.h>
 
  #include <QDebug>
 

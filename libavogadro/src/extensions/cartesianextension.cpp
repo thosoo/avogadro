@@ -28,10 +28,17 @@
 #include <avogadro/bond.h>
 #include <avogadro/primitivelist.h>
 
-#include <QtGui/QAction>
-#include <QtGui/QDialog>
-#include <QtGui/QClipboard>
-#include <QtGui/QMessageBox>
+#include <openbabel/elements.h>
+#include <openbabel/math/matrix3x3.h>
+#include <openbabel/math/vector3.h>
+#include <openbabel/generic.h>
+#include <openbabel/mol.h>
+#include <openbabel/atom.h>
+
+#include <QAction>
+#include <QDialog>
+#include <QClipboard>
+#include <QtWidgets/QMessageBox>
 
 #include <QtCore/QDebug>
 #include <QtCore/QStringList>
@@ -267,13 +274,10 @@ namespace Avogadro
                 continue;
 
               // Try to find element name or symbol inside it
-              int n,iso;
+              int n;
               QString s = data.at(i);
               while (s.length()!=0) { // recognize name with number
-                iso = 0;
-                n = OpenBabel::etab.GetAtomicNum(s.toStdString(), iso);
-                if (iso != 0)
-                  n = 1;
+                n = OpenBabel::OBElements::GetAtomicNum(s.toLatin1().constData());
 
                 if (n!=0) {
                   NameCol=i;
@@ -302,7 +306,7 @@ namespace Avogadro
         continue;
       }
       double x=0, y=0, z=0;
-      int _n=0,_iso=0;
+      int _n=0;
       OBAtom *atom  = mol->NewAtom();
       QStringList s_data = coordStrings.at(N).trimmed().split(QRegExp("\\s+|,|;"));
       if (s_data.size() != data.size()) {
@@ -324,10 +328,7 @@ namespace Avogadro
 
               QString _s = s_data.at(i);
               while (_s.length()!=0) { // recognize name with number
-                _iso=0;
-                _n = OpenBabel::etab.GetAtomicNum(_s.toStdString(), _iso);
-                if (_iso != 0)
-                  _n = 1;
+                _n = OpenBabel::OBElements::GetAtomicNum(_s.toLatin1().constData());
 
                 if (_n!=0)
                   break;
@@ -444,7 +445,7 @@ namespace Avogadro
           switch (m_format) {
           case XYZ:
             coordStream.setFieldWidth(3);
-            coordStream << left << QString(OpenBabel::etab.GetSymbol(atom->atomicNumber()));
+            coordStream << left << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()));
             coordStream.setFieldWidth(18);
             coordStream << fixed << forcepoint << right << pos.x() << pos.y()
                 << pos.z() << endl;
@@ -458,7 +459,7 @@ namespace Avogadro
 
           case XYZ_NUM:
             coordStream.setFieldWidth(6);
-            coordStream << left << QString(OpenBabel::etab.GetSymbol(atom->atomicNumber()))+
+            coordStream << left << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()))+
             QString::number(i+1);
             coordStream.setFieldWidth(18);
             coordStream << fixed << forcepoint << right << pos.x() << pos.y()
@@ -467,7 +468,7 @@ namespace Avogadro
 
           case GAMESS:
             coordStream.setFieldWidth(3);
-            coordStream << left << QString(OpenBabel::etab.GetSymbol(atom->atomicNumber()));
+            coordStream << left << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()));
             coordStream.setFieldWidth(3);
             coordStream << right << atom->atomicNumber();
             coordStream.setFieldWidth(2);
@@ -479,7 +480,7 @@ namespace Avogadro
 
           case GAMESS2:
             coordStream.setFieldWidth(12);
-            coordStream << left << QString(OpenBabel::etab.GetName(atom->atomicNumber()).c_str());
+            coordStream << left << QString::fromLatin1(OpenBabel::OBElements::GetName(atom->atomicNumber()));
             coordStream.setFieldWidth(3);
             coordStream << right << atom->atomicNumber();
             coordStream.setFieldWidth(2);
@@ -496,7 +497,7 @@ namespace Avogadro
             coordStream << pos.y()
               << pos.z();
             coordStream.setFieldWidth(5);
-            coordStream << left << right << QString(OpenBabel::etab.GetSymbol(atom->atomicNumber())) << endl;
+            coordStream << left << right << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber())) << endl;
             break;
 
           case PRIRODA:
@@ -625,4 +626,3 @@ namespace Avogadro
 
 } // end namespace Avogadro
 
-Q_EXPORT_PLUGIN2( cartesianextension, Avogadro::CartesianExtensionFactory )

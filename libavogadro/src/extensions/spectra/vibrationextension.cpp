@@ -35,7 +35,7 @@
 
 #include <QtGui/QAction>
 #include <QtGui/QCloseEvent>
-#include <QtGui/QMessageBox>
+#include <QtWidgets/QMessageBox>
 #include <QtCore/QDebug>
 
 using namespace std;
@@ -414,4 +414,3 @@ namespace Avogadro {
 
 } // end namespace Avogadro
 
-Q_EXPORT_PLUGIN2(vibrationextension, Avogadro::VibrationExtensionFactory)

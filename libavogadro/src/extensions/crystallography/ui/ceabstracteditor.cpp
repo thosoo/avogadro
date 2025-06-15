@@ -17,7 +17,7 @@
 
 #include "ceabstracteditor.h"
 
-#include <QtGui/QMainWindow>
+#include <QtWidgets/QMainWindow>
 
 #include <QtCore/QSettings>
 
