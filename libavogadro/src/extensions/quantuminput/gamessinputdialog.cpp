@@ -354,7 +354,7 @@ namespace Avogadro {
   {
     stringstream str;
     m_inputData->WriteInputFile( str );
-    ui.previewText->setText( QString::fromAscii( str.str().c_str() ) );
+    ui.previewText->setText(QString::fromLatin1(str.str().c_str()));
   }
 
   void GamessInputDialog::updateBasicWidgets()
