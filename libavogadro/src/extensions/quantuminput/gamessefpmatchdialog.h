@@ -26,6 +26,7 @@
 
 #include <avogadro/primitive.h>
 #include <avogadro/glwidget.h>
+#include <avogadro/atom.h>
 #include <QDialog>
 
 #include "ui_gamessefpmatchdialog.h"
