@@ -27,7 +27,7 @@
 #include <QtGui/QPainter>
 #include <QtGui/QPixmap>
 #include <QtGui/QPainterPath>
-#include <QtGui/QStyleOption>
+#include <QStyleOption>
 
 #include <avogadro/global.h>
 #include <openbabel/babelconfig.h>
