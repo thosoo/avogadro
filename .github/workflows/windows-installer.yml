@@ -21,6 +21,16 @@ jobs:
           $includeDir = Join-Path $eigenBase 'include\eigen3'
           "EIGEN3_INCLUDE_DIR=$includeDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "CMAKE_PREFIX_PATH=$eigenBase;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Debug Eigen variables
+        shell: pwsh
+        run: |
+          echo "EIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR"
+          echo "CMAKE_PREFIX_PATH=$env:CMAKE_PREFIX_PATH"
+          if (Test-Path $env:EIGEN3_INCLUDE_DIR) {
+            Get-ChildItem $env:EIGEN3_INCLUDE_DIR | Select-Object -First 5
+          } else {
+            Write-Host "Eigen include dir not found"
+          }
       - name: Install Qt
         shell: pwsh
         run: |
@@ -40,6 +50,15 @@ jobs:
           $out = "$env:RUNNER_TEMP\openbabel.exe"
           Invoke-WebRequest -Uri $url -OutFile $out
           Start-Process -FilePath $out -ArgumentList '/S' -Wait
+      - name: Debug OpenBabel install
+        shell: pwsh
+        run: |
+          $obDir = "${Env:ProgramFiles(x86)}\OpenBabel-3.1.1"
+          if (Test-Path $obDir) {
+            Get-ChildItem $obDir | Select-Object -First 5
+          } else {
+            Write-Host "OpenBabel not found in default location"
+          }
       - name: Configure
         run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DCPACK_BINARY_NSIS=ON -DCPACK_BINARY_ZIP=OFF
       - name: Build
