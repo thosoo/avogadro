@@ -48,7 +48,6 @@ add_library(OpenQube SHARED ${openqube_SRCS} ${openqubeMocSrcs})
 set_target_properties(OpenQube PROPERTIES
   VERSION 0.1.0
   OUTPUT_NAME avogadro_OpenQube
-  LINK_INTERFACE_LIBRARIES ""
   SOVERSION 0
   LABELS openqube)
 
