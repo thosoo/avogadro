@@ -13,7 +13,11 @@ jobs:
         run: git config --system core.protectNTFS false
       - uses: actions/checkout@v4
       - name: Install dependencies
-        run: choco install -y nsis eigen qt5 cmake --installargs "ADD_CMAKE_TO_PATH=System"
+        run: choco install -y nsis cmake --installargs "ADD_CMAKE_TO_PATH=System"
+      - name: Set Qt path
+        shell: pwsh
+        run: |
+          "Qt5_DIR=C:\\Qt\\5.15.2\\msvc2019_64" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Install OpenBabel
         shell: pwsh
         run: |
