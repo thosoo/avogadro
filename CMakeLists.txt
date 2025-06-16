@@ -240,7 +240,7 @@ endif()
 find_package(Eigen3 REQUIRED) # find and setup Eigen3 if available
 
 find_package(ZLIB REQUIRED)
-find_package(OpenBabel2 REQUIRED) # find and setup OpenBabel
+find_package(OpenBabel3 REQUIRED) # find and setup OpenBabel
 
 if (Q_WS_X11)
   find_package(X11 REQUIRED) # avogadro/src/main.cpp calls XInitThread().
