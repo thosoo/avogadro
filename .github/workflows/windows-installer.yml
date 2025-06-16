@@ -28,7 +28,7 @@ jobs:
         run: |
           cmake --build build --config Release --target package
       - name: Upload installer
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: avogadro-windows-installer
           path: build/*.exe
