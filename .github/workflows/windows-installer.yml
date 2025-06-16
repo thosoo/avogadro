@@ -14,10 +14,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: choco install -y nsis cmake --installargs "ADD_CMAKE_TO_PATH=System"
-      - name: Set Qt path
+      - name: Install Qt
         shell: pwsh
         run: |
-          $qt = "C:\\Qt\\5.15.2\\msvc2019_64"
+          python -m pip install aqtinstall
+          $qtDir = "C:\\Qt"
+          python -m aqt install-qt windows desktop 5.15.2 win64_msvc2019_64 -O $qtDir -m qtcharts qtscript
+          $qt = "$qtDir\5.15.2\msvc2019_64"
           "Qt5_DIR=$qt" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "CMAKE_PREFIX_PATH=$qt" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$qt\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
