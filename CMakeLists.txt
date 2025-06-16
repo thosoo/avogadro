@@ -13,6 +13,9 @@ set(Avogadro_VERSION_FULL "${Avogadro_VERSION}.${Avogadro_VERSION_PATCH}")
 set(CMAKE_MODULE_PATH ${Avogadro_SOURCE_DIR}/cmake/modules)
 
 cmake_policy(SET CMP0003 NEW)
+if(POLICY CMP0074)
+  cmake_policy(SET CMP0074 NEW)
+endif()
 
 # this is adapted from KDE's FindKDE4Internal.cmake : default the build type to
 # "release with debug info".

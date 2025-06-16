@@ -94,6 +94,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -DCPACK_BINARY_NSIS=ON -DCPACK_BINARY_ZIP=OFF
           "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR"
+          "-DZLIB_ROOT=$env:ZLIB_ROOT"
       - name: Build
         run: cmake --build build --config Release
       - name: Test
