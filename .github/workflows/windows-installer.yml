@@ -13,13 +13,9 @@ jobs:
         run: git config --system core.protectNTFS false
       - uses: actions/checkout@v4
       - name: Install dependencies
-        run: |
-          choco install -y nsis eigen cmake --installargs 'ADD_CMAKE_TO_PATH=System'
+        run: choco install -y nsis eigen openbabel qt5 cmake --installargs "ADD_CMAKE_TO_PATH=System"
       - name: Configure
-        run: |
-          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCPACK_BINARY_NSIS=ON -DCPACK_BINARY_ZIP=OFF
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DCPACK_BINARY_NSIS=ON -DCPACK_BINARY_ZIP=OFF
       - name: Build
         run: |
           cmake --build build --config Release
@@ -33,5 +29,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: avogadro-windows-installer
-          path: build/*.exe
+          path: build/Avogadro*.exe
           if-no-files-found: error
