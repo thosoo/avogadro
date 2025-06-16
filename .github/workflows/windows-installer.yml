@@ -1,0 +1,34 @@
+name: Windows Installer
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          choco install -y nsis openbabel qt5 eigen cmake
+      - name: Configure
+        run: |
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCPACK_BINARY_NSIS=ON -DCPACK_BINARY_ZIP=OFF
+      - name: Build
+        run: |
+          cmake --build build --config Release
+      - name: Test
+        run: |
+          ctest --test-dir build -C Release --output-on-failure
+      - name: Package
+        run: |
+          cmake --build build --config Release --target package
+      - name: Upload installer
+        uses: actions/upload-artifact@v3
+        with:
+          name: avogadro-windows-installer
+          path: build/*.exe
