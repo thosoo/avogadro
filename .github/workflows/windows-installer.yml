@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Allow Windows reserved filenames
         run: git config --system core.protectNTFS false
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install dependencies
         run: |
           choco install -y nsis openbabel qt5 eigen cmake
