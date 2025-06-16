@@ -9,6 +9,8 @@ jobs:
   build-installer:
     runs-on: windows-latest
     steps:
+      - name: Allow Windows reserved filenames
+        run: git config --system core.protectNTFS false
       - uses: actions/checkout@v3
       - name: Install dependencies
         run: |
