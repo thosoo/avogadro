@@ -17,8 +17,9 @@ jobs:
       - name: Set Eigen path
         shell: pwsh
         run: |
-          $eigenBase = Join-Path $env:ChocolateyInstall 'lib\eigen\eigen'
-          "EIGEN3_INCLUDE_DIR=$eigenBase\include\eigen3" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $eigenBase = Join-Path $env:ChocolateyInstall 'lib\eigen'
+          $includeDir = Join-Path $eigenBase 'include\eigen3'
+          "EIGEN3_INCLUDE_DIR=$includeDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "CMAKE_PREFIX_PATH=$eigenBase;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Install Qt
         shell: pwsh
