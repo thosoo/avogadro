@@ -1,0 +1,141 @@
+name: Windows Installer
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - name: Allow Windows reserved filenames
+        run: git config --system core.protectNTFS false
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: choco install -y --no-progress nsis cmake --installargs "ADD_CMAKE_TO_PATH=System"
+      - name: Build zlib
+        shell: pwsh
+        run: |
+          $ver = '1.3.1'
+          $zip = "$env:RUNNER_TEMP\zlib.zip"
+          Invoke-WebRequest "https://zlib.net/zlib$($ver -replace '\.', '').zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          $src = Join-Path $env:RUNNER_TEMP "zlib-$ver"
+          $bld = Join-Path $src "build"
+          cmake -S $src -B $bld -A x64 -DCMAKE_INSTALL_PREFIX=$bld\install
+          cmake --build $bld --config Release --target install
+          $zlibDir = Join-Path $bld "install"
+          $inc = Join-Path $zlibDir "include"
+          $lib = Join-Path $zlibDir "lib" "zlibstatic.lib"
+          "CMAKE_PREFIX_PATH=$zlibDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ZLIB_LIBRARY=$lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ZLIB_INCLUDE_DIR=$inc" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$zlibDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Debug zlib install
+        shell: pwsh
+        run: |
+          echo "ZLIB_LIBRARY=$env:ZLIB_LIBRARY"
+          echo "ZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR"
+          echo "CMAKE_PREFIX_PATH=$env:CMAKE_PREFIX_PATH"
+          if (Test-Path "$env:ZLIB_INCLUDE_DIR/zlib.h") {
+            Get-ChildItem "$env:ZLIB_INCLUDE_DIR" | Select-Object -First 5
+          } else {
+            Write-Host "Zlib headers not found"
+          }
+      - name: Install Eigen
+        shell: pwsh
+        run: |
+          $ver = '3.4.0'
+          $zip = "$env:RUNNER_TEMP\eigen.zip"
+          Invoke-WebRequest "https://gitlab.com/libeigen/eigen/-/archive/$ver/eigen-$ver.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          $dir = Join-Path $env:RUNNER_TEMP "eigen-$ver"
+          "EIGEN3_INCLUDE_DIR=$dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_PREFIX_PATH=$dir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Debug Eigen variables
+        shell: pwsh
+        run: |
+          echo "EIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR"
+          echo "CMAKE_PREFIX_PATH=$env:CMAKE_PREFIX_PATH"
+          if (Test-Path $env:EIGEN3_INCLUDE_DIR) {
+            Get-ChildItem $env:EIGEN3_INCLUDE_DIR | Select-Object -First 5
+          } else {
+            Write-Host "Eigen include dir not found"
+          }
+      - name: Install Qt
+        shell: pwsh
+        run: |
+          python -m pip install aqtinstall
+          $qtDir = "C:\\Qt"
+          python -m aqt install-qt windows desktop 5.15.2 win64_msvc2019_64 -O $qtDir -m qtcharts qtscript
+          $qt = "$qtDir\5.15.2\msvc2019_64"
+          "Qt5_DIR=$qt" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_PREFIX_PATH=$qt;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$qt\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Build OpenBabel
+        shell: pwsh
+        run: |
+          $ver = '3.1.1'
+          $archive = "$env:RUNNER_TEMP\openbabel.tar.bz2"
+          Invoke-WebRequest "https://github.com/openbabel/openbabel/releases/download/openbabel-3-1-1/openbabel-3.1.1-source.tar.bz2" -OutFile $archive
+          $srcDir = Join-Path $env:RUNNER_TEMP "openbabel-src"
+          New-Item -ItemType Directory -Path $srcDir | Out-Null
+          # Extract the bzip2 tarball
+          tar -xjf $archive -C $srcDir --strip-components=1
+          $buildDir = Join-Path $srcDir 'build'
+          cmake -S $srcDir -B $buildDir -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_INSTALL_PREFIX=$buildDir/install `
+            "-DZLIB_LIBRARY=$env:ZLIB_LIBRARY" `
+            "-DZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR" `
+            "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR" `
+            -DBUILD_SHARED=OFF
+          cmake --build $buildDir --config Release --target install --parallel 1
+          $install = Join-Path $buildDir 'install'
+          $inc = Join-Path $install 'include' 'openbabel3'
+          $lib = Join-Path $install 'lib' 'openbabel.lib'
+          $libDir = Split-Path $lib
+          "CMAKE_PREFIX_PATH=$install;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "OPENBABEL3_INCLUDE_DIR=$inc" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "OPENBABEL3_LIBRARIES=$lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "OPENBABEL3_LIBRARY_DIRS=$libDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$install\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Debug OpenBabel install
+        shell: pwsh
+        run: |
+          echo "OPENBABEL3_INCLUDE_DIR=$env:OPENBABEL3_INCLUDE_DIR"
+          echo "OPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES"
+          if (Test-Path $env:OPENBABEL3_INCLUDE_DIR) {
+            Get-ChildItem $env:OPENBABEL3_INCLUDE_DIR | Select-Object -First 5
+          } else {
+            Write-Host "OpenBabel include dir not found"
+          }
+      - name: Configure
+        shell: pwsh
+        run: >
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_VERBOSE_MAKEFILE=ON
+          -DCPACK_BINARY_NSIS=ON -DCPACK_BINARY_ZIP=OFF
+          "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR"
+          "-DZLIB_LIBRARY=$env:ZLIB_LIBRARY"
+          "-DZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR"
+          "-DOPENBABEL3_INCLUDE_DIR=$env:OPENBABEL3_INCLUDE_DIR"
+          "-DOPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES"
+          "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS"
+      - name: Build
+        run: cmake --build build --config Release --parallel 1 --verbose
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Package
+        run: cmake --build build --config Release --target package
+      - name: Build NSIS script
+        run: makensis scripts/installer/setup.nsi
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: avogadro-windows-installer
+          path: |
+            build/Avogadro*.exe
+            scripts/installer/avogadro-win32-*.exe
+          if-no-files-found: error
