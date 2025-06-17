@@ -23,8 +23,8 @@ jobs:
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
           $src = Join-Path $env:RUNNER_TEMP "zlib-$ver"
           $bld = Join-Path $src "build"
-          cmake -S $src -B $bld -A x64 -DCMAKE_INSTALL_PREFIX=$bld\install
-          cmake --build $bld --config Release --target install
+          cmake -S $src -B $bld -A x64 -DCMAKE_INSTALL_PREFIX=$bld\install -DBUILD_SHARED_LIBS=OFF
+          cmake --build $bld --config Release --target install --parallel 1 --verbose
           $zlibDir = Join-Path $bld "install"
           $inc = Join-Path $zlibDir "include"
           $lib = Join-Path $zlibDir "lib" "zlibstatic.lib"
