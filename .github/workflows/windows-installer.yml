@@ -102,6 +102,11 @@ jobs:
           echo "OPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES"
           if (Test-Path $obDir) {
             Get-ChildItem $obDir | Select-Object -First 5
+            if (Test-Path $env:OPENBABEL3_INCLUDE_DIR) {
+              Get-ChildItem $env:OPENBABEL3_INCLUDE_DIR | Select-Object -First 5
+            } else {
+              Write-Host "OpenBabel include dir not found"
+            }
           } else {
             Write-Host "OpenBabel not found in default location"
           }
