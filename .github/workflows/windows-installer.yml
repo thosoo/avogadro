@@ -13,7 +13,7 @@ jobs:
         run: git config --system core.protectNTFS false
       - uses: actions/checkout@v4
       - name: Install dependencies
-        run: choco install -y nsis cmake --installargs "ADD_CMAKE_TO_PATH=System"
+        run: choco install -y --no-progress nsis cmake --installargs "ADD_CMAKE_TO_PATH=System"
       - name: Build zlib
         shell: pwsh
         run: |
@@ -77,8 +77,8 @@ jobs:
         shell: pwsh
         run: |
           $ver = '3.1.1'
-          $archive = "$env:RUNNER_TEMP\openbabel.tar.gz"
-          Invoke-WebRequest "https://github.com/openbabel/openbabel/archive/refs/tags/openbabel-$($ver -replace '\\.', '-')\.tar.gz" -OutFile $archive
+          $archive = "$env:RUNNER_TEMP\openbabel.tar.bz2"
+          Invoke-WebRequest "https://github.com/openbabel/openbabel/releases/download/openbabel-3-1-1/openbabel-3.1.1-source.tar.bz2" -OutFile $archive
           $srcDir = Join-Path $env:RUNNER_TEMP "openbabel-src"
           New-Item -ItemType Directory -Path $srcDir | Out-Null
           tar -xzf $archive -C $srcDir --strip-components=1
