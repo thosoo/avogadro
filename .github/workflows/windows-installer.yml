@@ -122,9 +122,13 @@ jobs:
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Package
         run: cmake --build build --config Release --target package
+      - name: Build NSIS script
+        run: makensis scripts/installer/setup.nsi
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
           name: avogadro-windows-installer
-          path: build/Avogadro*.exe
+          path: |
+            build/Avogadro*.exe
+            scripts/installer/avogadro-win32-*.exe
           if-no-files-found: error
