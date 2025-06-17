@@ -85,8 +85,8 @@ jobs:
           New-Item -ItemType Directory -Path $srcDir | Out-Null
           tar -C $srcDir -xf $archive --strip-components=1
           $build = Join-Path $srcDir 'build'
-          cmake -S $srcDir -B $build -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$build\install -DZLIB_LIBRARY=$env:ZLIB_LIBRARY -DZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR -DBUILD_SHARED=OFF
-          cmake --build $build --config Release --target install --parallel
+          cmake -S $srcDir -B $build -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$build\install -DZLIB_LIBRARY=$env:ZLIB_LIBRARY -DZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR -DBUILD_SHARED=OFF -DCMAKE_VERBOSE_MAKEFILE=ON
+          cmake --build $build --config Release --target install --parallel 1 --verbose
           $obDir = Join-Path $build 'install'
           $inc = Join-Path $obDir 'include' 'openbabel3'
           $lib = Join-Path $obDir 'lib' 'openbabel.lib'
