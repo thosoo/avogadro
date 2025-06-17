@@ -81,7 +81,8 @@ jobs:
           Invoke-WebRequest "https://github.com/openbabel/openbabel/releases/download/openbabel-3-1-1/openbabel-3.1.1-source.tar.bz2" -OutFile $archive
           $srcDir = Join-Path $env:RUNNER_TEMP "openbabel-src"
           New-Item -ItemType Directory -Path $srcDir | Out-Null
-          tar -xzf $archive -C $srcDir --strip-components=1
+          # Extract the bzip2 tarball
+          tar -xjf $archive -C $srcDir --strip-components=1
           $buildDir = Join-Path $srcDir 'build'
           cmake -S $srcDir -B $buildDir -G "Visual Studio 17 2022" -A x64 `
             -DCMAKE_INSTALL_PREFIX=$buildDir/install `
