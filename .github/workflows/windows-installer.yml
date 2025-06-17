@@ -77,16 +77,17 @@ jobs:
         shell: pwsh
         run: |
           $ver = '3.1.1'
-          $url = "https://github.com/openbabel/openbabel/releases/download/openbabel-3-1-1/openbabel-3.1.1-source.tar.bz2"
+          # Fetch the source from the GitHub tag instead of the release archive
+          $url = "https://github.com/openbabel/openbabel/archive/refs/tags/openbabel-3-1-1.tar.gz"
           Write-Host "Downloading OpenBabel source from $url"
-          $archive = Join-Path $env:RUNNER_TEMP "openbabel.tar.bz2"
+          $archive = Join-Path $env:RUNNER_TEMP "openbabel.tar.gz"
           Invoke-WebRequest -Uri $url -OutFile $archive
           $srcRoot = Join-Path $env:RUNNER_TEMP "openbabel-src"
           New-Item -ItemType Directory -Path $srcRoot | Out-Null
           Write-Host "Archive contents:"
           tar -tvf $archive | Select-Object -First 10
           tar -C $srcRoot -xvf $archive
-          $srcDir = Join-Path $srcRoot "openbabel-$ver"
+          $srcDir = Join-Path $srcRoot "openbabel-openbabel-3-1-1"
           Write-Host "Extracted files:"
           Get-ChildItem $srcDir | Select-Object -First 5
           $build = Join-Path $srcDir 'build'
@@ -105,7 +106,7 @@ jobs:
         shell: pwsh
         run: |
           $ver = '3.1.1'
-          $obDir = "$env:RUNNER_TEMP\openbabel-src\openbabel-$ver\build\install"
+          $obDir = "$env:RUNNER_TEMP\openbabel-src\openbabel-openbabel-3-1-1\build\install"
           echo "OPENBABEL3_INCLUDE_DIR=$env:OPENBABEL3_INCLUDE_DIR"
           echo "OPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES"
           if (Test-Path $obDir) {
