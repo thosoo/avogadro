@@ -87,7 +87,7 @@ jobs:
           tar -C $srcRoot -xf $archive
           $srcDir = Join-Path $srcRoot "openbabel-openbabel-3-1-1"
           $build = Join-Path $srcDir 'build'
-          cmake -S $srcDir -B $build -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$build\install -DZLIB_LIBRARY=$env:ZLIB_LIBRARY -DZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR -DBUILD_SHARED=OFF -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          cmake -S $srcDir -B $build -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$build\install -DZLIB_LIBRARY=$env:ZLIB_LIBRARY -DZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR -DBUILD_SHARED=OFF -DCMAKE_VERBOSE_MAKEFILE=ON
           cmake --build $build --config Release --target install --parallel 1 --verbose
           $obDir = Join-Path $build 'install'
           $inc = Join-Path $obDir 'include' 'openbabel3'
@@ -98,23 +98,6 @@ jobs:
           "OPENBABEL3_LIBRARIES=$lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "OPENBABEL3_LIBRARY_DIRS=$libDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$obDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-      - name: Debug OpenBabel install
-        shell: pwsh
-        run: |
-          $ver = '3.1.1'
-          $obDir = "$env:RUNNER_TEMP\openbabel-src\openbabel-openbabel-3-1-1\build\install"
-          echo "OPENBABEL3_INCLUDE_DIR=$env:OPENBABEL3_INCLUDE_DIR"
-          echo "OPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES"
-          if (Test-Path $obDir) {
-            Get-ChildItem $obDir | Select-Object -First 5
-            if (Test-Path $env:OPENBABEL3_INCLUDE_DIR) {
-              Get-ChildItem $env:OPENBABEL3_INCLUDE_DIR | Select-Object -First 5
-            } else {
-              Write-Host "OpenBabel include dir not found"
-            }
-          } else {
-            Write-Host "OpenBabel not found in expected location"
-          }
       - name: Configure
         shell: pwsh
         run: >
