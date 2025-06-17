@@ -37,8 +37,8 @@ GNU General Public License for more details.
 See INSTALL file for installation instructions.
 
 Automated Windows installer builds are generated with GitHub Actions and can be
-found in the workflow artifacts. The workflow builds OpenBabel 3.1.1 from
-source and bundles it with Avogadro.
+found in the workflow artifacts. The workflow builds OpenBabel from the latest
+source on GitHub and bundles it with Avogadro.
 
 # Backers
 Support us with a monthly donation and help us continue our activities. [[Become a backer](https://opencollective.com/avogadro#backer)]
