@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.9)
+cmake_minimum_required(VERSION 3.5)
 project(Avogadro) # the name of your project
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -13,6 +13,9 @@ set(Avogadro_VERSION_FULL "${Avogadro_VERSION}.${Avogadro_VERSION_PATCH}")
 set(CMAKE_MODULE_PATH ${Avogadro_SOURCE_DIR}/cmake/modules)
 
 cmake_policy(SET CMP0003 NEW)
+if(POLICY CMP0074)
+  cmake_policy(SET CMP0074 NEW)
+endif()
 
 # this is adapted from KDE's FindKDE4Internal.cmake : default the build type to
 # "release with debug info".
@@ -237,7 +240,7 @@ endif()
 find_package(Eigen3 REQUIRED) # find and setup Eigen3 if available
 
 find_package(ZLIB REQUIRED)
-find_package(OpenBabel2 REQUIRED) # find and setup OpenBabel
+find_package(OpenBabel3 REQUIRED) # find and setup OpenBabel
 
 if (Q_WS_X11)
   find_package(X11 REQUIRED) # avogadro/src/main.cpp calls XInitThread().

@@ -235,7 +235,6 @@ add_library(avogadro SHARED
   ${pythontool_RC_SRCS})
 set_target_properties(avogadro PROPERTIES
   VERSION ${Avogadro_VERSION_FULL}
-  LINK_INTERFACE_LIBRARIES ""
   SOVERSION ${AVO_SOVERSION}
   LABELS avogadro)
 install(FILES ${libavogadro_HDRS}

@@ -46,6 +46,8 @@
 #include <QColor>
 #include <QVarLengthArray>
 #include <Eigen/Geometry>
+#define _USE_MATH_DEFINES
+#include <cmath>
 
 #ifdef Q_WS_MAC
 # include <OpenGL/glu.h>
