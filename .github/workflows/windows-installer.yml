@@ -83,7 +83,11 @@ jobs:
           Invoke-WebRequest -Uri $url -OutFile $archive
           $srcDir = Join-Path $env:RUNNER_TEMP "openbabel-src"
           New-Item -ItemType Directory -Path $srcDir | Out-Null
-          tar -C $srcDir -xf $archive --strip-components=1
+          Write-Host "Archive contents:"
+          tar -tvf $archive | Select-Object -First 10
+          tar -C $srcDir -xvf $archive --strip-components=1
+          Write-Host "Extracted files:"
+          Get-ChildItem $srcDir | Select-Object -First 5
           $build = Join-Path $srcDir 'build'
           cmake -S $srcDir -B $build -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$build\install -DZLIB_LIBRARY=$env:ZLIB_LIBRARY -DZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR -DBUILD_SHARED=OFF -DCMAKE_VERBOSE_MAKEFILE=ON
           cmake --build $build --config Release --target install --parallel 1 --verbose
