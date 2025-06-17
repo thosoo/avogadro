@@ -76,8 +76,13 @@ jobs:
       - name: Build OpenBabel
         shell: pwsh
         run: |
-          $srcDir = Join-Path $env:RUNNER_TEMP 'openbabel'
-          git clone --depth 1 https://github.com/openbabel/openbabel.git $srcDir
+          $ver = '3.1.1'
+          $url = "https://github.com/openbabel/openbabel/releases/download/openbabel-3-1-1/openbabel-$ver-source.tar.bz2"
+          $archive = Join-Path $env:RUNNER_TEMP 'openbabel.tar.bz2'
+          Invoke-WebRequest $url -OutFile $archive
+          $srcDir = Join-Path $env:RUNNER_TEMP 'openbabel-src'
+          New-Item -ItemType Directory -Path $srcDir | Out-Null
+          tar -C $srcDir -xf $archive --strip-components=1
           $build = Join-Path $srcDir 'build'
           cmake -S $srcDir -B $build -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM="3.5" -DCMAKE_INSTALL_PREFIX=$build\install -DZLIB_LIBRARY=$env:ZLIB_LIBRARY -DZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR -DBUILD_SHARED=OFF -DCMAKE_VERBOSE_MAKEFILE=ON
           cmake --build $build --config Release --target install --parallel 1 --verbose
