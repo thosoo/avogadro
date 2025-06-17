@@ -13,7 +13,7 @@ jobs:
         run: git config --system core.protectNTFS false
       - uses: actions/checkout@v4
       - name: Install dependencies
-        run: choco install -y nsis cmake --installargs "ADD_CMAKE_TO_PATH=System"
+        run: choco install -y nsis cmake --no-progress --installargs "ADD_CMAKE_TO_PATH=System"
       - name: Build zlib
         shell: pwsh
         run: |
@@ -87,7 +87,7 @@ jobs:
           tar -C $srcRoot -xf $archive
           $srcDir = Join-Path $srcRoot "openbabel-openbabel-3-1-1"
           $build = Join-Path $srcDir 'build'
-          cmake -S $srcDir -B $build -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$build\install -DZLIB_LIBRARY=$env:ZLIB_LIBRARY -DZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR -DBUILD_SHARED=OFF -DCMAKE_VERBOSE_MAKEFILE=ON
+          cmake -S $srcDir -B $build -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$build\install -DZLIB_LIBRARY=$env:ZLIB_LIBRARY -DZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR -DBUILD_SHARED=OFF -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5
           cmake --build $build --config Release --target install --parallel 1 --verbose
           $obDir = Join-Path $build 'install'
           $inc = Join-Path $obDir 'include' 'openbabel3'
