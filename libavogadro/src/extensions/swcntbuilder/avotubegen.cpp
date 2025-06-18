@@ -37,6 +37,7 @@
 
 namespace SWCNTBuilder
 {
+  using namespace OpenBabel;
 
 AvoTubeGen::AvoTubeGen(QObject *parent)
   : QObject(parent),
