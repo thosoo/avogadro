@@ -109,7 +109,9 @@ jobs:
           cmake --build $build --config Release --target install --parallel 1 --verbose
           $obDir = Join-Path $build 'install'
           $inc = Join-Path $obDir 'include' 'openbabel3'
-          $lib = Join-Path $obDir 'lib' 'openbabel-3.lib'
+          $lib = Join-Path $obDir 'lib' 'openbabel.lib'
+          Copy-Item (Join-Path $obDir 'bin' 'openbabel-3.lib') $lib -Force
+          Copy-Item (Join-Path $obDir 'bin' 'openbabel-3.dll') (Join-Path $obDir 'bin' 'openbabel.dll') -Force
           $libDir = Join-Path $obDir 'lib'
           "CMAKE_PREFIX_PATH=$obDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "OPENBABEL3_INCLUDE_DIR=$inc" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
