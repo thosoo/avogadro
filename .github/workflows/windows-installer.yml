@@ -82,7 +82,9 @@ jobs:
           $bld = Join-Path $src 'build'
           cmake -S $src -B $bld -A x64 -DCMAKE_INSTALL_PREFIX="$bld\install" -DBUILD_SHARED_LIBS=OFF -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" -DLIBXML2_WITH_ICONV=OFF -DLIBXML2_WITH_LZMA=OFF -DLIBXML2_WITH_PYTHON=OFF -DCMAKE_VERBOSE_MAKEFILE=ON
           Write-Host "Configuring libxml2 in $bld"
-          cmake -S $srcDir -B $build -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$build\install" "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY" "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR" -DENABLE_TESTS=OFF -DBUILD_SHARED=ON -DCMAKE_VERBOSE_MAKEFILE=ON
+          cmake -S $srcDir -B $build -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$build\install" "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY" "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR" "-DZLIB_LIBRARY=$env:ZLIB_LIBRARY" "-DZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR" -DENABLE_TESTS=OFF -DBUILD_SHARED=ON -DCMAKE_VERBOSE_MAKEFILE=ON
+          "-DZLIB_LIBRARY=$env:ZLIB_LIBRARY"
+          "-DZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR"
           if ($LASTEXITCODE -ne 0) { Write-Host 'libxml2 build failed'; exit 1 }
           Write-Host "libxml2 library path after install:" (Join-Path $bld 'install')
           $xmlDir = Join-Path $bld 'install'
