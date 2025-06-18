@@ -20,6 +20,7 @@
 
 #include "spectratype.h"
 #include "spectradialog.h"
+#include <avogadro/global.h>
 
 #include <QtCore/QList>
 #include <QtCore/QObject>

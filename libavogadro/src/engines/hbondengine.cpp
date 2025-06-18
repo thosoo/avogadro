@@ -32,6 +32,7 @@
 #include <avogadro/glwidget.h>
 #include <avogadro/painterdevice.h>
 #include <avogadro/neighborlist.h>
+#include <avogadro/global.h>
 
 #include <openbabel/mol.h>
 #include <openbabel/obiter.h>

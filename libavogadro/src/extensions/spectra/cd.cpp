@@ -20,6 +20,7 @@
 #include <openbabel/generic.h>
 
 #include "cd.h"
+#include <avogadro/global.h>
 
 #include <QtWidgets/QMessageBox>
 #include <QtCore/QDebug>
