@@ -29,6 +29,7 @@
 #include <avogadro/camera.h>
 #include <avogadro/painter.h>
 #include <avogadro/color.h>
+#include <avogadro/global.h>
 #include <avogadro/atom.h>
 
 #define TESS_LEVEL 32

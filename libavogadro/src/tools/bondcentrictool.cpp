@@ -35,6 +35,7 @@
 #include <avogadro/painter.h>
 #include <avogadro/camera.h>
 #include <avogadro/toolgroup.h>
+#include <avogadro/global.h>
 
 #include <QtPlugin>
 #include <QString>

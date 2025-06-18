@@ -35,6 +35,7 @@
 #include <avogadro/glhit.h>
 #include <avogadro/glwidget.h>
 #include <avogadro/painter.h>
+#include <avogadro/global.h>
 
 #include <cmath>
 

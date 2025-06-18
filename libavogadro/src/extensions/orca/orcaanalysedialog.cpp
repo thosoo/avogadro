@@ -38,6 +38,7 @@
 #include <avogadro/toolgroup.h>
 #include <avogadro/extension.h>
 #include <avogadro/primitivelist.h>
+#include <avogadro/global.h>
 #include <openbabel/mol.h>
 #include <openbabel/elements.h>
 #include <openbabel/atom.h>

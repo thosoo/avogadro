@@ -11,6 +11,7 @@
 #include <avogadro/bond.h>
 #include <avogadro/mesh.h>
 #include <avogadro/color3f.h>
+#include <avogadro/global.h>
 
 #include <QFile>
 #include <QDebug>

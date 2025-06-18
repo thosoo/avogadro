@@ -21,6 +21,7 @@
 
 #include "uv.h"
 #include "spectradialog.h"
+#include <avogadro/global.h>
 
 #include <QtWidgets/QMessageBox>
 #include <QtCore/QDebug>

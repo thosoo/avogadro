@@ -43,6 +43,7 @@
 #include <avogadro/mesh.h>
 #include <avogadro/color.h>
 #include <avogadro/protein.h>
+#include <avogadro/global.h>
 
 #include <QMessageBox>
 #include <QString>
