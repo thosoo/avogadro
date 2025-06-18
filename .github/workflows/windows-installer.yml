@@ -98,7 +98,7 @@ jobs:
           $srcDir = Join-Path $env:RUNNER_TEMP 'openbabel-src'
           git clone --depth 1 https://github.com/thosoo/openbabel $srcDir
           $build = Join-Path $srcDir 'build'
-          cmake -S $srcDir -B $build -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$build\install" -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" -DLIBXML2_LIBRARY="$env:LIBXML2_LIBRARY" -DLIBXML2_INCLUDE_DIR="$env:LIBXML2_INCLUDE_DIR" -DENABLE_TESTS=OFF -DBUILD_SHARED=ON -DCMAKE_VERBOSE_MAKEFILE=ON
+          cmake -S $srcDir -B $build -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$build\install" -DLIBXML2_LIBRARY="$env:LIBXML2_LIBRARY" -DLIBXML2_INCLUDE_DIR="$env:LIBXML2_INCLUDE_DIR" -DENABLE_TESTS=OFF -DBUILD_SHARED=ON -DCMAKE_VERBOSE_MAKEFILE=ON
           cmake --build $build --config Release --target install --parallel 1 --verbose
           $obDir = Join-Path $build 'install'
           $inc = Join-Path $obDir 'include' 'openbabel3'
@@ -117,8 +117,6 @@ jobs:
           -DCMAKE_VERBOSE_MAKEFILE=ON
           -DCPACK_BINARY_NSIS=ON -DCPACK_BINARY_ZIP=OFF
           "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR"
-          "-DZLIB_LIBRARY=$env:ZLIB_LIBRARY"
-          "-DZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR"
           "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY"
           "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR"
           "-DOPENBABEL3_INCLUDE_DIR=$env:OPENBABEL3_INCLUDE_DIR"
