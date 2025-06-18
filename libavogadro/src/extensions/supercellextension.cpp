@@ -52,6 +52,7 @@ namespace Avogadro {
   using OpenBabel::SpaceGroup;
   using std::list;
   using std::vector;
+  using namespace OpenBabel;
 
   SuperCellExtension::SuperCellExtension(QObject *parent) : Extension(parent),
     m_dialog(0), m_widget(0), m_molecule(0)
