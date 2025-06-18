@@ -72,8 +72,11 @@ jobs:
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
           $src = Join-Path $env:RUNNER_TEMP "libxml2-v$ver"
           $bld = Join-Path $src 'build'
-          cmake -S $src -B $bld -A x64 -DCMAKE_INSTALL_PREFIX="$bld\install" -DBUILD_SHARED_LIBS=OFF -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" -DLIBXML2_WITH_ICONV=OFF -DLIBXML2_WITH_LZMA=OFF -DLIBXML2_WITH_PYTHON=OFF
+          cmake -S $src -B $bld -A x64 -DCMAKE_INSTALL_PREFIX="$bld\install" -DBUILD_SHARED_LIBS=OFF -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" -DLIBXML2_WITH_ICONV=OFF -DLIBXML2_WITH_LZMA=OFF -DLIBXML2_WITH_PYTHON=OFF -DCMAKE_VERBOSE_MAKEFILE=ON
+          Write-Host "Configuring libxml2 in $bld"
           cmake --build $bld --config Release --target install --parallel 1 --verbose
+          if ($LASTEXITCODE -ne 0) { Write-Host 'libxml2 build failed'; exit 1 }
+          Write-Host "libxml2 library path after install:" (Join-Path $bld 'install')
           $xmlDir = Join-Path $bld 'install'
           $inc = Join-Path $xmlDir 'include'
           $lib = Join-Path $xmlDir 'lib' 'libxml2_a.lib'
