@@ -79,7 +79,7 @@ jobs:
           $srcDir = Join-Path $env:RUNNER_TEMP 'openbabel-src'
           git clone --depth 1 https://github.com/thosoo/openbabel $srcDir
           $build = Join-Path $srcDir 'build'
-          cmake -S $srcDir -B $build -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$build\install "-DZLIB_LIBRARY=$env:ZLIB_LIBRARY" "-DZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR" -DBUILD_SHARED=OFF -DENABLE_TESTS=OFF -DCMAKE_VERBOSE_MAKEFILE=ON
+          cmake -S $srcDir -B $build -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$build\install "-DZLIB_LIBRARY=$env:ZLIB_LIBRARY" "-DZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR" -DENABLE_TESTS=OFF -DCMAKE_VERBOSE_MAKEFILE=ON
           cmake --build $build --config Release --target install --parallel 1 --verbose
           $obDir = Join-Path $build 'install'
           $inc = Join-Path $obDir 'include' 'openbabel3'
