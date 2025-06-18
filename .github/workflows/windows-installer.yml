@@ -63,6 +63,25 @@ jobs:
           } else {
             Write-Host "Eigen include dir not found"
           }
+      - name: Build libxml2
+        shell: pwsh
+        run: |
+          $ver = '2.12.6'
+          $zip = "$env:RUNNER_TEMP\libxml2.zip"
+          Invoke-WebRequest "https://gitlab.gnome.org/GNOME/libxml2/-/archive/v$ver/libxml2-v$ver.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          $src = Join-Path $env:RUNNER_TEMP "libxml2-v$ver"
+          $bld = Join-Path $src 'build'
+          cmake -S $src -B $bld -A x64 -DCMAKE_INSTALL_PREFIX=$bld\install -DBUILD_SHARED_LIBS=OFF "-DZLIB_LIBRARY=$env:ZLIB_LIBRARY" "-DZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR" -DLIBXML2_WITH_ICONV=OFF -DLIBXML2_WITH_LZMA=OFF -DLIBXML2_WITH_PYTHON=OFF
+          cmake --build $bld --config Release --target install --parallel 1 --verbose
+          $xmlDir = Join-Path $bld 'install'
+          $inc = Join-Path $xmlDir 'include'
+          $lib = Join-Path $xmlDir 'lib' 'libxml2_a.lib'
+          if (-not (Test-Path $lib)) { $lib = Join-Path $xmlDir 'lib' 'libxml2.lib' }
+          "CMAKE_PREFIX_PATH=$xmlDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "LIBXML2_LIBRARY=$lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "LIBXML2_LIBRARIES=$lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "LIBXML2_INCLUDE_DIR=$inc" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Install Qt
         shell: pwsh
         run: |
@@ -79,7 +98,7 @@ jobs:
           $srcDir = Join-Path $env:RUNNER_TEMP 'openbabel-src'
           git clone --depth 1 https://github.com/thosoo/openbabel $srcDir
           $build = Join-Path $srcDir 'build'
-          cmake -S $srcDir -B $build -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$build\install "-DZLIB_LIBRARY=$env:ZLIB_LIBRARY" "-DZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR" -DENABLE_TESTS=OFF -DCMAKE_VERBOSE_MAKEFILE=ON
+          cmake -S $srcDir -B $build -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$build\install "-DZLIB_LIBRARY=$env:ZLIB_LIBRARY" "-DZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR" "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY" "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR" -DENABLE_TESTS=OFF -DBUILD_SHARED=ON -DCMAKE_VERBOSE_MAKEFILE=ON
           cmake --build $build --config Release --target install --parallel 1 --verbose
           $obDir = Join-Path $build 'install'
           $inc = Join-Path $obDir 'include' 'openbabel3'
@@ -100,6 +119,8 @@ jobs:
           "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR"
           "-DZLIB_LIBRARY=$env:ZLIB_LIBRARY"
           "-DZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR"
+          "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY"
+          "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR"
           "-DOPENBABEL3_INCLUDE_DIR=$env:OPENBABEL3_INCLUDE_DIR"
           "-DOPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES"
           "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS"
