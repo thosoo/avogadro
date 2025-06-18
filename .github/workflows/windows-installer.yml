@@ -68,9 +68,11 @@ jobs:
         run: |
           $ver = '2.12.6'
           $zip = "$env:RUNNER_TEMP\libxml2.zip"
-          Invoke-WebRequest "https://gitlab.gnome.org/GNOME/libxml2/-/archive/v$ver/libxml2-v$ver.zip" -OutFile $zip
+          # GitLab's mirror is occasionally unreachable; use GitHub as a mirror
+          # to download libxml2. The extracted directory is libxml2-$ver.
+          Invoke-WebRequest "https://github.com/GNOME/libxml2/archive/refs/tags/v$ver.zip" -OutFile $zip
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
-          $src = Join-Path $env:RUNNER_TEMP "libxml2-v$ver"
+          $src = Join-Path $env:RUNNER_TEMP "libxml2-$ver"
           $bld = Join-Path $src 'build'
           cmake -S $src -B $bld -A x64 -DCMAKE_INSTALL_PREFIX="$bld\install" -DBUILD_SHARED_LIBS=OFF -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" -DLIBXML2_WITH_ICONV=OFF -DLIBXML2_WITH_LZMA=OFF -DLIBXML2_WITH_PYTHON=OFF -DCMAKE_VERBOSE_MAKEFILE=ON
           Write-Host "Configuring libxml2 in $bld"
