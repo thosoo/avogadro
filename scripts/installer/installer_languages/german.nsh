@@ -12,19 +12,19 @@ LangString WelcomePageText "${Avogadro_LANG}" "Dieser Assistent wird Sie durch d
 					     \r\n\
 					     $_CLICK"
 
-LangString SecAssociateCmlTitle "${Avogadro_LANG}" "Dateizuordnung für Avogadro-Dateien"
+LangString SecAssociateCmlTitle "${Avogadro_LANG}" "Dateizuordnung fÃ¼r Avogadro-Dateien"
 LangString SecDesktopTitle "${Avogadro_LANG}" "Desktopsymbol"
 
-LangString SecAssociateCmlDescription "${Avogadro_LANG}" "Dateien mit der Endung .cml werden automatisch mit Avogadro geöffnet."
-LangString SecDesktopDescription "${Avogadro_LANG}" "Erstellt Verknüpfung zu Avogadro auf dem Desktop."
+LangString SecAssociateCmlDescription "${Avogadro_LANG}" "Dateien mit der Endung .cml werden automatisch mit Avogadro geÃ¶ffnet."
+LangString SecDesktopDescription "${Avogadro_LANG}" "Erstellt VerknÃ¼pfung zu Avogadro auf dem Desktop."
 
 LangString StillInstalled "${Avogadro_LANG}" "Avogadro ${Version} ist bereits installiert!"
 
-LangString FinishPageMessage "${Avogadro_LANG}" "Glückwunsch! Avogadro wurde erfolgreich installiert."
+LangString FinishPageMessage "${Avogadro_LANG}" "GlÃ¼ckwunsch! Avogadro wurde erfolgreich installiert."
 LangString FinishPageRun "${Avogadro_LANG}" "Avogadro starten"
 
-LangString UnNotAdminLabel "${Avogadro_LANG}" "Sie benötigen Administratorrechte um Avogadro zu deinstallieren!"
-LangString UnReallyRemoveLabel "${Avogadro_LANG}" "Sind Sie sicher, dass sie Avogadro deinstallieren möchten?"
+LangString UnNotAdminLabel "${Avogadro_LANG}" "Sie benÃ¶tigen Administratorrechte um Avogadro zu deinstallieren!"
+LangString UnReallyRemoveLabel "${Avogadro_LANG}" "Sind Sie sicher, dass sie Avogadro deinstallieren mÃ¶chten?"
 LangString UnRemoveSuccessLabel "${Avogadro_LANG}" "Avogadro wurde erfolgreich von ihrem Computer entfernt."
 
 
