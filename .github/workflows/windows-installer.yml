@@ -71,6 +71,8 @@ jobs:
           # GitLab's mirror is occasionally unreachable; use GitHub as a mirror
           # to download libxml2. The extracted directory is libxml2-$ver.
           Invoke-WebRequest "https://github.com/GNOME/libxml2/archive/refs/tags/v$ver.zip" -OutFile $zip
+          $src = Join-Path $env:RUNNER_TEMP "libxml2-$ver"
+          Invoke-WebRequest "https://github.com/GNOME/libxml2/archive/refs/tags/v$ver.zip" -OutFile $zip
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
           $src = Join-Path $env:RUNNER_TEMP "libxml2-$ver"
           $bld = Join-Path $src 'build'
