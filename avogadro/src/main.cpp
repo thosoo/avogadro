@@ -55,6 +55,7 @@
 #endif
 
 #ifdef WIN32
+  #include <windows.h>
   #include <stdlib.h>
 #endif
 
@@ -91,6 +92,11 @@ int main(int argc, char *argv[])
   QCoreApplication::setApplicationName("Avogadro");
 
   Application app(argc, argv);
+#ifdef WIN32
+  // Ensure we load DLLs from the executable directory first so
+  // avogadro.dll is found regardless of the current working directory.
+  SetDllDirectoryW(reinterpret_cast<LPCWSTR>(QCoreApplication::applicationDirPath().utf16()));
+#endif
 
   // Output the untranslated application and library version - bug reports
   QString versionInfo = "Avogadro version:\t" + QString(VERSION) + "\tGit:\t"
