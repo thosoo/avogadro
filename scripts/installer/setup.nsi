@@ -26,7 +26,8 @@ Name "Avogadro"
 !define COMPANY "Avogadro Team"
 !define URL "http://avogadro.cc/wiki/Main_Page"
 !define PRODUCT_NAME "Avogadro"
-!define PRODUCT_EXE "$INSTDIR\Avogadro.exe"
+; Executable is installed in the 'bin' directory
+!define PRODUCT_EXE "$INSTDIR\bin\Avogadro.exe"
 !define PRODUCT_EXE2 "Avogadro.exe"
 !define PRODUCT_REGNAME "Avogadro.Document"
 !define PRODUCT_EXT ".cml"
@@ -255,7 +256,7 @@ Section "-Installation actions" SecInstallation
   # create shortcuts to startmenu
   SetOutPath "$INSTDIR"
   CreateDirectory "$SMPROGRAMS\$StartmenuFolder"
-  CreateShortCut "$SMPROGRAMS\$StartmenuFolder\$(^Name).lnk" "${PRODUCT_EXE}" "" "$INSTDIR\Avogadro.exe"
+  CreateShortCut "$SMPROGRAMS\$StartmenuFolder\$(^Name).lnk" "${PRODUCT_EXE}" "" "${PRODUCT_EXE}"
   CreateShortCut "$SMPROGRAMS\$StartmenuFolder\Release Notes.lnk" "http://avogadro.cc/wiki/Avogadro_${VERSION}" ""
   CreateShortCut "$SMPROGRAMS\$StartmenuFolder\Uninstall.lnk" "$INSTDIR\uninstall.exe"
   
