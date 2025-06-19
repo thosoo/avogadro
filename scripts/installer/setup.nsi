@@ -26,7 +26,9 @@ Name "Avogadro"
 !define COMPANY "Avogadro Team"
 !define URL "http://avogadro.cc/wiki/Main_Page"
 !define PRODUCT_NAME "Avogadro"
-; Executable is installed in the 'bin' directory
+; Executable is installed in the 'bin' directory.
+; Pointing shortcuts here ensures the bundled avogadro.dll is loaded,
+; avoiding the "Prozedureinsprungspunkt" runtime error.
 !define PRODUCT_EXE "$INSTDIR\bin\Avogadro.exe"
 !define PRODUCT_EXE2 "Avogadro.exe"
 !define PRODUCT_REGNAME "Avogadro.Document"
