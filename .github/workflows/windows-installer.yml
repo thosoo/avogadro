@@ -135,11 +135,20 @@ jobs:
         run: cmake --build build --config Release --parallel 1 --verbose
       - name: Install
         run: cmake --install build --config Release --prefix scripts/installer/dist
-      - name: Deploy Qt libraries
+      - name: Prepare install directory
         shell: pwsh
         run: |
           $dist = "scripts/installer/dist"
           $exe = Join-Path $dist "bin/avogadro.exe"
+          if (Test-Path $exe) {
+            Move-Item $exe (Join-Path $dist "Avogadro.exe") -Force
+            Remove-Item (Join-Path $dist "bin") -Recurse -Force
+          }
+      - name: Deploy Qt libraries
+        shell: pwsh
+        run: |
+          $dist = "scripts/installer/dist"
+          $exe = Join-Path $dist "Avogadro.exe"
           windeployqt --release --dir $dist $exe
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
