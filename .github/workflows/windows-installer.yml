@@ -117,6 +117,7 @@ jobs:
           "OPENBABEL3_INCLUDE_DIR=$inc" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "OPENBABEL3_LIBRARIES=$lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "OPENBABEL3_LIBRARY_DIRS=$libDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "OPENBABEL_INSTALL_DIR=$obDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$obDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Configure
         shell: pwsh
@@ -142,6 +143,17 @@ jobs:
           $exe = Join-Path $dist "bin/avogadro.exe"
           if (-Not (Test-Path $exe)) { $exe = Join-Path $dist "bin/Avogadro.exe" }
           windeployqt --release --dir (Join-Path $dist "bin") $exe
+      - name: Copy OpenBabel runtime
+        shell: pwsh
+        run: |
+          $dist = "scripts/installer/dist"
+          $ob = $env:OPENBABEL_INSTALL_DIR
+          if (Test-Path (Join-Path $ob 'bin' 'openbabel.dll')) {
+            Copy-Item (Join-Path $ob 'bin' 'openbabel.dll') (Join-Path $dist 'bin' 'openbabel.dll') -Force
+          }
+          if (Test-Path (Join-Path $ob 'share')) {
+            Copy-Item (Join-Path $ob 'share') (Join-Path $dist 'share') -Recurse -Force
+          }
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Build NSIS script
