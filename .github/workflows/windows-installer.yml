@@ -133,16 +133,16 @@ jobs:
           "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS"
       - name: Build
         run: cmake --build build --config Release --parallel 1 --verbose
+      - name: Install
+        run: cmake --install build --config Release --prefix scripts/installer/dist
       - name: Deploy Qt libraries
         shell: pwsh
         run: |
           $dist = "scripts/installer/dist"
-          New-Item -ItemType Directory -Path $dist -Force | Out-Null
-          windeployqt --release --dir $dist build/bin/Release/avogadro.exe
+          $exe = Join-Path $dist "bin/avogadro.exe"
+          windeployqt --release --dir $dist $exe
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
-      - name: Package
-        run: cmake --build build --config Release --target package
       - name: Build NSIS script
         run: makensis scripts/installer/setup.nsi
       - name: Upload installer
@@ -150,6 +150,5 @@ jobs:
         with:
           name: avogadro-windows-installer
           path: |
-            build/Avogadro*.exe
             scripts/installer/avogadro-win32-*.exe
           if-no-files-found: error
