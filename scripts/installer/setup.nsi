@@ -256,7 +256,8 @@ Section "-Installation actions" SecInstallation
   WriteUninstaller $INSTDIR\uninstall.exe
   
   # create shortcuts to startmenu
-  SetOutPath "$INSTDIR"
+  # ensure the working directory is the binary path so avogadro.dll resolves
+  SetOutPath "$INSTDIR\bin"
   CreateDirectory "$SMPROGRAMS\$StartmenuFolder"
   CreateShortCut "$SMPROGRAMS\$StartmenuFolder\$(^Name).lnk" "${PRODUCT_EXE}" "" "${PRODUCT_EXE}"
   CreateShortCut "$SMPROGRAMS\$StartmenuFolder\Release Notes.lnk" "http://avogadro.cc/wiki/Avogadro_${VERSION}" ""
@@ -264,7 +265,7 @@ Section "-Installation actions" SecInstallation
   
   # create desktop icon
   ${if} $CreateDesktopIcon == "true"
-    SetOutPath "$INSTDIR"
+    SetOutPath "$INSTDIR\bin"
     CreateShortCut "$DESKTOP\$(^Name).lnk" "${PRODUCT_EXE}" "" "${PRODUCT_EXE}" #$(^Name).lnk
   ${endif}
   WriteRegStr SHCTX "${PRODUCT_UNINST_KEY}" "StartMenu" "$SMPROGRAMS\$StartmenuFolder"
