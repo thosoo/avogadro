@@ -133,6 +133,9 @@ jobs:
           "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS"
       - name: Build
         run: cmake --build build --config Release --parallel 1 --verbose
+      - name: Deploy Qt libraries
+        run: |
+          windeployqt --release build/bin/Release/avogadro.exe
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Package
