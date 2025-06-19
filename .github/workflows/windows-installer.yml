@@ -134,8 +134,11 @@ jobs:
       - name: Build
         run: cmake --build build --config Release --parallel 1 --verbose
       - name: Deploy Qt libraries
+        shell: pwsh
         run: |
-          windeployqt --release build/bin/Release/avogadro.exe
+          $dist = "scripts/installer/dist"
+          New-Item -ItemType Directory -Path $dist -Force | Out-Null
+          windeployqt --release --dir $dist build/bin/Release/avogadro.exe
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Package
