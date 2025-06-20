@@ -678,9 +678,20 @@ namespace Avogadro {
       return d->colorMap;
     }
     else {
-      if(!d->defaultColorMap) {
+      if (!d->defaultColorMap) {
         PluginManager *plugins = PluginManager::instance();
-        d->defaultColorMap = static_cast<Color*>(plugins->factories(Plugin::ColorType).at(0)->createInstance());
+        PluginFactory *factory = plugins->factory("ElementColor",
+                                                Plugin::ColorType);
+        if (factory) {
+          d->defaultColorMap =
+            static_cast<Color *>(factory->createInstance());
+        } else {
+          QList<PluginFactory *> factories =
+            plugins->factories(Plugin::ColorType);
+          if (!factories.isEmpty())
+            d->defaultColorMap = static_cast<Color *>(
+              factories.first()->createInstance());
+        }
       }
       return d->defaultColorMap;
     }
