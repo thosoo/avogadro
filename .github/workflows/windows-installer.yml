@@ -12,6 +12,7 @@ jobs:
       - name: Allow Windows reserved filenames
         run: git config --system core.protectNTFS false
       - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
       - name: Install dependencies
         run: choco install -y nsis cmake --no-progress --installargs "ADD_CMAKE_TO_PATH=System"
       - name: Build zlib
@@ -23,8 +24,10 @@ jobs:
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
           $src = Join-Path $env:RUNNER_TEMP "zlib-$ver"
           $bld = Join-Path $src "build"
-          cmake -S "$src" -B "$bld" -A x64 -DCMAKE_INSTALL_PREFIX="$bld\install" -DBUILD_SHARED_LIBS=OFF
-          cmake --build $bld --config Release --target install --parallel 1 --verbose
+          cmake -S "$src" -B "$bld" -G "NMake Makefiles" -DCMAKE_INSTALL_PREFIX="$bld\install" -DBUILD_SHARED_LIBS=OFF
+          Push-Location $bld
+          nmake install
+          Pop-Location
           $zlibDir = Join-Path $bld "install"
           $inc = Join-Path $zlibDir "include"
           $lib = Join-Path $zlibDir "lib" "zlibstatic.lib"
@@ -79,8 +82,10 @@ jobs:
           $src = Join-Path $env:RUNNER_TEMP "libxml2-$ver"
           $bld = Join-Path $src 'build'
           New-Item -ItemType Directory -Path $bld | Out-Null
-          cmake -S "$src" -B "$bld" -A x64 -DCMAKE_INSTALL_PREFIX="$bld\install" -DBUILD_SHARED_LIBS=ON -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" -DLIBXML2_WITH_ICONV=OFF -DLIBXML2_WITH_LZMA=OFF -DLIBXML2_WITH_PYTHON=OFF -DCMAKE_VERBOSE_MAKEFILE=ON
-          cmake --build $bld --config Release --target install --parallel 1 --verbose
+          cmake -S "$src" -B "$bld" -G "NMake Makefiles" -DCMAKE_INSTALL_PREFIX="$bld\install" -DBUILD_SHARED_LIBS=ON -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" -DLIBXML2_WITH_ICONV=OFF -DLIBXML2_WITH_LZMA=OFF -DLIBXML2_WITH_PYTHON=OFF -DCMAKE_VERBOSE_MAKEFILE=ON
+          Push-Location $bld
+          nmake install
+          Pop-Location
           Write-Host "libxml2 library path after install:" (Join-Path $bld 'install')
           $xmlDir = Join-Path $bld 'install'
           $inc = Join-Path $xmlDir 'include'
@@ -105,8 +110,10 @@ jobs:
           $srcDir = Join-Path $env:RUNNER_TEMP 'openbabel-src'
           git clone --depth 1 https://github.com/thosoo/openbabel $srcDir
           $build = Join-Path $srcDir 'build'
-          cmake -S $srcDir -B $build -A x64 -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$build\install" -DLIBXML2_LIBRARY="$env:LIBXML2_LIBRARY" -DLIBXML2_LIBRARIES="$env:LIBXML2_LIBRARY" -DLIBXML2_INCLUDE_DIR="$env:LIBXML2_INCLUDE_DIR" -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" -DENABLE_TESTS=OFF -DBUILD_SHARED=ON -DCMAKE_VERBOSE_MAKEFILE=ON
-          cmake --build $build --config Release --target install --parallel 1 --verbose
+          cmake -S $srcDir -B $build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$build\install" -DLIBXML2_LIBRARY="$env:LIBXML2_LIBRARY" -DLIBXML2_LIBRARIES="$env:LIBXML2_LIBRARY" -DLIBXML2_INCLUDE_DIR="$env:LIBXML2_INCLUDE_DIR" -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" -DENABLE_TESTS=OFF -DBUILD_SHARED=ON -DCMAKE_VERBOSE_MAKEFILE=ON
+          Push-Location $build
+          nmake install
+          Pop-Location
           $obDir = Join-Path $build 'install'
           $inc = Join-Path $obDir 'include' 'openbabel3'
           $lib = Join-Path $obDir 'lib' 'openbabel.lib'
@@ -122,7 +129,7 @@ jobs:
       - name: Configure
         shell: pwsh
         run: >
-          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          cmake -S . -B build -G "NMake Makefiles"
           -DCMAKE_BUILD_TYPE=Release
           -DBUILD_SHARED_LIBS=ON
           -DCMAKE_VERBOSE_MAKEFILE=ON
@@ -134,7 +141,11 @@ jobs:
           "-DOPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES"
           "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS"
       - name: Build
-        run: cmake --build build --config Release --parallel 1 --verbose
+        shell: pwsh
+        run: |
+          Push-Location build
+          nmake
+          Pop-Location
       - name: Install
         run: cmake --install build --config Release --prefix scripts/installer/dist
       - name: Deploy Qt libraries
