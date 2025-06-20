@@ -181,4 +181,4 @@ void NeighborListTest::test10A_3n()
 
 QTEST_MAIN(NeighborListTest)
 
-#include "moc_neighborlisttest.cxx"
+#include "moc_neighborlisttest.cpp"
