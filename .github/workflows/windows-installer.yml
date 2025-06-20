@@ -83,6 +83,10 @@ jobs:
           Push-Location $win32
           cscript configure.js compiler=msvc prefix=$installDir iconv=no zlib=yes include=$env:ZLIB_INCLUDE_DIR lib=$env:ZLIB_LIBRARY_DIR
           (Get-Content Makefile.msvc).Replace('/OPT:NOWIN98','').Replace('zdll.lib','zlib.lib') | Set-Content Makefile.msvc
+          $conf = Join-Path $src 'config.h'
+          if (Test-Path $conf) {
+            (Get-Content $conf) -replace '^#define snprintf.*', '// removed snprintf define' -replace '^#define vsnprintf.*', '// removed vsnprintf define' | Set-Content $conf
+          }
           nmake /f Makefile.msvc
           nmake /f Makefile.msvc install
           Pop-Location
