@@ -1908,7 +1908,7 @@ namespace Avogadro{
     // If no unit cell, just compute the radius and farthest atom as normal.
     else {
       if (nAtoms > 1) {
-        // Compute the center of the molecule and collect atom positions
+        // First compute the geometric center from all atom positions
         int i = 0;
         Vector3d **atomPositions = new Vector3d*[nAtoms];
         foreach (Atom *atom, m_atomList) {
