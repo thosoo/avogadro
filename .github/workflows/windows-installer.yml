@@ -24,7 +24,7 @@ jobs:
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
           $src = Join-Path $env:RUNNER_TEMP "zlib-$ver"
           $bld = Join-Path $src "build"
-          cmake -S "$src" -B "$bld" -G "NMake Makefiles" -DCMAKE_INSTALL_PREFIX="$bld\install" -DBUILD_SHARED_LIBS=OFF
+          cmake -S "$src" -B "$bld" -G "NMake Makefiles" -DCMAKE_INSTALL_PREFIX="$bld\install" -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release
           Push-Location $bld
           nmake install
           Pop-Location
