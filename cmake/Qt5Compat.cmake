@@ -1,18 +1,19 @@
 # Qt5 compatibility helpers for legacy Qt4 build files
 if(NOT Qt5_FOUND)
-  find_package(Qt5 REQUIRED COMPONENTS Widgets Gui OpenGL Network LinguistTools Core)
+  find_package(Qt5 REQUIRED COMPONENTS Widgets Gui OpenGL Network LinguistTools Core Test)
 endif()
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 
-set(QT_LIBRARIES Qt5::Widgets Qt5::Gui Qt5::OpenGL Qt5::Network Qt5::Core Qt5::Concurrent)
+set(QT_LIBRARIES Qt5::Widgets Qt5::Gui Qt5::OpenGL Qt5::Network Qt5::Core Qt5::Concurrent Qt5::Test)
 set(QT_QTCORE_LIBRARY Qt5::Core)
 set(QT_QTGUI_LIBRARY Qt5::Gui)
 set(QT_QTWIDGETS_LIBRARY Qt5::Widgets)
 set(QT_QTOPENGL_LIBRARY Qt5::OpenGL)
 set(QT_QTNETWORK_LIBRARY Qt5::Network)
+set(QT_QTTEST_LIBRARY Qt5::Test)
 set(QT_DEFINITIONS "")
 set(QT_INCLUDES
   ${Qt5Widgets_INCLUDE_DIRS}
@@ -20,6 +21,7 @@ set(QT_INCLUDES
   ${Qt5OpenGL_INCLUDE_DIRS}
   ${Qt5Network_INCLUDE_DIRS}
   ${Qt5Core_INCLUDE_DIRS}
+  ${Qt5Test_INCLUDE_DIRS}
 )
 include_directories(${QT_INCLUDES})
 
