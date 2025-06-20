@@ -144,6 +144,7 @@ namespace Avogadro {
           FOR_ATOMS_OF_MOL(a, obmol)
             a->SetFormalCharge(0.0);
           obmol.SetAutomaticFormalCharge(true);
+          obmol.PerceiveBondOrders();
           obmol.AddHydrogens(false, true, m_pH);
           m_molecule->setOBMol(&obmol);
           break;
