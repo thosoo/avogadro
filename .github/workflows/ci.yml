@@ -27,7 +27,10 @@ jobs:
       - name: List CMake targets
         run: |
           cmake --build build --target help > /tmp/make_help.log
-          grep -E '^\\.\\.\\.' /tmp/make_help.log | sed 's/... //' | awk '{print $1}' | sort -u > /tmp/targets.txt
+          grep -E '^\\.\\.\\.' /tmp/make_help.log | \
+            sed 's/... //' | awk '{print $1}' | \
+            grep -Ev '_autogen|_autogen_timestamp_deps|Continuous|Experimental|Nightly|^install|^package|^rebuild_cache|^clean$|^all$|^edit_cache$|^depend$|^tools$|^test$' | \
+            sort -u > /tmp/targets.txt
       - id: set-matrix
         run: |
           first=true
