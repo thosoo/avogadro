@@ -434,4 +434,4 @@ void MoleculeBench::deleteLater()
 
 QTEST_MAIN(MoleculeBench)
 
-#include "moc_moleculebench.cxx"
+#include "moc_moleculebench.cpp"

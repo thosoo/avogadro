@@ -216,4 +216,4 @@ void HydrogensCommandTest::RemoveHydrogens()
 
 QTEST_MAIN(HydrogensCommandTest)
 
-#include "moc_hydrogenscommandtest.cxx"
+#include "moc_hydrogenscommandtest.cpp"

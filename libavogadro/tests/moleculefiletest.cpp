@@ -302,4 +302,4 @@ void MoleculeFileTest::appendMolecule()
 
 QTEST_MAIN(MoleculeFileTest)
 
-#include "moc_moleculefiletest.cxx"
+#include "moc_moleculefiletest.cpp"
