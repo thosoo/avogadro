@@ -30,8 +30,10 @@ jobs:
           Pop-Location
           $zlibDir = Join-Path $bld "install"
           $inc = Join-Path $zlibDir "include"
-          $lib = Join-Path $zlibDir "lib" "zlibstatic.lib"
           $libDir = Join-Path $zlibDir "lib"
+          $static = Join-Path $libDir "zlibstatic.lib"
+          $lib = Join-Path $libDir "zlib.lib"
+          Copy-Item $static $lib -Force
           "CMAKE_PREFIX_PATH=$zlibDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "CMAKE_INCLUDE_PATH=$inc;$env:CMAKE_INCLUDE_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "CMAKE_LIBRARY_PATH=$libDir;$env:CMAKE_LIBRARY_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
