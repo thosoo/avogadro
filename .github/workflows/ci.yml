@@ -19,7 +19,8 @@ jobs:
         run: |
           cmake -S . -B build \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_VERBOSE_MAKEFILE=ON
+            -DCMAKE_VERBOSE_MAKEFILE=ON \
+            -DENABLE_TESTS=ON
       - name: Build
         run: |
           cmake --build build -- -j1 VERBOSE=1
