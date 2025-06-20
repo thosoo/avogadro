@@ -277,31 +277,29 @@ namespace Avogadro {
 
   void GLWidgetPrivate::updateListQuick()
   {
-    // Create a display list cache
-    if (updateCache) {
-//      qDebug() << "Making new quick display lists...";
-      if (dlistQuick == 0) {
-        dlistQuick = glGenLists(1);
+    // Always regenerate the quick rendering list. In earlier versions
+    // this was only done when updateCache was set, which caused outdated
+    // geometry to be shown while the view was being manipulated.
+
+    if (dlistQuick == 0)
+      dlistQuick = glGenLists(1);
+
+    // Don't use dynamic scaling when rendering quickly
+    painter->setDynamicScaling(false);
+
+    glNewList(dlistQuick, GL_COMPILE);
+    foreach (Engine *engine, engines) {
+      if (engine->isEnabled()) {
+        molecule->lock()->lockForRead();
+        engine->renderQuick(pd);
+        molecule->lock()->unlock();
       }
-
-      // Don't use dynamic scaling when rendering quickly
-      painter->setDynamicScaling(false);
-
-      glNewList(dlistQuick, GL_COMPILE);
-      foreach(Engine *engine, engines)
-      {
-        if(engine->isEnabled())
-        {
-          molecule->lock()->lockForRead();
-          engine->renderQuick(pd);
-          molecule->lock()->unlock();
-        }
-      }
-      glEndList();
-
-      updateCache = false;
-      painter->setDynamicScaling(true);
     }
+    glEndList();
+
+    // Keep track that the quick cache is current
+    updateCache = false;
+    painter->setDynamicScaling(true);
   }
 
 
