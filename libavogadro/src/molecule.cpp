@@ -1919,7 +1919,7 @@ namespace Avogadro{
         d->center /= static_cast<double>(nAtoms);
 
         // Determine the radius and the farthest atom relative to the center
-        double farthestSqDist = std::numeric_limits<double>::min();
+        double farthestSqDist = -1.0;
         d->farthestAtom = 0;
         foreach (Atom *atom, m_atomList) {
           double dist = (*atom->pos() - d->center).squaredNorm();
