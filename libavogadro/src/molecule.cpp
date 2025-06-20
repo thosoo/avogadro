@@ -662,6 +662,8 @@ namespace Avogadro{
 
     // Construct an OBMol, call AddHydrogens and translate the changes
     OpenBabel::OBMol obmol = OBMol();
+    // Open Babel 3 requires automatic formal charges for proper protonation
+    obmol.SetAutomaticFormalCharge(true);
     if (a) {
       OpenBabel::OBAtom *obatom = obmol.GetAtom(a->index()+1);
       // Set implicit valence for unusual elements not handled by OpenBabel
@@ -705,10 +707,14 @@ namespace Avogadro{
       default: // do nothing
         break;
       }
+      obmol.PerceiveBondOrders();
       obmol.AddHydrogens(obatom);
     }
     else
+    {
+      obmol.PerceiveBondOrders();
       obmol.AddHydrogens();
+    }
     // All new atoms in the OBMol must be the additional hydrogens
     unsigned int numberAtoms = numAtoms();
     int j = 0;
