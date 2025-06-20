@@ -1908,27 +1908,29 @@ namespace Avogadro{
     // If no unit cell, just compute the radius and farthest atom as normal.
     else {
       if (nAtoms > 1) {
-        // compute radius and the farthest atom
-        d->radius = std::numeric_limits<double>::min();
-        foreach (Atom *atom, m_atomList) {
-          double distanceToCenter = (*atom->pos() - d->center).squaredNorm();
-          if(distanceToCenter > d->radius) {
-            d->radius = distanceToCenter;
-            d->farthestAtom = atom;
-          }
-        }
-        d->radius = sqrt(d->radius);
-
-        // Compute the normal vector to the molecule's best-fitting plane
+        // Compute the center of the molecule and collect atom positions
         int i = 0;
-        Vector3d ** atomPositions = new Vector3d*[nAtoms];
-        // Calculate the center of the molecule too
+        Vector3d **atomPositions = new Vector3d*[nAtoms];
         foreach (Atom *atom, m_atomList) {
           Vector3d *pos = &(*m_atomPos)[atom->id()];
           d->center += *pos;
           atomPositions[i++] = pos;
         }
         d->center /= static_cast<double>(nAtoms);
+
+        // Determine the radius and the farthest atom relative to the center
+        double farthestSqDist = std::numeric_limits<double>::min();
+        d->farthestAtom = 0;
+        foreach (Atom *atom, m_atomList) {
+          double dist = (*atom->pos() - d->center).squaredNorm();
+          if (dist > farthestSqDist) {
+            farthestSqDist = dist;
+            d->farthestAtom = atom;
+          }
+        }
+        d->radius = sqrt(farthestSqDist);
+
+        // Compute the normal vector to the molecule's best-fitting plane
         Eigen::Hyperplane<double, 3> planeCoeffs;
         fitHyperplane(numAtoms(), atomPositions, &planeCoeffs);
 
