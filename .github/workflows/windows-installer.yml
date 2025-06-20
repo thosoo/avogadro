@@ -41,17 +41,6 @@ jobs:
           "ZLIB_INCLUDE_DIR=$inc" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "ZLIB_LIBRARY_DIR=$libDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$zlibDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-      - name: Debug zlib install
-        shell: pwsh
-        run: |
-          echo "ZLIB_LIBRARY=$env:ZLIB_LIBRARY"
-          echo "ZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR"
-          echo "CMAKE_PREFIX_PATH=$env:CMAKE_PREFIX_PATH"
-          if (Test-Path "$env:ZLIB_INCLUDE_DIR/zlib.h") {
-            Get-ChildItem "$env:ZLIB_INCLUDE_DIR" | Select-Object -First 5
-          } else {
-            Write-Host "Zlib headers not found"
-          }
       - name: Install Eigen
         shell: pwsh
         run: |
@@ -62,16 +51,6 @@ jobs:
           $dir = Join-Path $env:RUNNER_TEMP "eigen-$ver"
           "EIGEN3_INCLUDE_DIR=$dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "CMAKE_PREFIX_PATH=$dir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-      - name: Debug Eigen variables
-        shell: pwsh
-        run: |
-          echo "EIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR"
-          echo "CMAKE_PREFIX_PATH=$env:CMAKE_PREFIX_PATH"
-          if (Test-Path $env:EIGEN3_INCLUDE_DIR) {
-            Get-ChildItem $env:EIGEN3_INCLUDE_DIR | Select-Object -First 5
-          } else {
-            Write-Host "Eigen include dir not found"
-          }
       - name: Build libxml2
         shell: pwsh
         run: |
