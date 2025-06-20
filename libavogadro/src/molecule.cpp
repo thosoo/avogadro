@@ -705,10 +705,14 @@ namespace Avogadro{
       default: // do nothing
         break;
       }
+      obmol.PerceiveBondOrders();
       obmol.AddHydrogens(obatom);
     }
     else
+    {
+      obmol.PerceiveBondOrders();
       obmol.AddHydrogens();
+    }
     // All new atoms in the OBMol must be the additional hydrogens
     unsigned int numberAtoms = numAtoms();
     int j = 0;

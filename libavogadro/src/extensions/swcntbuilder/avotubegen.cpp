@@ -226,6 +226,7 @@ void AvoTubeGen::capTube()
       obatom->SetHyb(2);
     }
 
+    obmol.PerceiveBondOrders();
     obmol.AddHydrogens(obatom);
   }
 
