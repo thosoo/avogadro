@@ -1,8 +1,53 @@
 name: CI
 on: [push, pull_request]
+
 jobs:
-  build:
+  generate-matrix:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Cache apt packages
+        uses: actions/cache@v3
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-${{ hashFiles('.github/apt-packages.txt') }}
+          restore-keys: ${{ runner.os }}-apt-
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo xargs -a .github/apt-packages.txt apt-get install -y
+      - name: Configure
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_VERBOSE_MAKEFILE=ON \
+            -DENABLE_TESTS=ON
+      - name: List CMake targets
+        run: |
+          cmake --build build --target help > /tmp/make_help.log
+          grep -E '^\\.\\.\\.' /tmp/make_help.log | sed 's/... //' | awk '{print $1}' | sort -u > /tmp/targets.txt
+      - id: set-matrix
+        run: |
+          first=true
+          json='{"target":['
+          while IFS= read -r t; do
+            if $first; then
+              first=false
+            else
+              json+=','
+            fi
+            json+='"'$t'"'
+          done < /tmp/targets.txt
+          json+=']}'
+          echo "matrix=$json" >> $GITHUB_OUTPUT
+
+  build:
+    needs: generate-matrix
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v3
       - name: Cache apt packages
@@ -23,7 +68,7 @@ jobs:
             -DENABLE_TESTS=ON
       - name: Build
         run: |
-          cmake --build build -- -j1 VERBOSE=1
+          cmake --build build --target ${{ matrix.target }} -- -j1 VERBOSE=1
       - name: Test
         run: |
-          ctest --test-dir build   --output-on-failure
+          ctest --test-dir build --output-on-failure
