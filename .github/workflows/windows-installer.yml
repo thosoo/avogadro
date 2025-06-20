@@ -73,7 +73,7 @@ jobs:
       - name: Build libxml2
         shell: pwsh
         run: |
-          $ver = '2.7.7'
+          $ver = '2.12.10'
           $zip = "$env:RUNNER_TEMP\libxml2.zip"
           Invoke-WebRequest "https://github.com/GNOME/libxml2/archive/refs/tags/v$ver.zip" -OutFile $zip
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
