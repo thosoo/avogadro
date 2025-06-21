@@ -30,6 +30,7 @@
 #include <openbabel/mol.h>
 #include <openbabel/obiter.h>
 #include <openbabel/atom.h>
+#include <openbabel/obfunctions.h>
 
 #include <QAction>
 #include <QInputDialog>
@@ -141,8 +142,10 @@ namespace Avogadro {
           OBMol obmol = m_molecule->OBMol();
           obmol.UnsetFlag(OB_PH_CORRECTED_MOL);
           OBAtom *a;
-          FOR_ATOMS_OF_MOL(a, obmol)
+          FOR_ATOMS_OF_MOL(a, obmol) {
             a->SetFormalCharge(0.0);
+            OpenBabel::OBAtomAssignTypicalImplicitHydrogens(a);
+          }
           obmol.SetAutomaticFormalCharge(true);
           obmol.AddHydrogens(false, true, m_pH);
           m_molecule->setOBMol(&obmol);
