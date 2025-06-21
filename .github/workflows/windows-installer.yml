@@ -14,7 +14,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Install dependencies
-        run: choco install -y nsis cmake --no-progress --installargs "ADD_CMAKE_TO_PATH=System"
+        run: choco install -y cmake --version=3.28.6 `
+          --no-progress `
+          --installargs '"ADD_CMAKE_TO_PATH=System"' `
+          --allow-downgrade   # harmless if no newer CMake is present
       - name: Build zlib
         shell: pwsh
         run: |
@@ -92,7 +95,7 @@ jobs:
         shell: pwsh
         run: |
           $srcDir = Join-Path $env:RUNNER_TEMP 'openbabel-src'
-          git clone --depth 1 https://github.com/thosoo/openbabel $srcDir
+          git clone --depth 1 https://github.com/openbabel/openbabel $srcDir
           $build = Join-Path $srcDir 'build'
           cmake -S $srcDir -B $build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$build\install" -DLIBXML2_LIBRARY="$env:LIBXML2_LIBRARY" -DLIBXML2_LIBRARIES="$env:LIBXML2_LIBRARY" -DLIBXML2_INCLUDE_DIR="$env:LIBXML2_INCLUDE_DIR" -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" -DENABLE_TESTS=OFF -DBUILD_SHARED=ON -DCMAKE_VERBOSE_MAKEFILE=ON
           Push-Location $build
