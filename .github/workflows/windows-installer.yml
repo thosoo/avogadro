@@ -155,12 +155,16 @@ jobs:
           }
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
-      - name: Build NSIS script
-        run: makensis scripts/installer/setup.nsi
+      - name: Package
+        shell: pwsh
+        run: |
+          Push-Location build
+          nmake package
+          Pop-Location
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
           name: avogadro-windows-installer
           path: |
-            scripts/installer/avogadro-win32-*.exe
+            build/Avogadro-*.exe
           if-no-files-found: error
