@@ -141,10 +141,10 @@ namespace Avogadro {
         {
           OBMol obmol = m_molecule->OBMol();
           obmol.UnsetFlag(OB_PH_CORRECTED_MOL);
-          OBAtom *a;
-          FOR_ATOMS_OF_MOL(a, obmol) {
-            a->SetFormalCharge(0.0);
-            OpenBabel::OBAtomAssignTypicalImplicitHydrogens(a);
+          FOR_ATOMS_OF_MOL(ai, obmol) {
+            OpenBabel::OBAtom *atom = &*ai;
+            atom->SetFormalCharge(0.0);
+            OpenBabel::OBAtomAssignTypicalImplicitHydrogens(atom);
           }
           obmol.SetAutomaticFormalCharge(true);
           obmol.AddHydrogens(false, true, m_pH);
