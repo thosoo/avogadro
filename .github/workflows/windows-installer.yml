@@ -142,6 +142,15 @@ jobs:
           $exe = Join-Path $dist "bin/avogadro.exe"
           if (-Not (Test-Path $exe)) { $exe = Join-Path $dist "bin/Avogadro.exe" }
           windeployqt --release --dir (Join-Path $dist "bin") $exe
+      - name: Ensure Qt5OpenGL.dll
+        shell: pwsh
+        run: |
+          $distBin = "scripts/installer/dist/bin"
+          $qtBin = Join-Path $env:Qt5_DIR 'bin'
+          $dll = Join-Path $qtBin 'Qt5OpenGL.dll'
+          if (Test-Path $dll) {
+            Copy-Item $dll (Join-Path $distBin 'Qt5OpenGL.dll') -Force
+          }
       - name: Copy OpenBabel runtime
         shell: pwsh
         run: |
