@@ -95,13 +95,18 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
   ##############################################
   get_filename_component(QT_BIN_DIR ${QT_QMAKE_EXECUTABLE} PATH)
   find_path(qt_BINDIR "Qt5Core.dll" PATH ${QT_BIN_DIR})
-  set(qt_DEPS
-    "${qt_BINDIR}/Qt5Core.dll"
-    "${qt_BINDIR}/Qt5Gui.dll"
-    "${qt_BINDIR}/Qt5Widgets.dll"
-    "${qt_BINDIR}/Qt5OpenGL.dll"
-    "${qt_BINDIR}/Qt5Network.dll")
-  install(FILES ${qt_DEPS} DESTINATION bin)
+  set(qt_LIBS
+    Qt5Core.dll
+    Qt5Gui.dll
+    Qt5Widgets.dll
+    Qt5OpenGL.dll
+    Qt5Network.dll)
+  foreach(_lib IN LISTS qt_LIBS)
+    find_file(_dll "${_lib}" PATHS "${qt_BINDIR}")
+    if(_dll)
+      install(FILES "${_dll}" DESTINATION bin)
+    endif()
+  endforeach()
 
   ##############################################
   # GLSL shaders (Optional)                    #
