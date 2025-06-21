@@ -45,10 +45,10 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
   ##############################################
   # OpenBabel                                  #
   ##############################################
-  find_path(openbabel_SRCDIR "openbabel-2.0.pc.in" PATHS
+  find_path(openbabel_SRCDIR "openbabel-3.pc.in" PATHS
       "C:/src/openbabel"
   )
-  find_path(openbabel_BINDIR "openbabel-2.dll" PATHS
+  find_path(openbabel_BINDIR "openbabel.dll" PATHS
       "${CMAKE_PREFIX_PATH}/bin"
       "${openbabel_SRCDIR}/output/Release"
       "${openbabel_SRCDIR}/build/src/Release"
@@ -84,7 +84,7 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
   endif()
 
   set(openbabel_DLLs
-      "${openbabel_BINDIR}/openbabel-2.dll"
+      "${openbabel_BINDIR}/openbabel.dll"
       "${openbabel_BINDIR}/inchi.dll")
   install(FILES ${openbabel_DLLs} DESTINATION bin)
 
@@ -95,12 +95,13 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
   # Qt                                         #
   ##############################################
   get_filename_component(QT_BIN_DIR ${QT_QMAKE_EXECUTABLE} PATH)
-  find_path(qt_BINDIR "QtCore4.dll" PATH ${QT_BIN_DIR})
+  find_path(qt_BINDIR "Qt5Core.dll" PATH ${QT_BIN_DIR})
   set(qt_DEPS
-    "${qt_BINDIR}/QtCore4.dll"
-    "${qt_BINDIR}/QtGui4.dll"
-    "${qt_BINDIR}/QtOpenGL4.dll"
-    "${qt_BINDIR}/QtNetwork4.dll")
+    "${qt_BINDIR}/Qt5Core.dll"
+    "${qt_BINDIR}/Qt5Gui.dll"
+    "${qt_BINDIR}/Qt5Widgets.dll"
+    "${qt_BINDIR}/Qt5OpenGL.dll"
+    "${qt_BINDIR}/Qt5Network.dll")
   install(FILES ${qt_DEPS} DESTINATION bin)
 
   ##############################################
@@ -122,30 +123,28 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
     #
     # python library
     #
-    find_path(python_DIR "pyconfig.h.in" PATHS
-        "C:/src/Python-2.6.2"
-        "C:/src/Python-2.6.1"
-    )
-    find_file(python_DLL "python26.dll" PATHS
-        "${python_DIR}/Libs"
-        "${python_DIR}/DLLs"
-        "${python_DIR}/bin"
-        "${python_DIR}/PCbuild"
-    )
+  find_path(python_DIR "pyconfig.h.in" PATHS
+      "C:/src/Python-3.11"
+  )
+  find_file(python_DLL "python311.dll" PATHS
+      "${python_DIR}/Libs"
+      "${python_DIR}/DLLs"
+      "${python_DIR}/bin"
+      "${python_DIR}/PCbuild"
+  )
     install(FILES ${python_DLL} DESTINATION bin)
 
     #
     # boost python
     #
-    find_path(boost_DIR "boost.png" PATHS
-        "C:/src/boost_1_38_0"
-        "C:/src/boost_1_37_0"
-        "C:/src/boost_1_36_0"
-    )
-    find_file(boost_python_DLL "boost_python-vc90-mt-1_38.dll" PATHS
-        "${boost_DIR}/lib/"
-        "${boost_DIR}/bin/"
-    )
+  find_path(boost_DIR "boost.png" PATHS
+      "C:/src/boost_1_83_0"
+      "C:/src/boost_1_82_0"
+  )
+  find_file(boost_python_DLL "boost_python311-vc143-mt.dll" PATHS
+      "${boost_DIR}/lib/"
+      "${boost_DIR}/bin/"
+  )
     install(FILES ${boost_python_DLL} DESTINATION bin)
 
     # lib/*: (includes all sip & numpy runtime files needed)
@@ -170,7 +169,7 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
     # PyQt5
     #
     find_path(pyqt_DIR "pyqtconfig.py.in" PATHS
-        "C:/src/PyQt-win-gpl-4.4.4"
+        "C:/src/PyQt5-5.15"
     )
     set(pyqt_DEPS
       "${pyqt_DIR}/__init__.py"
