@@ -30,15 +30,14 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
   # libxml2                                    #
   ##############################################
   find_path(libxml2_DIR "libxml-2.0.pc.in" PATHS
+      "C:/src/libxml2-2.12.10"
       "C:/src/libxml2"
-      "C:/src/libxml2-2.7.3"
-      "C:/src/libxml2-2-7-3"
   )
   find_file(libxml2_DLL "libxml2.dll" PATHS
-    "${libxml2_DIR}/win32/bin.msvc"
     "${libxml2_DIR}/bin"
     "${libxml2_DIR}/lib"
-    ${CMAKE_PREFIX_PATH}/lib
+    "${CMAKE_PREFIX_PATH}/bin"
+    "${CMAKE_PREFIX_PATH}/lib"
   )
   install(FILES ${libxml2_DLL} DESTINATION bin)
 
