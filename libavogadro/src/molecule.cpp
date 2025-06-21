@@ -712,30 +712,35 @@ namespace Avogadro{
     // All new atoms in the OBMol must be the additional hydrogens
     unsigned int numberAtoms = numAtoms();
     int j = 0;
-    for (unsigned int i = numberAtoms+1; i <= obmol.NumAtoms(); ++i, ++j) {
-      if (obmol.GetAtom(i)->GetAtomicNum() == 1) {
-        OpenBabel::OBAtom *obatom = obmol.GetAtom(i);
-        Atom *atom;
-        if (atomIds.isEmpty())
-          atom = addAtom();
-        else if (j < atomIds.size())
-          atom = addAtom(atomIds.at(j));
-        else {
-          qDebug() << "Error - not enough unique ids in addHydrogens.";
-          break;
-        }
-        atom->setOBAtom(obatom);
-        // Get the neighbor atom
-        OpenBabel::OBBondIterator iter;
-        OpenBabel::OBAtom *next = obatom->BeginNbrAtom(iter);
-        Bond *bond;
-        if (bondIds.isEmpty())
-          bond = addBond();
-        else // Already confirmed by atom ids
-          bond = addBond(bondIds.at(j));
-        bond->setEnd(Molecule::atom(atom->index()));
-        bond->setBegin(Molecule::atom(next->GetIdx()-1));
+    for (unsigned int i = numberAtoms + 1; i <= obmol.NumAtoms(); ++i) {
+      if (obmol.GetAtom(i)->GetAtomicNum() != 1)
+        continue;
+
+      OpenBabel::OBAtom *obatom = obmol.GetAtom(i);
+      Atom *atom;
+      if (atomIds.isEmpty())
+        atom = addAtom();
+      else if (j < atomIds.size())
+        atom = addAtom(atomIds.at(j));
+      else {
+        qDebug() << "Error - not enough unique ids in addHydrogens.";
+        break;
       }
+
+      atom->setOBAtom(obatom);
+
+      // Get the neighbor atom
+      OpenBabel::OBBondIterator iter;
+      OpenBabel::OBAtom *next = obatom->BeginNbrAtom(iter);
+      Bond *bond;
+      if (bondIds.isEmpty())
+        bond = addBond();
+      else
+        bond = addBond(bondIds.at(j));
+      bond->setEnd(Molecule::atom(atom->index()));
+      bond->setBegin(Molecule::atom(next->GetIdx() - 1));
+
+      ++j;
     }
     for (unsigned int i = 1; i <= numberAtoms; ++i) {
       // Warning -- OB atom index off-by-one here
