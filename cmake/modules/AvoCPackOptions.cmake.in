@@ -13,6 +13,8 @@ if(CPACK_GENERATOR MATCHES "NSIS")
     "http://avogadro.cc/wiki/Avogadro_@CPACK_PACKAGE_VERSION@" "Release Notes"
     "http://avogadro.cc/" "Avogadro Web Site")
   SET(CPACK_NSIS_MODIFY_PATH ON)
+  # Ensure shortcuts start in the binary directory so avogadro.dll loads correctly
+  set(CPACK_NSIS_CREATE_ICONS_EXTRA "SetOutPath \"$INSTDIR\\bin\"")
 
   # Associate Avogadro with some file extensions
   set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS "
