@@ -1,5 +1,11 @@
 name: CI
-on: [push, pull_request]
+on: 
+  push:
+      paths-ignore:
+        - '.github/workflows/windows-installer.yml'
+  pull_request:
+    paths-ignore:
+          - '.github/workflows/windows-installer.yml'
 jobs:
   build:
     runs-on: ubuntu-latest
