@@ -306,6 +306,7 @@ void DrawCommandTest::parseLogFile(const QString &fileName)
 {
   m_molecule = new Molecule;
   m_undoStack = new QUndoStack;
+  QList<unsigned long> pendingAtomIds;
   qDebug() << "TESTING ::" << fileName;
   QFile logFile(fileName);
 
@@ -314,8 +315,23 @@ void DrawCommandTest::parseLogFile(const QString &fileName)
   while (!logFile.atEnd()) {
     QString line = logFile.readLine();
     qDebug() << "INPUT: " << line;
-      
-    if (line.contains("::redo(") || line.contains("::undo(")) 
+
+    if (line.startsWith("Molecule::addAtom")) {
+      int start = line.indexOf('(');
+      int endPos = line.indexOf(')', start);
+      if (start != -1 && endPos != -1) {
+        bool ok = false;
+        unsigned long id = line.mid(start + 1, endPos - start - 1).trimmed().toULong(&ok);
+        if (ok) {
+          if (!m_molecule->atomById(id))
+            m_molecule->addAtom(id);
+          pendingAtomIds.append(id);
+        }
+      }
+      continue;
+    }
+
+    if (line.contains("::redo(") || line.contains("::undo("))
       continue;
 
     if (line.startsWith("AddAtomDrawCommand")) {
@@ -329,15 +345,17 @@ void DrawCommandTest::parseLogFile(const QString &fileName)
       QVERIFY( ok );
       AdjustHydrogens::Option adj = static_cast<AdjustHydrogens::Option>(args[1].toInt(&ok));
       QVERIFY( ok );
-
       // command has 2 constructors...
-      if (line.contains("ctor1"))
-        m_undoStack->push( new AddAtomDrawCommand(m_molecule, Eigen::Vector3d::Zero(), element, adj) );
-      else {
-        Atom *atom = m_molecule->addAtom();
-        qDebug() << "ID = " << atom->id() << "<----------------------------------------------------------------";
+      if (line.contains("ctor1")) {
+        m_undoStack->push(new AddAtomDrawCommand(m_molecule, Eigen::Vector3d::Zero(), element, adj));
+      } else {
+        unsigned long id = pendingAtomIds.isEmpty() ? m_molecule->numAtoms() : pendingAtomIds.takeLast();
+        Atom *atom = m_molecule->atomById(id);
+        if (!atom)
+          atom = m_molecule->addAtom(id);
+        qDebug() << "ID = " << atom->id() << "<-----------------------------------------------";
         atom->setAtomicNumber(element);
-        m_undoStack->push( new AddAtomDrawCommand(m_molecule, atom, adj) );
+        m_undoStack->push(new AddAtomDrawCommand(m_molecule, atom, adj));
       }
 
       singleUndoRedo();
