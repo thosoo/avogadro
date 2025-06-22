@@ -53,7 +53,7 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
     get_filename_component(openbabel_PREFIX "${OPENBABEL3_LIBRARIES}" DIRECTORY)
     get_filename_component(openbabel_PREFIX "${openbabel_PREFIX}" DIRECTORY)
   endif()
-  find_path(openbabel_BINDIR "openbabel.dll" PATHS
+  find_path(openbabel_BINDIR NAMES openbabel.dll openbabel-3.dll PATHS
       "${openbabel_PREFIX}/bin"
       "${CMAKE_PREFIX_PATH}/bin"
   )
@@ -66,9 +66,10 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
     install(DIRECTORY "${openbabel_PREFIX}/share/openbabel" DESTINATION share)
   endif()
 
-  find_file(openbabel_DLL "openbabel.dll" PATHS "${openbabel_BINDIR}")
+  find_file(openbabel_DLL NAMES openbabel.dll openbabel-3.dll
+            PATHS "${openbabel_BINDIR}")
   if(NOT openbabel_DLL)
-    message(FATAL_ERROR "openbabel.dll not found in ${openbabel_BINDIR}")
+    message(FATAL_ERROR "OpenBabel DLL not found in ${openbabel_BINDIR}")
   endif()
   install(FILES "${openbabel_DLL}" DESTINATION bin)
 
