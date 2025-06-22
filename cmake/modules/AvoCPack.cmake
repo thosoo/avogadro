@@ -72,10 +72,16 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
     install(FILES ${openbabel_FILES} DESTINATION share/openbabel)
   endif()
 
-  set(openbabel_DLLs
-      "${openbabel_BINDIR}/openbabel.dll"
-      "${openbabel_BINDIR}/inchi.dll")
-  install(FILES ${openbabel_DLLs} DESTINATION bin)
+  find_file(openbabel_DLL "openbabel.dll" PATHS "${openbabel_BINDIR}")
+  if(NOT openbabel_DLL)
+    message(FATAL_ERROR "openbabel.dll not found in ${openbabel_BINDIR}")
+  endif()
+  install(FILES "${openbabel_DLL}" DESTINATION bin)
+
+  find_file(inchi_DLL "inchi.dll" PATHS "${openbabel_BINDIR}")
+  if(inchi_DLL)
+    install(FILES "${inchi_DLL}" DESTINATION bin)
+  endif()
 
   # Format plugins
   if(EXISTS "${openbabel_PREFIX}/lib/openbabel")
@@ -205,7 +211,13 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
 
   # Ensure Qt runtime libraries and plugins are installed on Windows
   if(WIN32)
-    install(CODE "execute_process(\n    COMMAND windeployqt --release --dir \"${CMAKE_INSTALL_PREFIX}/bin\" \"${CMAKE_INSTALL_PREFIX}/bin/avogadro.exe\"\n  )")
+    install(CODE "
+      set(_exe \"${CMAKE_INSTALL_PREFIX}/bin/avogadro.exe\")
+      if(NOT EXISTS \"${_exe}\")
+        set(_exe \"${CMAKE_INSTALL_PREFIX}/bin/Avogadro.exe\")
+      endif()
+      execute_process(COMMAND windeployqt --release --dir \"${CMAKE_INSTALL_PREFIX}/bin\" \"${_exe}\")
+    ")
   endif()
 
 endif()
