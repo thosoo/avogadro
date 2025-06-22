@@ -29,10 +29,11 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
   ##############################################
   # libxml2                                    #
   ##############################################
-  find_path(libxml2_DIR "libxml-2.0.pc.in" PATHS
-      "C:/src/libxml2-2.12.10"
-      "C:/src/libxml2"
-  )
+  # libxml2 install directory may come via LIBXML2_LIBRARY or CMAKE_PREFIX_PATH
+  if(NOT libxml2_DIR AND LIBXML2_LIBRARY)
+    get_filename_component(libxml2_DIR "${LIBXML2_LIBRARY}" DIRECTORY)
+    get_filename_component(libxml2_DIR "${libxml2_DIR}" DIRECTORY)
+  endif()
   find_file(libxml2_DLL "libxml2.dll" PATHS
     "${libxml2_DIR}/bin"
     "${libxml2_DIR}/lib"
@@ -47,18 +48,14 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
   # OpenBabel                                  #
   ##############################################
   # OpenBabel install prefix may come from the workflow via OPENBABEL_INSTALL_DIR
-  find_path(openbabel_SRCDIR "openbabel-3.pc.cmake" PATHS
-      "$ENV{OPENBABEL_INSTALL_DIR}"
-      "C:/src/openbabel"
-  )
+  set(openbabel_PREFIX "$ENV{OPENBABEL_INSTALL_DIR}")
+  if(NOT openbabel_PREFIX AND OPENBABEL3_LIBRARIES)
+    get_filename_component(openbabel_PREFIX "${OPENBABEL3_LIBRARIES}" DIRECTORY)
+    get_filename_component(openbabel_PREFIX "${openbabel_PREFIX}" DIRECTORY)
+  endif()
   find_path(openbabel_BINDIR "openbabel.dll" PATHS
-      "$ENV{OPENBABEL_INSTALL_DIR}/bin"
+      "${openbabel_PREFIX}/bin"
       "${CMAKE_PREFIX_PATH}/bin"
-      "${openbabel_SRCDIR}/output/Release"
-      "${openbabel_SRCDIR}/build/src/Release"
-      "${openbabel_SRCDIR}/src/Release"
-      "${openbabel_SRCDIR}/Release"
-      "${openbabel_SRCDIR}"
   )
 
   # Determine the OpenBabel prefix for data and plugin lookup
@@ -67,9 +64,6 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
   # Data files needed by OpenBabel
   if(EXISTS "${openbabel_PREFIX}/share/openbabel")
     install(DIRECTORY "${openbabel_PREFIX}/share/openbabel" DESTINATION share)
-  elseif(openbabel_SRCDIR)
-    file(GLOB openbabel_FILES "${openbabel_SRCDIR}/data/*")
-    install(FILES ${openbabel_FILES} DESTINATION share/openbabel)
   endif()
 
   find_file(openbabel_DLL "openbabel.dll" PATHS "${openbabel_BINDIR}")
@@ -113,9 +107,13 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
   ##############################################
   if(ENABLE_GLSL AND GLEW_FOUND)
     find_file(glew_DLL "glew32.dll" PATHS
+        "$ENV{GLEW_DIR}/bin"
+        "${CMAKE_PREFIX_PATH}/bin"
         "C:/src/glew/bin"
     )
-    install(FILES ${glew_DLL} DESTINATION bin)
+    if(glew_DLL)
+      install(FILES ${glew_DLL} DESTINATION bin)
+    endif()
   endif()
 
   ##############################################
@@ -128,8 +126,13 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
     # python library
     #
   find_path(python_DIR "pyconfig.h.in" PATHS
+      "$ENV{PYTHON_DIR}"
       "C:/src/Python-3.11"
   )
+  if(NOT python_DIR AND PYTHON_LIBRARY)
+    get_filename_component(python_DIR "${PYTHON_LIBRARY}" DIRECTORY)
+    get_filename_component(python_DIR "${python_DIR}" DIRECTORY)
+  endif()
   find_file(python_DLL "python311.dll" PATHS
       "${python_DIR}/Libs"
       "${python_DIR}/DLLs"
@@ -144,6 +147,7 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
     # boost python
     #
   find_path(boost_DIR "boost.png" PATHS
+      "$ENV{BOOST_ROOT}"
       "C:/src/boost_1_83_0"
       "C:/src/boost_1_82_0"
   )
