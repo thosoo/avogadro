@@ -46,10 +46,13 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
   ##############################################
   # OpenBabel                                  #
   ##############################################
-  find_path(openbabel_SRCDIR "openbabel-3.pc.in" PATHS
+  # OpenBabel install prefix may come from the workflow via OPENBABEL_INSTALL_DIR
+  find_path(openbabel_SRCDIR "openbabel-3.pc.cmake" PATHS
+      "$ENV{OPENBABEL_INSTALL_DIR}"
       "C:/src/openbabel"
   )
   find_path(openbabel_BINDIR "openbabel.dll" PATHS
+      "$ENV{OPENBABEL_INSTALL_DIR}/bin"
       "${CMAKE_PREFIX_PATH}/bin"
       "${openbabel_SRCDIR}/output/Release"
       "${openbabel_SRCDIR}/build/src/Release"
@@ -58,30 +61,15 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
       "${openbabel_SRCDIR}"
   )
 
+  # Determine the OpenBabel prefix for data and plugin lookup
+  get_filename_component(openbabel_PREFIX "${openbabel_BINDIR}" DIRECTORY)
+
   # Data files needed by OpenBabel
-  if(openbabel_SRCDIR)
-    file(GLOB openbabel_FILES "${openbabel_SRCDIR}/data/*.txt")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
-    file(GLOB openbabel_FILES "${openbabel_SRCDIR}/data/*.par")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
-    file(GLOB openbabel_FILES "${openbabel_SRCDIR}/data/*.prm")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
-    file(GLOB openbabel_FILES "${openbabel_SRCDIR}/data/*.ff")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
-    file(GLOB openbabel_FILES "${openbabel_SRCDIR}/data/*.dat")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
-  else()
-    # Should be able to find them in the installed tree too
-    file(GLOB openbabel_FILES "${openbabel_BINDIR}/data/*.txt")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
-    file(GLOB openbabel_FILES "${openbabel_BINDIR}/data/*.par")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
-    file(GLOB openbabel_FILES "${openbabel_BINDIR}/data/*.prm")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
-    file(GLOB openbabel_FILES "${openbabel_BINDIR}/data/*.ff")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
-    file(GLOB openbabel_FILES "${openbabel_BINDIR}/data/*.dat")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
+  if(EXISTS "${openbabel_PREFIX}/share/openbabel")
+    install(DIRECTORY "${openbabel_PREFIX}/share/openbabel" DESTINATION share)
+  elseif(openbabel_SRCDIR)
+    file(GLOB openbabel_FILES "${openbabel_SRCDIR}/data/*")
+    install(FILES ${openbabel_FILES} DESTINATION share/openbabel)
   endif()
 
   set(openbabel_DLLs
@@ -89,8 +77,11 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
       "${openbabel_BINDIR}/inchi.dll")
   install(FILES ${openbabel_DLLs} DESTINATION bin)
 
-  file(GLOB openbabel_FORMATS "${openbabel_BINDIR}/*.obf")
-  install(FILES ${openbabel_FORMATS} DESTINATION bin)
+  # Format plugins
+  if(EXISTS "${openbabel_PREFIX}/lib/openbabel")
+    file(GLOB openbabel_FORMATS "${openbabel_PREFIX}/lib/openbabel/*${CMAKE_SHARED_LIBRARY_SUFFIX}")
+    install(FILES ${openbabel_FORMATS} DESTINATION bin)
+  endif()
 
   ##############################################
   # Qt                                         #
