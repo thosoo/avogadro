@@ -90,7 +90,7 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
   # Qt                                         #
   ##############################################
   get_filename_component(QT_BIN_DIR "${QT_QMAKE_EXECUTABLE}" PATH)
-  find_path(qt_BINDIR "Qt5Core.dll" PATH ${QT_BIN_DIR})
+  find_path(qt_BINDIR Qt5Core.dll PATHS "${QT_BIN_DIR}")
   set(qt_LIBS
     Qt5Core.dll
     Qt5Gui.dll
