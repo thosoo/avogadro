@@ -39,7 +39,9 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
     "${CMAKE_PREFIX_PATH}/bin"
     "${CMAKE_PREFIX_PATH}/lib"
   )
-  install(FILES ${libxml2_DLL} DESTINATION bin)
+  if(libxml2_DLL)
+    install(FILES ${libxml2_DLL} DESTINATION bin)
+  endif()
 
   ##############################################
   # OpenBabel                                  #
@@ -59,36 +61,64 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
   # Data files needed by OpenBabel
   if(openbabel_SRCDIR)
     file(GLOB openbabel_FILES "${openbabel_SRCDIR}/data/*.txt")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
+    if(openbabel_FILES)
+      install(FILES ${openbabel_FILES} DESTINATION bin)
+    endif()
     file(GLOB openbabel_FILES "${openbabel_SRCDIR}/data/*.par")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
+    if(openbabel_FILES)
+      install(FILES ${openbabel_FILES} DESTINATION bin)
+    endif()
     file(GLOB openbabel_FILES "${openbabel_SRCDIR}/data/*.prm")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
+    if(openbabel_FILES)
+      install(FILES ${openbabel_FILES} DESTINATION bin)
+    endif()
     file(GLOB openbabel_FILES "${openbabel_SRCDIR}/data/*.ff")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
+    if(openbabel_FILES)
+      install(FILES ${openbabel_FILES} DESTINATION bin)
+    endif()
     file(GLOB openbabel_FILES "${openbabel_SRCDIR}/data/*.dat")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
-  else()
+    if(openbabel_FILES)
+      install(FILES ${openbabel_FILES} DESTINATION bin)
+    endif()
+  elseif(openbabel_BINDIR)
     # Should be able to find them in the installed tree too
     file(GLOB openbabel_FILES "${openbabel_BINDIR}/data/*.txt")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
+    if(openbabel_FILES)
+      install(FILES ${openbabel_FILES} DESTINATION bin)
+    endif()
     file(GLOB openbabel_FILES "${openbabel_BINDIR}/data/*.par")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
+    if(openbabel_FILES)
+      install(FILES ${openbabel_FILES} DESTINATION bin)
+    endif()
     file(GLOB openbabel_FILES "${openbabel_BINDIR}/data/*.prm")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
+    if(openbabel_FILES)
+      install(FILES ${openbabel_FILES} DESTINATION bin)
+    endif()
     file(GLOB openbabel_FILES "${openbabel_BINDIR}/data/*.ff")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
+    if(openbabel_FILES)
+      install(FILES ${openbabel_FILES} DESTINATION bin)
+    endif()
     file(GLOB openbabel_FILES "${openbabel_BINDIR}/data/*.dat")
-    install(FILES ${openbabel_FILES} DESTINATION bin)
+    if(openbabel_FILES)
+      install(FILES ${openbabel_FILES} DESTINATION bin)
+    endif()
   endif()
 
   set(openbabel_DLLs
       "${openbabel_BINDIR}/openbabel.dll"
       "${openbabel_BINDIR}/inchi.dll")
-  install(FILES ${openbabel_DLLs} DESTINATION bin)
+  foreach(_dll IN LISTS openbabel_DLLs)
+    if(EXISTS "${_dll}")
+      install(FILES "${_dll}" DESTINATION bin)
+    endif()
+  endforeach()
 
-  file(GLOB openbabel_FORMATS "${openbabel_BINDIR}/*.obf")
-  install(FILES ${openbabel_FORMATS} DESTINATION bin)
+  if(openbabel_BINDIR)
+    file(GLOB openbabel_FORMATS "${openbabel_BINDIR}/*.obf")
+    if(openbabel_FORMATS)
+      install(FILES ${openbabel_FORMATS} DESTINATION bin)
+    endif()
+  endif()
 
   ##############################################
   # Qt                                         #
@@ -136,7 +166,9 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
       "${python_DIR}/bin"
       "${python_DIR}/PCbuild"
   )
+  if(python_DLL)
     install(FILES ${python_DLL} DESTINATION bin)
+  endif()
 
     #
     # boost python
@@ -149,7 +181,9 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
       "${boost_DIR}/lib/"
       "${boost_DIR}/bin/"
   )
+  if(boost_python_DLL)
     install(FILES ${boost_python_DLL} DESTINATION bin)
+  endif()
 
     # lib/*: (includes all sip & numpy runtime files needed)
     file(GLOB python_lib_FILES "${python_DIR}/lib/*.py")
@@ -175,14 +209,20 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
     find_path(pyqt_DIR "pyqtconfig.py.in" PATHS
         "C:/src/PyQt5-5.15"
     )
-    set(pyqt_DEPS
-      "${pyqt_DIR}/__init__.py"
-      "${pyqt_DIR}/Qt/Qt.pyd"
-      "${pyqt_DIR}/QtCore/QtCore.pyd"
-      "${pyqt_DIR}/QtGui/QtGui.pyd"
-      "${pyqt_DIR}/QtOpenGL/QtOpenGL.pyd"
-      "${pyqt_DIR}/QtCore/QtCore.pyd")
-    install(FILES ${pyqt_DEPS} DESTINATION bin/lib/site-packages/PyQt5)
+    if(pyqt_DIR)
+      set(pyqt_DEPS
+        "${pyqt_DIR}/__init__.py"
+        "${pyqt_DIR}/Qt/Qt.pyd"
+        "${pyqt_DIR}/QtCore/QtCore.pyd"
+        "${pyqt_DIR}/QtGui/QtGui.pyd"
+        "${pyqt_DIR}/QtOpenGL/QtOpenGL.pyd"
+        "${pyqt_DIR}/QtCore/QtCore.pyd")
+      foreach(_dep IN LISTS pyqt_DEPS)
+        if(EXISTS "${_dep}")
+          install(FILES "${_dep}" DESTINATION bin/lib/site-packages/PyQt5)
+        endif()
+      endforeach()
+    endif()
     #
     # Avogadro python module
     #
@@ -202,7 +242,7 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
 
   # Ensure Qt runtime libraries and plugins are installed on Windows
   if(WIN32)
-    install(CODE "execute_process(\n    COMMAND windeployqt --release --dir \"${CMAKE_INSTALL_PREFIX}/bin\" \"${CMAKE_INSTALL_PREFIX}/bin/Avogadro.exe\"\n  )")
+    install(CODE "execute_process(\n    COMMAND windeployqt --release --dir \"${CMAKE_INSTALL_PREFIX}/bin\" \"${CMAKE_INSTALL_PREFIX}/bin/avogadro.exe\"\n  )")
   endif()
 
 endif()
