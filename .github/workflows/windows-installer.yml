@@ -130,59 +130,14 @@ jobs:
           "-DOPENBABEL3_INCLUDE_DIR=$env:OPENBABEL3_INCLUDE_DIR"`
           "-DOPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES"`
           "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS"
-      - name: Build
-        shell: pwsh
-        run: |
-          Push-Location build
-          nmake
-          Pop-Location
-      - name: Install
-        run: cmake --install build --config Release --prefix scripts/installer/dist
-      - name: Deploy Qt libraries
-        shell: pwsh
-        run: |
-          $dist = "scripts/installer/dist"
-          $exe = Join-Path $dist "bin/avogadro.exe"
-          if (-Not (Test-Path $exe)) { $exe = Join-Path $dist "bin/Avogadro.exe" }
-          windeployqt --release --dir (Join-Path $dist "bin") $exe
-      - name: Ensure Qt libraries
-        shell: pwsh
-        run: |
-          $distBin = "scripts/installer/dist/bin"
-          $qtBin = Join-Path $env:Qt5_DIR 'bin'
-          $qtDlls = @(
-            'Qt5Core.dll',
-            'Qt5Gui.dll',
-            'Qt5Widgets.dll',
-            'Qt5OpenGL.dll',
-            'Qt5Network.dll'
-          )
-          foreach ($dll in $qtDlls) {
-            $src = Join-Path $qtBin $dll
-            $dest = Join-Path $distBin $dll
-            if ((Test-Path $src) -and -not (Test-Path $dest)) {
-              Copy-Item $src $dest -Force
-            }
-          }
-      - name: Copy OpenBabel runtime
-        shell: pwsh
-        run: |
-          $dist = "scripts/installer/dist"
-          $ob = $env:OPENBABEL_INSTALL_DIR
-          if (Test-Path (Join-Path $ob 'bin' 'openbabel.dll')) {
-            Copy-Item (Join-Path $ob 'bin' 'openbabel.dll') (Join-Path $dist 'bin' 'openbabel.dll') -Force
-          }
-          if (Test-Path (Join-Path $ob 'share')) {
-            Copy-Item (Join-Path $ob 'share') (Join-Path $dist 'share') -Recurse -Force
-          }
-      - name: Test
-        run: ctest --test-dir build -C Release --output-on-failure
-      - name: Package
+      - name: Build and package
         shell: pwsh
         run: |
           Push-Location build
           nmake package
           Pop-Location
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
