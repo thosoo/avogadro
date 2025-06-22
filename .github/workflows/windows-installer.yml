@@ -131,7 +131,8 @@ jobs:
             "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR" `
             "-DOPENBABEL3_INCLUDE_DIR=$env:OPENBABEL3_INCLUDE_DIR" `
             "-DOPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES" `
-            "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS"
+            "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS" `
+            "-DOPENBABEL_INSTALL_DIR=$env:OPENBABEL_INSTALL_DIR"
       - name: Build and package
         # nmake package also performs the install step for packaging
         shell: pwsh
