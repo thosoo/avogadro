@@ -200,6 +200,9 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
 
   endif()
 
+  # Ensure Qt runtime libraries and plugins are installed
+  install(CODE "execute_process(\n    COMMAND windeployqt --release --dir \"${CMAKE_INSTALL_PREFIX}/bin\" \"${CMAKE_INSTALL_PREFIX}/bin/Avogadro.exe\"\n  )")
+
 endif()
 
 if(APPLE)
