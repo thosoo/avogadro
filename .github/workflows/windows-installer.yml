@@ -116,16 +116,19 @@ jobs:
       - name: Configure
         shell: pwsh
         run: >
-          cmake -S . -B build -G "NMake Makefiles"
-          -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_SHARED_LIBS=ON
-          -DCMAKE_VERBOSE_MAKEFILE=ON
-          -DCPACK_BINARY_NSIS=ON -DCPACK_BINARY_ZIP=OFF
-          "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR"
-          "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY"
-          "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR"
-          "-DOPENBABEL3_INCLUDE_DIR=$env:OPENBABEL3_INCLUDE_DIR"
-          "-DOPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES"
+          $dist = Join-Path $pwd 'scripts/installer/dist'
+          cmake -S . -B build -G "NMake Makefiles"`
+          -DCMAKE_BUILD_TYPE=Release`
+          -DBUILD_SHARED_LIBS=ON`
+          -DCMAKE_VERBOSE_MAKEFILE=ON`
+          -DCMAKE_INSTALL_PREFIX=$dist`
+          -DENABLE_DEPRECATED_INSTALL_RULES=ON`
+          -DCPACK_BINARY_NSIS=ON -DCPACK_BINARY_ZIP=OFF`
+          "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR"`
+          "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY"`
+          "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR"`
+          "-DOPENBABEL3_INCLUDE_DIR=$env:OPENBABEL3_INCLUDE_DIR"`
+          "-DOPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES"`
           "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS"
       - name: Build
         shell: pwsh
