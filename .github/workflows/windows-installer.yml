@@ -131,6 +131,7 @@ jobs:
           "-DOPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES"`
           "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS"
       - name: Build and package
+        # nmake package also performs the install step for packaging
         shell: pwsh
         run: |
           Push-Location build
