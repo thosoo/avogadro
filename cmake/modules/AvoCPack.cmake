@@ -79,9 +79,10 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
   install(FILES "${openbabel_DLL}" DESTINATION bin)
 
   find_file(inchi_DLL "inchi.dll" PATHS "${openbabel_BINDIR}")
-  if(inchi_DLL)
-    install(FILES "${inchi_DLL}" DESTINATION bin)
+  if(NOT inchi_DLL)
+    message(FATAL_ERROR "inchi.dll not found in ${openbabel_BINDIR}")
   endif()
+  install(FILES "${inchi_DLL}" DESTINATION bin)
 
   # Format plugins
   if(EXISTS "${openbabel_PREFIX}/lib/openbabel")
