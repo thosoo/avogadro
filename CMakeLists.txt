@@ -562,5 +562,3 @@ else()
   )
 endif()
 
-# Use CPack to do some of our packaging
-include(AvoCPack)

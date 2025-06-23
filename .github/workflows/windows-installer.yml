@@ -123,9 +123,6 @@ jobs:
             -DBUILD_SHARED_LIBS=ON `
             -DCMAKE_VERBOSE_MAKEFILE=ON `
             -DCMAKE_INSTALL_PREFIX="$dist" `
-            -DENABLE_DEPRECATED_INSTALL_RULES=ON `
-            -DCPACK_BINARY_NSIS=ON `
-            -DCPACK_BINARY_ZIP=OFF `
             "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR" `
             "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY" `
             "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR" `
@@ -133,11 +130,14 @@ jobs:
             "-DOPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES" `
             "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS" `
             "-DOPENBABEL_INSTALL_DIR=$env:OPENBABEL_INSTALL_DIR"
-      - name: Build and package
-        # nmake package also performs the install step for packaging
+      - name: Build
         shell: pwsh
         run: |
-          cmake --build build --target package --config Release
+          cmake --build build --config Release --target install
+      - name: Create installer
+        shell: pwsh
+        run: |
+          python scripts/installer/create_installer.py
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Upload installer
@@ -145,5 +145,5 @@ jobs:
         with:
           name: avogadro-windows-installer
           path: |
-            build/Avogadro-*.exe
+            scripts/installer/avogadro-win32-*.exe
           if-no-files-found: error
