@@ -16,6 +16,14 @@ if(WIN32)
 endif()
 if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
   # Set the directories to defaults if not set
+  # Deploy Qt runtime libraries first so subsequent detection sees them
+  install(CODE "
+    set(_exe \"${CMAKE_INSTALL_PREFIX}/bin/avogadro.exe\")
+    if(NOT EXISTS \"${_exe}\")
+      set(_exe \"${CMAKE_INSTALL_PREFIX}/bin/Avogadro.exe\")
+    endif()
+    execute_process(COMMAND windeployqt --release --dir \"${CMAKE_INSTALL_PREFIX}/bin\" \"${_exe}\")
+  ")
 
   ##############################################
   # Zlib                                       #

@@ -136,10 +136,6 @@ jobs:
       - name: Build
         shell: pwsh
         run: cmake --build build --config Release
-      - name: Deploy Qt runtime libraries
-        shell: pwsh
-        run: |
-          windeployqt --release --dir build/bin build/bin/avogadro.exe
       - name: Package
         shell: pwsh
         run: |
