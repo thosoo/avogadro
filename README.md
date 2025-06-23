@@ -42,7 +42,10 @@ found in the workflow artifacts. The workflow builds OpenBabel from
 
 To generate a Windows installer locally, configure with
 `-DENABLE_DEPRECATED_INSTALL_RULES=ON` so that the legacy packaging rules
-collect required libraries and run `windeployqt`.
+collect required libraries and run `windeployqt`.  When CPack runs, it
+installs files to a temporary staging directory (e.g., under
+`_CPack_Packages`), and `windeployqt` is invoked from that location rather
+than the build tree.
 
 # Backers
 Support us with a monthly donation and help us continue our activities. [[Become a backer](https://opencollective.com/avogadro#backer)]

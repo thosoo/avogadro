@@ -223,13 +223,22 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
 
   if(WINDEPLOYQT_EXE)
     install(CODE [=[
-      set(_exe "${CMAKE_INSTALL_PREFIX}/bin/avogadro.exe")
+      set(_bin "${CMAKE_INSTALL_PREFIX}/bin")
+      set(_exe "${_bin}/avogadro.exe")
       if(NOT EXISTS "${_exe}")
-        set(_exe "${CMAKE_INSTALL_PREFIX}/bin/Avogadro.exe")
+        set(_exe "${_bin}/Avogadro.exe")
       endif()
+
+      execute_process(
+        COMMAND cmd /c tree /F /A "${_bin}"
+        OUTPUT_VARIABLE _tree_out
+        ERROR_VARIABLE _tree_out
+      )
+      message(STATUS "bin directory before windeployqt:\n${_tree_out}")
+
       if(EXISTS "${_exe}")
         file(TO_NATIVE_PATH "${_exe}" _exe_native)
-        file(TO_NATIVE_PATH "${CMAKE_INSTALL_PREFIX}/bin" _bin_native)
+        file(TO_NATIVE_PATH "${_bin}" _bin_native)
         execute_process(
           COMMAND "${WINDEPLOYQT_EXE}" --release --dir "${_bin_native}" "${_exe_native}"
           RESULT_VARIABLE _wqt_res
