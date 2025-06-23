@@ -13,7 +13,8 @@ set (CPACK_CREATE_DESKTOP_LINKS "avogadro")
 
 if(WIN32)
   option(ENABLE_DEPRECATED_INSTALL_RULES "Should deprecated, Windows specific, install rules be enabled?" OFF)
-
+endif()
+if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
   get_filename_component(_qt_bin "${QT_QMAKE_EXECUTABLE}" PATH)
   find_program(WINDEPLOYQT_EXE NAMES windeployqt windeployqt.exe
     PATHS "${_qt_bin}" PATH_SUFFIXES bin)
@@ -39,8 +40,6 @@ if(WIN32)
   else()
     message(WARNING "windeployqt not found; Qt runtime libraries might be missing")
   endif()
-endif()
-if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
   # Set the directories to defaults if not set
 
   ##############################################

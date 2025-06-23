@@ -40,5 +40,9 @@ Automated Windows installer builds are generated with GitHub Actions and can be
 found in the workflow artifacts. The workflow builds OpenBabel from
 <https://github.com/openbabel/openbabel> and bundles it with Avogadro.
 
+To generate a Windows installer locally, configure with
+`-DENABLE_DEPRECATED_INSTALL_RULES=ON` so that the legacy packaging rules
+collect required libraries and run `windeployqt`.
+
 # Backers
 Support us with a monthly donation and help us continue our activities. [[Become a backer](https://opencollective.com/avogadro#backer)]
