@@ -134,10 +134,11 @@ jobs:
             "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS" `
             "-DOPENBABEL_INSTALL_DIR=$env:OPENBABEL_INSTALL_DIR"
       - name: Build and package
-        # nmake package also performs the install step for packaging
+        # Build first and then run CPack directly to keep its output
         shell: pwsh
         run: |
-          cmake --build build --target package --config Release
+          cmake --build build --config Release
+          cpack --config ./CPackConfig.cmake
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Upload installer
