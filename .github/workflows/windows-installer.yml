@@ -133,11 +133,16 @@ jobs:
             "-DOPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES" `
             "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS" `
             "-DOPENBABEL_INSTALL_DIR=$env:OPENBABEL_INSTALL_DIR"
-      - name: Build and package
-        # Build first and then run CPack from the build directory so its output is visible
+      - name: Build
+        shell: pwsh
+        run: cmake --build build --config Release
+      - name: Deploy Qt runtime libraries
         shell: pwsh
         run: |
-          cmake --build build --config Release
+          windeployqt --release --dir build/bin build/bin/avogadro.exe
+      - name: Package
+        shell: pwsh
+        run: |
           Push-Location build
           cpack -C Release
           Pop-Location

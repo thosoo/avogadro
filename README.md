@@ -41,11 +41,10 @@ found in the workflow artifacts. The workflow builds OpenBabel from
 <https://github.com/openbabel/openbabel> and bundles it with Avogadro.
 
 To generate a Windows installer locally, configure with
-`-DENABLE_DEPRECATED_INSTALL_RULES=ON` so that the legacy packaging rules
-collect required libraries and run `windeployqt`.  When CPack runs, it
-installs files to a temporary staging directory (e.g., under
-`_CPack_Packages`), and `windeployqt` is invoked from that location rather
-than the build tree.
+`-DENABLE_DEPRECATED_INSTALL_RULES=ON`.  After building the project, run
+`windeployqt --release --dir build/bin build/bin/avogadro.exe` and then
+invoke `cpack`.  The GitHub workflow performs these deployment steps
+automatically.
 
 # Backers
 Support us with a monthly donation and help us continue our activities. [[Become a backer](https://opencollective.com/avogadro#backer)]
