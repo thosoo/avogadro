@@ -10,9 +10,12 @@ def main():
     dist = root / "dist"
     build_dir = Path(os.environ.get("BUILD_DIR", root.parent.parent / "build"))
 
+    license_src = root.parent.parent / "COPYING"
     if dist.exists():
         shutil.rmtree(dist)
     dist.mkdir(parents=True)
+    if license_src.exists():
+        shutil.copy(license_src, dist / "gpl.txt")
 
     subprocess.check_call(["cmake", "--install", str(build_dir), "--prefix", str(dist)])
 
