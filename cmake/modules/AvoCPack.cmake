@@ -13,6 +13,15 @@ set (CPACK_CREATE_DESKTOP_LINKS "avogadro")
 
 if(WIN32)
   option(ENABLE_DEPRECATED_INSTALL_RULES "Should deprecated, Windows specific, install rules be enabled?" OFF)
+
+  # Deploy Qt runtime libraries before collecting DLLs
+  install(CODE "
+    set(_exe \"${CMAKE_INSTALL_PREFIX}/bin/avogadro.exe\")
+    if(NOT EXISTS \"${_exe}\")
+      set(_exe \"${CMAKE_INSTALL_PREFIX}/bin/Avogadro.exe\")
+    endif()
+    execute_process(COMMAND windeployqt --release --dir \"${CMAKE_INSTALL_PREFIX}/bin\" \"${_exe}\")
+  ")
 endif()
 if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
   # Set the directories to defaults if not set
@@ -216,16 +225,6 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
 
   endif()
 
-  # Ensure Qt runtime libraries and plugins are installed on Windows
-  if(WIN32)
-    install(CODE "
-      set(_exe \"${CMAKE_INSTALL_PREFIX}/bin/avogadro.exe\")
-      if(NOT EXISTS \"${_exe}\")
-        set(_exe \"${CMAKE_INSTALL_PREFIX}/bin/Avogadro.exe\")
-      endif()
-      execute_process(COMMAND windeployqt --release --dir \"${CMAKE_INSTALL_PREFIX}/bin\" \"${_exe}\")
-    ")
-  endif()
 
 endif()
 
