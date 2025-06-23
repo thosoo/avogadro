@@ -15,38 +15,6 @@ if(WIN32)
   option(ENABLE_DEPRECATED_INSTALL_RULES "Should deprecated, Windows specific, install rules be enabled?" OFF)
 endif()
 if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
-  # Deploy Qt runtime libraries before collecting DLLs and other dependencies
-  get_filename_component(_qt_bin "${QT_QMAKE_EXECUTABLE}" PATH)
-  find_program(WINDEPLOYQT_EXE NAMES windeployqt windeployqt.exe
-    PATHS "${_qt_bin}" PATH_SUFFIXES bin)
-
-  if(WINDEPLOYQT_EXE)
-    install(CODE [=[
-      set(_exe "${CMAKE_INSTALL_PREFIX}/bin/avogadro.exe")
-      if(NOT EXISTS "${_exe}")
-        set(_exe "${CMAKE_INSTALL_PREFIX}/bin/Avogadro.exe")
-      endif()
-      if(EXISTS "${_exe}")
-        file(TO_NATIVE_PATH "${_exe}" _exe_native)
-        file(TO_NATIVE_PATH "${CMAKE_INSTALL_PREFIX}/bin" _bin_native)
-        execute_process(
-          COMMAND "${WINDEPLOYQT_EXE}" --release --dir "${_bin_native}" "${_exe_native}"
-          RESULT_VARIABLE _wqt_res
-          OUTPUT_VARIABLE _wqt_out
-          ERROR_VARIABLE _wqt_out
-        )
-        message(STATUS "windeployqt output:\n${_wqt_out}")
-        if(_wqt_res)
-          message(WARNING "windeployqt failed with code ${_wqt_res}")
-        endif()
-      else()
-        message(WARNING "Executable not found for windeployqt: ${_exe}")
-      endif()
-    ]=])
-  else()
-    message(WARNING "windeployqt not found; Qt runtime libraries might be missing")
-  endif()
-
   # Set the directories to defaults if not set
 
   ##############################################
@@ -248,6 +216,37 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
 
   endif()
 
+  # Deploy Qt runtime libraries after installing the application
+  get_filename_component(_qt_bin "${QT_QMAKE_EXECUTABLE}" PATH)
+  find_program(WINDEPLOYQT_EXE NAMES windeployqt windeployqt.exe
+    PATHS "${_qt_bin}" PATH_SUFFIXES bin)
+
+  if(WINDEPLOYQT_EXE)
+    install(CODE [=[
+      set(_exe "${CMAKE_INSTALL_PREFIX}/bin/avogadro.exe")
+      if(NOT EXISTS "${_exe}")
+        set(_exe "${CMAKE_INSTALL_PREFIX}/bin/Avogadro.exe")
+      endif()
+      if(EXISTS "${_exe}")
+        file(TO_NATIVE_PATH "${_exe}" _exe_native)
+        file(TO_NATIVE_PATH "${CMAKE_INSTALL_PREFIX}/bin" _bin_native)
+        execute_process(
+          COMMAND "${WINDEPLOYQT_EXE}" --release --dir "${_bin_native}" "${_exe_native}"
+          RESULT_VARIABLE _wqt_res
+          OUTPUT_VARIABLE _wqt_out
+          ERROR_VARIABLE _wqt_out
+        )
+        message(STATUS "windeployqt output:\n${_wqt_out}")
+        if(_wqt_res)
+          message(WARNING "windeployqt failed with code ${_wqt_res}")
+        endif()
+      else()
+        message(WARNING "Executable not found for windeployqt: ${_exe}")
+      endif()
+    ]=])
+  else()
+    message(WARNING "windeployqt not found; Qt runtime libraries might be missing")
+  endif()
 
 endif()
 
