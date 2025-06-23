@@ -57,6 +57,12 @@ def main():
             shutil.copy(dll, dist / 'bin')
             break
 
+    # Copy the GPLv2 license expected by NSIS
+    license_src = root.parent.parent / 'COPYING'
+    license_dest = dist / 'gpl.txt'
+    if license_src.exists():
+        shutil.copy(license_src, license_dest)
+
     version = os.environ.get("AVOGADRO_VERSION")
     vi_version = None
     if not version:
