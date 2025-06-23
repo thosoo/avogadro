@@ -134,11 +134,13 @@ jobs:
             "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS" `
             "-DOPENBABEL_INSTALL_DIR=$env:OPENBABEL_INSTALL_DIR"
       - name: Build and package
-        # Build first and then run CPack directly to keep its output
+        # Build first and then run CPack from the build directory so its output is visible
         shell: pwsh
         run: |
           cmake --build build --config Release
-          cpack --config ./CPackConfig.cmake
+          Push-Location build
+          cpack -C Release
+          Pop-Location
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
       - name: Upload installer
