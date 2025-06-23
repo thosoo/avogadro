@@ -117,13 +117,14 @@ jobs:
         shell: pwsh
         run: |
           $dist = Join-Path $pwd 'scripts/installer/dist'
+          $env:ENABLE_DEPRECATED_INSTALL_RULES = 'ON'
           cmake -S . -B build `
             -G "NMake Makefiles" `
             -DCMAKE_BUILD_TYPE=Release `
             -DBUILD_SHARED_LIBS=ON `
             -DCMAKE_VERBOSE_MAKEFILE=ON `
             -DCMAKE_INSTALL_PREFIX="$dist" `
-            -DENABLE_DEPRECATED_INSTALL_RULES=ON `
+            -DENABLE_DEPRECATED_INSTALL_RULES=$env:ENABLE_DEPRECATED_INSTALL_RULES `
             -DCPACK_BINARY_NSIS=ON `
             -DCPACK_BINARY_ZIP=OFF `
             "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR" `
