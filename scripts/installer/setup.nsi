@@ -15,12 +15,17 @@ CRCCheck force
 SetCompressor lzma
 
 # set execution level for Windows Vista
-RequestExecutionLevel user
+RequestExecutionLevel admin
 
 # general definitions
 # you only need to change this section for new releases
-VIProductVersion "1.1.0.0" # file version for the installer in the scheme "x.x.x.x"
+!ifndef VI_VERSION
+!define VI_VERSION "1.1.0.0"
+!endif
+!ifndef VERSION
 !define VERSION "1.1.0"
+!endif
+VIProductVersion "${VI_VERSION}" # file version for the installer in the scheme "x.x.x.x"
 Name "Avogadro"
 !define REGKEY "SOFTWARE\Avogadro"
 !define COMPANY "Avogadro Team"
@@ -46,8 +51,6 @@ Name "Avogadro"
 Var StartmenuFolder
 Var CreateFileAssociations
 Var CreateDesktopIcon
-Var Answer
-Var UserName
 
 
 # Included files
@@ -217,7 +220,7 @@ VIAddVersionKey CompanyName "${COMPANY}"
 VIAddVersionKey CompanyWebsite "${URL}"
 VIAddVersionKey FileDescription "Avogadro installation program"
 VIAddVersionKey LegalCopyright "under the GPL version 2"
-VIAddVersionKey FileVersion ""
+VIAddVersionKey FileVersion "${VI_VERSION}"
 
 
 # Installer sections
@@ -345,20 +348,8 @@ Function .onInit
   ${endif}
   
   InitPluginsDir
-  # If the user does *not* have administrator privileges, abort
-  StrCpy $Answer ""
-  StrCpy $UserName ""
-  !insertmacro IsUserAdmin $Answer $UserName # macro from LyXUtils.nsh
-  ${if} $Answer == "yes"
-    # set shell variables for all user
-    # set that e.g. shortcuts will be created for all users
-    SetShellVarContext all 
-  ${else}
-    # set shell variables for current user only
-    SetShellVarContext current
-    # and install to a writable directory
-    StrCpy $INSTDIR "$APPDATA\$(^Name)"
-  ${endif}
+  # Always install system-wide; RequestExecutionLevel guarantees admin rights
+  SetShellVarContext all
 
 FunctionEnd
 
@@ -366,20 +357,8 @@ FunctionEnd
 # Uninstaller functions
 Function un.onInit
 
-  # If the user does *not* have administrator privileges, abort
-  StrCpy $Answer ""
-  !insertmacro IsUserAdmin $Answer $UserName
-  ${if} $Answer == "yes"
-   SetShellVarContext all
-  ${else}
-   # check if the Avogadro has been installed with admin permisions
-   ReadRegStr $0 HKLM "${PRODUCT_UNINST_KEY}" "Publisher"
-   ${if} $0 != ""
-    MessageBox MB_OK|MB_ICONSTOP "$(UnNotAdminLabel)"
-    Abort
-   ${endif}
-   SetShellVarContext current
-  ${endif}
+  # Installer always runs with admin privileges
+  SetShellVarContext all
   
   # ask if it should really be removed
   MessageBox MB_ICONQUESTION|MB_YESNO|MB_DEFBUTTON2 "$(UnReallyRemoveLabel)" IDYES +2
