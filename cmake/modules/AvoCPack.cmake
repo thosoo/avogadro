@@ -26,15 +26,21 @@ if (WIN32 AND ENABLE_DEPRECATED_INSTALL_RULES)
       if(NOT EXISTS "${_exe}")
         set(_exe "${CMAKE_INSTALL_PREFIX}/bin/Avogadro.exe")
       endif()
-      execute_process(
-        COMMAND "${WINDEPLOYQT_EXE}" --release --dir "${CMAKE_INSTALL_PREFIX}/bin" "${_exe}"
-        RESULT_VARIABLE _wqt_res
-        OUTPUT_VARIABLE _wqt_out
-        ERROR_VARIABLE _wqt_out
-      )
-      message(STATUS "windeployqt output:\n${_wqt_out}")
-      if(_wqt_res)
-        message(WARNING "windeployqt failed with code ${_wqt_res}")
+      if(EXISTS "${_exe}")
+        file(TO_NATIVE_PATH "${_exe}" _exe_native)
+        file(TO_NATIVE_PATH "${CMAKE_INSTALL_PREFIX}/bin" _bin_native)
+        execute_process(
+          COMMAND "${WINDEPLOYQT_EXE}" --release --dir "${_bin_native}" "${_exe_native}"
+          RESULT_VARIABLE _wqt_res
+          OUTPUT_VARIABLE _wqt_out
+          ERROR_VARIABLE _wqt_out
+        )
+        message(STATUS "windeployqt output:\n${_wqt_out}")
+        if(_wqt_res)
+          message(WARNING "windeployqt failed with code ${_wqt_res}")
+        endif()
+      else()
+        message(WARNING "Executable not found for windeployqt: ${_exe}")
       endif()
     ]=])
   else()
