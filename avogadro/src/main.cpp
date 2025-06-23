@@ -96,6 +96,12 @@ int main(int argc, char *argv[])
   // Ensure we load DLLs from the executable directory first so
   // avogadro.dll is found regardless of the current working directory.
   SetDllDirectoryW(reinterpret_cast<LPCWSTR>(QCoreApplication::applicationDirPath().utf16()));
+  // Prepend the application directory to PATH so bundled DLLs are used
+  QByteArray pathEnv = qgetenv("PATH");
+  QString binDir = QCoreApplication::applicationDirPath();
+  QString newPath = binDir + QLatin1Char(';') + QString::fromLocal8Bit(pathEnv);
+  _putenv_s("PATH", newPath.toLocal8Bit().constData());
+
 #endif
 
   // Output the untranslated application and library version - bug reports

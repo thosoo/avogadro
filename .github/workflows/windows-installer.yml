@@ -97,7 +97,7 @@ jobs:
           $srcDir = Join-Path $env:RUNNER_TEMP 'openbabel-src'
           git clone --depth 1 https://github.com/openbabel/openbabel $srcDir
           $build = Join-Path $srcDir 'build'
-          cmake -S $srcDir -B $build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$build\install" -DLIBXML2_LIBRARY="$env:LIBXML2_LIBRARY" -DLIBXML2_LIBRARIES="$env:LIBXML2_LIBRARY" -DLIBXML2_INCLUDE_DIR="$env:LIBXML2_INCLUDE_DIR" -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" -DENABLE_TESTS=OFF -DBUILD_SHARED=ON -DCMAKE_VERBOSE_MAKEFILE=ON
+          cmake -S $srcDir -B $build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$build\install" -DLIBXML2_LIBRARY="$env:LIBXML2_LIBRARY" -DLIBXML2_LIBRARIES="$env:LIBXML2_LIBRARY" -DLIBXML2_INCLUDE_DIR="$env:LIBXML2_INCLUDE_DIR" -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" -DENABLE_TESTS=OFF -DBUILD_SHARED=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DOB_USE_PREBUILT_BINARIES=OFF -DOPENBABEL_USE_SYSTEM_INCHI=OFF -DWITH_INCHI=ON
           Push-Location $build
           nmake install
           Pop-Location
@@ -115,52 +115,35 @@ jobs:
           "$obDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Configure
         shell: pwsh
-        run: >
-          cmake -S . -B build -G "NMake Makefiles"
-          -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_SHARED_LIBS=ON
-          -DCMAKE_VERBOSE_MAKEFILE=ON
-          -DCPACK_BINARY_NSIS=ON -DCPACK_BINARY_ZIP=OFF
-          "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR"
-          "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY"
-          "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR"
-          "-DOPENBABEL3_INCLUDE_DIR=$env:OPENBABEL3_INCLUDE_DIR"
-          "-DOPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES"
-          "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS"
-      - name: Build
+        run: |
+          $dist = Join-Path $pwd 'scripts/installer/dist'
+          cmake -S . -B build `
+            -G "NMake Makefiles" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_SHARED_LIBS=ON `
+            -DCMAKE_VERBOSE_MAKEFILE=ON `
+            -DCMAKE_INSTALL_PREFIX="$dist" `
+            -DENABLE_DEPRECATED_INSTALL_RULES=ON `
+            -DCPACK_BINARY_NSIS=ON `
+            -DCPACK_BINARY_ZIP=OFF `
+            "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR" `
+            "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY" `
+            "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR" `
+            "-DOPENBABEL3_INCLUDE_DIR=$env:OPENBABEL3_INCLUDE_DIR" `
+            "-DOPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES" `
+            "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS" `
+            "-DOPENBABEL_INSTALL_DIR=$env:OPENBABEL_INSTALL_DIR"
+      - name: Build and package
+        # nmake package also performs the install step for packaging
         shell: pwsh
         run: |
-          Push-Location build
-          nmake
-          Pop-Location
-      - name: Install
-        run: cmake --install build --config Release --prefix scripts/installer/dist
-      - name: Deploy Qt libraries
-        shell: pwsh
-        run: |
-          $dist = "scripts/installer/dist"
-          $exe = Join-Path $dist "bin/avogadro.exe"
-          if (-Not (Test-Path $exe)) { $exe = Join-Path $dist "bin/Avogadro.exe" }
-          windeployqt --release --dir (Join-Path $dist "bin") $exe
-      - name: Copy OpenBabel runtime
-        shell: pwsh
-        run: |
-          $dist = "scripts/installer/dist"
-          $ob = $env:OPENBABEL_INSTALL_DIR
-          if (Test-Path (Join-Path $ob 'bin' 'openbabel.dll')) {
-            Copy-Item (Join-Path $ob 'bin' 'openbabel.dll') (Join-Path $dist 'bin' 'openbabel.dll') -Force
-          }
-          if (Test-Path (Join-Path $ob 'share')) {
-            Copy-Item (Join-Path $ob 'share') (Join-Path $dist 'share') -Recurse -Force
-          }
+          cmake --build build --target package --config Release
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
-      - name: Build NSIS script
-        run: makensis scripts/installer/setup.nsi
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
           name: avogadro-windows-installer
           path: |
-            scripts/installer/avogadro-win32-*.exe
+            build/Avogadro-*.exe
           if-no-files-found: error
