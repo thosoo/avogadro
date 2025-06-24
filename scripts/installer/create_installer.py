@@ -81,9 +81,11 @@ def main():
         if share.exists():
             dest = dist / "share" / "openbabel" / ob_version
             shutil.copytree(share, dest, dirs_exist_ok=True)
-            for f in share.iterdir():
-                if f.is_file():
-                    shutil.copy(f, dist / "bin")
+            patterns = ["*.txt", "*.par", "*.prm", "*.ff", "*.dat"]
+            for pat in patterns:
+                for f in share.glob(pat):
+                    if f.is_file():
+                        shutil.copy(f, dist / "bin")
 
     libxml = os.environ.get("LIBXML2_LIBRARY")
     if libxml:
