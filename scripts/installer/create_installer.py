@@ -41,10 +41,24 @@ def main():
                         ob_version = sub.name
                         break
         if not ob_version:
+            exe = None
+            for cand in (ob / "bin" / "obabel.exe", ob / "bin" / "babel.exe", ob / "bin" / "obabel", ob / "bin" / "babel"):
+                if cand.exists():
+                    exe = cand
+                    break
+            if exe:
+                try:
+                    out = subprocess.check_output([str(exe), "--version"], text=True)
+                    m = re.search(r"Open Babel\s+(\d+\.\d+\.\d+)", out)
+                    if m:
+                        ob_version = m.group(1)
+                except Exception:
+                    pass
+        if not ob_version:
             ob_version = "2"
 
         for f in ob.glob("bin/*"):
-            if f.suffix.lower() in (".dll", ".exe"):
+            if f.suffix.lower() in (".dll", ".exe", ".obf"):
                 shutil.copy(f, dist / "bin")
 
         dest_plugins = dist / "lib" / "openbabel" / ob_version
@@ -56,6 +70,8 @@ def main():
 
         for dll in ob.glob("bin/plugin_*.dll"):
             shutil.copy(dll, dest_plugins)
+        for obf in ob.glob("bin/plugin_*.obf"):
+            shutil.copy(obf, dest_plugins)
 
         share = ob / "share" / "openbabel" / ob_version
         if not share.exists():
