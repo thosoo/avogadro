@@ -27,12 +27,21 @@ def main():
         ob = Path(ob_dir)
         for dll in ob.glob("bin/*.dll"):
             shutil.copy(dll, dist / "bin")
+
+        dest_plugins = dist / "lib" / "openbabel"
+        dest_plugins.mkdir(parents=True, exist_ok=True)
+
         plugins = ob / "lib" / "openbabel"
         if plugins.exists():
-            dest_plugins = dist / "lib" / "openbabel"
-            dest_plugins.mkdir(parents=True, exist_ok=True)
-            for lib in plugins.glob("*"):
-                shutil.copy(lib, dest_plugins)
+            shutil.copytree(plugins, dest_plugins, dirs_exist_ok=True)
+
+        plugins_bin = ob / "bin" / "openbabel"
+        if plugins_bin.exists():
+            shutil.copytree(plugins_bin, dest_plugins, dirs_exist_ok=True)
+
+        for dll in ob.glob("bin/plugin_*.dll"):
+            shutil.copy(dll, dest_plugins)
+
         share = ob / "share" / "openbabel"
         if share.exists():
             dest = dist / "share" / "openbabel"
