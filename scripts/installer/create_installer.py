@@ -58,6 +58,10 @@ def main():
             shutil.copy(dll, dest_plugins)
 
         share = ob / "share" / "openbabel" / ob_version
+        if not share.exists():
+            alt = ob / "bin" / "data"
+            if alt.exists():
+                share = alt
         if share.exists():
             dest = dist / "share" / "openbabel" / ob_version
             shutil.copytree(share, dest, dirs_exist_ok=True)
