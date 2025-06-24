@@ -126,12 +126,12 @@ int main(int argc, char *argv[])
 
   // Make sure to enclose the environment variable in quotes, or spaces will cause problems
   QString escapedAppPath = QCoreApplication::applicationDirPath().replace(' ', "\ ");
-  // Point BABEL_DATADIR and BABEL_LIBDIR at the base directories. OpenBabel
-  // will append the version subdirectory itself.
+  // Point BABEL_DATADIR and BABEL_LIBDIR at the prefix directories. OpenBabel
+  // adds the "openbabel/<version>" subdirectory itself.
   QByteArray babelDataDir(
-      (QCoreApplication::applicationDirPath() + "/../share/openbabel").toLatin1());
+      (QCoreApplication::applicationDirPath() + "/../share").toLatin1());
   QByteArray babelLibDir(
-      (QCoreApplication::applicationDirPath() + "/../lib/openbabel").toLatin1());
+      (QCoreApplication::applicationDirPath() + "/../lib").toLatin1());
 
 #ifdef _MSC_VER
   int res1 = _putenv_s("BABEL_DATADIR", babelDataDir.data());
