@@ -25,26 +25,41 @@ def main():
     ob_dir = os.environ.get("OPENBABEL_INSTALL_DIR")
     if ob_dir:
         ob = Path(ob_dir)
-        for dll in ob.glob("bin/*.dll"):
-            shutil.copy(dll, dist / "bin")
 
-        dest_plugins = dist / "lib" / "openbabel"
+        ob_version = os.environ.get("OPENBABEL_VERSION")
+        if not ob_version:
+            header = ob / "include" / "openbabel3" / "openbabel" / "babelconfig.h"
+            if header.exists():
+                m = re.search(r"BABEL_VERSION\s+\"([^\"]+)\"", header.read_text())
+                if m:
+                    ob_version = m.group(1)
+        if not ob_version:
+            share_dir = ob / "share" / "openbabel"
+            if share_dir.exists():
+                for sub in share_dir.iterdir():
+                    if sub.is_dir() and sub.name[0].isdigit():
+                        ob_version = sub.name
+                        break
+        if not ob_version:
+            ob_version = "2"
+
+        for f in ob.glob("bin/*"):
+            if f.suffix.lower() in (".dll", ".exe"):
+                shutil.copy(f, dist / "bin")
+
+        dest_plugins = dist / "lib" / "openbabel" / ob_version
         dest_plugins.mkdir(parents=True, exist_ok=True)
 
-        plugins = ob / "lib" / "openbabel"
-        if plugins.exists():
-            shutil.copytree(plugins, dest_plugins, dirs_exist_ok=True)
-
-        plugins_bin = ob / "bin" / "openbabel"
-        if plugins_bin.exists():
-            shutil.copytree(plugins_bin, dest_plugins, dirs_exist_ok=True)
+        for plugins in [ob / "lib" / "openbabel", ob / "bin" / "openbabel"]:
+            if plugins.exists():
+                shutil.copytree(plugins, dest_plugins, dirs_exist_ok=True)
 
         for dll in ob.glob("bin/plugin_*.dll"):
             shutil.copy(dll, dest_plugins)
 
-        share = ob / "share" / "openbabel"
+        share = ob / "share" / "openbabel" / ob_version
         if share.exists():
-            dest = dist / "share" / "openbabel"
+            dest = dist / "share" / "openbabel" / ob_version
             shutil.copytree(share, dest, dirs_exist_ok=True)
 
     libxml = os.environ.get("LIBXML2_LIBRARY")
