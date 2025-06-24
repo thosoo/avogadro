@@ -97,7 +97,7 @@ jobs:
           $glewDir = Join-Path $env:RUNNER_TEMP 'glew'
           git clone --depth 1 https://github.com/nigels-com/glew $glewDir
           $project = Join-Path $glewDir 'build\vc15\glew_shared.vcxproj'
-          msbuild $project /p:Configuration=Release /p:Platform=x64
+          msbuild $project /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143
           $binDir = Join-Path $glewDir 'bin' 'Release' 'x64'
           $libDir = Join-Path $glewDir 'lib' 'Release' 'x64'
           $inc = Join-Path $glewDir 'include'
