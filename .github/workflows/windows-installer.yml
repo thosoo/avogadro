@@ -91,6 +91,21 @@ jobs:
           "Qt5_DIR=$qt" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "CMAKE_PREFIX_PATH=$qt;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$qt\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Build GLEW
+        shell: pwsh
+        run: |
+          $glewDir = Join-Path $env:RUNNER_TEMP 'glew'
+          git clone --depth 1 https://github.com/nigels-com/glew $glewDir
+          $solution = Join-Path $glewDir 'build\vc15\glew.sln'
+          msbuild $solution /p:Configuration=Release /p:Platform=x64 /t:glew_shared
+          $binDir = Join-Path $glewDir 'bin' 'Release' 'x64'
+          $libDir = Join-Path $glewDir 'lib' 'Release' 'x64'
+          $inc = Join-Path $glewDir 'include'
+          "GLEW_BIN_DIR=$binDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GLEW_INCLUDE_DIR=$inc" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GLEW_LIBRARY=$(Join-Path $libDir 'glew32.lib')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_PREFIX_PATH=$glewDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$binDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Build OpenBabel
         shell: pwsh
         run: |
@@ -125,13 +140,16 @@ jobs:
             -DENABLE_TESTS=OFF `
             -DCMAKE_INSTALL_PREFIX="$dist" `
             -DENABLE_AVO_PACKAGE=ON `
+            -DENABLE_GLSL=ON `
             "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR" `
             "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY" `
             "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR" `
             "-DOPENBABEL3_INCLUDE_DIR=$env:OPENBABEL3_INCLUDE_DIR" `
             "-DOPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES" `
             "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS" `
-            "-DOPENBABEL_INSTALL_DIR=$env:OPENBABEL_INSTALL_DIR"
+            "-DOPENBABEL_INSTALL_DIR=$env:OPENBABEL_INSTALL_DIR" `
+            "-DGLEW_INCLUDE_DIR=$env:GLEW_INCLUDE_DIR" `
+            "-DGLEW_LIBRARY=$env:GLEW_LIBRARY"
       - name: Build
         shell: pwsh
         run: |

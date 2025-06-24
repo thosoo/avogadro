@@ -126,6 +126,12 @@ def main():
             copy(dll, dist / 'bin')
             break
 
+    glew_bin = os.environ.get("GLEW_BIN_DIR")
+    if glew_bin:
+        dll = Path(glew_bin) / 'glew32.dll'
+        if dll.exists():
+            copy(dll, dist / 'bin')
+
     # Copy the GPLv2 license expected by NSIS
     license_src = root.parent.parent / 'COPYING'
     license_dest = dist / 'gpl.txt'
