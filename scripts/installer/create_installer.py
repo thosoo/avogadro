@@ -15,16 +15,30 @@ def main():
         shutil.rmtree(dist)
     dist.mkdir(parents=True)
 
+    def log(msg):
+        if os.environ.get("VERBOSE"):
+            print(msg)
+
+    def copy(src, dst):
+        log(f"Copying {src} -> {dst}")
+        shutil.copy(src, dst)
+
+    log(f"Installing build from {build_dir} into {dist}")
     subprocess.check_call(["cmake", "--install", str(build_dir), "--prefix", str(dist)])
 
     exe = dist / "bin" / "Avogadro.exe"
     if not exe.exists():
         exe = dist / "bin" / "avogadro.exe"
+    log("Running windeployqt")
     subprocess.check_call(["windeployqt", "--release", "--dir", str(dist / "bin"), str(exe)])
 
-    ob_dir = os.environ.get("OPENBABEL_INSTALL_DIR")
+    ob_dir_env = os.environ.get("OPENBABEL_INSTALL_DIR")
+    ob_dir = Path(ob_dir_env) if ob_dir_env else None
+    ob_bindir = os.environ.get("OPENBABEL_BINDIR")
+    if ob_bindir and ob_dir is None:
+        ob_dir = Path(ob_bindir).parent
     if ob_dir:
-        ob = Path(ob_dir)
+        ob = ob_dir
 
         ob_version = os.environ.get("OPENBABEL_VERSION")
         if not ob_version:
@@ -59,39 +73,45 @@ def main():
 
         for f in ob.glob("bin/*"):
             if f.suffix.lower() in (".dll", ".exe", ".obf"):
-                shutil.copy(f, dist / "bin")
+                copy(f, dist / "bin")
 
         dest_plugins = dist / "lib" / "openbabel" / ob_version
         dest_plugins.mkdir(parents=True, exist_ok=True)
 
         for plugins in [ob / "lib" / "openbabel", ob / "bin" / "openbabel"]:
             if plugins.exists():
+                log(f"Copying plugins from {plugins} to {dest_plugins}")
                 shutil.copytree(plugins, dest_plugins, dirs_exist_ok=True)
 
         for dll in ob.glob("bin/plugin_*.dll"):
-            shutil.copy(dll, dest_plugins)
+            copy(dll, dest_plugins)
         for obf in ob.glob("bin/plugin_*.obf"):
-            shutil.copy(obf, dest_plugins)
+            copy(obf, dest_plugins)
 
         share = ob / "share" / "openbabel" / ob_version
-        if not share.exists():
-            alt = ob / "bin" / "data"
-            if alt.exists():
-                share = alt
+        alt_share = ob / "bin" / "data"
+        if not share.exists() and alt_share.exists():
+            share = alt_share
         if share.exists():
             dest = dist / "share" / "openbabel" / ob_version
+            log(f"Copying OpenBabel data from {share} to {dest}")
             shutil.copytree(share, dest, dirs_exist_ok=True)
             patterns = ["*.txt", "*.par", "*.prm", "*.ff", "*.dat"]
             for pat in patterns:
                 for f in share.glob(pat):
                     if f.is_file():
-                        shutil.copy(f, dist / "bin")
+                        copy(f, dist / "bin")
+        if alt_share.exists():
+            for pat in ["*.txt", "*.par", "*.prm", "*.ff", "*.dat"]:
+                for f in alt_share.glob(pat):
+                    if f.is_file():
+                        copy(f, dist / "bin")
 
     libxml = os.environ.get("LIBXML2_LIBRARY")
     if libxml:
         dll = Path(libxml).with_suffix('.dll')
         if dll.exists():
-            shutil.copy(dll, dist / "bin")
+            copy(dll, dist / "bin")
 
     zlib_lib = os.environ.get("ZLIB_LIBRARY")
     zlib_dir = os.environ.get("ZLIB_LIBRARY_DIR")
@@ -103,14 +123,14 @@ def main():
         candidates.append(Path(zlib_dir) / 'zlib.dll')
     for dll in candidates:
         if dll.exists():
-            shutil.copy(dll, dist / 'bin')
+            copy(dll, dist / 'bin')
             break
 
     # Copy the GPLv2 license expected by NSIS
     license_src = root.parent.parent / 'COPYING'
     license_dest = dist / 'gpl.txt'
     if license_src.exists():
-        shutil.copy(license_src, license_dest)
+        copy(license_src, license_dest)
 
     version = os.environ.get("AVOGADRO_VERSION")
     vi_version = None
@@ -129,6 +149,7 @@ def main():
     if vi_version:
         args.append(f"/DVI_VERSION={vi_version}")
     args.append(str(root / "setup.nsi"))
+    log("Running makensis")
     subprocess.check_call(args)
 
 
