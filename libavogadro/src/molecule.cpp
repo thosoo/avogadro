@@ -50,6 +50,7 @@
 #include <openbabel/griddata.h>
 #include <openbabel/grid.h>
 #include <openbabel/generic.h>
+#include <openbabel/obfunctions.h>
 #include <openbabel/forcefield.h>
 #include <openbabel/obiter.h>
 #include <openbabel/elements.h>
@@ -664,6 +665,8 @@ namespace Avogadro{
     OpenBabel::OBMol obmol = OBMol();
     if (a) {
       OpenBabel::OBAtom *obatom = obmol.GetAtom(a->index()+1);
+      // Ensure implicit hydrogens are assigned for standalone atoms
+      OpenBabel::OBAtomAssignTypicalImplicitHydrogens(obatom);
       // Set implicit valence for unusual elements not handled by OpenBabel
       // PR#2803076
       switch (obatom->GetAtomicNum()) {
@@ -707,35 +710,43 @@ namespace Avogadro{
       }
       obmol.AddHydrogens(obatom);
     }
-    else
+    else {
+      for (unsigned int i = 1; i <= obmol.NumAtoms(); ++i)
+        OpenBabel::OBAtomAssignTypicalImplicitHydrogens(obmol.GetAtom(i));
       obmol.AddHydrogens();
+    }
     // All new atoms in the OBMol must be the additional hydrogens
     unsigned int numberAtoms = numAtoms();
     int j = 0;
-    for (unsigned int i = numberAtoms+1; i <= obmol.NumAtoms(); ++i, ++j) {
-      if (obmol.GetAtom(i)->GetAtomicNum() == 1) {
-        OpenBabel::OBAtom *obatom = obmol.GetAtom(i);
-        Atom *atom;
-        if (atomIds.isEmpty())
-          atom = addAtom();
-        else if (j < atomIds.size())
-          atom = addAtom(atomIds.at(j));
-        else {
-          qDebug() << "Error - not enough unique ids in addHydrogens.";
-          break;
-        }
-        atom->setOBAtom(obatom);
-        // Get the neighbor atom
-        OpenBabel::OBBondIterator iter;
-        OpenBabel::OBAtom *next = obatom->BeginNbrAtom(iter);
-        Bond *bond;
-        if (bondIds.isEmpty())
-          bond = addBond();
-        else // Already confirmed by atom ids
-          bond = addBond(bondIds.at(j));
-        bond->setEnd(Molecule::atom(atom->index()));
-        bond->setBegin(Molecule::atom(next->GetIdx()-1));
+    for (unsigned int i = numberAtoms + 1; i <= obmol.NumAtoms(); ++i) {
+      if (obmol.GetAtom(i)->GetAtomicNum() != 1)
+        continue;
+
+      OpenBabel::OBAtom *obatom = obmol.GetAtom(i);
+      Atom *atom;
+      if (atomIds.isEmpty())
+        atom = addAtom();
+      else if (j < atomIds.size())
+        atom = addAtom(atomIds.at(j));
+      else {
+        qDebug() << "Error - not enough unique ids in addHydrogens.";
+        break;
       }
+
+      atom->setOBAtom(obatom);
+
+      // Get the neighbor atom
+      OpenBabel::OBBondIterator iter;
+      OpenBabel::OBAtom *next = obatom->BeginNbrAtom(iter);
+      Bond *bond;
+      if (bondIds.isEmpty())
+        bond = addBond();
+      else
+        bond = addBond(bondIds.at(j));
+      bond->setEnd(Molecule::atom(atom->index()));
+      bond->setBegin(Molecule::atom(next->GetIdx() - 1));
+
+      ++j;
     }
     for (unsigned int i = 1; i <= numberAtoms; ++i) {
       // Warning -- OB atom index off-by-one here

@@ -34,6 +34,7 @@ set(tests
   molecule
   moleculefile
   neighborlist
+  addremovehydrogens
 )
 
 foreach (test ${tests})

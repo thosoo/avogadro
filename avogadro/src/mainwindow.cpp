@@ -79,6 +79,7 @@
 #include <openbabel/forcefield.h>
 #include <openbabel/elements.h>
 #include <openbabel/generic.h>
+#include <openbabel/obfunctions.h>
 
 #ifdef ENABLE_PYTHON
 #include <avogadro/pythonerror.h>
@@ -1168,6 +1169,8 @@ protected:
         // In OB-2.2.2 and later, builder will use 2D coordinates if present
         OBBuilder builder;
         builder.Build(*obMolecule);
+        for (unsigned int i = 1; i <= obMolecule->NumAtoms(); ++i)
+          OpenBabel::OBAtomAssignTypicalImplicitHydrogens(obMolecule->GetAtom(i));
         obMolecule->AddHydrogens(); // Add some hydrogens before running force field
 
         OBForceField* pFF =  OBForceField::FindForceField("MMFF94")->MakeNewInstance();
