@@ -94,14 +94,15 @@ jobs:
       - name: Build GLEW
         shell: pwsh
         run: |
-          $glewDir = Join-Path $env:RUNNER_TEMP 'glew'
-          git clone --depth 1 https://github.com/nigels-com/glew $glewDir
-          Push-Location (Join-Path $glewDir 'build')
-          cmake ./cmake -G "NMake Makefiles" -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$(Get-Location)\install"
-          nmake glew
-          nmake install
-          Pop-Location
-          $installDir = Join-Path $glewDir 'build' 'install'
+          $ver = '2.2.0'
+          $zip = "$env:RUNNER_TEMP\glew.zip"
+          Invoke-WebRequest "https://github.com/nigels-com/glew/releases/download/glew-$ver/glew-$ver.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          $glewDir = Join-Path $env:RUNNER_TEMP "glew-$ver"
+          $buildDir = Join-Path $glewDir 'builddir'
+          cmake -S (Join-Path $glewDir 'build' 'cmake') -B $buildDir -G "NMake Makefiles" -DBUILD_SHARED_LIBS=ON -DBUILD_UTILS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$buildDir\install"
+          cmake --build $buildDir --config Release --target install
+          $installDir = Join-Path $buildDir 'install'
           $binDir = Join-Path $installDir 'bin'
           $libDir = Join-Path $installDir 'lib'
           $inc = Join-Path $installDir 'include'
