@@ -96,8 +96,8 @@ jobs:
         run: |
           $glewDir = Join-Path $env:RUNNER_TEMP 'glew'
           git clone --depth 1 https://github.com/nigels-com/glew $glewDir
-          Push-Location (Join-Path $glewDir 'build')
-          cmake ./cmake -G "NMake Makefiles" -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$(Get-Location)\install"
+          Push-Location (Join-Path $glewDir 'build/cmake')
+          cmake -G "NMake Makefiles" -DBUILD_SHARED_LIBS=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$(Get-Location)\..\install"
           nmake
           nmake install
           Pop-Location
