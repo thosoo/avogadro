@@ -107,8 +107,10 @@ jobs:
           $libDir = Join-Path $installDir 'lib'
           $inc = Join-Path $installDir 'include'
           "GLEW_BIN_DIR=$binDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "GLEW_INCLUDE_DIR=$(Join-Path $inc 'GL')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GLEW_INCLUDE_DIR=$inc" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "GLEW_LIBRARY=$(Join-Path $libDir 'glew32.lib')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_INCLUDE_PATH=$inc;$env:CMAKE_INCLUDE_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_LIBRARY_PATH=$libDir;$env:CMAKE_LIBRARY_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "CMAKE_PREFIX_PATH=$installDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$binDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Build OpenBabel
