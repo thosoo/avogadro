@@ -58,8 +58,6 @@ namespace Avogadro {
     Q_SIGNALS:
       void finished(bool calculated);
       void setupDone();
-      void setupFailed();
-      void setupSucces();
 
     public Q_SLOTS:
       void stop();
@@ -131,8 +129,6 @@ namespace Avogadro {
     public Q_SLOTS:
       void finished(bool calculated);
       void setupDone();
-      void setupFailed();
-      void setupSucces();
       void toggle();
       void enable();
       void disable();

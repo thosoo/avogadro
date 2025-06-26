@@ -93,8 +93,8 @@ void XtbOptTool::translate(GLWidget *widget, const Eigen::Vector3d &what,
 bool XtbOptTool::paint(GLWidget *widget)
 {
   if (m_running) {
-    widget->painter()->setPen(Qt::white);
-    widget->painter()->drawText(QPoint(10,20), tr("xTB optimizing..."));
+    glColor3f(1.0f, 1.0f, 1.0f);
+    widget->painter()->drawText(QPoint(10, 20), tr("xTB optimizing..."));
   }
   return true;
 }
