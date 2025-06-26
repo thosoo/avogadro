@@ -196,8 +196,10 @@ void XtbOptTool::timerEvent(QTimerEvent *)
 
 void XtbOptTool::finished(bool)
 {
-  if (m_glwidget)
+  if (m_glwidget && m_glwidget->molecule()) {
+    m_glwidget->molecule()->update();
     m_glwidget->update();
+  }
 }
 
 void XtbOptTool::setupDone()
@@ -321,6 +323,9 @@ void XtbOptThread::update()
     double z = m_coords[3 * i + 2] * bohr2ang;
     atoms[i]->setPos(Eigen::Vector3d(x, y, z));
   }
+
+  m_molecule->update();
+  emit finished(true);
 }
 
 void XtbOptThread::stop()
