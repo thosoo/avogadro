@@ -51,6 +51,10 @@ If hardware acceleration still fails, you can force Mesa's software renderer by
 setting `LIBGL_ALWAYS_SOFTWARE=1` before launching Avogadro, which avoids
 segmentation faults at the cost of slower rendering.
 
+If you run Valgrind under WSL, you may see invalid write warnings in
+`libnvwgf2umx.so` (the proprietary Nvidia driver). These originate from the
+driver itself and are not indicative of an Avogadro bug.
+
 Automated Windows installer builds are generated with GitHub Actions and can be
 found in the workflow artifacts. The workflow builds OpenBabel from
 <https://github.com/openbabel/openbabel> and bundles it with Avogadro.

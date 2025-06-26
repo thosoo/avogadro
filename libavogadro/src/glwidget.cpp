@@ -617,6 +617,8 @@ namespace Avogadro {
       if(!d->initialized) {
         d->initialized = true;
         initializeGL();
+        if(!context() || !context()->isValid())
+          return;
       }
       qglClearColor(d->background);
       paintGL();
@@ -637,6 +639,8 @@ namespace Avogadro {
     {
       d->initialized = true;
       initializeGL();
+      if(!context() || !context()->isValid())
+        return;
     }
     // GLXWaitX() is called by the TT resizeEvent on Linux... We may need
     // specific functions here - need to look at Mac and Windows code.
