@@ -35,6 +35,7 @@ set(tests
   moleculefile
   neighborlist
   addremovehydrogens
+  xtbopttool
 )
 
 foreach (test ${tests})
@@ -56,6 +57,13 @@ foreach (test ${tests})
   set_property(TARGET ${test}test PROPERTY LABELS avogadro)
   set_property(TEST ${test}Test PROPERTY LABELS avogadro)
 endforeach ()
+
+find_package(PkgConfig)
+pkg_check_modules(XTB REQUIRED xtb)
+include_directories(${XTB_INCLUDE_DIRS})
+link_directories(${XTB_LIBRARY_DIRS})
+target_link_libraries(xtbopttooltest ${XTB_LIBRARIES})
+
 
 # More complicated tests (i.e., with linking)
 #message(STATUS "Test:  primitivemodeltest")
