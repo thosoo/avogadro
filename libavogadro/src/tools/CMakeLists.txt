@@ -7,6 +7,15 @@ set(DESTINATION_DIR ${Avogadro_PLUGIN_INSTALL_DIR}/tools)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 set(LINK_LIBS avogadro)
+find_package(PkgConfig)
+pkg_check_modules(XTB REQUIRED xtb)
+include_directories(${XTB_INCLUDE_DIRS})
+link_directories(${XTB_LIBRARY_DIRS})
+set(LINK_LIBS ${LINK_LIBS} ${XTB_LIBRARIES})
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+  set(LINK_LIBS ${LINK_LIBS} OpenMP::OpenMP_CXX)
+endif()
 set(PLUGIN_LABEL tools)
 set(PLUGIN_TARGET tools)
 add_custom_target(tools COMMENT "Meta target to build all Avogadro tools.")
@@ -45,6 +54,10 @@ avogadro_plugin(autoopttool autoopttool.cpp autoopttool.qrc)
 if(${CMAKE_CXX_COMPILER_ID} MATCHES Intel AND UNIX)
   set_target_properties(autoopttool PROPERTIES COMPILE_FLAGS "-fvisibility=default")
 endif()
+
+### xtbopttool
+avogadro_plugin(xtbopttool xtbopttool.cpp xtbopttool.qrc)
+target_link_libraries(xtbopttool ${LINK_LIBS})
 
 ### navigatetool
 avogadro_plugin(navigatetool
