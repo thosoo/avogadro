@@ -96,7 +96,7 @@ void XtbOptTool::translate(GLWidget *widget, const Eigen::Vector3d &what,
 bool XtbOptTool::paint(GLWidget *widget)
 {
   if (m_running || m_setupFailed) {
-    widget->painter()->setPen(Qt::white);
+    glColor3f(1.0, 1.0, 1.0);
     if (m_setupFailed)
       widget->painter()->drawText(QPoint(10, 20), tr("xTB setup failed"));
     else
