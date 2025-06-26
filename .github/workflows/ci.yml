@@ -3,18 +3,24 @@ on: [push, pull_request]
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        xtb: [on]
     steps:
       - uses: actions/checkout@v3
       - name: Cache apt packages
         uses: actions/cache@v3
         with:
           path: /var/cache/apt/archives
-          key: ${{ runner.os }}-apt-${{ hashFiles('.github/apt-packages.txt') }}
+          key: ${{ runner.os }}-apt-${{ matrix.xtb }}-${{ hashFiles('.github/apt-packages.txt') }}
           restore-keys: ${{ runner.os }}-apt-
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo xargs -a .github/apt-packages.txt apt-get install -y
+          if [ "${{ matrix.xtb }}" = "on" ]; then
+            sudo apt-get install -y xtb libxtb-dev
+          fi
       - name: Configure
         run: |
           cmake -S . -B build \
@@ -26,4 +32,4 @@ jobs:
           cmake --build build -- -j1 VERBOSE=1
       - name: Test
         run: |
-          ctest --test-dir build   --output-on-failure
+          ctest --test-dir build --output-on-failure
