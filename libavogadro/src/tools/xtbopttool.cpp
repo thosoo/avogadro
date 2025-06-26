@@ -57,14 +57,16 @@ QUndoCommand* XtbOptTool::mousePressEvent(GLWidget *widget, QMouseEvent *event)
   return nullptr;
 }
 
-QUndoCommand* XtbOptTool::mouseReleaseEvent(GLWidget *, QMouseEvent *)
+QUndoCommand* XtbOptTool::mouseReleaseEvent(GLWidget *widget, QMouseEvent *)
 {
+  m_glwidget = widget;
   m_clickedAtom = nullptr;
   return nullptr;
 }
 
 QUndoCommand* XtbOptTool::mouseMoveEvent(GLWidget *widget, QMouseEvent *event)
 {
+  m_glwidget = widget;
   if (m_running && m_clickedAtom) {
     QPoint from = m_lastDraggingPosition;
     QPoint to = event->pos();
@@ -74,13 +76,15 @@ QUndoCommand* XtbOptTool::mouseMoveEvent(GLWidget *widget, QMouseEvent *event)
   return nullptr;
 }
 
-QUndoCommand* XtbOptTool::mouseDoubleClickEvent(GLWidget *, QMouseEvent *)
+QUndoCommand* XtbOptTool::mouseDoubleClickEvent(GLWidget *widget, QMouseEvent *)
 {
+  m_glwidget = widget;
   return nullptr;
 }
 
-QUndoCommand* XtbOptTool::wheelEvent(GLWidget *, QWheelEvent *)
+QUndoCommand* XtbOptTool::wheelEvent(GLWidget *widget, QWheelEvent *)
 {
+  m_glwidget = widget;
   return nullptr;
 }
 
@@ -99,6 +103,7 @@ void XtbOptTool::translate(GLWidget *widget, const Eigen::Vector3d &what,
 
 bool XtbOptTool::paint(GLWidget *widget)
 {
+  m_glwidget = widget;
   if (m_running || m_setupFailed) {
     glColor3f(1.0, 1.0, 1.0);
     if (m_setupFailed)
