@@ -351,18 +351,21 @@ void XtbOptThread::run()
 
 void XtbOptThread::update()
 {
-  QMutexLocker locker(&m_mutex);
-  if (!m_env || !m_xtbMol || !m_calc || !m_results || !m_molecule)
-    return;
+  int natoms;
+  {
+    QMutexLocker locker(&m_mutex);
+    if (!m_env || !m_xtbMol || !m_calc || !m_results || !m_molecule)
+      return;
 
-  int natoms = m_numbers.size();
-  const double ang2bohr = 1.8897259886;
-  for (int i = 0; i < natoms; ++i) {
-    const Atom *a = m_molecule->atom(i);
-    Eigen::Vector3d p = *a->pos();
-    m_coords[3 * i] = p.x() * ang2bohr;
-    m_coords[3 * i + 1] = p.y() * ang2bohr;
-    m_coords[3 * i + 2] = p.z() * ang2bohr;
+    natoms = m_numbers.size();
+    const double ang2bohr = 1.8897259886;
+    for (int i = 0; i < natoms; ++i) {
+      const Atom *a = m_molecule->atom(i);
+      Eigen::Vector3d p = *a->pos();
+      m_coords[3 * i] = p.x() * ang2bohr;
+      m_coords[3 * i + 1] = p.y() * ang2bohr;
+      m_coords[3 * i + 2] = p.z() * ang2bohr;
+    }
   }
 
   for (int s = 0; s < m_steps && !m_stop; ++s) {
