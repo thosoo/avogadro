@@ -9,6 +9,8 @@
 #include <QtWidgets/QAction>
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QVBoxLayout>
+#include <QtWidgets/QProgressBar>
+#include <QtCore/QElapsedTimer>
 #include <Eigen/Core>
 #include <QtCore/QMutexLocker>
 
@@ -22,7 +24,8 @@ namespace Avogadro {
 XtbOptTool::XtbOptTool(QObject *parent)
   : Tool(parent), m_glwidget(nullptr), m_thread(new XtbOptThread),
     m_settingsWidget(nullptr), m_running(false),
-    m_setupFailed(false), m_threadsSpinBox(nullptr)
+    m_setupFailed(false), m_threadsSpinBox(nullptr),
+    m_progressBar(nullptr), m_lastEnergy(0.0), m_deltaEnergy(0.0)
 {
   QAction *action = activateAction();
   action->setIcon(QIcon(QString::fromUtf8(":/xtbopttool/autoopttool.png")));
@@ -33,6 +36,7 @@ XtbOptTool::XtbOptTool(QObject *parent)
   connect(m_thread, SIGNAL(setupFailed()), this, SLOT(setupFailed()));
   connect(m_thread, SIGNAL(setupSucces()), this, SLOT(setupSucces()));
   connect(m_thread, SIGNAL(finished()), this, SLOT(threadFinished()));
+  connect(m_thread, SIGNAL(progress(int,int,double)), this, SLOT(updateProgress(int,int,double)));
 }
 
 XtbOptTool::~XtbOptTool()
@@ -109,10 +113,17 @@ bool XtbOptTool::paint(GLWidget *widget)
   m_glwidget = widget;
   if (m_running || m_setupFailed) {
     glColor3f(1.0, 1.0, 1.0);
-    if (m_setupFailed)
+    if (m_setupFailed) {
       widget->painter()->drawText(QPoint(10, 20), tr("xTB setup failed"));
-    else
-      widget->painter()->drawText(QPoint(10, 20), tr("xTB optimizing..."));
+    } else {
+      const double factor = 2625.499748;
+      double e = m_lastEnergy * factor;
+      double de = m_deltaEnergy * factor;
+      widget->painter()->drawText(QPoint(10, 20),
+                                  tr("xTB: E = %1 kJ/mol (dE = %2)")
+                                      .arg(e)
+                                      .arg(de));
+    }
   }
   return true;
 }
@@ -135,6 +146,9 @@ QWidget* XtbOptTool::settingsWidget()
     m_threadsSpinBox->setValue(1);
 
     m_buttonStartStop = new QPushButton(tr("Start"), m_settingsWidget);
+    m_progressBar = new QProgressBar(m_settingsWidget);
+    m_progressBar->setRange(0, 0);
+    m_progressBar->setVisible(false);
 
     QVBoxLayout *layout = new QVBoxLayout;
     layout->addWidget(label);
@@ -142,6 +156,7 @@ QWidget* XtbOptTool::settingsWidget()
     layout->addWidget(threadsLabel);
     layout->addWidget(m_threadsSpinBox);
     layout->addWidget(m_buttonStartStop);
+    layout->addWidget(m_progressBar);
     layout->addStretch(1);
     m_settingsWidget->setLayout(layout);
 
@@ -191,6 +206,13 @@ void XtbOptTool::enable()
   m_thread->start();
   m_running = true;
   m_buttonStartStop->setText(tr("Stop"));
+  if (m_progressBar) {
+    m_progressBar->setRange(0, m_stepsSpinBox->value());
+    m_progressBar->setValue(0);
+    m_progressBar->setVisible(true);
+  }
+  m_lastEnergy = 0.0;
+  m_deltaEnergy = 0.0;
 }
 
 void XtbOptTool::abort()
@@ -206,6 +228,10 @@ void XtbOptTool::disable()
   m_thread->stop();
   if (m_buttonStartStop)
     m_buttonStartStop->setEnabled(false);
+  if (m_progressBar)
+    m_progressBar->setVisible(false);
+  m_lastEnergy = 0.0;
+  m_deltaEnergy = 0.0;
 }
 
 void XtbOptTool::finished(bool)
@@ -257,6 +283,22 @@ void XtbOptTool::threadFinished()
     m_buttonStartStop->setText(tr("Start"));
   if (m_buttonStartStop)
     m_buttonStartStop->setEnabled(true);
+  if (m_progressBar)
+    m_progressBar->setVisible(false);
+  m_lastEnergy = 0.0;
+  m_deltaEnergy = 0.0;
+  if (m_glwidget)
+    m_glwidget->update();
+}
+
+void XtbOptTool::updateProgress(int step, int total, double energy)
+{
+  if (m_progressBar) {
+    m_progressBar->setRange(0, total);
+    m_progressBar->setValue(step);
+  }
+  m_deltaEnergy = energy - m_lastEnergy;
+  m_lastEnergy = energy;
   if (m_glwidget)
     m_glwidget->update();
 }
@@ -354,9 +396,6 @@ void XtbOptThread::run()
 {
   while (!m_stop) {
     update();
-    if (m_stop)
-      break;
-    emit finished(true);
   }
 }
 
@@ -379,15 +418,25 @@ void XtbOptThread::update()
     }
   }
 
+  QElapsedTimer timer;
+  timer.start();
   for (int s = 0; s < m_steps && !m_stop; ++s) {
     xtb_updateMolecule(m_env, m_xtbMol, m_coords.data(), NULL);
     xtb_singlepoint(m_env, m_xtbMol, m_calc, m_results);
+    double energy = 0.0;
+    xtb_getEnergy(m_env, m_results, &energy);
     std::vector<double> grad(natoms * 3);
     xtb_getGradient(m_env, m_results, grad.data());
     double step = 0.1;
     for (int i = 0; i < natoms * 3; ++i)
       m_coords[i] -= step * grad[i];
+    emit progress(s + 1, m_steps, energy);
+    if (timer.elapsed() >= 1000) {
+      emit finished(true);
+      timer.restart();
+    }
   }
+  emit finished(true);
 }
 
 void XtbOptThread::stop()

@@ -39,6 +39,7 @@
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QSpinBox>
 #include <QtWidgets/QUndoStack>
+#include <QtWidgets/QProgressBar>
 
 namespace Avogadro {
 
@@ -64,6 +65,7 @@ namespace Avogadro {
       void setupDone();
       void setupFailed();
       void setupSucces();
+      void progress(int step, int total, double energy);
 
     public Q_SLOTS:
       void stop();
@@ -142,6 +144,7 @@ namespace Avogadro {
       void disable();
       void abort();
       void threadFinished();
+      void updateProgress(int step, int total, double energy);
 
     protected:
       GLWidget *                m_glwidget;
@@ -154,9 +157,11 @@ namespace Avogadro {
       QSpinBox*                 m_stepsSpinBox;
       QPushButton*              m_buttonStartStop;
       QSpinBox*                 m_threadsSpinBox;
+      QProgressBar*             m_progressBar;
 
       QPoint                    m_lastDraggingPosition;
       double                    m_lastEnergy;
+      double                    m_deltaEnergy;
 
 
       void translate(GLWidget *widget, const Eigen::Vector3d &what, const QPoint &from, const QPoint &to) const;
