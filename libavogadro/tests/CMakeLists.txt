@@ -64,6 +64,11 @@ include_directories(${XTB_INCLUDE_DIRS})
 link_directories(${XTB_LIBRARY_DIRS})
 target_link_libraries(xtbopttooltest ${XTB_LIBRARIES})
 
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+  target_link_libraries(xtbopttooltest OpenMP::OpenMP_CXX)
+endif()
+
 
 # More complicated tests (i.e., with linking)
 #message(STATUS "Test:  primitivemodeltest")

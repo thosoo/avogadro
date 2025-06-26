@@ -13,6 +13,9 @@
 #include <QtCore/QMutexLocker>
 
 #include <xtb.h>
+#ifdef _OPENMP
+#  include <omp.h>
+#endif
 
 namespace Avogadro {
 
@@ -175,6 +178,9 @@ void XtbOptTool::enable()
 
   QByteArray nt = QByteArray::number(m_threadsSpinBox ? m_threadsSpinBox->value() : 1);
   qputenv("OMP_NUM_THREADS", nt);
+#ifdef _OPENMP
+  omp_set_num_threads(m_threadsSpinBox ? m_threadsSpinBox->value() : 1);
+#endif
 
   if (!m_thread->setup(m_glwidget->molecule(), 0, m_stepsSpinBox->value())) {
     m_setupFailed = true;

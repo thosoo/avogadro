@@ -12,6 +12,10 @@ pkg_check_modules(XTB REQUIRED xtb)
 include_directories(${XTB_INCLUDE_DIRS})
 link_directories(${XTB_LIBRARY_DIRS})
 set(LINK_LIBS ${LINK_LIBS} ${XTB_LIBRARIES})
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+  set(LINK_LIBS ${LINK_LIBS} OpenMP::OpenMP_CXX)
+endif()
 set(PLUGIN_LABEL tools)
 set(PLUGIN_TARGET tools)
 add_custom_target(tools COMMENT "Meta target to build all Avogadro tools.")
@@ -53,6 +57,7 @@ endif()
 
 ### xtbopttool
 avogadro_plugin(xtbopttool xtbopttool.cpp xtbopttool.qrc)
+target_link_libraries(xtbopttool ${LINK_LIBS})
 
 ### navigatetool
 avogadro_plugin(navigatetool
