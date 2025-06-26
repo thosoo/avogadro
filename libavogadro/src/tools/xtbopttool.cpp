@@ -4,6 +4,7 @@
 #include <avogadro/camera.h>
 #include <avogadro/molecule.h>
 #include <avogadro/atom.h>
+#include <avogadro/painter.h>
 
 #include <QtWidgets/QAction>
 #include <QtWidgets/QLabel>
@@ -195,13 +196,13 @@ XtbOptThread::XtbOptThread(QObject *parent)
 XtbOptThread::~XtbOptThread()
 {
   if (m_results)
-    xtb_delResults(m_results);
+    xtb_delResults(&m_results);
   if (m_calc)
-    xtb_delCalculator(m_calc);
+    xtb_delCalculator(&m_calc);
   if (m_xtbMol)
-    xtb_delMolecule(m_xtbMol);
+    xtb_delMolecule(&m_xtbMol);
   if (m_env)
-    xtb_delEnvironment(m_env);
+    xtb_delEnvironment(&m_env);
 }
 
 void XtbOptThread::setup(Molecule *mol, int algorithm, int steps)
