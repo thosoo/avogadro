@@ -203,7 +203,9 @@ namespace Avogadro {
     glEndList();
     glDisableClientState( GL_VERTEX_ARRAY );
     glDisableClientState( GL_NORMAL_ARRAY );
-    freeBuffers();
+    // Do not free the buffers here. The display list stores pointers to the
+    // vertex and index arrays, so they must remain valid until the sphere is
+    // destroyed.
     d->isValid = true;
   }
 

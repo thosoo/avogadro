@@ -35,6 +35,7 @@
 #include "glhit.h"
 
 #include <QtWidgets/QMessageBox>
+#include <QtWidgets/QApplication>
 #include <QtGui/QPen>
 #include <QtGui/QPainter>
 #include <QtGui/QPaintEngine>
@@ -478,7 +479,7 @@ namespace Avogadro {
   void GLWidget::initializeGL()
   {
     qDebug() << "GLWidget initialisation...";
-    if(!context()->isValid())
+    if(!context() || !context()->isValid())
     {
       // this should never happen, as we checked for availability of features that we requested in
       // the default OpenGL format. However it happened to a user who had a very broken setting with
@@ -489,7 +490,8 @@ namespace Avogadro {
                                    "or you found a bug.");
       qDebug() << error_msg;
       QMessageBox::critical(0, tr("OpenGL error"), error_msg);
-      abort();
+      qApp->exit(-1);
+      return;
     }
 
     // Try to initialise GLEW if GLSL was enabled, test for OpenGL 2.0 support
@@ -615,6 +617,8 @@ namespace Avogadro {
       if(!d->initialized) {
         d->initialized = true;
         initializeGL();
+        if(!context() || !context()->isValid())
+          return;
       }
       qglClearColor(d->background);
       paintGL();
@@ -635,6 +639,8 @@ namespace Avogadro {
     {
       d->initialized = true;
       initializeGL();
+      if(!context() || !context()->isValid())
+        return;
     }
     // GLXWaitX() is called by the TT resizeEvent on Linux... We may need
     // specific functions here - need to look at Mac and Windows code.

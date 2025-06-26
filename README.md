@@ -36,6 +36,27 @@ GNU General Public License for more details.
 
 See INSTALL file for installation instructions.
 
+## Running under WSL
+
+Avogadro relies on an OpenGL-capable system. When running inside Windows
+Subsystem for Linux (WSL), ensure WSL2 with WSLg or another GPU provider is
+available. If you see errors such as `ZINK: failed to choose pdev` or
+`glx: failed to create drisw screen` followed by a segmentation fault,
+your environment does not provide a valid OpenGL context.
+Run `glxinfo -B` to confirm that WSL exposes your GPU. If the vendor shows
+"Microsoft" or the context fails, install the necessary GPU drivers or run the
+native Windows version of Avogadro instead. Setting `MESA_D3D12_DEFAULT_ADAPTER_NAME`
+to your GPU name can also help WSL pick the correct adapter.
+If hardware acceleration still fails, you can force Mesa's software renderer by
+setting `LIBGL_ALWAYS_SOFTWARE=1` before launching Avogadro, which avoids
+segmentation faults at the cost of slower rendering.
+
+If you run Valgrind under WSL, you may see invalid write warnings in
+`libnvwgf2umx.so` (the proprietary Nvidia driver). These originate from the
+driver itself and are not indicative of an Avogadro bug. Mesa's software
+renderer can show similar warnings inside `libgallium` as it manages GPU
+buffers.
+
 Automated Windows installer builds are generated with GitHub Actions and can be
 found in the workflow artifacts. The workflow builds OpenBabel from
 <https://github.com/openbabel/openbabel> and bundles it with Avogadro.
