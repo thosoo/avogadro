@@ -5,6 +5,7 @@
 #include <avogadro/tool.h>
 #include <avogadro/molecule.h>
 #include <avogadro/atom.h>
+#include <Eigen/Core>
 #include <xtb.h>
 #include <QDir>
 
@@ -84,7 +85,13 @@ void XtbOptToolTest::optimizeWater()
     xtb_singlepoint(env, xmol, calc, res);
     std::vector<double> grad(natoms * 3);
     xtb_getGradient(env, res, grad.data());
-    double step = 0.1;
+    double gradNorm = 0.0;
+    for (double g : grad)
+      gradNorm += g * g;
+    gradNorm = std::sqrt(gradNorm);
+    double step = 0.05;
+    if (gradNorm > 1.0)
+      step /= gradNorm;
     for (int i = 0; i < natoms * 3; ++i)
       coords[i] -= step * grad[i];
   }
@@ -100,6 +107,14 @@ void XtbOptToolTest::optimizeWater()
                 std::pow(coords[4] * bohr2ang - coords[1] * bohr2ang, 2) +
                 std::pow(coords[5] * bohr2ang - coords[2] * bohr2ang, 2));
   QVERIFY(optimizedDist < initialDist);
+  Eigen::Vector3d v1((coords[3] - coords[0]) * bohr2ang,
+                     (coords[4] - coords[1]) * bohr2ang,
+                     (coords[5] - coords[2]) * bohr2ang);
+  Eigen::Vector3d v2((coords[6] - coords[0]) * bohr2ang,
+                     (coords[7] - coords[1]) * bohr2ang,
+                     (coords[8] - coords[2]) * bohr2ang);
+  double angle = std::acos(v1.dot(v2) / (v1.norm() * v2.norm())) * 180.0 / M_PI;
+  QVERIFY(angle < 150.0);
 }
 
 QTEST_MAIN(XtbOptToolTest)

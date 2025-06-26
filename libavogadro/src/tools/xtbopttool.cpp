@@ -13,6 +13,8 @@
 #include <QtCore/QElapsedTimer>
 #include <Eigen/Core>
 #include <QtCore/QMutexLocker>
+#include <QtCore/QDateTime>
+#include <random>
 
 #include <xtb.h>
 #ifdef _OPENMP
@@ -367,6 +369,18 @@ bool XtbOptThread::setup(Molecule *mol, int algorithm, int steps)
     m_coords[3*i+1] = p.y()*ang2bohr;
     m_coords[3*i+2] = p.z()*ang2bohr;
   }
+  // apply small random noise to break symmetry
+  std::mt19937 rng(static_cast<unsigned int>(QDateTime::currentMSecsSinceEpoch()));
+  std::uniform_real_distribution<double> noise(-0.5, 0.5);
+  for (int i = 0; i < natoms; ++i) {
+    for (int j = 0; j < 3; ++j) {
+      double n = noise(rng);
+      m_coords[3 * i + j] += n;
+      // also apply to the molecule so the symmetry is broken
+      double ang = m_coords[3 * i + j] * 0.52917721092;
+      m_molecule->atom(i)->setPos(j, ang);
+    }
+  }
   double charge = 0.0;
   int uhf = 0;
   double lattice[3][3] = {{0,0,0},{0,0,0},{0,0,0}};
@@ -427,7 +441,13 @@ void XtbOptThread::update()
     xtb_getEnergy(m_env, m_results, &energy);
     std::vector<double> grad(natoms * 3);
     xtb_getGradient(m_env, m_results, grad.data());
-    double step = 0.1;
+    double gradNorm = 0.0;
+    for (int i = 0; i < natoms * 3; ++i)
+      gradNorm += grad[i] * grad[i];
+    gradNorm = std::sqrt(gradNorm);
+    double step = 0.05;
+    if (gradNorm > 1.0)
+      step /= gradNorm;
     for (int i = 0; i < natoms * 3; ++i)
       m_coords[i] -= step * grad[i];
     emit progress(s + 1, m_steps, energy);
