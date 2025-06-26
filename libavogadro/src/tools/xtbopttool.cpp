@@ -7,6 +7,7 @@
 #include <avogadro/painter.h>
 
 #include <QtWidgets/QAction>
+#include <QtWidgets/QApplication>
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QVBoxLayout>
 #include <Eigen/Core>
@@ -149,6 +150,15 @@ void XtbOptTool::enable()
   if (m_running)
     return;
 
+  if (!m_glwidget) {
+    foreach (QWidget *w, QApplication::topLevelWidgets()) {
+      GLWidget *gl = w->findChild<GLWidget *>();
+      if (gl) {
+        m_glwidget = gl;
+        break;
+      }
+    }
+  }
   if (!m_glwidget || !m_glwidget->molecule()) {
     emit message(tr("No active molecule for xTB optimization"));
     return;
