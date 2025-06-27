@@ -16,6 +16,9 @@
 #include <QElapsedTimer>
 #include <QMap>
 #include <QVector>
+#ifdef ENABLE_GLSL
+#include <GL/glew.h>
+#endif
 
 namespace Avogadro {
 
@@ -43,6 +46,14 @@ private:
   };
 
   QMap<unsigned int, QVector<HairStrand> > m_hair;
+#ifdef ENABLE_GLSL
+  GLint m_timeLoc;
+  GLint m_lengthLoc;
+  GLint m_baseAttr;
+  GLint m_dirAttr;
+  GLint m_phaseAttr;
+  GLint m_roleAttr;
+#endif
   QElapsedTimer m_timer;
   double m_hairLength;
 };
