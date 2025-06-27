@@ -144,6 +144,7 @@ QWidget* XtbOptTool::settingsWidget()
     m_comboEngine = new QComboBox(m_settingsWidget);
     m_comboEngine->addItem(tr("Gradient Descent"));
     m_comboEngine->addItem(tr("L-BFGS"));
+    m_comboEngine->addItem(tr("ANCopt"));
 
     QLabel *levelLabel = new QLabel(tr("Level:"));
     m_comboLevel = new QComboBox(m_settingsWidget);
