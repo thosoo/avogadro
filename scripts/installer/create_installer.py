@@ -156,6 +156,19 @@ def main():
             log(f"Copying xTB data from {share} to {dest}")
             shutil.copytree(share, dest, dirs_exist_ok=True)
 
+        fortran_runtime = [
+            'libifcoremd.dll', 'libifportmd.dll', 'libmmd.dll',
+            'libirc.dll', 'libimf.dll', 'svml_dispmd.dll',
+            'libiomp5md.dll'
+        ]
+        for search in (bin_dir, lib_dir, xtb):
+            if not search.exists():
+                continue
+            for name in fortran_runtime:
+                cand = search / name
+                if cand.exists():
+                    copy(cand, dist / 'bin')
+
     # Copy the GPLv2 license expected by NSIS
     license_src = root.parent.parent / 'COPYING'
     license_dest = dist / 'gpl.txt'
