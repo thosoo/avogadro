@@ -475,21 +475,24 @@ void XtbOptThread::update()
   QElapsedTimer timer;
   timer.start();
   for (int s = 0; s < m_steps && !m_stop; ++s) {
-    xtb_updateMolecule(m_env, m_xtbMol, m_coords.data(), NULL);
-    xtb_singlepoint(m_env, m_xtbMol, m_calc, m_results);
     double energy = 0.0;
-    xtb_getEnergy(m_env, m_results, &energy);
-    std::vector<double> grad(natoms * 3);
-    xtb_getGradient(m_env, m_results, grad.data());
-    double gradNorm = 0.0;
-    for (int i = 0; i < natoms * 3; ++i)
-      gradNorm += grad[i] * grad[i];
-    gradNorm = std::sqrt(gradNorm);
-    double step = 0.1;
-    if (gradNorm > 1.0)
-      step /= gradNorm;
-    for (int i = 0; i < natoms * 3; ++i)
-      m_coords[i] -= step * grad[i];
+    {
+      QMutexLocker locker(&m_mutex);
+      xtb_updateMolecule(m_env, m_xtbMol, m_coords.data(), NULL);
+      xtb_singlepoint(m_env, m_xtbMol, m_calc, m_results);
+      xtb_getEnergy(m_env, m_results, &energy);
+      std::vector<double> grad(natoms * 3);
+      xtb_getGradient(m_env, m_results, grad.data());
+      double gradNorm = 0.0;
+      for (int i = 0; i < natoms * 3; ++i)
+        gradNorm += grad[i] * grad[i];
+      gradNorm = std::sqrt(gradNorm);
+      double step = 0.1;
+      if (gradNorm > 1.0)
+        step /= gradNorm;
+      for (int i = 0; i < natoms * 3; ++i)
+        m_coords[i] -= step * grad[i];
+    }
     emit progress(s + 1, m_steps, energy);
     if (timer.elapsed() >= 1000) {
       emit finished(true);
