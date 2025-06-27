@@ -168,11 +168,11 @@ jobs:
           } else {
             Write-Host "Warning: $setvars not found"
           }
+          $env:FC = 'ifort'
           $srcDir = Join-Path $env:RUNNER_TEMP 'xtb-src'
           git clone --depth 1 https://github.com/grimme-lab/xtb $srcDir
           $build = Join-Path $srcDir 'build'
-          $ifort = Join-Path ${env:ProgramFiles(x86)} 'Intel\oneAPI\compiler\latest\windows\bin\intel64\ifort.exe'
-          cmake -S $srcDir -B $build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_Fortran_COMPILER="$ifort" -DBUILD_SHARED_LIBS=ON -DBLA_VENDOR=Intel10_64lp
+          cmake -S $srcDir -B $build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DBLA_VENDOR=Intel10_64lp
           cmake --build $build --config Release --target install
           $xtbDir = Join-Path $build 'install'
           $binDir = Join-Path $xtbDir 'bin'
