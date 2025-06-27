@@ -96,6 +96,12 @@ int main(int argc, char *argv[])
   // Ensure we load DLLs from the executable directory first so
   // avogadro.dll is found regardless of the current working directory.
   SetDllDirectoryW(reinterpret_cast<LPCWSTR>(QCoreApplication::applicationDirPath().utf16()));
+  // Prepend the application directory to PATH so bundled DLLs are used
+  QByteArray pathEnv = qgetenv("PATH");
+  QString binDir = QCoreApplication::applicationDirPath();
+  QString newPath = binDir + QLatin1Char(';') + QString::fromLocal8Bit(pathEnv);
+  _putenv_s("PATH", newPath.toLocal8Bit().constData());
+
 #endif
 
   // Output the untranslated application and library version - bug reports
@@ -120,10 +126,12 @@ int main(int argc, char *argv[])
 
   // Make sure to enclose the environment variable in quotes, or spaces will cause problems
   QString escapedAppPath = QCoreApplication::applicationDirPath().replace(' ', "\ ");
-  QByteArray babelDataDir((QCoreApplication::applicationDirPath()
-                          + "/../share/openbabel/").toLatin1());
-  QByteArray babelLibDir((QCoreApplication::applicationDirPath()
-                         + "/../lib/openbabel").toLatin1());
+  // Point BABEL_DATADIR and BABEL_LIBDIR at the OpenBabel directories.
+  // OpenBabel will append its version internally when needed.
+  QByteArray babelDataDir(
+      (QCoreApplication::applicationDirPath() + "/../share/openbabel").toLatin1());
+  QByteArray babelLibDir(
+      (QCoreApplication::applicationDirPath() + "/../lib/openbabel").toLatin1());
 
 #ifdef _MSC_VER
   int res1 = _putenv_s("BABEL_DATADIR", babelDataDir.data());

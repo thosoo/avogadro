@@ -2,19 +2,25 @@ name: Windows Installer
 on:
   workflow_dispatch:
   push:
-    branches: [ master ]
+    branches: [ master, windows-install ]
   pull_request:
 
 jobs:
   build-installer:
     runs-on: windows-latest
+    strategy:
+      matrix:
+        target: [installer, tests]
     steps:
       - name: Allow Windows reserved filenames
         run: git config --system core.protectNTFS false
       - uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Install dependencies
-        run: choco install -y nsis cmake --no-progress --installargs "ADD_CMAKE_TO_PATH=System"
+        run: choco install -y cmake --version=3.28.6 `
+          --no-progress `
+          --installargs '"ADD_CMAKE_TO_PATH=System"' `
+          --allow-downgrade   # harmless if no newer CMake is present
       - name: Build zlib
         shell: pwsh
         run: |
@@ -88,13 +94,37 @@ jobs:
           "Qt5_DIR=$qt" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "CMAKE_PREFIX_PATH=$qt;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$qt\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-      - name: Build OpenBabel
+      - name: Build GLEW
         shell: pwsh
         run: |
+          $ver = '2.2.0'
+          $zip = "$env:RUNNER_TEMP\glew.zip"
+          Invoke-WebRequest "https://github.com/nigels-com/glew/releases/download/glew-$ver/glew-$ver.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          $glewDir = Join-Path $env:RUNNER_TEMP "glew-$ver"
+          $buildDir = Join-Path $glewDir 'builddir'
+          cmake -S (Join-Path $glewDir 'build' 'cmake') -B $buildDir -G "NMake Makefiles" -DBUILD_SHARED_LIBS=ON -DBUILD_UTILS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$buildDir\install"
+          cmake --build $buildDir --config Release --target install
+          $installDir = Join-Path $buildDir 'install'
+          $binDir = Join-Path $installDir 'bin'
+          $libDir = Join-Path $installDir 'lib'
+          $inc = Join-Path $installDir 'include'
+          "GLEW_BIN_DIR=$binDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GLEW_INCLUDE_DIR=$inc" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GLEW_LIBRARY=$(Join-Path $libDir 'glew32.lib')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_INCLUDE_PATH=$inc;$env:CMAKE_INCLUDE_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_LIBRARY_PATH=$libDir;$env:CMAKE_LIBRARY_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_PREFIX_PATH=$installDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$binDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Build OpenBabel
+        shell: pwsh
+        env:
+          ENABLE_TESTS: ${{ matrix.target == 'tests' && 'ON' || 'OFF' }}
+        run: |
           $srcDir = Join-Path $env:RUNNER_TEMP 'openbabel-src'
-          git clone --depth 1 https://github.com/thosoo/openbabel $srcDir
+          git clone --depth 1 https://github.com/openbabel/openbabel $srcDir
           $build = Join-Path $srcDir 'build'
-          cmake -S $srcDir -B $build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$build\install" -DLIBXML2_LIBRARY="$env:LIBXML2_LIBRARY" -DLIBXML2_LIBRARIES="$env:LIBXML2_LIBRARY" -DLIBXML2_INCLUDE_DIR="$env:LIBXML2_INCLUDE_DIR" -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" -DENABLE_TESTS=OFF -DBUILD_SHARED=ON -DCMAKE_VERBOSE_MAKEFILE=ON
+          cmake -S $srcDir -B $build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$build\install" -DLIBXML2_LIBRARY="$env:LIBXML2_LIBRARY" -DLIBXML2_LIBRARIES="$env:LIBXML2_LIBRARY" -DLIBXML2_INCLUDE_DIR="$env:LIBXML2_INCLUDE_DIR" -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" "-DENABLE_TESTS=$env:ENABLE_TESTS" -DBUILD_SHARED=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DOB_USE_PREBUILT_BINARIES=OFF -DOPENBABEL_USE_SYSTEM_INCHI=OFF -DWITH_INCHI=ON
           Push-Location $build
           nmake install
           Pop-Location
@@ -112,49 +142,42 @@ jobs:
           "$obDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Configure
         shell: pwsh
-        run: >
-          cmake -S . -B build -G "NMake Makefiles"
-          -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_SHARED_LIBS=ON
-          -DCMAKE_VERBOSE_MAKEFILE=ON
-          -DCPACK_BINARY_NSIS=ON -DCPACK_BINARY_ZIP=OFF
-          "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR"
-          "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY"
-          "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR"
-          "-DOPENBABEL3_INCLUDE_DIR=$env:OPENBABEL3_INCLUDE_DIR"
-          "-DOPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES"
-          "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS"
+        env:
+          ENABLE_TESTS: ${{ matrix.target == 'tests' && 'ON' || 'OFF' }}
+        run: |
+          $dist = Join-Path $pwd 'scripts/installer/dist'
+          cmake -S . -B build `
+            -G "NMake Makefiles" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_SHARED_LIBS=ON `
+            -DCMAKE_VERBOSE_MAKEFILE=ON `
+            "-DENABLE_TESTS=$env:ENABLE_TESTS" `
+            -DCMAKE_INSTALL_PREFIX="$dist" `
+            -DENABLE_AVO_PACKAGE=ON `
+            -DENABLE_GLSL=ON `
+            "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR" `
+            "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY" `
+            "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR" `
+            "-DOPENBABEL3_INCLUDE_DIR=$env:OPENBABEL3_INCLUDE_DIR" `
+            "-DOPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES" `
+            "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS" `
+            "-DOPENBABEL_INSTALL_DIR=$env:OPENBABEL_INSTALL_DIR" `
+            "-DGLEW_INCLUDE_DIR=$env:GLEW_INCLUDE_DIR" `
+            "-DGLEW_LIBRARY=$env:GLEW_LIBRARY"
       - name: Build
         shell: pwsh
         run: |
-          Push-Location build
-          nmake
-          Pop-Location
-      - name: Install
-        run: cmake --install build --config Release --prefix scripts/installer/dist
-      - name: Deploy Qt libraries
+          cmake --build build --config Release --target install
+      - name: Create installer
+        if: matrix.target == 'installer'
         shell: pwsh
         run: |
-          $dist = "scripts/installer/dist"
-          $exe = Join-Path $dist "bin/avogadro.exe"
-          if (-Not (Test-Path $exe)) { $exe = Join-Path $dist "bin/Avogadro.exe" }
-          windeployqt --release --dir (Join-Path $dist "bin") $exe
-      - name: Copy OpenBabel runtime
-        shell: pwsh
-        run: |
-          $dist = "scripts/installer/dist"
-          $ob = $env:OPENBABEL_INSTALL_DIR
-          if (Test-Path (Join-Path $ob 'bin' 'openbabel.dll')) {
-            Copy-Item (Join-Path $ob 'bin' 'openbabel.dll') (Join-Path $dist 'bin' 'openbabel.dll') -Force
-          }
-          if (Test-Path (Join-Path $ob 'share')) {
-            Copy-Item (Join-Path $ob 'share') (Join-Path $dist 'share') -Recurse -Force
-          }
+          python scripts/installer/create_installer.py
       - name: Test
+        if: matrix.target == 'tests'
         run: ctest --test-dir build -C Release --output-on-failure
-      - name: Build NSIS script
-        run: makensis scripts/installer/setup.nsi
       - name: Upload installer
+        if: matrix.target == 'installer'
         uses: actions/upload-artifact@v4
         with:
           name: avogadro-windows-installer
