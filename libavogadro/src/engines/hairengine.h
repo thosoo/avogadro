@@ -16,9 +16,6 @@
 #include <QElapsedTimer>
 #include <QMap>
 #include <QVector>
-#ifdef ENABLE_GLSL
-#  include <GL/glew.h>
-#endif
 
 namespace Avogadro {
 
@@ -48,16 +45,6 @@ private:
   QMap<unsigned int, QVector<HairStrand> > m_hair;
   QElapsedTimer m_timer;
   double m_hairLength;
-#ifdef ENABLE_GLSL
-  GLuint m_vertShader;
-  GLuint m_fragShader;
-  GLuint m_program;
-  GLint m_timeLoc;
-  GLint m_lengthLoc;
-  GLint m_dirAttr;
-  GLint m_phaseAttr;
-  GLint m_tipAttr;
-#endif
 };
 
 class HairEngineFactory : public QObject, public PluginFactory
