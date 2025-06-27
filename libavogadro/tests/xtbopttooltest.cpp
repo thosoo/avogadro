@@ -20,6 +20,7 @@ class XtbOptToolTest : public QObject
 private slots:
   void pluginLoaded();
   void optimizeWater();
+  void convergence();
 };
 
 void XtbOptToolTest::pluginLoaded()
@@ -98,6 +99,54 @@ void XtbOptToolTest::optimizeWater()
   QVERIFY(d1 > 0.9 && d1 < 1.1);
   QVERIFY(d2 > 0.9 && d2 < 1.1);
   QVERIFY(angle > 100.0 && angle < 115.0);
+
+  xtb_delResults(&res);
+  xtb_delCalculator(&calc);
+  xtb_delMolecule(&mol);
+  xtb_delEnvironment(&env);
+}
+
+void XtbOptToolTest::convergence()
+{
+  const double ang2bohr = 1.8897259886;
+
+  int natoms = 3;
+  int numbers[3] = {8, 1, 1};
+  double coords[9] = {0.0, 0.0, 0.0,
+                       0.0, 0.0, 1.0 * ang2bohr,
+                       0.0, 0.1 * ang2bohr, -1.0 * ang2bohr};
+  double charge = 0.0;
+  int uhf = 0;
+  double lattice[3][3] = {{0,0,0},{0,0,0},{0,0,0}};
+  bool periodic[3] = {false,false,false};
+
+  xtb_TEnvironment env = xtb_newEnvironment();
+  xtb_TMolecule mol = xtb_newMolecule(env, &natoms, numbers, coords, &charge, &uhf,
+                                      &lattice[0][0], periodic);
+  xtb_TCalculator calc = xtb_newCalculator();
+  xtb_loadGFN2xTB(env, mol, calc, NULL);
+  xtb_TResults res = xtb_newResults();
+
+  double gradNorm = 0.0;
+  for (int s = 0; s < 200; ++s) {
+    xtb_updateMolecule(env, mol, coords, NULL);
+    xtb_singlepoint(env, mol, calc, res);
+    std::vector<double> grad(natoms * 3);
+    xtb_getGradient(env, res, grad.data());
+    gradNorm = 0.0;
+    for (double g : grad)
+      gradNorm += g * g;
+    gradNorm = std::sqrt(gradNorm);
+    double step = 0.1;
+    if (gradNorm > 1.0)
+      step /= gradNorm;
+    for (int i = 0; i < natoms * 3; ++i)
+      coords[i] -= step * grad[i];
+    if (gradNorm < 5e-2)
+      break;
+  }
+
+  QVERIFY(gradNorm < 5e-2);
 
   xtb_delResults(&res);
   xtb_delCalculator(&calc);
