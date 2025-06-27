@@ -122,6 +122,9 @@ avogadro_plugin_nogl(supercellextension
 avogadro_plugin_nogl(networkfetchextension networkfetchextension.cpp)
 target_link_libraries(networkfetchextension ${QT_QTNETWORK_LIBRARY})
 
+# Fit view / zoom to molecule
+avogadro_plugin_nogl(fitviewextension fitviewextension.cpp)
+
 # GL2PS
 avogadro_plugin(gl2psextension
   "gl2psextension.cpp;gl2ps/gl2ps.c")
