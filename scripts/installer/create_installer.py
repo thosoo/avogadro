@@ -132,6 +132,47 @@ def main():
         if dll.exists():
             copy(dll, dist / 'bin')
 
+    xtb_dir_env = os.environ.get("XTB_DIR")
+    xtb_bindir = os.environ.get("XTB_BINDIR")
+    if xtb_bindir and xtb_dir_env is None:
+        xtb_dir_env = str(Path(xtb_bindir).parent)
+    if xtb_dir_env:
+        xtb = Path(xtb_dir_env)
+        bin_dir = xtb / 'bin'
+        if bin_dir.exists():
+            for f in bin_dir.iterdir():
+                if f.suffix.lower() in ('.exe', '.dll'):
+                    copy(f, dist / 'bin')
+        lib_dir = xtb / 'lib'
+        if lib_dir.exists():
+            for f in lib_dir.iterdir():
+                if f.suffix.lower() == '.dll':
+                    copy(f, dist / 'bin')
+                elif f.suffix.lower() == '.lib':
+                    copy(f, dist / 'lib')
+        share = xtb / 'share' / 'xtb'
+        if share.exists():
+            dest = dist / 'share' / 'xtb'
+            log(f"Copying xTB data from {share} to {dest}")
+            shutil.copytree(share, dest, dirs_exist_ok=True)
+
+        fortran_runtime = [
+            'libifcoremd.dll', 'libifportmd.dll', 'libmmd.dll',
+            'libirc.dll', 'libimf.dll', 'svml_dispmd.dll',
+            'libiomp5md.dll'
+        ]
+        search_paths = [bin_dir, lib_dir, xtb]
+        extra_runtime = os.environ.get('FORTRAN_RUNTIME_DIR')
+        if extra_runtime:
+            search_paths.append(Path(extra_runtime))
+        for search in search_paths:
+            if not search or not Path(search).exists():
+                continue
+            for name in fortran_runtime:
+                cand = Path(search) / name
+                if cand.exists():
+                    copy(cand, dist / 'bin')
+
     # Copy the GPLv2 license expected by NSIS
     license_src = root.parent.parent / 'COPYING'
     license_dest = dist / 'gpl.txt'
