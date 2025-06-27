@@ -1,4 +1,4 @@
-name: Windows Installer
+name: Windows xTB Installer
 on:
   workflow_dispatch:
   push:
@@ -116,6 +116,18 @@ jobs:
           "CMAKE_LIBRARY_PATH=$libDir;$env:CMAKE_LIBRARY_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "CMAKE_PREFIX_PATH=$installDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$binDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Install xTB
+        shell: pwsh
+        run: |
+          $ver = '6.7.1'
+          $zip = "$env:RUNNER_TEMP\xtb.zip"
+          Invoke-WebRequest "https://github.com/grimme-lab/xtb/releases/download/v$ver/xtb-$ver`pre-windows-x86_64.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          $xtbDir = Join-Path $env:RUNNER_TEMP "xtb-$ver"
+          "XTB_DIR=$xtbDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_PREFIX_PATH=$xtbDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PKG_CONFIG_PATH=$xtbDir\lib\pkgconfig;$env:PKG_CONFIG_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$xtbDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Build OpenBabel
         shell: pwsh
         env:
@@ -155,6 +167,7 @@ jobs:
             -DCMAKE_INSTALL_PREFIX="$dist" `
             -DENABLE_AVO_PACKAGE=ON `
             -DENABLE_GLSL=ON `
+            -DENABLE_XTB_OPTTOOL=ON `
             "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR" `
             "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY" `
             "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR" `
@@ -180,7 +193,7 @@ jobs:
         if: matrix.target == 'installer'
         uses: actions/upload-artifact@v4
         with:
-          name: avogadro-windows-installer
+          name: avogadro-windows-xtb-installer
           path: |
             scripts/installer/avogadro-win32-*.exe
           if-no-files-found: error
