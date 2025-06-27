@@ -206,7 +206,8 @@ jobs:
             "-DENABLE_XTB_OPTTOOL=ON" `
             "-DXTB_INCLUDE_DIRS=$env:XTB_INCLUDE_DIRS" `
             "-DXTB_LIBRARIES=$env:XTB_LIBRARIES" `
-            "-DXTB_LIBRARY_DIRS=$env:XTB_LIBRARY_DIRS"
+            "-DXTB_LIBRARY_DIRS=$env:XTB_LIBRARY_DIRS" `
+            "-DBLA_VENDOR=Intel10_64lp"
       - name: Build
         shell: pwsh
         run: |

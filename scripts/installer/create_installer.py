@@ -144,6 +144,11 @@ def main():
             log(f"Copying xTB data from {share} to {dest}")
             shutil.copytree(share, dest, dirs_exist_ok=True)
 
+    runtime_dir = os.environ.get("FORTRAN_RUNTIME_DIR")
+    if runtime_dir:
+        for dll in Path(runtime_dir).glob('*.dll'):
+            copy(dll, dist / 'bin')
+
     # Copy the GPLv2 license expected by NSIS
     license_src = root.parent.parent / 'COPYING'
     license_dest = dist / 'gpl.txt'
