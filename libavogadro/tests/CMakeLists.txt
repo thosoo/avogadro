@@ -28,6 +28,9 @@ link_directories(
 # The commands should not just be included, they either need linking to
 # or building. As plugin code is not part of the library it may require a
 # different testing strategy.
+find_package(PkgConfig)
+pkg_check_modules(XTB xtb)
+
 set(tests
   drawcommand
 #  hydrogenscommand
@@ -35,9 +38,10 @@ set(tests
   moleculefile
   neighborlist
   addremovehydrogens
-  xtbopttool
-  xtbphysics
 )
+if(XTB_FOUND)
+  list(APPEND tests xtbopttool xtbphysics)
+endif()
 
 foreach (test ${tests})
   message(STATUS "Test:  ${test}")
@@ -59,15 +63,15 @@ foreach (test ${tests})
   set_property(TEST ${test}Test PROPERTY LABELS avogadro)
 endforeach ()
 
-find_package(PkgConfig)
-pkg_check_modules(XTB REQUIRED xtb)
-include_directories(${XTB_INCLUDE_DIRS})
-link_directories(${XTB_LIBRARY_DIRS})
-target_link_libraries(xtbopttooltest ${XTB_LIBRARIES})
-target_link_libraries(xtbphysicstest ${XTB_LIBRARIES})
+if(XTB_FOUND)
+  include_directories(${XTB_INCLUDE_DIRS})
+  link_directories(${XTB_LIBRARY_DIRS})
+  target_link_libraries(xtbopttooltest ${XTB_LIBRARIES})
+  target_link_libraries(xtbphysicstest ${XTB_LIBRARIES})
+endif()
 
 find_package(OpenMP)
-if(OpenMP_CXX_FOUND)
+if(OpenMP_CXX_FOUND AND XTB_FOUND)
   target_link_libraries(xtbopttooltest OpenMP::OpenMP_CXX)
   target_link_libraries(xtbphysicstest OpenMP::OpenMP_CXX)
 endif()

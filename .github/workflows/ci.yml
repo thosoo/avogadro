@@ -26,7 +26,8 @@ jobs:
           cmake -S . -B build \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_VERBOSE_MAKEFILE=ON \
-            -DENABLE_TESTS=ON
+            -DENABLE_TESTS=ON \
+            -DENABLE_XTB_OPTTOOL=${{ matrix.xtb }}
       - name: Build
         run: |
           cmake --build build -- -j1 VERBOSE=1
