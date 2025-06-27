@@ -153,10 +153,10 @@ jobs:
           Invoke-WebRequest $env:WINDOWS_HPCKIT_URL -OutFile $hpcExe
           Start-Process $baseExe -Wait -ArgumentList '-s','-x','-f',"$tmp\base_extracted","--log","extract.log"
           Start-Process $hpcExe -Wait -ArgumentList '-s','-x','-f',"$tmp\hpc_extracted","--log","extract.log"
-          Remove-Item $baseExe, $hpcExe
+          Remove-Item $baseExe, $hpcExe -ErrorAction SilentlyContinue
           & "$tmp\base_extracted\bootstrapper.exe" -s --action install --eula=accept -p=NEED_VS2017_INTEGRATION=0 -p=NEED_VS2019_INTEGRATION=0 -p=NEED_VS2022_INTEGRATION=0 --log-dir=.
           & "$tmp\hpc_extracted\bootstrapper.exe" -s --action install --components=intel.oneapi.win.ifort-compiler --eula=accept -p=NEED_VS2017_INTEGRATION=0 -p=NEED_VS2019_INTEGRATION=0 -p=NEED_VS2022_INTEGRATION=0 --log-dir=.
-          Remove-Item -Recurse -Force "$tmp\base_extracted","$tmp\hpc_extracted"
+          Remove-Item -Recurse -Force "$tmp\base_extracted","$tmp\hpc_extracted" -ErrorAction SilentlyContinue
           $runtime = 'C:\Program Files (x86)\Intel\oneAPI\compiler\latest\windows\redist\intel64_win'
           "FORTRAN_RUNTIME_DIR=$runtime" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Build OpenBabel
