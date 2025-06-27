@@ -159,25 +159,26 @@ jobs:
           "OPENBABEL3_LIBRARY_DIRS=$libDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "OPENBABEL_INSTALL_DIR=$obDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$obDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-      - name: Download xTB
+      - name: Build xTB
         shell: pwsh
         run: |
-          $url = 'https://github.com/grimme-lab/xtb/releases/download/v6.7.1/xtb-6.7.1pre-windows-x86_64.zip'
-          $zip = "$env:RUNNER_TEMP\xtb.zip"
-          Invoke-WebRequest $url -OutFile $zip
-          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
-          $xtbDir = Join-Path $env:RUNNER_TEMP 'xtb-6.7.1'
+          $setvars = Join-Path ${env:'ProgramFiles(x86)'} 'Intel\oneAPI\setvars.bat'
+          & $setvars > $null
+          $srcDir = Join-Path $env:RUNNER_TEMP 'xtb-src'
+          git clone --depth 1 https://github.com/grimme-lab/xtb $srcDir
+          $build = Join-Path $srcDir 'build'
+          $ifort = Join-Path ${env:'ProgramFiles(x86)'} 'Intel\oneAPI\compiler\latest\windows\bin\intel64\ifort.exe'
+          cmake -S $srcDir -B $build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_Fortran_COMPILER="$ifort" -DBUILD_SHARED_LIBS=ON -DBLA_VENDOR=Intel10_64lp
+          cmake --build $build --config Release --target install
+          $xtbDir = Join-Path $build 'install'
+          $binDir = Join-Path $xtbDir 'bin'
           $libDir = Join-Path $xtbDir 'lib'
-          Get-ChildItem $libDir -Filter '*.a' | ForEach-Object {
-            $dst = $_.FullName -replace '\.a$', '.lib'
-            Copy-Item $_.FullName $dst
-          }
+          $incDir = Join-Path $xtbDir 'include'
           "XTB_DIR=$xtbDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "XTB_INCLUDE_DIRS=$incDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "XTB_LIBRARY_DIRS=$libDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "XTB_LIBRARIES=$(Join-Path $libDir 'libxtb.lib');$(Join-Path $libDir 'libcpx.lib')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "XTB_INCLUDE_DIRS=$(Join-Path $xtbDir 'include')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "PKG_CONFIG_PATH=$(Join-Path $libDir 'pkgconfig')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "$xtbDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "XTB_LIBRARIES=$(Join-Path $libDir 'xtb.lib')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$binDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Configure
         shell: pwsh
         env:
