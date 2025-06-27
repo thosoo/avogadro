@@ -161,11 +161,15 @@ def main():
             'libirc.dll', 'libimf.dll', 'svml_dispmd.dll',
             'libiomp5md.dll'
         ]
-        for search in (bin_dir, lib_dir, xtb):
-            if not search.exists():
+        search_paths = [bin_dir, lib_dir, xtb]
+        extra_runtime = os.environ.get('FORTRAN_RUNTIME_DIR')
+        if extra_runtime:
+            search_paths.append(Path(extra_runtime))
+        for search in search_paths:
+            if not search or not Path(search).exists():
                 continue
             for name in fortran_runtime:
-                cand = search / name
+                cand = Path(search) / name
                 if cand.exists():
                     copy(cand, dist / 'bin')
 
