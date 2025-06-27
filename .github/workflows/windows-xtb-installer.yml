@@ -140,15 +140,25 @@ jobs:
           "CMAKE_PREFIX_PATH=$xtbDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "PKG_CONFIG_PATH=$xtbDir\lib\pkgconfig;$env:PKG_CONFIG_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$xtbDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-      - name: Download Intel Fortran runtime
+      - name: Install Intel oneAPI runtimes
         shell: pwsh
+        env:
+          WINDOWS_BASEKIT_URL: https://registrationcenter-download.intel.com/akdlm/IRC_NAS/09a8acaf-265f-4460-866c-a3375ed5b4ff/intel-oneapi-base-toolkit-2025.2.0.591_offline.exe
+          WINDOWS_HPCKIT_URL: https://registrationcenter-download.intel.com/akdlm/IRC_NAS/3bbdaf75-6728-492e-a18c-be654dae9ee2/intel-oneapi-hpc-toolkit-2025.2.0.576_offline.exe
         run: |
-          $ver = '2024.0'
-          $zip = "$env:RUNNER_TEMP\ifort-runtime.zip"
-          Invoke-WebRequest "https://github.com/intel/fortran-runtime/releases/download/v$ver/ifort_runtime_win.zip" -OutFile $zip -ErrorAction Stop
-          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
-          $ifortDir = Join-Path $env:RUNNER_TEMP 'ifort_runtime_win'
-          "FORTRAN_RUNTIME_DIR=$ifortDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $tmp = $env:RUNNER_TEMP
+          $baseExe = Join-Path $tmp 'oneapi_base.exe'
+          $hpcExe = Join-Path $tmp 'oneapi_hpc.exe'
+          Invoke-WebRequest $env:WINDOWS_BASEKIT_URL -OutFile $baseExe
+          Invoke-WebRequest $env:WINDOWS_HPCKIT_URL -OutFile $hpcExe
+          Start-Process $baseExe -Wait -ArgumentList '-s','-x','-f',"$tmp\base_extracted","--log","extract.log"
+          Start-Process $hpcExe -Wait -ArgumentList '-s','-x','-f',"$tmp\hpc_extracted","--log","extract.log"
+          Remove-Item $baseExe, $hpcExe
+          & "$tmp\base_extracted\bootstrapper.exe" -s --action install --eula=accept -p=NEED_VS2017_INTEGRATION=0 -p=NEED_VS2019_INTEGRATION=0 -p=NEED_VS2022_INTEGRATION=0 --log-dir=.
+          & "$tmp\hpc_extracted\bootstrapper.exe" -s --action install --components=intel.oneapi.win.ifort-compiler --eula=accept -p=NEED_VS2017_INTEGRATION=0 -p=NEED_VS2019_INTEGRATION=0 -p=NEED_VS2022_INTEGRATION=0 --log-dir=.
+          Remove-Item -Recurse -Force "$tmp\base_extracted","$tmp\hpc_extracted"
+          $runtime = 'C:\Program Files (x86)\Intel\oneAPI\compiler\latest\windows\redist\intel64_win'
+          "FORTRAN_RUNTIME_DIR=$runtime" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Build OpenBabel
         shell: pwsh
         env:
