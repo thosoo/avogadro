@@ -143,6 +143,13 @@ def main():
             for f in bin_dir.iterdir():
                 if f.suffix.lower() in ('.exe', '.dll'):
                     copy(f, dist / 'bin')
+        lib_dir = xtb / 'lib'
+        if lib_dir.exists():
+            for f in lib_dir.iterdir():
+                if f.suffix.lower() == '.dll':
+                    copy(f, dist / 'bin')
+                elif f.suffix.lower() == '.lib':
+                    copy(f, dist / 'lib')
         share = xtb / 'share' / 'xtb'
         if share.exists():
             dest = dist / 'share' / 'xtb'
