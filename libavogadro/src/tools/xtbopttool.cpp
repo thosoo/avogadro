@@ -145,11 +145,19 @@ QWidget* XtbOptTool::settingsWidget()
     m_comboEngine->addItem(tr("Gradient Descent"));
     m_comboEngine->addItem(tr("L-BFGS"));
     m_comboEngine->addItem(tr("ANCopt"));
+    m_comboEngine->setCurrentIndex(2);
 
     QLabel *levelLabel = new QLabel(tr("Level:"));
     m_comboLevel = new QComboBox(m_settingsWidget);
+    m_comboLevel->addItem(tr("Crude"));
+    m_comboLevel->addItem(tr("Sloppy"));
+    m_comboLevel->addItem(tr("Loose"));
+    m_comboLevel->addItem(tr("Lax"));
     m_comboLevel->addItem(tr("Normal"));
     m_comboLevel->addItem(tr("Tight"));
+    m_comboLevel->addItem(tr("Vtight"));
+    m_comboLevel->addItem(tr("Extreme"));
+    m_comboLevel->setCurrentIndex(4);
 
     QLabel *methodLabel = new QLabel(tr("Method:"));
     m_comboMethod = new QComboBox(m_settingsWidget);
@@ -157,6 +165,7 @@ QWidget* XtbOptTool::settingsWidget()
     m_comboMethod->addItem(tr("GFN1-xTB"));
     m_comboMethod->addItem(tr("GFN2-xTB"));
     m_comboMethod->addItem(tr("GFN-FF"));
+    m_comboMethod->setCurrentIndex(2);
 
     QLabel *threadsLabel = new QLabel(tr("Threads:"));
     m_threadsSpinBox = new QSpinBox(m_settingsWidget);
@@ -223,7 +232,10 @@ void XtbOptTool::enable()
 #endif
 
   int method = m_comboMethod ? m_comboMethod->currentIndex() : 2;
-  if (!m_thread->setup(m_glwidget->molecule(), method, m_stepsSpinBox->value())) {
+  int engine = m_comboEngine ? m_comboEngine->currentIndex() : 2;
+  int level = m_comboLevel ? m_comboLevel->currentIndex() : 4;
+  if (!m_thread->setup(m_glwidget->molecule(), method, engine, level,
+                        m_stepsSpinBox->value())) {
     m_setupFailed = true;
     emit message(tr("Failed to initialize xTB"));
     return;
@@ -367,9 +379,12 @@ void XtbOptThread::cleanup()
   }
 }
 
-bool XtbOptThread::setup(Molecule *mol, int algorithm, int steps)
+bool XtbOptThread::setup(Molecule *mol, int method, int engine, int level,
+                         int steps)
 {
-  m_algorithm = algorithm;
+  m_method = method;
+  m_engine = engine;
+  m_level = level;
   m_mutex.lock();
   m_molecule = mol;
   m_steps = steps;
@@ -405,7 +420,7 @@ bool XtbOptThread::setup(Molecule *mol, int algorithm, int steps)
     emit setupFailed();
     return false;
   }
-  switch (m_algorithm) {
+  switch (m_method) {
   case 0:
     xtb_loadGFN0xTB(m_env, m_xtbMol, m_calc, NULL);
     break;
@@ -540,9 +555,9 @@ void XtbOptTool::readSettings(QSettings &settings)
   if (m_threadsSpinBox)
     m_threadsSpinBox->setValue(settings.value("threads", 1).toInt());
   if (m_comboEngine)
-    m_comboEngine->setCurrentIndex(settings.value("engine", 0).toInt());
+    m_comboEngine->setCurrentIndex(settings.value("engine", 2).toInt());
   if (m_comboLevel)
-    m_comboLevel->setCurrentIndex(settings.value("level", 0).toInt());
+    m_comboLevel->setCurrentIndex(settings.value("level", 4).toInt());
   if (m_comboMethod)
     m_comboMethod->setCurrentIndex(settings.value("method", 2).toInt());
 }

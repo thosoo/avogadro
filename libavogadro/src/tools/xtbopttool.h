@@ -52,7 +52,7 @@ namespace Avogadro {
       XtbOptThread(QObject *parent=0);
       ~XtbOptThread();
 
-      bool setup(Molecule *molecule, int algorithm, int steps);
+      bool setup(Molecule *molecule, int method, int engine, int level, int steps);
 
       void run();
       void update();
@@ -80,7 +80,9 @@ namespace Avogadro {
       std::vector<int> m_numbers;
       std::vector<double> m_coords;
       bool m_velocities;
-      int m_algorithm;
+      int m_method;
+      int m_engine;
+      int m_level;
       //double m_convergence;
       int m_steps;
       bool m_stop;
