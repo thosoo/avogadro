@@ -162,8 +162,12 @@ jobs:
       - name: Build xTB
         shell: pwsh
         run: |
-          $setvars = Join-Path ${env:ProgramFiles(x86)} 'Intel\oneAPI\setvars.bat'
-          & $setvars > $null
+          $setvars = Join-Path ${env:'ProgramFiles(x86)'} 'Intel\oneAPI\setvars.bat'
+          if (Test-Path $setvars) {
+            & "$setvars" > $null
+          } else {
+            Write-Host "Warning: $setvars not found"
+          }
           $srcDir = Join-Path $env:RUNNER_TEMP 'xtb-src'
           git clone --depth 1 https://github.com/grimme-lab/xtb $srcDir
           $build = Join-Path $srcDir 'build'
