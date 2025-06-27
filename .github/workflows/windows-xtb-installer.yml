@@ -145,10 +145,14 @@ jobs:
         run: |
           $ver = '2024.0'
           $zip = "$env:RUNNER_TEMP\ifort-runtime.zip"
-          Invoke-WebRequest "https://github.com/intel/fortran-runtime/releases/download/v$ver/ifort_runtime_win.zip" -OutFile $zip
-          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
-          $ifortDir = Join-Path $env:RUNNER_TEMP 'ifort_runtime_win'
-          "FORTRAN_RUNTIME_DIR=$ifortDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          try {
+            Invoke-WebRequest "https://github.com/intel/fortran-runtime/releases/download/v$ver/ifort_runtime_win.zip" -OutFile $zip -ErrorAction Stop
+            Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+            $ifortDir = Join-Path $env:RUNNER_TEMP 'ifort_runtime_win'
+            "FORTRAN_RUNTIME_DIR=$ifortDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          } catch {
+            Write-Host "Intel Fortran runtime download failed: $_"
+          }
       - name: Build OpenBabel
         shell: pwsh
         env:
