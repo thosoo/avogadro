@@ -28,6 +28,9 @@ link_directories(
 # The commands should not just be included, they either need linking to
 # or building. As plugin code is not part of the library it may require a
 # different testing strategy.
+find_package(PkgConfig)
+pkg_check_modules(XTB xtb)
+
 set(tests
   drawcommand
 #  hydrogenscommand
@@ -36,6 +39,9 @@ set(tests
   neighborlist
   addremovehydrogens
 )
+if(XTB_FOUND)
+  list(APPEND tests xtbopttool xtbphysics)
+endif()
 
 foreach (test ${tests})
   message(STATUS "Test:  ${test}")
@@ -56,6 +62,20 @@ foreach (test ${tests})
   set_property(TARGET ${test}test PROPERTY LABELS avogadro)
   set_property(TEST ${test}Test PROPERTY LABELS avogadro)
 endforeach ()
+
+if(XTB_FOUND)
+  include_directories(${XTB_INCLUDE_DIRS})
+  link_directories(${XTB_LIBRARY_DIRS})
+  target_link_libraries(xtbopttooltest ${XTB_LIBRARIES})
+  target_link_libraries(xtbphysicstest ${XTB_LIBRARIES})
+endif()
+
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND AND XTB_FOUND)
+  target_link_libraries(xtbopttooltest OpenMP::OpenMP_CXX)
+  target_link_libraries(xtbphysicstest OpenMP::OpenMP_CXX)
+endif()
+
 
 # More complicated tests (i.e., with linking)
 #message(STATUS "Test:  primitivemodeltest")
