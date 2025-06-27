@@ -176,8 +176,8 @@ jobs:
           }
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
-      - name: Build NSIS script
-        run: makensis scripts/installer/setup.nsi
+      - name: Build installer
+        run: python scripts/installer/create_installer.py --with-xtb
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:

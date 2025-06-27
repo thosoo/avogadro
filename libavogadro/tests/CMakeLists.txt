@@ -36,6 +36,7 @@ set(tests
   neighborlist
   addremovehydrogens
   xtbopttool
+  xtbphysics
 )
 
 foreach (test ${tests})
@@ -63,10 +64,12 @@ pkg_check_modules(XTB REQUIRED xtb)
 include_directories(${XTB_INCLUDE_DIRS})
 link_directories(${XTB_LIBRARY_DIRS})
 target_link_libraries(xtbopttooltest ${XTB_LIBRARIES})
+target_link_libraries(xtbphysicstest ${XTB_LIBRARIES})
 
 find_package(OpenMP)
 if(OpenMP_CXX_FOUND)
   target_link_libraries(xtbopttooltest OpenMP::OpenMP_CXX)
+  target_link_libraries(xtbphysicstest OpenMP::OpenMP_CXX)
 endif()
 
 
