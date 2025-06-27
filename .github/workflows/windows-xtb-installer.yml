@@ -126,6 +126,16 @@ jobs:
           Invoke-WebRequest "https://github.com/grimme-lab/xtb/releases/download/v$ver/xtb-$ver`pre-windows-x86_64.zip" -OutFile $zip
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
           $xtbDir = Join-Path $env:RUNNER_TEMP "xtb-$ver"
+          # The archive ships static libraries with the *.a extension which the
+          # MSVC linker does not recognize.  Rename them so pkg-config and
+          # CMake find xtb.lib and cpx.lib as expected.
+          $libDir = Join-Path $xtbDir 'lib'
+          if (Test-Path (Join-Path $libDir 'libxtb.a')) {
+            Move-Item (Join-Path $libDir 'libxtb.a') (Join-Path $libDir 'xtb.lib') -Force
+          }
+          if (Test-Path (Join-Path $libDir 'libcpx.a')) {
+            Move-Item (Join-Path $libDir 'libcpx.a') (Join-Path $libDir 'cpx.lib') -Force
+          }
           "XTB_DIR=$xtbDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "CMAKE_PREFIX_PATH=$xtbDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "PKG_CONFIG_PATH=$xtbDir\lib\pkgconfig;$env:PKG_CONFIG_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
