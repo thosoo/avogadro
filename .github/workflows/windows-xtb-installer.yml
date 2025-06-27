@@ -176,6 +176,7 @@ jobs:
             -DBUILD_SHARED_LIBS=ON `
             -DCMAKE_VERBOSE_MAKEFILE=ON `
             "-DENABLE_TESTS=$env:ENABLE_TESTS" `
+            -DENABLE_XTB_OPTTOOL=OFF `
             -DCMAKE_INSTALL_PREFIX="$dist" `
             -DENABLE_AVO_PACKAGE=ON `
             -DENABLE_GLSL=ON `
