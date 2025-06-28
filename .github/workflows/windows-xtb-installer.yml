@@ -29,7 +29,7 @@ jobs:
           echo "date=$(Get-Date -Format 'yyyyMMdd')" >> $env:GITHUB_OUTPUT
       - name: Setup Intel oneAPI root
         run: |
-          echo "ONEAPI_ROOT=C:\Program Files (x86)\Intel\oneAPI" >> "$GITHUB_ENV"
+          echo "ONEAPI_ROOT=C:\Program Files\Intel\oneAPI" >> "$GITHUB_ENV"
       - name: Intel Fortran (MKL comes in the kit)
         uses: fortran-lang/setup-fortran@main
         with:
