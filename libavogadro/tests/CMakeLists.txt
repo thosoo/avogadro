@@ -38,6 +38,7 @@ set(tests
   moleculefile
   neighborlist
   addremovehydrogens
+  hairengine
 )
 if(XTB_FOUND)
   list(APPEND tests xtbopttool xtbphysics)
