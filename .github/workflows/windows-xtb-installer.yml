@@ -24,11 +24,17 @@ jobs:
           --no-progress `
           --installargs '"ADD_CMAKE_TO_PATH=System"' `
           --allow-downgrade   # harmless if no newer CMake is present
+      - name: Capture date for caching
+        run: |
+          echo "date=$( /bin/date -u \"+%Y%m%d\" )" >> "$GITHUB_OUTPUT"
+      - name: Setup Intel oneAPI root
+        run: |
+          echo "ONEAPI_ROOT=C:\Program Files (x86)\Intel\oneAPI" >> "$GITHUB_ENV"
       - name: Intel Fortran (MKL comes in the kit)
         uses: fortran-lang/setup-fortran@main
         with:
           compiler: intel-classic  # ifort 2025
-          version: '2025.2'
+          version: '2025.2.0'
       - name: Set Fortran runtime directory
         shell: pwsh
         run: |
