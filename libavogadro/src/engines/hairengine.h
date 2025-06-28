@@ -53,6 +53,7 @@ public:
 
   bool renderOpaque(PainterDevice *pd);
   void setMolecule(Molecule *molecule);
+  int hairCount(unsigned int atomId) const;
 
 private:
   struct HairStrand {

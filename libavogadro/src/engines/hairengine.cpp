@@ -170,5 +170,10 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
   return true;
 }
 
+int HairEngine::hairCount(unsigned int atomId) const
+{
+  return m_hair.value(atomId).size();
+}
+
 } // namespace Avogadro
 
