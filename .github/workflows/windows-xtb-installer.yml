@@ -21,6 +21,8 @@ jobs:
           --no-progress `
           --installargs '"ADD_CMAKE_TO_PATH=System"' `
           --allow-downgrade   # harmless if no newer CMake is present
+      - name: Install Meson
+        run: pip install meson ninja
       - name: Build zlib
         shell: pwsh
         run: |
@@ -133,11 +135,12 @@ jobs:
           $ver = '6.7.1'
           $archive = "$env:RUNNER_TEMP\xtb.tar.xz"
           Invoke-WebRequest "https://github.com/grimme-lab/xtb/releases/download/v$ver/xtb-$ver-source.tar.xz" -OutFile $archive
-          tar -xf $archive -C $env:RUNNER_TEMP
+          7z x $archive -o$env:RUNNER_TEMP
           $srcDir = Join-Path $env:RUNNER_TEMP "xtb_$($ver)_source"
           $buildDir = Join-Path $srcDir 'build'
-          cmake -S $srcDir -B $buildDir -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX="$buildDir\install"
-          cmake --build $buildDir --config Release --target install
+          meson setup $buildDir $srcDir --buildtype release --prefix "$buildDir\install"
+          meson compile -C $buildDir
+          meson install -C $buildDir
           $xtbDir = Join-Path $buildDir 'install'
           "CMAKE_PREFIX_PATH=$xtbDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "XTB_INSTALL_DIR=$xtbDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
