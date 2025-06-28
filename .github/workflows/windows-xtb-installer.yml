@@ -24,23 +24,21 @@ jobs:
           --no-progress `
           --installargs '"ADD_CMAKE_TO_PATH=System"' `
           --allow-downgrade   # harmless if no newer CMake is present
-      - name: Install Intel oneAPI
+      - name: Intel Fortran (MKL comes in the kit)
+        uses: fortran-lang/setup-fortran@v1
+        with:
+          compiler: intel-classic  # ifort 2025
+          version: '2025.0'
+      - name: Set Fortran runtime directory
         shell: pwsh
         run: |
-          $tmp = $env:RUNNER_TEMP
-          $baseExe = Join-Path $tmp 'oneapi_base.exe'
-          $hpcExe = Join-Path $tmp 'oneapi_hpc.exe'
-          Invoke-WebRequest $env:WINDOWS_BASEKIT_URL -OutFile $baseExe
-          Invoke-WebRequest $env:WINDOWS_HPCKIT_URL -OutFile $hpcExe
-          Start-Process $baseExe -Wait -ArgumentList '-s','-x','-f',"$tmp\base_extracted","--log","extract.log"
-          Start-Process $hpcExe -Wait -ArgumentList '-s','-x','-f',"$tmp\hpc_extracted","--log","extract.log"
-          Remove-Item $baseExe, $hpcExe -ErrorAction SilentlyContinue
-          & "$tmp\base_extracted\bootstrapper.exe" -s --action install --eula=accept -p=NEED_VS2017_INTEGRATION=0 -p=NEED_VS2019_INTEGRATION=0 -p=NEED_VS2022_INTEGRATION=0 --log-dir=.
-          & "$tmp\hpc_extracted\bootstrapper.exe" -s --action install --components=intel.oneapi.win.ifort-compiler --eula=accept -p=NEED_VS2017_INTEGRATION=0 -p=NEED_VS2019_INTEGRATION=0 -p=NEED_VS2022_INTEGRATION=0 --log-dir=.
-          Remove-Item -Recurse -Force "$tmp\base_extracted","$tmp\hpc_extracted" -ErrorAction SilentlyContinue
-          $pf86 = ${env:ProgramFiles(x86)}
-          if (-not $pf86) { $pf86 = $env:ProgramFiles }
-          $runtime = Join-Path $pf86 'Intel\oneAPI\compiler\latest\windows\redist\intel64_win'
+          $oneapi = $env:ONEAPI_ROOT
+          if (-not $oneapi) {
+            $pf86 = ${env:ProgramFiles(x86)}
+            if (-not $pf86) { $pf86 = $env:ProgramFiles }
+            $oneapi = Join-Path $pf86 'Intel\oneAPI'
+          }
+          $runtime = Join-Path $oneapi 'compiler\latest\windows\redist\intel64_win'
           "FORTRAN_RUNTIME_DIR=$runtime" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Build zlib
         shell: pwsh
