@@ -134,7 +134,7 @@ jobs:
           $archive = "$env:RUNNER_TEMP\xtb.tar.xz"
           Invoke-WebRequest "https://github.com/grimme-lab/xtb/releases/download/v$ver/xtb-$ver-source.tar.xz" -OutFile $archive
           tar -xf $archive -C $env:RUNNER_TEMP
-          $srcDir = Join-Path $env:RUNNER_TEMP "xtb-$ver"
+          $srcDir = Join-Path $env:RUNNER_TEMP "xtb_$($ver)_source"
           $buildDir = Join-Path $srcDir 'build'
           cmake -S $srcDir -B $buildDir -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX="$buildDir\install"
           cmake --build $buildDir --config Release --target install
