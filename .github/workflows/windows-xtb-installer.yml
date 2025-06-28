@@ -197,6 +197,21 @@ jobs:
         env:
           ENABLE_TESTS: ${{ matrix.target == 'tests' && 'ON' || 'OFF' }}
         run: |
+          $oneApi = Join-Path ${env:'ProgramFiles(x86)'} 'Intel\oneAPI'
+          $setvars = Join-Path $oneApi 'setvars.bat'
+          if (-not (Test-Path $setvars)) {
+            if (Test-Path $oneApi) {
+              $cand = Get-ChildItem $oneApi -Directory | ForEach-Object {
+                Join-Path $_.FullName 'oneapi-vars.bat'
+              } | Where-Object { Test-Path $_ } | Select-Object -First 1
+              if ($cand) { $setvars = $cand }
+            }
+          }
+          if (Test-Path $setvars) {
+            & "$setvars" > $null
+          } else {
+            Write-Host "Warning: $setvars not found"
+          }
           $dist = Join-Path $pwd 'scripts/installer/dist'
           cmake -S . -B build `
             -G "NMake Makefiles" `
@@ -224,6 +239,21 @@ jobs:
       - name: Build
         shell: pwsh
         run: |
+          $oneApi = Join-Path ${env:'ProgramFiles(x86)'} 'Intel\oneAPI'
+          $setvars = Join-Path $oneApi 'setvars.bat'
+          if (-not (Test-Path $setvars)) {
+            if (Test-Path $oneApi) {
+              $cand = Get-ChildItem $oneApi -Directory | ForEach-Object {
+                Join-Path $_.FullName 'oneapi-vars.bat'
+              } | Where-Object { Test-Path $_ } | Select-Object -First 1
+              if ($cand) { $setvars = $cand }
+            }
+          }
+          if (Test-Path $setvars) {
+            & "$setvars" > $null
+          } else {
+            Write-Host "Warning: $setvars not found"
+          }
           cmake --build build --config Release --target install
       - name: Create installer
         if: matrix.target == 'installer'
