@@ -35,17 +35,6 @@ jobs:
         with:
           compiler: intel-classic  # ifort 2025
           version: '2025.0.1'
-      - name: Set Fortran runtime directory
-        shell: pwsh
-        run: |
-          $oneapi = $env:ONEAPI_ROOT
-          if (-not $oneapi) {
-            $pf86 = ${env:ProgramFiles(x86)}
-            if (-not $pf86) { $pf86 = $env:ProgramFiles }
-            $oneapi = Join-Path $pf86 'Intel\oneAPI'
-          }
-          $runtime = Join-Path $oneapi 'compiler\latest\windows\redist\intel64_win'
-          "FORTRAN_RUNTIME_DIR=$runtime" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Build zlib
         shell: pwsh
         run: |
