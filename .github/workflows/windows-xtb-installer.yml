@@ -38,7 +38,7 @@ jobs:
           & "$tmp\base_extracted\bootstrapper.exe" -s --action install --eula=accept -p=NEED_VS2017_INTEGRATION=0 -p=NEED_VS2019_INTEGRATION=0 -p=NEED_VS2022_INTEGRATION=0 --log-dir=.
           & "$tmp\hpc_extracted\bootstrapper.exe" -s --action install --components=intel.oneapi.win.ifort-compiler --eula=accept -p=NEED_VS2017_INTEGRATION=0 -p=NEED_VS2019_INTEGRATION=0 -p=NEED_VS2022_INTEGRATION=0 --log-dir=.
           Remove-Item -Recurse -Force "$tmp\base_extracted","$tmp\hpc_extracted" -ErrorAction SilentlyContinue
-          $pf86 = $env:"ProgramFiles(x86)"
+          $pf86 = ${env:ProgramFiles(x86)}
           if (-not $pf86) { $pf86 = $env:ProgramFiles }
           $runtime = Join-Path $pf86 'Intel\oneAPI\compiler\latest\windows\redist\intel64_win'
           "FORTRAN_RUNTIME_DIR=$runtime" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
@@ -164,7 +164,7 @@ jobs:
       - name: Build xTB
         shell: pwsh
         run: |
-          $pf86 = $env:"ProgramFiles(x86)"
+          $pf86 = ${env:ProgramFiles(x86)}
           if (-not $pf86) { $pf86 = $env:ProgramFiles }
           $oneApi = Join-Path $pf86 'Intel\oneAPI'
           $setvars = Join-Path $oneApi 'setvars.bat'
