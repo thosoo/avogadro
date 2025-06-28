@@ -162,7 +162,14 @@ jobs:
       - name: Build xTB
         shell: pwsh
         run: |
-          $setvars = Join-Path ${env:ProgramFiles(x86)} 'Intel\oneAPI\setvars.bat'
+          $oneApi = Join-Path ${env:ProgramFiles(x86)} 'Intel\oneAPI'
+          $setvars = Join-Path $oneApi 'setvars.bat'
+          if (-not (Test-Path $setvars)) {
+            $cand = Get-ChildItem $oneApi -Directory | ForEach-Object {
+              Join-Path $_.FullName 'oneapi-vars.bat'
+            } | Where-Object { Test-Path $_ } | Select-Object -First 1
+            if ($cand) { $setvars = $cand }
+          }
           if (Test-Path $setvars) {
             & "$setvars" > $null
           } else {
