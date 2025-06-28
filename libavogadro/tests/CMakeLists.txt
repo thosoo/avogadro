@@ -17,7 +17,6 @@ include_directories(
   ${OPENBABEL2_INCLUDE_DIR}
   ${BOOST_PYTHON_INCLUDES}
   ${PYTHON_INCLUDE_PATH}
-  $<$<BOOL:${GLEW_FOUND}>:${GLEW_INCLUDE_DIR}>
 )
 
 link_directories(

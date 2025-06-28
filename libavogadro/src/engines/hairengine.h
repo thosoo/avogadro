@@ -60,7 +60,7 @@ private:
 
   QMap<unsigned int, QVector<HairStrand> > m_hair;
   QElapsedTimer m_timer;
-  double m_hairLength;
+  double m_lengthFactor;
 };
 
 class HairEngineFactory : public QObject, public PluginFactory
