@@ -61,8 +61,10 @@ avogadro_plugin(dipoleengine dipoleengine.cpp dipolesettingswidget.ui)
 # Simple wire engine - designed for efficiency with really big systems
 avogadro_plugin(simplewireengine simplewireengine.cpp)
 
-# Hair engine - renders animated hair on atoms
-avogadro_plugin(hairengine hairengine.cpp)
+# Hair engine - renders animated hair on atoms only if GLEW is available
+if(GLEW_FOUND)
+  avogadro_plugin(hairengine hairengine.cpp)
+endif()
 
 # QTAIM engine - Quantum Theory of Atoms In Molecules
 avogadro_plugin(qtaimengine qtaimengine.cpp qtaimsettingswidget.ui)
