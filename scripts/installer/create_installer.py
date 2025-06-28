@@ -132,6 +132,23 @@ def main():
         if dll.exists():
             copy(dll, dist / 'bin')
 
+    xtb_dir = os.environ.get("XTB_DIR")
+    if xtb_dir:
+        xtb = Path(xtb_dir)
+        for f in xtb.glob('bin/*'):
+            if f.suffix.lower() in ('.exe', '.dll'):
+                copy(f, dist / 'bin')
+        share = xtb / 'share' / 'xtb'
+        if share.exists():
+            dest = dist / 'share' / 'xtb'
+            log(f"Copying xTB data from {share} to {dest}")
+            shutil.copytree(share, dest, dirs_exist_ok=True)
+
+    runtime_dir = os.environ.get("FORTRAN_RUNTIME_DIR")
+    if runtime_dir:
+        for dll in Path(runtime_dir).glob('*.dll'):
+            copy(dll, dist / 'bin')
+
     # Copy the GPLv2 license expected by NSIS
     license_src = root.parent.parent / 'COPYING'
     license_dest = dist / 'gpl.txt'
