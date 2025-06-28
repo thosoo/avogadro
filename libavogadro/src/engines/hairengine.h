@@ -69,9 +69,14 @@ private:
   GLint m_dirAttr;
   GLint m_phaseAttr;
   GLint m_roleAttr;
+  bool m_shaderInit;
 #endif
   QElapsedTimer m_timer;
   double m_hairLength;
+
+#ifdef ENABLE_GLSL
+  void initShader();
+#endif
 };
 
 class HairEngineFactory : public QObject, public PluginFactory

@@ -43,6 +43,105 @@ HairEngine::HairEngine(QObject *parent)
 {
   m_timer.start();
 #ifdef ENABLE_GLSL
+  m_shaderInit = false;
+  m_shader = 0;
+#endif
+}
+
+Engine *HairEngine::clone() const
+{
+  HairEngine *engine = new HairEngine(parent());
+  engine->setAlias(alias());
+  engine->setEnabled(isEnabled());
+  return engine;
+}
+
+HairEngine::~HairEngine()
+{
+#ifdef ENABLE_GLSL
+  if (m_shaderInit && m_shader)
+    glDeleteObjectARB(m_shader);
+  m_shaderInit = false;
+#endif
+}
+
+void HairEngine::setMolecule(Molecule *mol)
+{
+  Engine::setMolecule(mol);
+  m_hair.clear();
+  if (!mol)
+    return;
+  foreach(const Atom *a, mol->atoms()) {
+    QVector<HairStrand> hairs;
+    for (int i = 0; i < 8; ++i) {
+      HairStrand h;
+      h.dir = Eigen::Vector3d::Random().normalized();
+      h.phase = QRandomGenerator::global()->generateDouble() * 2.0 * M_PI;
+      hairs.append(h);
+    }
+    m_hair.insert(a->id(), hairs);
+  }
+}
+
+bool HairEngine::renderOpaque(PainterDevice *pd)
+{
+  if (!pd->molecule())
+    return false;
+
+  double t = m_timer.elapsed() / 1000.0;
+  Color *map = colorMap();
+  if (!map)
+    map = pd->colorMap();
+
+#ifdef ENABLE_GLSL
+  if (!m_shaderInit)
+    initShader();
+  glUseProgramObjectARB(m_shader);
+  glUniform1fARB(m_timeLoc, t);
+  glUniform1fARB(m_lengthLoc, m_hairLength);
+#endif
+
+  foreach(const Atom *a, pd->molecule()->atoms()) {
+    QVector<HairStrand> hairs = m_hair.value(a->id());
+    Eigen::Vector3d base = *a->pos();
+    map->setFromPrimitive(a);
+    pd->painter()->setColor(map);
+
+    foreach(const HairStrand &h, hairs) {
+#ifdef ENABLE_GLSL
+      glBegin(GL_LINES);
+      glVertexAttrib3fARB(m_baseAttr, base.x(), base.y(), base.z());
+      glVertexAttrib3fARB(m_dirAttr, h.dir.x(), h.dir.y(), h.dir.z());
+      glVertexAttrib1fARB(m_phaseAttr, h.phase);
+      glVertexAttrib1fARB(m_roleAttr, 0.0f);
+      glVertex3f(base.x(), base.y(), base.z());
+      glVertexAttrib1fARB(m_roleAttr, 1.0f);
+      glVertex3f(base.x(), base.y(), base.z());
+      glEnd();
+#else
+      Eigen::Vector3d swing = h.dir.cross(Eigen::Vector3d::UnitZ()).normalized();
+      Eigen::Vector3d dir = h.dir + swing * 0.2 * qSin(t + h.phase);
+      Eigen::Vector3d tip = base + dir.normalized() * m_hairLength;
+      pd->painter()->drawLine(base, tip, 1.0);
+#endif
+    }
+  }
+#ifdef ENABLE_GLSL
+  glUseProgramObjectARB(0);
+#endif
+  return true;
+}
+
+int HairEngine::hairCount(unsigned int atomId) const
+{
+  return m_hair.value(atomId).size();
+}
+
+#ifdef ENABLE_GLSL
+void HairEngine::initShader()
+{
+  if (m_shaderInit)
+    return;
   static const char *vertSrc =
     "uniform float time;\n"
     "uniform float hairLength;\n"
@@ -86,94 +185,9 @@ HairEngine::HairEngine(QObject *parent)
   m_dirAttr = glGetAttribLocationARB(m_shader, "dir");
   m_phaseAttr = glGetAttribLocationARB(m_shader, "phase");
   m_roleAttr = glGetAttribLocationARB(m_shader, "role");
+  m_shaderInit = true;
+}
 #endif
-}
-
-Engine *HairEngine::clone() const
-{
-  HairEngine *engine = new HairEngine(parent());
-  engine->setAlias(alias());
-  engine->setEnabled(isEnabled());
-  return engine;
-}
-
-HairEngine::~HairEngine()
-{
-#ifdef ENABLE_GLSL
-  if (m_shader)
-    glDeleteObjectARB(m_shader);
-#endif
-}
-
-void HairEngine::setMolecule(Molecule *mol)
-{
-  Engine::setMolecule(mol);
-  m_hair.clear();
-  if (!mol)
-    return;
-  foreach(const Atom *a, mol->atoms()) {
-    QVector<HairStrand> hairs;
-    for (int i = 0; i < 8; ++i) {
-      HairStrand h;
-      h.dir = Eigen::Vector3d::Random().normalized();
-      h.phase = QRandomGenerator::global()->generateDouble() * 2.0 * M_PI;
-      hairs.append(h);
-    }
-    m_hair.insert(a->id(), hairs);
-  }
-}
-
-bool HairEngine::renderOpaque(PainterDevice *pd)
-{
-  if (!pd->molecule())
-    return false;
-
-  double t = m_timer.elapsed() / 1000.0;
-  Color *map = colorMap();
-  if (!map)
-    map = pd->colorMap();
-
-#ifdef ENABLE_GLSL
-  glUseProgramObjectARB(m_shader);
-  glUniform1fARB(m_timeLoc, t);
-  glUniform1fARB(m_lengthLoc, m_hairLength);
-#endif
-
-  foreach(const Atom *a, pd->molecule()->atoms()) {
-    QVector<HairStrand> hairs = m_hair.value(a->id());
-    Eigen::Vector3d base = *a->pos();
-    map->setFromPrimitive(a);
-    pd->painter()->setColor(map);
-
-    foreach(const HairStrand &h, hairs) {
-#ifdef ENABLE_GLSL
-      glBegin(GL_LINES);
-      glVertexAttrib3fARB(m_baseAttr, base.x(), base.y(), base.z());
-      glVertexAttrib3fARB(m_dirAttr, h.dir.x(), h.dir.y(), h.dir.z());
-      glVertexAttrib1fARB(m_phaseAttr, h.phase);
-      glVertexAttrib1fARB(m_roleAttr, 0.0f);
-      glVertex3f(base.x(), base.y(), base.z());
-      glVertexAttrib1fARB(m_roleAttr, 1.0f);
-      glVertex3f(base.x(), base.y(), base.z());
-      glEnd();
-#else
-      Eigen::Vector3d swing = h.dir.cross(Eigen::Vector3d::UnitZ()).normalized();
-      Eigen::Vector3d dir = h.dir + swing * 0.2 * qSin(t + h.phase);
-      Eigen::Vector3d tip = base + dir.normalized() * m_hairLength;
-      pd->painter()->drawLine(base, tip, 1.0);
-#endif
-    }
-  }
-#ifdef ENABLE_GLSL
-  glUseProgramObjectARB(0);
-#endif
-  return true;
-}
-
-int HairEngine::hairCount(unsigned int atomId) const
-{
-  return m_hair.value(atomId).size();
-}
 
 } // namespace Avogadro
 
