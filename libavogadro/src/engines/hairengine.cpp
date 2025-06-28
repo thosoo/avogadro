@@ -32,9 +32,7 @@
 
 #include <QRandomGenerator>
 #include <QtMath>
-#ifdef ENABLE_GLSL
 #include <GL/glew.h>
-#endif
 
 namespace Avogadro {
 
@@ -42,10 +40,6 @@ HairEngine::HairEngine(QObject *parent)
   : Engine(parent), m_hairLength(1.0)
 {
   m_timer.start();
-#ifdef ENABLE_GLSL
-  m_shaderInit = false;
-  m_shader = 0;
-#endif
 }
 
 Engine *HairEngine::clone() const
@@ -58,11 +52,6 @@ Engine *HairEngine::clone() const
 
 HairEngine::~HairEngine()
 {
-#ifdef ENABLE_GLSL
-  if (m_shaderInit && m_shader)
-    glDeleteObjectARB(m_shader);
-  m_shaderInit = false;
-#endif
 }
 
 void HairEngine::setMolecule(Molecule *mol)
@@ -93,42 +82,20 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
   if (!map)
     map = pd->colorMap();
 
-#ifdef ENABLE_GLSL
-  if (!m_shaderInit)
-    initShader();
-  glUseProgramObjectARB(m_shader);
-  glUniform1fARB(m_timeLoc, t);
-  glUniform1fARB(m_lengthLoc, m_hairLength);
-#endif
-
-  foreach(const Atom *a, pd->molecule()->atoms()) {
+  foreach (const Atom *a, pd->molecule()->atoms()) {
     QVector<HairStrand> hairs = m_hair.value(a->id());
-    Eigen::Vector3d base = *a->pos();
     map->setFromPrimitive(a);
     pd->painter()->setColor(map);
+    double radius = pd->radius(a);
 
-    foreach(const HairStrand &h, hairs) {
-#ifdef ENABLE_GLSL
-      glBegin(GL_LINES);
-      glVertexAttrib3fARB(m_baseAttr, base.x(), base.y(), base.z());
-      glVertexAttrib3fARB(m_dirAttr, h.dir.x(), h.dir.y(), h.dir.z());
-      glVertexAttrib1fARB(m_phaseAttr, h.phase);
-      glVertexAttrib1fARB(m_roleAttr, 0.0f);
-      glVertex3f(base.x(), base.y(), base.z());
-      glVertexAttrib1fARB(m_roleAttr, 1.0f);
-      glVertex3f(base.x(), base.y(), base.z());
-      glEnd();
-#else
+    foreach (const HairStrand &h, hairs) {
+      Eigen::Vector3d base = *a->pos() + h.dir.normalized() * radius;
       Eigen::Vector3d swing = h.dir.cross(Eigen::Vector3d::UnitZ()).normalized();
       Eigen::Vector3d dir = h.dir + swing * 0.2 * qSin(t + h.phase);
       Eigen::Vector3d tip = base + dir.normalized() * m_hairLength;
       pd->painter()->drawLine(base, tip, 1.0);
-#endif
     }
   }
-#ifdef ENABLE_GLSL
-  glUseProgramObjectARB(0);
-#endif
   return true;
 }
 
@@ -136,58 +103,6 @@ int HairEngine::hairCount(unsigned int atomId) const
 {
   return m_hair.value(atomId).size();
 }
-
-#ifdef ENABLE_GLSL
-void HairEngine::initShader()
-{
-  if (m_shaderInit)
-    return;
-  static const char *vertSrc =
-    "uniform float time;\n"
-    "uniform float hairLength;\n"
-    "attribute vec3 basePos;\n"
-    "attribute vec3 dir;\n"
-    "attribute float phase;\n"
-    "attribute float role;\n"
-    "void main()\n"
-    "{\n"
-    "  vec3 swing = normalize(cross(dir, vec3(0.0,0.0,1.0)));\n"
-    "  vec3 offset = swing * 0.2 * sin(time + phase);\n"
-    "  vec3 tip = basePos + normalize(dir + offset) * hairLength;\n"
-    "  vec3 pos = mix(basePos, tip, role);\n"
-    "  gl_Position = gl_ModelViewProjectionMatrix * vec4(pos,1.0);\n"
-    "}\n";
-
-  static const char *fragSrc =
-    "void main()\n"
-    "{\n"
-    "  gl_FragColor = gl_Color;\n"
-    "}\n";
-
-  GLuint vs = glCreateShaderObjectARB(GL_VERTEX_SHADER_ARB);
-  glShaderSourceARB(vs, 1, &vertSrc, 0);
-  glCompileShaderARB(vs);
-  GLuint fs = glCreateShaderObjectARB(GL_FRAGMENT_SHADER_ARB);
-  glShaderSourceARB(fs, 1, &fragSrc, 0);
-  glCompileShaderARB(fs);
-  m_shader = glCreateProgramObjectARB();
-  glAttachObjectARB(m_shader, vs);
-  glAttachObjectARB(m_shader, fs);
-  glLinkProgramARB(m_shader);
-  glDetachObjectARB(m_shader, vs);
-  glDetachObjectARB(m_shader, fs);
-  glDeleteObjectARB(vs);
-  glDeleteObjectARB(fs);
-
-  m_timeLoc = glGetUniformLocationARB(m_shader, "time");
-  m_lengthLoc = glGetUniformLocationARB(m_shader, "hairLength");
-  m_baseAttr = glGetAttribLocationARB(m_shader, "basePos");
-  m_dirAttr = glGetAttribLocationARB(m_shader, "dir");
-  m_phaseAttr = glGetAttribLocationARB(m_shader, "phase");
-  m_roleAttr = glGetAttribLocationARB(m_shader, "role");
-  m_shaderInit = true;
-}
-#endif
 
 } // namespace Avogadro
 
