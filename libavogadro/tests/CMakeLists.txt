@@ -64,6 +64,7 @@ foreach (test ${tests})
   set_property(TEST ${test}Test PROPERTY LABELS avogadro)
 endforeach ()
 
+
 if(XTB_FOUND)
   include_directories(${XTB_INCLUDE_DIRS})
   link_directories(${XTB_LIBRARY_DIRS})
