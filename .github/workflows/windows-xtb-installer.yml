@@ -22,6 +22,8 @@ jobs:
           --no-progress `
           --installargs '"ADD_CMAKE_TO_PATH=System"' `
           --allow-downgrade   # harmless if no newer CMake is present
+      - name: Install xz
+        run: choco install -y xz --no-progress
       - name: Install Meson
         run: pip install meson ninja
       - name: Build zlib
