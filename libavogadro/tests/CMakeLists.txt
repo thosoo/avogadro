@@ -18,6 +18,7 @@ include_directories(
   ${OPENBABEL2_INCLUDE_DIR}
   ${BOOST_PYTHON_INCLUDES}
   ${PYTHON_INCLUDE_PATH}
+  $<$<BOOL:${GLEW_FOUND}>:${GLEW_INCLUDE_DIR}>
 )
 
 link_directories(
@@ -59,6 +60,7 @@ foreach (test ${tests})
     ${QT_QTTEST_LIBRARY}
     avogadro
     $<$<STREQUAL:${test},hairengine>:hairengine>
+    $<$<AND:$<BOOL:${GLEW_FOUND}>,$<STREQUAL:${test},hairengine>>:${GLEW_LIBRARY}>
   )
   add_test(${test}Test ${CMAKE_BINARY_DIR}/bin/${test}test)
   set_tests_properties(${test}Test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
