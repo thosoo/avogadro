@@ -138,14 +138,15 @@ jobs:
           $ver = '6.7.1'
           $archive = "$env:RUNNER_TEMP\xtb.tar.xz"
           Invoke-WebRequest "https://github.com/grimme-lab/xtb/releases/download/v$ver/xtb-$ver-source.tar.xz" -OutFile $archive
+          Write-Host "RUNNER_TEMP=$env:RUNNER_TEMP"
           Write-Host "Downloaded archive size:" (Get-Item $archive).Length
           Write-Host "7z location:" (Get-Command 7z).Source
           7z i | Select-String "7-Zip" | Write-Host
           Write-Host "Archive listing:"; 7z l $archive | Select-Object -First 20
           Write-Host "Extracting xTB"
-          7z x $archive -o$env:RUNNER_TEMP -y
-          $tar = Join-Path $env:RUNNER_TEMP "xtb-$ver-source.tar"
-          7z x $tar -o$env:RUNNER_TEMP -y
+          7z x $archive "-o$env:RUNNER_TEMP" -y
+          $tar = Join-Path $env:RUNNER_TEMP "xtb.tar"
+          7z x $tar "-o$env:RUNNER_TEMP" -y
           Write-Host "Extraction contents:"; Get-ChildItem $env:RUNNER_TEMP | Where-Object { $_.Name -like 'xtb*' }
           $srcDir = Join-Path $env:RUNNER_TEMP "xtb_$($ver)_source"
           $buildDir = Join-Path $srcDir 'build'
