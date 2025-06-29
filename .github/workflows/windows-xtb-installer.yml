@@ -135,7 +135,7 @@ jobs:
           $ver = '6.7.1'
           $archive = "$env:RUNNER_TEMP\xtb.tar.xz"
           Invoke-WebRequest "https://github.com/grimme-lab/xtb/releases/download/v$ver/xtb-$ver-source.tar.xz" -OutFile $archive
-          7z x $archive -o$env:RUNNER_TEMP
+          tar xf $archive -C $env:RUNNER_TEMP
           $srcDir = Join-Path $env:RUNNER_TEMP "xtb_$($ver)_source"
           $buildDir = Join-Path $srcDir 'build'
           meson setup $buildDir $srcDir --buildtype release --prefix "$buildDir\install"
