@@ -37,9 +37,9 @@
 
 #include "ui_hairsettingswidget.h"
 
-class HairSettingsWidget;
-
 namespace Avogadro {
+
+class HairSettingsWidget;
 
 class Atom;
 class Molecule;
