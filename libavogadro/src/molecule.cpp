@@ -54,6 +54,7 @@
 #include <openbabel/forcefield.h>
 #include <openbabel/obiter.h>
 #include <openbabel/elements.h>
+#include "extensions/spectra/oborcanearir_stub.h"
 
 #include <QtCore/QDir>
 #include <QtCore/QDebug>
