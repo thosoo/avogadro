@@ -50,7 +50,6 @@
 #include <openbabel/griddata.h>
 #include <openbabel/grid.h>
 #include <openbabel/generic.h>
-#include <avogadro/extensions/spectra/oborca_stub.h>
 #include <openbabel/obfunctions.h>
 #include <openbabel/forcefield.h>
 #include <openbabel/obiter.h>
@@ -114,7 +113,7 @@ namespace Avogadro{
       OpenBabel::OBElectronicTransitionData *
                                     obelectronictransitiondata;
       OpenBabel::OBConformerData *  obconformerdata;
-      OpenBabel::OBOrcaSpecData *   oborcaspecdata;
+      OpenBabel::OBXrayORCAData *   oborcaspecdata;
       OpenBabel::OBOrcaNearIRData * oborcanearirdata;
 
   };
@@ -1506,8 +1505,8 @@ namespace Avogadro{
     // Copy Orca spectra data
     qDebug() << "has Orca spectra data  = " << obmol->HasData(OpenBabel::OBGenericDataType::CustomData0) << endl;
     if (obmol->HasData(OpenBabel::OBGenericDataType::CustomData0)) {
-      OpenBabel::OBOrcaSpecData *specorca =
-        static_cast<OpenBabel::OBOrcaSpecData*>(
+      OpenBabel::OBXrayORCAData *specorca =
+        static_cast<OpenBabel::OBXrayORCAData*>(
         obmol->GetData(OpenBabel::OBGenericDataType::CustomData0));
       d->oborcaspecdata = specorca;
     }

@@ -18,7 +18,6 @@
  ***********************************************************************/
 
 #include <openbabel/generic.h>
-#include <avogadro/extensions/spectra/oborca_stub.h>
 
 #include "emission.h"
 #include "spectradialog.h"
@@ -77,7 +76,7 @@ void OrcaEmissionSpectra::readSettings() {
 bool OrcaEmissionSpectra::checkForData(Molecule * mol) {
 
     OpenBabel::OBMol obmol = mol->OBMol();
-    OpenBabel::OBOrcaSpecData *osd = static_cast<OpenBabel::OBOrcaSpecData*>(obmol.GetData("OrcaSpectraData"));
+    OpenBabel::OBXrayORCAData *osd = static_cast<OpenBabel::OBXrayORCAData*>(obmol.GetData("OrcaSpectraData"));
 
     if (!osd) return false;
     if (!osd->GetSpecData()) return false;

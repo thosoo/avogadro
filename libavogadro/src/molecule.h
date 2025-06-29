@@ -33,7 +33,6 @@
 
 #include <vector>
 #include <openbabel/generic.h>
-#include <avogadro/extensions/spectra/oborca_stub.h>
 
 namespace OpenBabel {
   class OBAtom;
@@ -41,7 +40,7 @@ namespace OpenBabel {
   class OBMol;
   class OBUnitCell;
   class OBConformerData;
-  class OBOrcaSpecData;
+  class OBXrayORCAData;
   class OBElectronicTransitionData;
   class OBOrcaNearIRData;
   class OBVibrationData;
