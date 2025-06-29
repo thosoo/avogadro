@@ -50,6 +50,7 @@
 #include <openbabel/griddata.h>
 #include <openbabel/grid.h>
 #include <openbabel/generic.h>
+#include <avogadro/extensions/spectra/oborca_stub.h>
 #include <openbabel/obfunctions.h>
 #include <openbabel/forcefield.h>
 #include <openbabel/obiter.h>
@@ -72,7 +73,8 @@ namespace Avogadro{
                          obmol(0), obunitcell(0),
                          obvibdata(0), obdosdata(0),
                          obelectronictransitiondata(0),
-                         obconformerdata(0), oborcanearirdata(0)
+                         obconformerdata(0), oborcaspecdata(0),
+                         oborcanearirdata(0)
     {}
     // These are logically cached variables and thus are marked as mutable.
     // Const objects should be logically constant (and not mutable)
@@ -112,6 +114,7 @@ namespace Avogadro{
       OpenBabel::OBElectronicTransitionData *
                                     obelectronictransitiondata;
       OpenBabel::OBConformerData *  obconformerdata;
+      OpenBabel::OBOrcaSpecData *   oborcaspecdata;
       OpenBabel::OBOrcaNearIRData * oborcanearirdata;
 
   };
@@ -1318,6 +1321,9 @@ namespace Avogadro{
     if (d->obconformerdata != NULL) {
       obmol.SetData(d->obconformerdata->Clone(&obmol));
     }
+    if (d->oborcaspecdata != NULL) {
+      obmol.SetData(d->oborcaspecdata->Clone(&obmol));
+    }
     if (d->oborcanearirdata != NULL) {
       obmol.SetData(d->oborcanearirdata->Clone(&obmol));
     }
@@ -1498,6 +1504,14 @@ namespace Avogadro{
     }
 
     // Copy Orca spectra data
+    qDebug() << "has Orca spectra data  = " << obmol->HasData(OpenBabel::OBGenericDataType::CustomData0) << endl;
+    if (obmol->HasData(OpenBabel::OBGenericDataType::CustomData0)) {
+      OpenBabel::OBOrcaSpecData *specorca =
+        static_cast<OpenBabel::OBOrcaSpecData*>(
+        obmol->GetData(OpenBabel::OBGenericDataType::CustomData0));
+      d->oborcaspecdata = specorca;
+    }
+
     // Copy Orca NearIR spectra data
     qDebug() << "has NearIR spectra data  = " << obmol->HasData(OpenBabel::OBGenericDataType::CustomData1) << endl;
     if (obmol->HasData(OpenBabel::OBGenericDataType::CustomData1)) {

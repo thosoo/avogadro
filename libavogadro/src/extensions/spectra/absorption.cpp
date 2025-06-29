@@ -18,6 +18,7 @@
  ***********************************************************************/
 
 #include <openbabel/generic.h>
+#include <avogadro/extensions/spectra/oborca_stub.h>
 
 #include "absorption.h"
 #include "spectradialog.h"

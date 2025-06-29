@@ -4,6 +4,7 @@
 
 #include <openbabel/mol.h>
 #include <openbabel/generic.h>
+#include <avogadro/extensions/spectra/oborca_stub.h>
 using namespace std;
 
 namespace Avogadro {
