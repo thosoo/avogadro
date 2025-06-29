@@ -140,9 +140,9 @@ jobs:
           Write-Host "Downloaded archive size:" (Get-Item $archive).Length
           Write-Host "tar location:" (Get-Command tar).Source
           tar --version
-          Write-Host "Archive listing:"; tar -tf $archive | Select-Object -First 10
+          Write-Host "Archive listing:"; tar --force-local -tf $archive | Select-Object -First 10
           Write-Host "Extracting xTB"
-          tar -xf $archive -C $env:RUNNER_TEMP
+          tar --force-local -xf $archive -C $env:RUNNER_TEMP
           Write-Host "Extraction contents:"; Get-ChildItem $env:RUNNER_TEMP | Where-Object { $_.Name -like 'xtb*' }
           $srcDir = Join-Path $env:RUNNER_TEMP "xtb_$($ver)_source"
           $buildDir = Join-Path $srcDir 'build'
