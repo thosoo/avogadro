@@ -38,6 +38,12 @@ namespace OpenBabel {
   class OBBond;
   class OBMol;
   class OBUnitCell;
+  class OBConformerData;
+  class OBOrcaSpecData;
+  class OBElectronicTransitionData;
+  class OBOrcaNearIRData;
+  class OBVibrationData;
+  class OBDOSData;
 }
 
 namespace Avogadro {
