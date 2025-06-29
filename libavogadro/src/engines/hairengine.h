@@ -60,7 +60,7 @@ public:
   bool renderOpaque(PainterDevice *pd);
   Layers layers() const { return Engine::Overlay; }
   void setMolecule(Molecule *molecule);
-  int hairCount(unsigned int atomId) const;
+  Q_INVOKABLE int hairCount(unsigned int atomId) const;
 
   QWidget *settingsWidget();
   bool hasSettings() { return true; }

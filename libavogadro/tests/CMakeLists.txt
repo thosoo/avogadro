@@ -59,8 +59,6 @@ foreach (test ${tests})
     ${QT_LIBRARIES}
     ${QT_QTTEST_LIBRARY}
     avogadro
-    $<$<STREQUAL:${test},hairengine>:hairengine>
-    $<$<AND:$<BOOL:${GLEW_FOUND}>,$<STREQUAL:${test},hairengine>>:${GLEW_LIBRARY}>
   )
   add_test(${test}Test ${CMAKE_BINARY_DIR}/bin/${test}test)
   set_tests_properties(${test}Test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

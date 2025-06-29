@@ -4,7 +4,7 @@
 #include <avogadro/pluginmanager.h>
 #include <avogadro/engine.h>
 #include <avogadro/atom.h>
-#include "../src/engines/hairengine.h"
+#include <QMetaObject>
 #include <avogadro/molecule.h>
 #include <Eigen/Geometry>
 
@@ -40,12 +40,17 @@ void HairEngineTest::pluginLoaded()
   mol.addAtom(1, Eigen::Vector3d(1, 0, 0));
   engine->setMolecule(&mol);
 
-  HairEngine *hair = qobject_cast<HairEngine *>(engine);
-  QVERIFY(hair != nullptr);
-  for (unsigned int i = 0; i < mol.numAtoms(); ++i)
-    QCOMPARE(hair->hairCount(mol.atom(i)->id()), 8);
+  for (unsigned int i = 0; i < mol.numAtoms(); ++i) {
+    int count = 0;
+    bool ok = QMetaObject::invokeMethod(engine, "hairCount",
+                                        Qt::DirectConnection,
+                                        Q_RETURN_ARG(int, count),
+                                        Q_ARG(unsigned int, mol.atom(i)->id()));
+    QVERIFY(ok);
+    QCOMPARE(count, 8);
+  }
 
-  delete hair;
+  delete engine;
 }
 
 QTEST_MAIN(HairEngineTest)
