@@ -38,8 +38,12 @@ set(tests
   moleculefile
   neighborlist
   addremovehydrogens
-  hairengine
 )
+
+if(GLEW_FOUND)
+  list(APPEND tests hairengine)
+  include_directories(${GLEW_INCLUDE_DIR})
+endif()
 if(XTB_FOUND)
   list(APPEND tests xtbopttool xtbphysics)
 endif()
