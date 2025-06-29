@@ -3,7 +3,7 @@ Requirements
  -- CMake 2.8.9 or later (3.0 or later recommended)
  -- Qt 5.0 or later
  -- OpenBabel 3.1 or later (development version from
-  https://github.com/openbabel/openbabel is recommended)
+  https://github.com/thosoo/openbabel is recommended)
  -- Eigen 3.x
 
 

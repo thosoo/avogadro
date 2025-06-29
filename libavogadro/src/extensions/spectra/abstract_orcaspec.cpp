@@ -19,9 +19,7 @@
 
 #include <openbabel/generic.h>
 #include "abstract_orcaspec.h"
-#include <avogadro/global.h>
-
-#include <QtWidgets/QMessageBox>
+#include <QtGui/QMessageBox>
 #include <QtCore/QDebug>
 
 #include <openbabel/mol.h>
