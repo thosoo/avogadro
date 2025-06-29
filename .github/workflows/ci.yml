@@ -27,6 +27,23 @@ jobs:
           if [ "${{ matrix.xtb }}" = "on" ]; then
             sudo apt-get install -y xtb libxtb-dev
           fi
+      - name: Build OpenBabel
+        run: |
+          src="$RUNNER_TEMP/openbabel-src"
+          git clone --depth 1 https://github.com/thosoo/openbabel "$src"
+          cmake -S "$src" -B "$src/build" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$src/build/install" \
+            -DBUILD_SHARED=ON \
+            -DCMAKE_VERBOSE_MAKEFILE=ON \
+            -DOB_USE_PREBUILT_BINARIES=OFF \
+            -DOPENBABEL_USE_SYSTEM_INCHI=OFF \
+            -DWITH_INCHI=ON
+          cmake --build "$src/build" --target install -j2
+          obdir="$src/build/install"
+          echo "CMAKE_PREFIX_PATH=$obdir:$CMAKE_PREFIX_PATH" >> "$GITHUB_ENV"
+          echo "PKG_CONFIG_PATH=$obdir/lib/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
+          echo "$obdir/bin" >> "$GITHUB_PATH"
       - name: Configure
         run: |
           cmake -S . -B build \
