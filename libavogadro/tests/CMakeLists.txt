@@ -12,6 +12,7 @@ include_directories(
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
   ${libavogadro_BINARY_DIR}/src
+  ${libavogadro_BINARY_DIR}/src/engines/hairengine_autogen/include
   $<$<BOOL:${EIGEN3_FOUND}>:${EIGEN3_INCLUDE_DIR}>
   $<$<NOT:$<BOOL:${EIGEN3_FOUND}>>:${EIGEN2_INCLUDE_DIR}>
   ${OPENBABEL2_INCLUDE_DIR}
@@ -38,6 +39,7 @@ set(tests
   moleculefile
   neighborlist
   addremovehydrogens
+  hairengine
 )
 if(XTB_FOUND)
   list(APPEND tests xtbopttool xtbphysics)
@@ -55,13 +57,16 @@ foreach (test ${tests})
     ${OPENBABEL2_LIBRARIES}
     ${QT_LIBRARIES}
     ${QT_QTTEST_LIBRARY}
-    avogadro)
+    avogadro
+    $<$<STREQUAL:${test},hairengine>:hairengine>
+  )
   add_test(${test}Test ${CMAKE_BINARY_DIR}/bin/${test}test)
   set_tests_properties(${test}Test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   set_property(SOURCE ${test_SRCS} PROPERTY LABELS avogadro)
   set_property(TARGET ${test}test PROPERTY LABELS avogadro)
   set_property(TEST ${test}Test PROPERTY LABELS avogadro)
 endforeach ()
+
 
 if(XTB_FOUND)
   include_directories(${XTB_INCLUDE_DIRS})
