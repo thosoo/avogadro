@@ -33,7 +33,6 @@
 #include <QRandomGenerator>
 #include <QtMath>
 #include <QSettings>
-#include "ui_hairsettingswidget.h"
 
 namespace Avogadro {
 

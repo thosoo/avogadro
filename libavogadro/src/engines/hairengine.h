@@ -35,6 +35,8 @@
 #include <QWidget>
 #include <QObject>
 
+#include "ui_hairsettingswidget.h"
+
 class HairSettingsWidget;
 
 namespace Avogadro {
@@ -77,6 +79,15 @@ private:
   QElapsedTimer m_timer;
   double m_lengthFactor;
   HairSettingsWidget *m_settingsWidget;
+};
+
+class HairSettingsWidget : public QWidget, public Ui::HairSettingsWidget
+{
+public:
+  HairSettingsWidget(QWidget *parent = 0) : QWidget(parent)
+  {
+    setupUi(this);
+  }
 };
 
 class HairEngineFactory : public QObject, public PluginFactory
