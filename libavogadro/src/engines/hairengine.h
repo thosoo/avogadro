@@ -31,6 +31,11 @@
 #include <QElapsedTimer>
 #include <QMap>
 #include <QVector>
+#include <QSettings>
+#include <QWidget>
+#include <QObject>
+
+class HairSettingsWidget;
 
 namespace Avogadro {
 
@@ -52,6 +57,16 @@ public:
   void setMolecule(Molecule *molecule);
   int hairCount(unsigned int atomId) const;
 
+  QWidget *settingsWidget();
+  bool hasSettings() { return true; }
+  void writeSettings(QSettings &settings) const;
+  void readSettings(QSettings &settings);
+
+  void setLength(int value);
+
+private Q_SLOTS:
+  void settingsWidgetDestroyed();
+
 private:
   struct HairStrand {
     Eigen::Vector3d dir;
@@ -61,6 +76,7 @@ private:
   QMap<unsigned int, QVector<HairStrand> > m_hair;
   QElapsedTimer m_timer;
   double m_lengthFactor;
+  HairSettingsWidget *m_settingsWidget;
 };
 
 class HairEngineFactory : public QObject, public PluginFactory

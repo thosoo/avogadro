@@ -62,7 +62,7 @@ avogadro_plugin(dipoleengine dipoleengine.cpp dipolesettingswidget.ui)
 avogadro_plugin(simplewireengine simplewireengine.cpp)
 
 # Hair engine - renders animated hair on atoms
-avogadro_plugin(hairengine hairengine.cpp)
+avogadro_plugin(hairengine hairengine.cpp hairsettingswidget.ui)
 
 # QTAIM engine - Quantum Theory of Atoms In Molecules
 avogadro_plugin(qtaimengine qtaimengine.cpp qtaimsettingswidget.ui)

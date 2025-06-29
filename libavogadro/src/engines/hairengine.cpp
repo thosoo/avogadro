@@ -32,11 +32,13 @@
 
 #include <QRandomGenerator>
 #include <QtMath>
+#include <QSettings>
+#include "ui_hairsettingswidget.h"
 
 namespace Avogadro {
 
 HairEngine::HairEngine(QObject *parent)
-  : Engine(parent), m_lengthFactor(1.5)
+  : Engine(parent), m_lengthFactor(1.5), m_settingsWidget(0)
 {
   m_timer.start();
 }
@@ -51,6 +53,8 @@ Engine *HairEngine::clone() const
 
 HairEngine::~HairEngine()
 {
+  if (m_settingsWidget)
+    m_settingsWidget->deleteLater();
 }
 
 void HairEngine::setMolecule(Molecule *mol)
@@ -102,6 +106,45 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
 int HairEngine::hairCount(unsigned int atomId) const
 {
   return m_hair.value(atomId).size();
+}
+
+QWidget *HairEngine::settingsWidget()
+{
+  if (!m_settingsWidget) {
+    m_settingsWidget = new HairSettingsWidget();
+    connect(m_settingsWidget->lengthSlider, SIGNAL(valueChanged(int)),
+            this, SLOT(setLength(int)));
+    connect(m_settingsWidget, SIGNAL(destroyed()),
+            this, SLOT(settingsWidgetDestroyed()));
+    m_settingsWidget->lengthSlider->setValue(static_cast<int>(m_lengthFactor));
+  }
+  return m_settingsWidget;
+}
+
+void HairEngine::settingsWidgetDestroyed()
+{
+  m_settingsWidget = 0;
+}
+
+void HairEngine::setLength(int value)
+{
+  m_lengthFactor = static_cast<double>(value);
+  if (m_settingsWidget)
+    m_settingsWidget->lengthSlider->setValue(value);
+  emit changed();
+}
+
+void HairEngine::writeSettings(QSettings &settings) const
+{
+  Engine::writeSettings(settings);
+  settings.setValue("length", static_cast<int>(m_lengthFactor));
+}
+
+void HairEngine::readSettings(QSettings &settings)
+{
+  Engine::readSettings(settings);
+  int length = settings.value("length", 2).toInt();
+  setLength(length);
 }
 
 } // namespace Avogadro
