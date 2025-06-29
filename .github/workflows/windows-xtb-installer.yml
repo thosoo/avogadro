@@ -16,8 +16,6 @@ jobs:
         run: git config --system core.protectNTFS false
       - uses: actions/checkout@v4
       - uses: milliewalky/setup-7-zip@v2
-        with:
-          tag: ""
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Install dependencies
         run: choco install -y cmake --version=3.28.6 `
