@@ -32,6 +32,7 @@
 #include <QReadWriteLock>
 
 #include <vector>
+#include <openbabel/generic.h>
 
 namespace OpenBabel {
   class OBAtom;
@@ -39,7 +40,6 @@ namespace OpenBabel {
   class OBMol;
   class OBUnitCell;
   class OBConformerData;
-  class OBOrcaSpecData;
   class OBElectronicTransitionData;
   class OBOrcaNearIRData;
   class OBVibrationData;
