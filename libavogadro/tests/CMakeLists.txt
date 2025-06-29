@@ -39,6 +39,11 @@ set(tests
   neighborlist
   addremovehydrogens
 )
+
+if(GLEW_FOUND)
+  list(APPEND tests hairengine)
+  include_directories(${GLEW_INCLUDE_DIR})
+endif()
 if(XTB_FOUND)
   list(APPEND tests xtbopttool xtbphysics)
 endif()
@@ -62,6 +67,7 @@ foreach (test ${tests})
   set_property(TARGET ${test}test PROPERTY LABELS avogadro)
   set_property(TEST ${test}Test PROPERTY LABELS avogadro)
 endforeach ()
+
 
 if(XTB_FOUND)
   include_directories(${XTB_INCLUDE_DIRS})
