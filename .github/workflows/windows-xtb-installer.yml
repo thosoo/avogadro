@@ -22,8 +22,6 @@ jobs:
           --no-progress `
           --installargs '"ADD_CMAKE_TO_PATH=System"' `
           --allow-downgrade   # harmless if no newer CMake is present
-      - name: Install xz
-        run: choco install -y xz --no-progress
       - name: Install Meson
         run: pip install meson ninja
       - name: Build zlib
@@ -141,11 +139,13 @@ jobs:
           $archive = "$env:RUNNER_TEMP\xtb.tar.xz"
           Invoke-WebRequest "https://github.com/grimme-lab/xtb/releases/download/v$ver/xtb-$ver-source.tar.xz" -OutFile $archive
           Write-Host "Downloaded archive size:" (Get-Item $archive).Length
-          Write-Host "tar location:" (Get-Command tar).Source
-          tar --version
-          Write-Host "Archive listing:"; tar -tf $archive | Select-Object -First 20
+          Write-Host "7z location:" (Get-Command 7z).Source
+          7z i | Select-String "7-Zip" | Write-Host
+          Write-Host "Archive listing:"; 7z l $archive | Select-Object -First 20
           Write-Host "Extracting xTB"
-          tar -xf $archive -C $env:RUNNER_TEMP
+          7z x $archive -o$env:RUNNER_TEMP -y
+          $tar = Join-Path $env:RUNNER_TEMP "xtb-$ver-source.tar"
+          7z x $tar -o$env:RUNNER_TEMP -y
           Write-Host "Extraction contents:"; Get-ChildItem $env:RUNNER_TEMP | Where-Object { $_.Name -like 'xtb*' }
           $srcDir = Join-Path $env:RUNNER_TEMP "xtb_$($ver)_source"
           $buildDir = Join-Path $srcDir 'build'
