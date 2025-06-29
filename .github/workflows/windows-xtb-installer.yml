@@ -15,6 +15,9 @@ jobs:
       - name: Allow Windows reserved filenames
         run: git config --system core.protectNTFS false
       - uses: actions/checkout@v4
+      - uses: milliewalky/setup-7-zip@v2
+        with:
+          tag: ""
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Install dependencies
         run: choco install -y cmake --version=3.28.6 `
@@ -138,11 +141,13 @@ jobs:
           $archive = "$env:RUNNER_TEMP\xtb.tar.xz"
           Invoke-WebRequest "https://github.com/grimme-lab/xtb/releases/download/v$ver/xtb-$ver-source.tar.xz" -OutFile $archive
           Write-Host "Downloaded archive size:" (Get-Item $archive).Length
-          Write-Host "tar location:" (Get-Command tar).Source
-          tar --version
-          Write-Host "Archive listing:"; tar -tf $archive | Select-Object -First 10
+          Write-Host "7z location:" (Get-Command 7z).Source
+          7z -version
+          Write-Host "Archive listing via 7z:"; 7z l $archive | Select-Object -First 20
           Write-Host "Extracting xTB"
-          tar -xf $archive -C $env:RUNNER_TEMP
+          7z x $archive -o$env:RUNNER_TEMP -y
+          $tarPath = Join-Path $env:RUNNER_TEMP "xtb-$ver-source.tar"
+          7z x $tarPath -o$env:RUNNER_TEMP -y
           Write-Host "Extraction contents:"; Get-ChildItem $env:RUNNER_TEMP | Where-Object { $_.Name -like 'xtb*' }
           $srcDir = Join-Path $env:RUNNER_TEMP "xtb_$($ver)_source"
           $buildDir = Join-Path $srcDir 'build'
