@@ -38,7 +38,7 @@ See INSTALL file for installation instructions.
 
 Automated Windows installer builds are generated with GitHub Actions and can be
 found in the workflow artifacts. The workflow builds OpenBabel from
-<https://github.com/openbabel/openbabel> and bundles it with Avogadro.
+<https://github.com/thosoo/openbabel> and bundles it with Avogadro.
 
 # Backers
 Support us with a monthly donation and help us continue our activities. [[Become a backer](https://opencollective.com/avogadro#backer)]

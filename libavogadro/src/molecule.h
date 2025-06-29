@@ -32,12 +32,19 @@
 #include <QReadWriteLock>
 
 #include <vector>
+#include <openbabel/generic.h>
 
 namespace OpenBabel {
   class OBAtom;
   class OBBond;
   class OBMol;
   class OBUnitCell;
+  class OBConformerData;
+  class OBXrayORCAData;
+  class OBElectronicTransitionData;
+  class OBOrcaNearIRData;
+  class OBVibrationData;
+  class OBDOSData;
 }
 
 namespace Avogadro {

@@ -21,6 +21,7 @@
 #include "spectratype.h"
 
 #include "ir.h"
+#include "nearir.h"
 #include "nmr.h"
 #include "dos.h"
 #include "uv.h"
@@ -69,6 +70,7 @@ namespace Avogadro {
 
     // Set up spectra variables
     m_spectra_ir = new IRSpectra(this);
+    m_spectra_nearir = new NearIRSpectra(this);
     m_spectra_nmr = new NMRSpectra(this);
     m_spectra_dos = new DOSSpectra(this);
     m_spectra_uv = new UVSpectra(this);
@@ -158,6 +160,7 @@ namespace Avogadro {
   {
     writeSettings();
     delete m_spectra_ir;
+    delete m_spectra_nearir;
     delete m_spectra_nmr;
     delete m_spectra_dos;
     delete m_spectra_uv;
@@ -176,6 +179,7 @@ namespace Avogadro {
     m_molecule = molecule;
 
     m_spectra_ir->clear();
+    m_spectra_nearir->clear();
     m_spectra_nmr->clear();
     m_spectra_dos->clear();
     m_spectra_uv->clear();
@@ -206,6 +210,13 @@ namespace Avogadro {
     if (hasIR) {
       ui.combo_spectra->addItem(tr("Infrared", "Infrared spectra option"));
       ui.tab_widget->addTab(m_spectra_ir->getTabWidget(), tr("&Infrared Spectra Settings"));
+    }
+
+    // Check for NearIR data
+    bool hasNearIR = m_spectra_nearir->checkForData(m_molecule);
+    if (hasNearIR) {
+      ui.combo_spectra->addItem(tr("NearInfrared", "Overtone and Combined spectra"));
+      ui.tab_widget->addTab(m_spectra_nearir->getTabWidget(), tr("&Near Infrared Spectra Settings"));
     }
 
     // Check for NMR data
@@ -264,7 +275,7 @@ namespace Avogadro {
       ui.tab_widget->addTab(m_spectra_emission->getTabWidget(), tr("&Emission Settings"));
     }
     // Change this when other spectra are added!!
-    if (!hasIR && !hasNMR && !hasDOS && !hasUV && !hasCD && !hasRaman && !hasEnergy && !hasAbsorption && !hasEmission) { // Actions if there are no spectra loaded
+    if (!hasIR && !hasNearIR && !hasNMR && !hasDOS && !hasUV && !hasCD && !hasRaman && !hasEnergy && !hasAbsorption && !hasEmission) { // Actions if there are no spectra loaded
       qWarning() << "SpectraDialog::setMolecule: No spectra available!";
       ui.combo_spectra->addItem(tr("No data"));
       ui.push_colorCalculated->setEnabled(false);
@@ -1146,8 +1157,10 @@ namespace Avogadro {
 
   SpectraType * SpectraDialog::currentSpectra()
   {
-    if (m_spectra == "Infrared")
+    if (m_spectra == tr("Infrared"))
       return m_spectra_ir;
+    else if (m_spectra == "NearInfrared")
+        return m_spectra_nearir;
     else if (m_spectra == "NMR")
       return m_spectra_nmr;
     else if (m_spectra == "DOS")
@@ -1156,7 +1169,7 @@ namespace Avogadro {
       return m_spectra_uv;
     else if (m_spectra == "CD")
         return m_spectra_cd;
-    else if (m_spectra == "Energy")
+    else if (m_spectra == tr("Energy"))
         return m_spectra_energy;
     else if (m_spectra == "Raman")
         return m_spectra_raman;
