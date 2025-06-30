@@ -8,4 +8,5 @@ libeigen3-dev
 libopenbabel-dev
 zlib1g-dev
 libglu1-mesa-dev
-libqt5test5t64
+libglew-dev
+libqt5test5
