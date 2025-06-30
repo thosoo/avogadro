@@ -125,6 +125,13 @@ jobs:
           compiler: intel-classic
           version: '2025.0.1'
 
+      - name: Verify Intel Fortran
+        shell: pwsh
+        run: |
+          Write-Host "FC=$env:FC"
+          Write-Host "PATH=$env:PATH"
+          ifort -V
+
       - name: Use MSVC for C/C++
         run: |
           "CC=cl" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
