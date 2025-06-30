@@ -85,6 +85,7 @@ void HairEngine::setMolecule(Molecule *mol)
     }
     m_hair.insert(a->id(), hairs);
   }
+  emit changed();
 }
 
 bool HairEngine::renderOpaque(PainterDevice *pd)

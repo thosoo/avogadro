@@ -9,4 +9,4 @@ libopenbabel-dev
 zlib1g-dev
 libglu1-mesa-dev
 libglew-dev
-libqt5test5t64
+libqt5test5

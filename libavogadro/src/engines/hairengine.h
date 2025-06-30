@@ -58,7 +58,7 @@ public:
   Engine *clone() const;
 
   bool renderOpaque(PainterDevice *pd);
-  Layers layers() const { return Engine::Overlay; }
+  Layers layers() const { return Engine::Overlay | Engine::Opaque; }
   void setMolecule(Molecule *molecule);
   Q_INVOKABLE int hairCount(unsigned int atomId) const;
 
