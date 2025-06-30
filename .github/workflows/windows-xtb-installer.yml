@@ -25,7 +25,7 @@ jobs:
         uses: fortran-lang/setup-fortran@v1
         with:
           compiler: intel-classic
-          version: "2021.12.0"
+          version: "2021.12"
       - name: Use MSVC for C/C++ compiler
         shell: pwsh
         run: |
@@ -163,7 +163,8 @@ jobs:
           $build = Join-Path $src "build"
           $env:LIB = "$env:LIB;$env:MKLROOT\lib\intel64"
           $env:INCLUDE = "$env:INCLUDE;$env:MKLROOT\include"
-          cmake -S $src -B $build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX="$build\install" -DBLA_VENDOR=Intel10_64lp -DMKL_ROOT="$env:MKLROOT" -DCMAKE_PREFIX_PATH="$env:MKLROOT;$env:CMAKE_PREFIX_PATH"
+          echo "BLA_VENDOR=Intel10_64lp" >> $env:GITHUB_ENV
+          cmake -S $src -B $build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX="$build\install" -DBLA_VENDOR=Intel10_64lp -DMKLROOT="$env:MKLROOT" -DCMAKE_PREFIX_PATH="$env:MKLROOT;$env:CMAKE_PREFIX_PATH"
           cmake --build $build --config Release --target install
           $xtbDir = Join-Path $build "install"
           "XTB_DIR=$xtbDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
