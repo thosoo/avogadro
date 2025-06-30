@@ -59,6 +59,7 @@ public:
 
   bool renderOpaque(PainterDevice *pd);
   Layers layers() const { return Engine::Overlay; }
+public Q_SLOTS:
   void setMolecule(Molecule *molecule);
   Q_INVOKABLE int hairCount(unsigned int atomId) const;
 

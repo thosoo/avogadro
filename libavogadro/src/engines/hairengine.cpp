@@ -93,6 +93,8 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
   if (!pd->molecule())
     return false;
 
+  glDisable(GL_LIGHTING);
+
   double t = m_timer.elapsed() / 1000.0;
   Color *map = colorMap();
   if (!map)
@@ -116,6 +118,7 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
       pd->painter()->drawLine(base, tip, 1.0);
     }
   }
+  glEnable(GL_LIGHTING);
   return true;
 }
 
