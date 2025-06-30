@@ -154,7 +154,7 @@ jobs:
         shell: pwsh
         run: |
           $ver = "6.7.1"
-          $zip = "$env:RUNNER_TEMP\xtb.tar.xz"
+          $zip = "$env:RUNNER_TEMP\xtb-$ver-source.tar.xz"
           Invoke-WebRequest "https://github.com/grimme-lab/xtb/releases/download/v$ver/xtb-$ver-source.tar.xz" -OutFile $zip
           7z x $zip -aoa -o"$env:RUNNER_TEMP"
           $tar = Join-Path $env:RUNNER_TEMP "xtb-$ver-source.tar"
