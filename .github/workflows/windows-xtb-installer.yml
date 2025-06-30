@@ -26,9 +26,11 @@ jobs:
         with:
           compiler: intel-classic
           version: "2021.12.0"
-      - name: Use MSVC for C compiler
+      - name: Use MSVC for C/C++ compiler
         shell: pwsh
-        run: echo "CC=cl" >> $env:GITHUB_ENV
+        run: |
+          echo "CC=cl" >> $env:GITHUB_ENV
+          echo "CXX=cl" >> $env:GITHUB_ENV
       - name: Build zlib
         shell: pwsh
         run: |
