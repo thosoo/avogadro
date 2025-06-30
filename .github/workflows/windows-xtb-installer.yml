@@ -123,7 +123,7 @@ jobs:
       - uses: fortran-lang/setup-fortran@v1
         with:
           compiler: intel-classic
-          version: '2025.0.1'
+          version: '2021.12'
 
       - name: Verify Intel Fortran
         shell: pwsh
