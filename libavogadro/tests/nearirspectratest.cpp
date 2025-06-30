@@ -3,7 +3,6 @@
 #include <avogadro/molecule.h>
 #include <openbabel/mol.h>
 #include <openbabel/generic.h>
-#include "../src/orca_data_stub.h"
 #include "../src/extensions/spectra/spectradialog.h"
 #include "../src/extensions/spectra/nearir.h"
 

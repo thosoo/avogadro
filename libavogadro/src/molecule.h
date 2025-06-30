@@ -33,7 +33,6 @@
 
 #include <vector>
 #include <openbabel/generic.h>
-#include "orca_data_stub.h"
 
 namespace OpenBabel {
   class OBAtom;

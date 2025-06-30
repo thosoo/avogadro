@@ -4,7 +4,6 @@
 
 #include <openbabel/mol.h>
 #include <openbabel/generic.h>
-#include "../../orca_data_stub.h"
 using namespace std;
 
 namespace Avogadro {
