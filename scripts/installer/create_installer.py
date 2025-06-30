@@ -132,6 +132,19 @@ def main():
         if dll.exists():
             copy(dll, dist / 'bin')
 
+    xtb_dir_env = os.environ.get("XTB_DIR")
+    if xtb_dir_env:
+        xtb_dir = Path(xtb_dir_env)
+        for f in (xtb_dir / 'bin').glob('*'):
+            if f.is_file():
+                copy(f, dist / 'bin')
+        for dll in (xtb_dir / 'lib').glob('*.dll'):
+            copy(dll, dist / 'bin')
+        share = xtb_dir / 'share' / 'xtb'
+        if share.exists():
+            dest = dist / 'share' / 'xtb'
+            shutil.copytree(share, dest, dirs_exist_ok=True)
+
     # Copy the GPLv2 license expected by NSIS
     license_src = root.parent.parent / 'COPYING'
     license_dest = dist / 'gpl.txt'
