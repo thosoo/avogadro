@@ -21,20 +21,27 @@ jobs:
           --no-progress `
           --installargs '"ADD_CMAKE_TO_PATH=System"' `
           --allow-downgrade   # harmless if no newer CMake is present
-      - name: Install Intel Fortran
-        uses: fortran-lang/setup-fortran@v1
+      - name: Cache oneAPI HPC Toolkit 2024.1 installer
+        id: cache-oneapi
+        uses: actions/cache@v4
         with:
-          compiler: intel-classic
-          version: '2021.12.0'
+          key: oneapi-hpc-2024.1-win64
+          path: ${{ runner.temp }}\w_HPCKit_p_2024.1.0.561_offline.exe
 
-      - name: Install oneMKL runtime
+      - name: Download Intel oneAPI HPC Toolkit 2024.1 offline installer
+        if: steps.cache-oneapi.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $url = "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/c95a3b26-fc45-496c-833b-df08b10297b9/w_HPCKit_p_2024.1.0.561_offline.exe"
+          $dst = "$env:RUNNER_TEMP\w_HPCKit_p_2024.1.0.561_offline.exe"
+          Invoke-WebRequest $url -OutFile $dst
+
+      - name: Install oneAPI HPC Toolkit 2024.1 (silent)
         shell: cmd
         run: |
-          "%ONEAPI_ROOT%\installer\bootstrapper.exe" ^
-              --action install ^
-              --components=intel.oneapi.win.mkl ^
-              --eula accept ^
-              -s
+          "%RUNNER_TEMP%\w_HPCKit_p_2024.1.0.561_offline.exe" ^
+              -a --silent --eula accept ^
+              --install-dir "C:\Program Files (x86)\Intel\oneAPI"
 
       - name: Load oneAPI environment
         shell: cmd
@@ -47,6 +54,10 @@ jobs:
         run: |
           echo "CC=cl" >> $env:GITHUB_ENV
           echo "CXX=cl" >> $env:GITHUB_ENV
+      - name: Select Intel Fortran compiler
+        shell: pwsh
+        run: |
+          echo "FC=ifort" >> $env:GITHUB_ENV
       - name: Build zlib
         shell: pwsh
         run: |
