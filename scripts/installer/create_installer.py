@@ -107,6 +107,23 @@ def main():
                     if f.is_file():
                         copy(f, dist / "bin")
 
+    xtb_dir_env = os.environ.get("XTB_INSTALL_DIR")
+    if xtb_dir_env:
+        xtb = Path(xtb_dir_env)
+        if xtb.exists():
+            for f in (xtb / "bin").glob("*"):
+                if f.suffix.lower() in (".exe", ".dll"):
+                    copy(f, dist / "bin")
+            share = xtb / "share"
+            if share.exists():
+                dest = dist / "share" / "xtb"
+                log(f"Copying xTB data from {share} to {dest}")
+                shutil.copytree(share, dest, dirs_exist_ok=True)
+            lib = xtb / "lib"
+            if lib.exists():
+                for dll in lib.glob("*.dll"):
+                    copy(dll, dist / "bin")
+
     libxml = os.environ.get("LIBXML2_LIBRARY")
     if libxml:
         dll = Path(libxml).with_suffix('.dll')
