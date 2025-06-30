@@ -109,7 +109,7 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
 
     foreach (const HairStrand &h, hairs) {
       // Offset the strand base slightly to avoid z-fighting with the atom
-      Eigen::Vector3d base = *a->pos() + h.dir.normalized() * (radius + 0.05);
+      Eigen::Vector3d base = *a->pos() + h.dir.normalized() * (radius + 0.1);
       Eigen::Vector3d swing = h.dir.cross(Eigen::Vector3d::UnitZ()).normalized();
       Eigen::Vector3d dir = h.dir + swing * 0.2 * qSin(t + h.phase);
       Eigen::Vector3d tip = base + dir.normalized() * hairLength;
