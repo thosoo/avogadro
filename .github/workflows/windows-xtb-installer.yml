@@ -161,7 +161,8 @@ jobs:
           7z x $tar -aoa -o"$env:RUNNER_TEMP\xtb"
           $src = Get-ChildItem "$env:RUNNER_TEMP\xtb" | Where-Object { $_.PSIsContainer } | Select-Object -First 1 -ExpandProperty FullName
           $build = Join-Path $src "build"
-          $env:LIB = "$env:LIB;$env:MKLROOT\lib\intel64"
+          $omp = "$env:CMPLR_ROOT\windows\compiler\lib\intel64_win"
+          $env:LIB = "$env:LIB;$env:MKLROOT\lib\intel64;$omp"
           $env:INCLUDE = "$env:INCLUDE;$env:MKLROOT\include"
           echo "BLA_VENDOR=Intel10_64lp" >> $env:GITHUB_ENV
           cmake -S $src -B $build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX="$build\install" -DBLA_VENDOR=Intel10_64lp -DMKLROOT="$env:MKLROOT" -DCMAKE_PREFIX_PATH="$env:MKLROOT;$env:CMAKE_PREFIX_PATH"
