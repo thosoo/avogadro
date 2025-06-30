@@ -21,25 +21,25 @@ jobs:
           --no-progress `
           --installargs '"ADD_CMAKE_TO_PATH=System"' `
           --allow-downgrade   # harmless if no newer CMake is present
-      - name: Cache oneAPI HPC 2024 installer
+      - name: Cache oneAPI HPC 2024.1 installer
         id: cache-oneapi
         uses: actions/cache@v4
         with:
-          key: oneapi-hpc-2024.0-win64
-          path: ${{ runner.temp }}\intel-oneapi-hpc-toolkit-2024.0.0.49545_offline.exe
+          key: oneapi-hpc-2024.1-win64
+          path: ${{ runner.temp }}\intel-oneapi-hpc-toolkit-2024.1.0.561_offline.exe
 
-      - name: Download Intel oneAPI HPC Toolkit 2024.0 offline installer
+      - name: Download Intel oneAPI HPC Toolkit 2024.1 offline installer
         if: steps.cache-oneapi.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
-          $url = "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/19707/intel-oneapi-hpc-toolkit-2024.0.0.49545_offline.exe"
-          $dst = "$env:RUNNER_TEMP\intel-oneapi-hpc-toolkit-2024.0.0.49545_offline.exe"
+          $url = "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/c95a3b26-fc45-496c-833b-df08b10297b9/w_HPCKit_p_2024.1.0.561_offline.exe"
+          $dst = "$env:RUNNER_TEMP\intel-oneapi-hpc-toolkit-2024.1.0.561_offline.exe"
           Invoke-WebRequest $url -OutFile $dst
 
-      - name: Install oneAPI HPC Toolkit 2024.0 (silent)
+      - name: Install oneAPI HPC Toolkit 2024.1 (silent)
         shell: cmd
         run: |
-          "%RUNNER_TEMP%\intel-oneapi-hpc-toolkit-2024.0.0.49545_offline.exe" ^
+          "%RUNNER_TEMP%\intel-oneapi-hpc-toolkit-2024.1.0.561_offline.exe" ^
               -a --silent --eula accept ^
               --install-dir "C:\Program Files (x86)\Intel\oneAPI"
 
