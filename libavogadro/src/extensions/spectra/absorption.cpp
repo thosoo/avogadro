@@ -18,6 +18,7 @@
  ***********************************************************************/
 
 #include <openbabel/generic.h>
+#include "../../orca_data_stub.h"
 
 #include "absorption.h"
 #include "spectradialog.h"

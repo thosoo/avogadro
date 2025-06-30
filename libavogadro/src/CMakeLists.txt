@@ -54,6 +54,7 @@ set(libavogadro_HDRS
   neighborlist.h
   obeigenconv.h
   painterdevice.h
+  orca_data_stub.h
   painter.h
   periodictableview.h
   plotaxis.h
