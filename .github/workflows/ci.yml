@@ -45,6 +45,8 @@ jobs:
           libdir="$obdir/lib"
           lib="$libdir/libopenbabel.so"
           echo "CMAKE_PREFIX_PATH=$obdir:$CMAKE_PREFIX_PATH" >> "$GITHUB_ENV"
+          cmake_dir="$libdir/cmake/openbabel3"
+          echo "OpenBabel3_DIR=$cmake_dir" >> "$GITHUB_ENV"
           echo "PKG_CONFIG_PATH=$libdir/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
           echo "OPENBABEL3_INCLUDE_DIR=$inc" >> "$GITHUB_ENV"
           echo "OPENBABEL3_LIBRARIES=$lib" >> "$GITHUB_ENV"
