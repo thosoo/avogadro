@@ -26,6 +26,14 @@ jobs:
         with:
           compiler: intel-classic
           version: "2021.12.0"
+      - name: Install oneMKL runtime
+        shell: cmd
+        run: |
+          "%ONEAPI_ROOT%\installer\bootstrapper.exe" ^
+              --action install ^
+              --components=intel.oneapi.win.mkl ^
+              --eula accept ^
+              -s
       - name: Set MKLROOT
         shell: pwsh
         run: |
