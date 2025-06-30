@@ -161,7 +161,7 @@ jobs:
           7z x $tar -aoa -o"$env:RUNNER_TEMP\xtb"
           $src = Get-ChildItem "$env:RUNNER_TEMP\xtb" | Where-Object { $_.PSIsContainer } | Select-Object -First 1 -ExpandProperty FullName
           $build = Join-Path $src "build"
-          cmake -S $src -B $build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX="$build\install"
+          cmake -S $src -B $build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DCMAKE_INSTALL_PREFIX="$build\install" -DBLA_VENDOR=Intel10_64lp
           cmake --build $build --config Release --target install
           $xtbDir = Join-Path $build "install"
           "XTB_DIR=$xtbDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
