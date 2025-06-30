@@ -123,14 +123,14 @@ jobs:
       - uses: fortran-lang/setup-fortran@v1
         with:
           compiler: intel-classic
-          version: '2021.12'
+          version: '2025.0.1'
 
       - name: Verify Intel Fortran
         shell: pwsh
         run: |
           Write-Host "FC=$env:FC"
           Write-Host "PATH=$env:PATH"
-          ifort -V
+          ifort --version
 
       - name: Use MSVC for C/C++
         run: |
