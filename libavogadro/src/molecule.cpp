@@ -113,7 +113,7 @@ namespace Avogadro{
       OpenBabel::OBElectronicTransitionData *
                                     obelectronictransitiondata;
       OpenBabel::OBConformerData *  obconformerdata;
-      OpenBabel::OBXrayORCAData *   oborcaspecdata;
+      OpenBabel::OBOrcaSpecData *   oborcaspecdata;
       OpenBabel::OBOrcaNearIRData * oborcanearirdata;
 
   };
@@ -1505,8 +1505,8 @@ namespace Avogadro{
     // Copy Orca spectra data
     qDebug() << "has Orca spectra data  = " << obmol->HasData(OpenBabel::OBGenericDataType::CustomData0) << endl;
     if (obmol->HasData(OpenBabel::OBGenericDataType::CustomData0)) {
-      OpenBabel::OBXrayORCAData *specorca =
-        static_cast<OpenBabel::OBXrayORCAData*>(
+      OpenBabel::OBOrcaSpecData *specorca =
+        static_cast<OpenBabel::OBOrcaSpecData*>(
         obmol->GetData(OpenBabel::OBGenericDataType::CustomData0));
       d->oborcaspecdata = specorca;
     }

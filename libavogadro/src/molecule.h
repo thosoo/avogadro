@@ -40,7 +40,7 @@ namespace OpenBabel {
   class OBMol;
   class OBUnitCell;
   class OBConformerData;
-  class OBXrayORCAData;
+  class OBOrcaSpecData;
   class OBElectronicTransitionData;
   class OBOrcaNearIRData;
   class OBVibrationData;

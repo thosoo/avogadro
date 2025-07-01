@@ -75,12 +75,12 @@ void OrcaAbsSpectra::readSettings() {
 bool OrcaAbsSpectra::checkForData(Molecule * mol) {
 
     OpenBabel::OBMol obmol = mol->OBMol();
-    //OpenBabel::OBXrayORCAData *osd = static_cast<OpenBabel::OBXrayORCAData*>(obmol.GetData("OrcaSpectraData"));
-    OpenBabel::OBXrayORCAData *osd = static_cast<OpenBabel::OBXrayORCAData*>(obmol.GetData(OpenBabel::OBGenericDataType::CustomData0));
+    //OpenBabel::OBOrcaSpecData *osd = static_cast<OpenBabel::OBOrcaSpecData*>(obmol.GetData("OrcaSpectraData"));
+    OpenBabel::OBOrcaSpecData *osd = static_cast<OpenBabel::OBOrcaSpecData*>(obmol.GetData(OpenBabel::OBGenericDataType::CustomData0));
 
     if (!osd) return false;
-    if (osd->GetAbsEDipole().empty())
-      return false;
+    if (!osd->GetSpecData()) return false;
+    if (osd->GetAbsEDipole().size() == 0) return false;
 
     m_wavelength.resize(0);
     m_wavenumber.resize(0);

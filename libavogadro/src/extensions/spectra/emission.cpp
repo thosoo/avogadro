@@ -76,10 +76,11 @@ void OrcaEmissionSpectra::readSettings() {
 bool OrcaEmissionSpectra::checkForData(Molecule * mol) {
 
     OpenBabel::OBMol obmol = mol->OBMol();
-    OpenBabel::OBXrayORCAData *osd = static_cast<OpenBabel::OBXrayORCAData*>(obmol.GetData("OrcaSpectraData"));
+    OpenBabel::OBOrcaSpecData *osd = static_cast<OpenBabel::OBOrcaSpecData*>(obmol.GetData("OrcaSpectraData"));
 
     if (!osd) return false;
-    if (osd->GetEmEDipole().empty())
+    if (!osd->GetSpecData()) return false;
+    if (osd->GetEmEDipole().size() == 0)
       return false;
 
     m_wavelength.resize(0);
