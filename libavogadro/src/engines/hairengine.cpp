@@ -28,6 +28,7 @@
 #include <avogadro/molecule.h>
 
 #include <QtCore/QRandomGenerator>
+#include <Eigen/Geometry>
 #include <cmath>
 
 using Eigen::Vector3d;
@@ -46,7 +47,7 @@ public:
 };
 
 HairEngine::HairEngine(QObject *parent) : Engine(parent),
-  m_settingsWidget(0), m_length(0.5)
+  m_settingsWidget(0), m_length(0.5), m_count(10)
 {
 }
 
@@ -62,6 +63,7 @@ Engine *HairEngine::clone() const
   engine->setAlias(alias());
   engine->setEnabled(isEnabled());
   engine->m_length = m_length;
+  engine->m_count = m_count;
   return engine;
 }
 
@@ -77,16 +79,35 @@ bool HairEngine::renderOpaque(PainterDevice *pd, const Atom *atom)
   Vector3d origin = *atom->pos();
   double baseRadius = pd->radius(atom);
 
-  for (int i = 0; i < 10; ++i) {
+  for (int i = 0; i < m_count; ++i) {
     QRandomGenerator gen(static_cast<quint32>(atom->id() * 100 + i));
     double theta = gen.generateDouble() * M_PI * 2.0;
     double phi = std::acos(2.0 * gen.generateDouble() - 1.0);
     Vector3d dir(std::sin(phi) * std::cos(theta),
                  std::sin(phi) * std::sin(theta),
                  std::cos(phi));
+
     Vector3d start = origin + dir * baseRadius;
-    Vector3d end = start + dir * m_length;
-    pd->painter()->drawLine(start, end, 1.0);
+
+    // Determine a perpendicular vector for curling.
+    Vector3d perp = dir.cross(Vector3d::UnitX());
+    if (perp.norm() < 1e-3)
+      perp = dir.cross(Vector3d::UnitY());
+    perp.normalize();
+
+    QList<Vector3d> points;
+    points << start;
+    const int segments = 5;
+    const double amp = m_length * 0.2;
+    for (int s = 1; s <= segments; ++s) {
+      double t = static_cast<double>(s) / segments;
+      Vector3d p = start + dir * (m_length * t)
+                   + perp * (std::sin(t * M_PI) * amp);
+      points << p;
+    }
+
+    for (int s = 0; s < points.size() - 1; ++s)
+      pd->painter()->drawLine(points[s], points[s + 1], 1.0);
   }
 
   return true;
@@ -98,9 +119,12 @@ QWidget *HairEngine::settingsWidget()
     m_settingsWidget = new HairSettingsWidget();
     connect(m_settingsWidget->lengthSlider, SIGNAL(valueChanged(int)),
             this, SLOT(setLength(int)));
+    connect(m_settingsWidget->countSlider, SIGNAL(valueChanged(int)),
+            this, SLOT(setCount(int)));
     connect(m_settingsWidget, SIGNAL(destroyed()),
             this, SLOT(settingsWidgetDestroyed()));
     m_settingsWidget->lengthSlider->setValue(int(m_length * 10));
+    m_settingsWidget->countSlider->setValue(m_count);
   }
   return m_settingsWidget;
 }
@@ -108,6 +132,12 @@ QWidget *HairEngine::settingsWidget()
 void HairEngine::setLength(int value)
 {
   m_length = value / 10.0;
+  emit changed();
+}
+
+void HairEngine::setCount(int value)
+{
+  m_count = value;
   emit changed();
 }
 
@@ -130,14 +160,19 @@ void HairEngine::writeSettings(QSettings &settings) const
 {
   Engine::writeSettings(settings);
   settings.setValue("length", int(m_length * 10));
+  settings.setValue("count", m_count);
 }
 
 void HairEngine::readSettings(QSettings &settings)
 {
   Engine::readSettings(settings);
   setLength(settings.value("length", 5).toInt());
+  setCount(settings.value("count", 10).toInt());
   if (m_settingsWidget)
+  {
     m_settingsWidget->lengthSlider->setValue(int(m_length * 10));
+    m_settingsWidget->countSlider->setValue(m_count);
+  }
 }
 
 } // End namespace Avogadro

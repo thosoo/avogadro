@@ -63,6 +63,8 @@ public:
 public slots:
   /// Set the hair length in tenths of Angstroms.
   void setLength(int value);
+  /// Set the number of hairs drawn per atom.
+  void setCount(int value);
 
 private slots:
   void settingsWidgetDestroyed();
@@ -70,6 +72,7 @@ private slots:
 private:
   HairSettingsWidget *m_settingsWidget;
   double m_length;
+  int m_count;
 };
 
 

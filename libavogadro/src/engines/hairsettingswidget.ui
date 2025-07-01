@@ -6,7 +6,7 @@
     <x>0</x>
     <y>0</y>
     <width>200</width>
-    <height>60</height>
+    <height>100</height>
    </rect>
   </property>
   <layout class="QGridLayout" name="gridLayout">
@@ -15,9 +15,9 @@
      <property name="text">
       <string>Hair length:</string>
      </property>
-    </widget>
-   </item>
-   <item row="0" column="1">
+   </widget>
+  </item>
+  <item row="0" column="1">
     <widget class="QSlider" name="lengthSlider">
      <property name="orientation">
       <enum>Qt::Horizontal</enum>
@@ -31,11 +31,37 @@
      <property name="value">
       <number>5</number>
      </property>
-     <property name="tickPosition">
-      <enum>QSlider::TicksBothSides</enum>
-     </property>
-    </widget>
-   </item>
+    <property name="tickPosition">
+     <enum>QSlider::TicksBothSides</enum>
+    </property>
+   </widget>
+  </item>
+  <item row="1" column="0">
+   <widget class="QLabel" name="labelCount">
+    <property name="text">
+     <string>Hair count:</string>
+    </property>
+   </widget>
+  </item>
+  <item row="1" column="1">
+   <widget class="QSlider" name="countSlider">
+    <property name="orientation">
+     <enum>Qt::Horizontal</enum>
+    </property>
+    <property name="minimum">
+     <number>1</number>
+    </property>
+    <property name="maximum">
+     <number>50</number>
+    </property>
+    <property name="value">
+     <number>10</number>
+    </property>
+    <property name="tickPosition">
+     <enum>QSlider::TicksBothSides</enum>
+    </property>
+   </widget>
+  </item>
   </layout>
  </widget>
  <resources/>
