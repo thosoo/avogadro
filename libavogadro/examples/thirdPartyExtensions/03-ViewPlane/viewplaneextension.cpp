@@ -34,7 +34,7 @@
 #include <Eigen/Geometry>
 
 #include <QtGui/QAction>
-#include <QtGui/QMessageBox>
+#include <QtWidgets/QMessageBox>
 
 using namespace Avogadro;
 
