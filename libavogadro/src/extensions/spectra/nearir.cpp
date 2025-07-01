@@ -4,8 +4,8 @@
 
 #include <openbabel/mol.h>
 #include <openbabel/generic.h>
+
 #ifdef HAVE_OB_ORCA_SPEC_DATA
-#include <openbabel/generic.h>
 using namespace std;
 
 namespace Avogadro {
