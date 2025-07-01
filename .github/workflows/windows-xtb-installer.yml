@@ -51,13 +51,13 @@ jobs:
         shell: cmd
         run: |
           "%RUNNER_TEMP%\w_BaseKit_p_2024.1.0.595_offline.exe" ^
-              -a --silent --eula accept --verbose ^
+              -a --silent --eula accept ^
               --install-dir "C:\Program Files (x86)\Intel\oneAPI"
       - name: Install oneAPI HPC Toolkit 2024.1 (silent)
         shell: cmd
         run: |
           "%RUNNER_TEMP%\w_HPCKit_p_2024.1.0.561_offline.exe" ^
-              -a --silent --eula accept --verbose ^
+              -a --silent --eula accept ^
               --install-dir "C:\Program Files (x86)\Intel\oneAPI"
       - name: Load oneAPI environment
         shell: cmd
