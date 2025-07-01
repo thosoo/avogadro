@@ -12,6 +12,7 @@ include_directories(
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
   ${libavogadro_BINARY_DIR}/src
+  ${libavogadro_BINARY_DIR}/src/extensions/spectra
   $<$<BOOL:${EIGEN3_FOUND}>:${EIGEN3_INCLUDE_DIR}>
   $<$<NOT:$<BOOL:${EIGEN3_FOUND}>>:${EIGEN2_INCLUDE_DIR}>
   ${OPENBABEL2_INCLUDE_DIR}
