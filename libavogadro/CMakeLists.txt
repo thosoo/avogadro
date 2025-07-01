@@ -81,6 +81,8 @@ function(avogadro_plugin_nogl plugin_name src_list)
   add_library(${plugin_name} ${_plugin_type} ${src_list} ${moc_files}
               ${plugin_UIS_H} ${plugin_RC_SRCS})
   if("${_plugin_type}" STREQUAL "MODULE")
+    # Allow linking the plugin into tests
+    set_target_properties(${plugin_name} PROPERTIES ENABLE_EXPORTS ON)
     install(TARGETS ${plugin_name} DESTINATION ${DESTINATION_DIR})
   else()
     # Needed to remove circular dependencies, will be linked to avogadro

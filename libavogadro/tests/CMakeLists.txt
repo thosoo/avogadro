@@ -70,6 +70,13 @@ foreach (test ${tests})
   set_property(TEST ${test}Test PROPERTY LABELS avogadro)
 endforeach ()
 
+# Link the NearIR test against the spectra extension plugin so that
+# the SpectraDialog and related classes resolve correctly.
+if(TARGET nearirspectratest)
+  target_link_libraries(nearirspectratest spectraextension)
+  set_target_properties(nearirspectratest PROPERTIES ENABLE_EXPORTS ON)
+endif()
+
 if(XTB_FOUND)
   include_directories(${XTB_INCLUDE_DIRS})
   link_directories(${XTB_LIBRARY_DIRS})
