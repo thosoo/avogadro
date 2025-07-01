@@ -94,6 +94,7 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
     return false;
 
   glDisable(GL_LIGHTING);
+  glLineWidth(2.0);
 
   double t = m_timer.elapsed() / 1000.0;
   Color *map = colorMap();
@@ -110,15 +111,15 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
     double hairLength = m_lengthFactor * radius;
 
     foreach (const HairStrand &h, hairs) {
-      // Offset the strand base just outside the sphere drawn by BSDYEngine
-      Eigen::Vector3d base = *a->pos() +
-                             h.dir.normalized() * (radius * 1.1);
+      // Offset slightly outside the sphere so lines aren't hidden
+      Eigen::Vector3d base = *a->pos() + h.dir.normalized() * (radius * 1.05);
       Eigen::Vector3d swing = h.dir.cross(Eigen::Vector3d::UnitZ()).normalized();
       Eigen::Vector3d dir = h.dir + swing * 0.2 * qSin(t + h.phase);
       Eigen::Vector3d tip = base + dir.normalized() * hairLength;
       pd->painter()->drawLine(base, tip, 1.0);
     }
   }
+  glLineWidth(1.0);
   glEnable(GL_LIGHTING);
   return true;
 }
