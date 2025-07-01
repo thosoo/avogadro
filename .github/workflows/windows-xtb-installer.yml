@@ -188,8 +188,8 @@ jobs:
           git submodule update --init --recursive
           popd
           set BLD=%SRC%\build
-          cmake -S %SRC% -B %BLD% -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="%BLD%\install" -DBLA_VENDOR=Intel10_64lp -DWITH_TBLITE=OFF -DBUILD_SHARED_LIBS=ON
-          cmake --build %BLD% --config Release --target install
+          cmake -S %SRC% -B %BLD% -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="%BLD%\install" -DBLA_VENDOR=Intel10_64lp -DWITH_TBLITE=OFF -DBUILD_SHARED_LIBS=ON -DCMAKE_VERBOSE_MAKEFILE=ON
+          cmake --build %BLD% --config Release --target install --verbose
           set xtbDir=%BLD%\install
           echo CMAKE_PREFIX_PATH=%xtbDir%;%CMAKE_PREFIX_PATH%>>"%GITHUB_ENV%"
           echo PKG_CONFIG_PATH=%xtbDir%\lib\pkgconfig;%PKG_CONFIG_PATH%>>"%GITHUB_ENV%"
