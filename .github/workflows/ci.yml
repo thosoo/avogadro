@@ -30,7 +30,7 @@ jobs:
       - name: Build OpenBabel
         run: |
           src="$RUNNER_TEMP/openbabel-src"
-          git clone --depth 1 https://github.com/thosoo/openbabel "$src"
+          git clone --depth 1 --branch master https://github.com/thosoo/openbabel "$src"
           cmake -S "$src" -B "$src/build" \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX="$src/build/install" \

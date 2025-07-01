@@ -122,7 +122,7 @@ jobs:
           ENABLE_TESTS: ${{ matrix.target == 'tests' && 'ON' || 'OFF' }}
         run: |
           $srcDir = Join-Path $env:RUNNER_TEMP 'openbabel-src'
-          git clone --depth 1 https://github.com/thosoo/openbabel $srcDir
+          git clone --depth 1 --branch master https://github.com/thosoo/openbabel $srcDir
           $build = Join-Path $srcDir 'build'
           cmake -S $srcDir -B $build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$build\install" -DLIBXML2_LIBRARY="$env:LIBXML2_LIBRARY" -DLIBXML2_LIBRARIES="$env:LIBXML2_LIBRARY" -DLIBXML2_INCLUDE_DIR="$env:LIBXML2_INCLUDE_DIR" -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" "-DENABLE_TESTS=$env:ENABLE_TESTS" -DBUILD_SHARED=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DOB_USE_PREBUILT_BINARIES=OFF -DOPENBABEL_USE_SYSTEM_INCHI=OFF -DWITH_INCHI=ON
           Push-Location $build
