@@ -143,6 +143,13 @@ def main():
             dest = dist / "share" / "xtb"
             log(f"Copying xTB data from {share} to {dest}")
             shutil.copytree(share, dest, dirs_exist_ok=True)
+    xtb_release = os.environ.get("XTB_RELEASE_DIR")
+    if xtb_release:
+        release_share = Path(xtb_release) / "share" / "xtb"
+        if release_share.exists():
+            dest = dist / "share" / "xtb"
+            log(f"Copying xTB release data from {release_share} to {dest}")
+            shutil.copytree(release_share, dest, dirs_exist_ok=True)
     license_src = root.parent.parent / 'COPYING'
     license_dest = dist / 'gpl.txt'
     if license_src.exists():

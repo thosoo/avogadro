@@ -173,6 +173,8 @@ jobs:
           & 7z x -y $xtbZip "-o$env:RUNNER_TEMP"
           $inner = Get-ChildItem $env:RUNNER_TEMP -Filter *.zip | Select-Object -First 1
           if ($inner) { & 7z x -y $inner.FullName "-o$env:RUNNER_TEMP" }
+          $dir = Get-ChildItem $env:RUNNER_TEMP -Directory | Where-Object { $_.Name -like 'xtb*' } | Select-Object -First 1
+          if ($dir) { "XTB_RELEASE_DIR=$($dir.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append }
       - name: Build xTB
         shell: cmd
         run: |
@@ -182,6 +184,9 @@ jobs:
           set CXX=cl
           set SRC=%RUNNER_TEMP%\xtb-src
           git clone --depth 1 https://github.com/grimme-lab/xtb %SRC%
+          pushd %SRC%
+          git submodule update --init --recursive
+          popd
           set BLD=%SRC%\build
           cmake -S %SRC% -B %BLD% -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="%BLD%\install" -DBLA_VENDOR=Intel10_64lp -DWITH_TBLITE=OFF -DBUILD_SHARED_LIBS=ON
           cmake --build %BLD% --config Release --target install
