@@ -38,6 +38,14 @@ namespace OpenBabel {
   class OBBond;
   class OBMol;
   class OBUnitCell;
+  class OBConformerData;
+#ifdef HAVE_OB_ORCA_SPEC_DATA
+  class OBOrcaSpecData;
+  class OBElectronicTransitionData;
+  class OBOrcaNearIRData;
+#endif
+  class OBVibrationData;
+  class OBDOSData;
 }
 
 namespace Avogadro {

@@ -18,6 +18,7 @@
  ***********************************************************************/
 
 #include <openbabel/generic.h>
+#ifdef HAVE_OB_ORCA_SPEC_DATA
 
 #include "absorption.h"
 #include "spectradialog.h"
@@ -74,8 +75,115 @@ void OrcaAbsSpectra::readSettings() {
 
 bool OrcaAbsSpectra::checkForData(Molecule * mol)
 {
-    Q_UNUSED(mol);
-    return false;
+    OpenBabel::OBMol obmol = mol->OBMol();
+    OpenBabel::OBOrcaSpecData *osd =
+      static_cast<OpenBabel::OBOrcaSpecData*>(obmol.GetData("OrcaSpectraData"));
+
+    if (!osd)
+        return false;
+    if (!osd->GetSpecData() && osd->GetAbsCombined().size() == 0)
+        return false;
+    if (osd->GetAbsEDipole().size() == 0 && osd->GetAbsCombined().size() == 0)
+        return false;
+
+    m_wavelength.resize(0);
+    m_wavenumber.resize(0);
+    m_energy.resize(0);
+    m_edipole.clear();
+    m_velosity.clear();
+    m_combined.clear();
+    m_D2.clear();
+    m_M2.clear();
+    m_Q2.clear();
+
+    std::vector<double> tmp_edipole, tmp_velosity, tmp_combined,
+        tmp_D2, tmp_M2, tmp_Q2;
+
+    m_wavelength = osd->GetAbsWavelengths();
+    getSortIdx(m_wavelength);
+
+    tmp_edipole = osd->GetAbsEDipole();
+    if (osd->GetAbsVelocity().size() != 0)
+        tmp_velosity = osd->GetAbsVelocity();
+    if (osd->GetAbsCombined().size() != 0) {
+        tmp_combined = osd->GetAbsCombined();
+        tmp_D2 = osd->GetAbsD2();
+        tmp_M2 = osd->GetAbsM2();
+        tmp_Q2 = osd->GetAbsQ2();
+    }
+
+    for (uint i = 0; i < tmp_edipole.size(); i++) {
+        m_edipole.push_back(tmp_edipole[m_idx[i]]);
+        if (tmp_velosity.size())
+            m_velosity.push_back(tmp_velosity[m_idx[i]]);
+        if (osd->GetAbsCombined().size() != 0) {
+            m_combined.push_back(tmp_combined[m_idx[i]]);
+            m_D2.push_back(tmp_D2[m_idx[i]]);
+            m_M2.push_back(tmp_M2[m_idx[i]]);
+            m_Q2.push_back(tmp_Q2[m_idx[i]]);
+        }
+    }
+
+    for (uint i = 0; i < m_wavelength.size(); i++) {
+        m_wavenumber.push_back(1.e7 / m_wavelength.at(i));
+        m_energy.push_back(1.e7 / (8065.54477 * m_wavelength.at(i)));
+    }
+
+    m_xList.clear();
+    m_yList.clear();
+
+    switch (m_XUnit) {
+    case WAVELENGTH:
+        m_XminIdx = m_wavelength.size() - 1;
+        m_xmin = m_xmin_org = m_wavelength.at(m_XminIdx);
+        m_XmaxIdx = 0;
+        m_xmax = m_xmax_org = m_wavelength.at(m_XmaxIdx);
+        for (int i = m_XmaxIdx; i <= m_XminIdx; i++)
+            m_xList.append(m_wavelength.at(i));
+        break;
+    case ENERGY_eV:
+        m_XminIdx = 0;
+        m_xmin = m_energy.at(m_XminIdx);
+        m_XmaxIdx = m_energy.size() - 1;
+        m_xmax = m_energy.at(m_XmaxIdx);
+        m_xmin_org = eV_to_nm / m_xmin;
+        m_xmax_org = eV_to_nm / m_xmax;
+        for (int i = m_XminIdx; i <= m_XmaxIdx; i++)
+            m_xList.append(m_energy.at(i));
+        break;
+    case WAVENUMBER:
+        m_XminIdx = 0;
+        m_xmin = m_wavenumber.at(m_XminIdx);
+        m_XmaxIdx = m_wavenumber.size() - 1;
+        m_xmax = m_wavenumber.at(m_XmaxIdx);
+        m_xmin_org = cm_1_to_nm / m_xmin;
+        m_xmax_org = cm_1_to_nm / m_xmax;
+        for (int i = m_XminIdx; i <= m_XmaxIdx; i++)
+            m_xList.append(m_wavenumber.at(i));
+        break;
+    default:
+        break; // never hit here
+    }
+
+    ui.spin_Xmin->setValue(m_xmin);
+    ui.spin_Xmax->setValue(m_xmax);
+
+    ui.combo_OrcaSpecType->clear();
+    if (m_edipole.size() != 0)
+        ui.combo_OrcaSpecType->addItem("Transition Electric dipole");
+    if (m_velosity.size() != 0)
+        ui.combo_OrcaSpecType->addItem("Transition Electric velosity");
+    if (m_D2.size() != 0)
+        ui.combo_OrcaSpecType->addItem("Electric dipole/total");
+    if (m_M2.size() != 0)
+        ui.combo_OrcaSpecType->addItem("Magnetic dipole/total");
+    if (m_Q2.size() != 0)
+        ui.combo_OrcaSpecType->addItem("Quadrupole dipole/total");
+    if (m_combined.size() != 0)
+        ui.combo_OrcaSpecType->addItem("Combined");
+
+    OrcaSpecTypeChanged(ui.combo_OrcaSpecType->currentText());
+    return true;
 }
 
 void OrcaAbsSpectra::setupPlot(PlotWidget * plot) {
@@ -134,6 +242,6 @@ QString OrcaAbsSpectra::getDataStream(PlotObject *plotObject)
     }
 }
 
-
+#endif // HAVE_OB_ORCA_SPEC_DATA
 
 }

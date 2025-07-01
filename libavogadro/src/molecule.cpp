@@ -73,6 +73,9 @@ namespace Avogadro{
                          obvibdata(0), obdosdata(0),
                          obelectronictransitiondata(0),
                          obconformerdata(0)
+#ifdef HAVE_OB_ORCA_SPEC_DATA
+                         ,oborcaspecdata(0), oborcanearirdata(0)
+#endif
     {}
     // These are logically cached variables and thus are marked as mutable.
     // Const objects should be logically constant (and not mutable)
@@ -112,6 +115,10 @@ namespace Avogadro{
       OpenBabel::OBElectronicTransitionData *
                                     obelectronictransitiondata;
       OpenBabel::OBConformerData *  obconformerdata;
+#ifdef HAVE_OB_ORCA_SPEC_DATA
+      OpenBabel::OBOrcaSpecData *   oborcaspecdata;
+      OpenBabel::OBOrcaNearIRData * oborcanearirdata;
+#endif
 
   };
 
@@ -1317,6 +1324,16 @@ namespace Avogadro{
     if (d->obconformerdata != NULL) {
       obmol.SetData(d->obconformerdata->Clone(&obmol));
     }
+#ifdef HAVE_OB_ORCA_SPEC_DATA
+    // Copy Orca spectra data, if needed
+    if (d->oborcaspecdata != NULL) {
+      obmol.SetData(d->oborcaspecdata->Clone(&obmol));
+    }
+    // Copy Orca NearIR spectra data, if needed
+    if (d->oborcanearirdata != NULL) {
+      obmol.SetData(d->oborcanearirdata->Clone(&obmol));
+    }
+#endif
 
     return obmol;
   }
@@ -1493,7 +1510,22 @@ namespace Avogadro{
       d->obelectronictransitiondata = etd;
     }
 
-    // Orca spectra data not supported with Open Babel 3
+#ifdef HAVE_OB_ORCA_SPEC_DATA
+    // Copy Orca spectra data
+    qDebug() << "has Orca spectra data  = " << obmol->HasData(OpenBabel::OBGenericDataType::CustomData0) << endl;
+    if (obmol->HasData(OpenBabel::OBGenericDataType::CustomData0)) {
+      OpenBabel::OBOrcaSpecData *specorca =
+        static_cast<OpenBabel::OBOrcaSpecData*>(obmol->GetData(OpenBabel::OBGenericDataType::CustomData0));
+      d->oborcaspecdata = specorca;
+    }
+    // Copy Orca NearIR spectra data
+    qDebug() << "has NearIR spectra data  = " << obmol->HasData(OpenBabel::OBGenericDataType::CustomData1) << endl;
+    if (obmol->HasData(OpenBabel::OBGenericDataType::CustomData1)) {
+      OpenBabel::OBOrcaNearIRData *nearIRData =
+        static_cast<OpenBabel::OBOrcaNearIRData*>(obmol->GetData(OpenBabel::OBGenericDataType::CustomData1));
+      d->oborcanearirdata = nearIRData;
+    }
+#endif
 
     // Copy orbital energies, symbols, and occupations to dynamic properties (as QList<>)
     qDebug() << "has data  = " << obmol->HasData(OpenBabel::OBGenericDataType::ElectronicData) << endl;

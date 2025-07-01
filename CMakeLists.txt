@@ -242,6 +242,17 @@ find_package(Eigen3 REQUIRED) # find and setup Eigen3 if available
 find_package(ZLIB REQUIRED)
 find_package(OpenBabel3 REQUIRED) # find and setup OpenBabel
 
+# Check if OpenBabel provides ORCA spectral data classes
+include(CheckCXXSourceCompiles)
+check_cxx_source_compiles(
+  "#include <openbabel/generic.h>
+   using namespace OpenBabel;
+   int main(){ OBOrcaSpecData data; OBOrcaNearIRData nird; return 0; }"
+  HAVE_OB_ORCA_SPEC_DATA)
+if(HAVE_OB_ORCA_SPEC_DATA)
+  add_definitions(-DHAVE_OB_ORCA_SPEC_DATA)
+endif()
+
 if (Q_WS_X11)
   find_package(X11 REQUIRED) # avogadro/src/main.cpp calls XInitThread().
 endif()
