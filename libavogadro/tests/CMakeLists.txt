@@ -42,6 +42,10 @@ set(tests
   addremovehydrogens
   nearirspectra
 )
+
+# Skip automatic Qt UI processing for the Near IR spectra test since it includes
+# a pre-generated ui_spectradialog.h header from the build tree.
+set_source_files_properties(nearirspectratest.cpp PROPERTIES SKIP_AUTOUIC ON)
 if(XTB_FOUND)
   list(APPEND tests xtbopttool xtbphysics)
 endif()
