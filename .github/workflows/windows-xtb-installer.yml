@@ -65,9 +65,9 @@ jobs:
           call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
           where ifort
           echo MKLROOT=%MKLROOT%>>"%GITHUB_ENV%"
-          echo CC=>>"%GITHUB_ENV%"
-          echo CXX=>>"%GITHUB_ENV%"
-          echo FC=>>"%GITHUB_ENV%"
+          echo CC=cl.exe>>"%GITHUB_ENV%"
+          echo CXX=cl.exe>>"%GITHUB_ENV%"
+          echo FC=ifort>>"%GITHUB_ENV%"
       - name: Install 7zip
         run: choco install -y 7zip
       - name: Build zlib
@@ -174,18 +174,22 @@ jobs:
           $inner = Get-ChildItem $env:RUNNER_TEMP -Filter *.zip | Select-Object -First 1
           if ($inner) { & 7z x -y $inner.FullName "-o$env:RUNNER_TEMP" }
       - name: Build xTB
-        shell: pwsh
+        shell: cmd
         run: |
-          $src = Join-Path $env:RUNNER_TEMP 'xtb-src'
-          git clone --depth 1 https://github.com/grimme-lab/xtb $src
-          $bld = Join-Path $src 'build'
-          cmake -S $src -B $bld -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$bld\install" -DBLA_VENDOR=Intel10_64lp -DWITH_TBLITE=OFF -DBUILD_SHARED_LIBS=ON
-          cmake --build $bld --config Release --target install
-          $xtbDir = Join-Path $bld 'install'
-          "CMAKE_PREFIX_PATH=$xtbDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "PKG_CONFIG_PATH=$xtbDir\lib\pkgconfig;$env:PKG_CONFIG_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "XTB_INSTALL_DIR=$xtbDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "$xtbDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
+          set FC=ifort
+          set CC=cl
+          set CXX=cl
+          set SRC=%RUNNER_TEMP%\xtb-src
+          git clone --depth 1 https://github.com/grimme-lab/xtb %SRC%
+          set BLD=%SRC%\build
+          cmake -S %SRC% -B %BLD% -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="%BLD%\install" -DBLA_VENDOR=Intel10_64lp -DWITH_TBLITE=OFF -DBUILD_SHARED_LIBS=ON
+          cmake --build %BLD% --config Release --target install
+          set xtbDir=%BLD%\install
+          echo CMAKE_PREFIX_PATH=%xtbDir%;%CMAKE_PREFIX_PATH%>>"%GITHUB_ENV%"
+          echo PKG_CONFIG_PATH=%xtbDir%\lib\pkgconfig;%PKG_CONFIG_PATH%>>"%GITHUB_ENV%"
+          echo XTB_INSTALL_DIR=%xtbDir%>>"%GITHUB_ENV%"
+          echo %xtbDir%\bin>>"%GITHUB_PATH%"
       - name: Build OpenBabel
         shell: pwsh
         env:
