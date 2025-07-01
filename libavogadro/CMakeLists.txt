@@ -58,8 +58,14 @@ function(avogadro_plugin_nogl plugin_name src_list)
     qt4_wrap_ui(plugin_UIS_H ${ui_plugin_files})
   endif()
 
-  # Check if the plugin should be compiled static or not
-  set(_plugin_type "MODULE")
+  # Check if the plugin should be compiled static or not. When tests are
+  # enabled, build plugins as shared libraries so they can be linked
+  # against the unit test executables.
+  if(ENABLE_TESTS)
+    set(_plugin_type "SHARED")
+  else()
+    set(_plugin_type "MODULE")
+  endif()
   foreach(plugin ${Avogadro_STATIC_PLUGINS})
     if("${plugin}" STREQUAL "${plugin_name}" OR "${plugin}" STREQUAL "ALL")
       set(_plugin_type "STATIC")
