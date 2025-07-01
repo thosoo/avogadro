@@ -38,6 +38,7 @@ set(tests
   moleculefile
   neighborlist
   addremovehydrogens
+  hairengine
 )
 if(XTB_FOUND)
   list(APPEND tests xtbopttool xtbphysics)
@@ -46,7 +47,14 @@ endif()
 foreach (test ${tests})
   message(STATUS "Test:  ${test}")
   set(test_SRCS ${test}test.cpp)
+  if(test STREQUAL "hairengine")
+    list(APPEND test_SRCS ../src/engines/hairengine.cpp)
+  endif()
   set(test_MOC_CPPS ${test}test.cpp)
+  if(test STREQUAL "hairengine")
+    qt4_wrap_ui(hairengine_UI ../src/engines/hairsettingswidget.ui)
+    list(APPEND test_SRCS ${hairengine_UI})
+  endif()
   QT4_WRAP_CPP(test_MOC_SRCS ${test_MOC_CPPS})
   ADD_CUSTOM_TARGET(${test}testmoc ALL DEPENDS ${test_MOC_SRCS})
   add_executable(${test}test ${test_SRCS})
