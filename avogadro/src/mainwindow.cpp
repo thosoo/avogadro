@@ -379,6 +379,8 @@ protected:
 
     setAttribute( Qt::WA_DeleteOnClose );
     setAcceptDrops(true);
+    ui.centralWidget->setAcceptDrops(true);
+    d->centralTab->setAcceptDrops(true);
 
     // add our bottom flat tabs
     d->bottomFlat = new FlatTabWidget(this);
