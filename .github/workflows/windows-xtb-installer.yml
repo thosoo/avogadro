@@ -46,7 +46,7 @@ jobs:
       - name: Load oneAPI environment
         shell: cmd
         run: |
-          call "%ONEAPI_ROOT%\setvars.bat"
+          call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
           where ifort
           echo MKLROOT=%MKLROOT%>>"%GITHUB_ENV%"
       - name: Use MSVC for C/C++ compiler
