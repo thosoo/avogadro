@@ -17,10 +17,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1
       - name: Install dependencies
-        run: choco install -y cmake --version=3.28.6 `
-          --no-progress `
-          --installargs '"ADD_CMAKE_TO_PATH=System"' `
-          --allow-downgrade   # harmless if no newer CMake is present
+        run: |
+          choco install -y cmake --version=3.28.6 \
+            --no-progress \
+            --installargs '"ADD_CMAKE_TO_PATH=System"' \
+            --allow-downgrade
+          choco install -y ninja
       - name: Cache oneAPI BaseKit 2024.1 installer
         id: cache-oneapi-base
         uses: actions/cache@v4
@@ -70,6 +72,9 @@ jobs:
           echo FC=ifort>>"%GITHUB_ENV%"
       - name: Install 7zip
         run: choco install -y 7zip
+      - name: Install Meson
+        shell: pwsh
+        run: pip install meson
       - name: Build zlib
         shell: pwsh
         run: |
@@ -79,10 +84,8 @@ jobs:
           & 7z x -y $zip "-o$env:RUNNER_TEMP"
           $src = Join-Path $env:RUNNER_TEMP "zlib-$ver"
           $bld = Join-Path $src "build"
-          cmake -S "$src" -B "$bld" -G "NMake Makefiles" -DCMAKE_INSTALL_PREFIX="$bld\install" -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release
-          Push-Location $bld
-          nmake install
-          Pop-Location
+          cmake -S "$src" -B "$bld" -G Ninja -DCMAKE_INSTALL_PREFIX="$bld\install" -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release
+          cmake --build $bld --target install
           $zlibDir = Join-Path $bld "install"
           $inc = Join-Path $zlibDir "include"
           $libDir = Join-Path $zlibDir "lib"
@@ -152,8 +155,8 @@ jobs:
           & 7z x -y $zip "-o$env:RUNNER_TEMP"
           $glewDir = Join-Path $env:RUNNER_TEMP "glew-$ver"
           $buildDir = Join-Path $glewDir 'builddir'
-          cmake -S (Join-Path $glewDir 'build' 'cmake') -B $buildDir -G "NMake Makefiles" -DBUILD_SHARED_LIBS=ON -DBUILD_UTILS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$buildDir\install"
-          cmake --build $buildDir --config Release --target install
+          cmake -S (Join-Path $glewDir 'build' 'cmake') -B $buildDir -G Ninja -DBUILD_SHARED_LIBS=ON -DBUILD_UTILS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$buildDir\install"
+          cmake --build $buildDir --target install
           $installDir = Join-Path $buildDir 'install'
           $binDir = Join-Path $installDir 'bin'
           $libDir = Join-Path $installDir 'lib'
@@ -186,10 +189,11 @@ jobs:
           git clone --depth 1 https://github.com/grimme-lab/xtb %SRC%
           pushd %SRC%
           git submodule update --init --recursive
+          set BLD=%SRC%\builddir
+          meson setup %BLD% --buildtype=release --prefix "%BLD%\install" -Dtblite=disabled -Ddefault_library=shared
+          meson compile -C %BLD% -v
+          meson install -C %BLD%
           popd
-          set BLD=%SRC%\build
-          cmake -S %SRC% -B %BLD% -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="%BLD%\install" -DBLA_VENDOR=Intel10_64lp -DWITH_TBLITE=OFF -DBUILD_SHARED_LIBS=ON -DCMAKE_VERBOSE_MAKEFILE=ON
-          cmake --build %BLD% --config Release --target install --verbose
           set xtbDir=%BLD%\install
           echo CMAKE_PREFIX_PATH=%xtbDir%;%CMAKE_PREFIX_PATH%>>"%GITHUB_ENV%"
           echo PKG_CONFIG_PATH=%xtbDir%\lib\pkgconfig;%PKG_CONFIG_PATH%>>"%GITHUB_ENV%"
@@ -203,10 +207,8 @@ jobs:
           $srcDir = Join-Path $env:RUNNER_TEMP 'openbabel-src'
           git clone --depth 1 https://github.com/openbabel/openbabel $srcDir
           $build = Join-Path $srcDir 'build'
-          cmake -S $srcDir -B $build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$build\install" -DLIBXML2_LIBRARY="$env:LIBXML2_LIBRARY" -DLIBXML2_LIBRARIES="$env:LIBXML2_LIBRARY" -DLIBXML2_INCLUDE_DIR="$env:LIBXML2_INCLUDE_DIR" -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" "-DENABLE_TESTS=$env:ENABLE_TESTS" -DBUILD_SHARED=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DOB_USE_PREBUILT_BINARIES=OFF -DOPENBABEL_USE_SYSTEM_INCHI=OFF -DWITH_INCHI=ON
-          Push-Location $build
-          nmake install
-          Pop-Location
+          cmake -S $srcDir -B $build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$build\install" -DLIBXML2_LIBRARY="$env:LIBXML2_LIBRARY" -DLIBXML2_LIBRARIES="$env:LIBXML2_LIBRARY" -DLIBXML2_INCLUDE_DIR="$env:LIBXML2_INCLUDE_DIR" -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" "-DENABLE_TESTS=$env:ENABLE_TESTS" -DBUILD_SHARED=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DOB_USE_PREBUILT_BINARIES=OFF -DOPENBABEL_USE_SYSTEM_INCHI=OFF -DWITH_INCHI=ON
+          cmake --build $build --target install
           $obDir = Join-Path $build 'install'
           $inc = Join-Path $obDir 'include' 'openbabel3'
           $lib = Join-Path $obDir 'lib' 'openbabel.lib'
@@ -226,7 +228,7 @@ jobs:
         run: |
           $dist = Join-Path $pwd 'scripts/installer/dist'
           cmake -S . -B build `
-            -G "NMake Makefiles" `
+            -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
             -DBUILD_SHARED_LIBS=ON `
             -DCMAKE_VERBOSE_MAKEFILE=ON `
@@ -246,7 +248,7 @@ jobs:
       - name: Build
         shell: pwsh
         run: |
-          cmake --build build --config Release --target install
+          cmake --build build --target install
       - name: Create installer
         if: matrix.target == 'installer'
         shell: pwsh
@@ -254,7 +256,7 @@ jobs:
           python scripts/installer/create_installer.py
       - name: Test
         if: matrix.target == 'tests'
-        run: ctest --test-dir build -C Release --output-on-failure
+        run: ctest --test-dir build --output-on-failure
       - name: Upload installer
         if: matrix.target == 'installer'
         uses: actions/upload-artifact@v4
