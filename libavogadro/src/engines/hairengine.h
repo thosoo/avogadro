@@ -26,6 +26,8 @@
 #include <avogadro/global.h>
 #include <avogadro/engine.h>
 
+#include <QtCore/QElapsedTimer>
+
 
 // Forward declare the generated UI form to avoid requiring the header in
 // consumers of this engine.
@@ -61,8 +63,8 @@ public:
   void readSettings(QSettings &settings);
 
 public slots:
-  /// Set the hair length in tenths of Angstroms.
-  void setLength(int value);
+  /// Set the hair length in Angstroms.
+  void setLength(double value);
   /// Set the number of hairs drawn per atom.
   void setCount(int value);
 
@@ -73,6 +75,7 @@ private:
   HairSettingsWidget *m_settingsWidget;
   double m_length;
   int m_count;
+  QElapsedTimer m_timer;
 };
 
 

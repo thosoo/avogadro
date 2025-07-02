@@ -18,21 +18,18 @@
    </widget>
   </item>
   <item row="0" column="1">
-    <widget class="QSlider" name="lengthSlider">
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-     <property name="minimum">
-      <number>1</number>
-     </property>
-     <property name="maximum">
-      <number>10</number>
-     </property>
-     <property name="value">
-      <number>5</number>
-     </property>
-    <property name="tickPosition">
-     <enum>QSlider::TicksBothSides</enum>
+   <widget class="QDoubleSpinBox" name="lengthSpinBox">
+    <property name="minimum">
+     <double>0.1</double>
+    </property>
+    <property name="maximum">
+     <double>5.0</double>
+    </property>
+    <property name="singleStep">
+     <double>0.1</double>
+    </property>
+    <property name="value">
+     <double>0.5</double>
     </property>
    </widget>
   </item>
@@ -44,10 +41,7 @@
    </widget>
   </item>
   <item row="1" column="1">
-   <widget class="QSlider" name="countSlider">
-    <property name="orientation">
-     <enum>Qt::Horizontal</enum>
-    </property>
+   <widget class="QSpinBox" name="countSpinBox">
     <property name="minimum">
      <number>1</number>
     </property>
@@ -56,9 +50,6 @@
     </property>
     <property name="value">
      <number>10</number>
-    </property>
-    <property name="tickPosition">
-     <enum>QSlider::TicksBothSides</enum>
     </property>
    </widget>
   </item>

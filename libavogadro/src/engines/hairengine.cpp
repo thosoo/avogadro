@@ -28,6 +28,7 @@
 #include <avogadro/molecule.h>
 
 #include <QtCore/QRandomGenerator>
+#include <QtCore/QElapsedTimer>
 #include <Eigen/Geometry>
 #include <cmath>
 
@@ -49,6 +50,7 @@ public:
 HairEngine::HairEngine(QObject *parent) : Engine(parent),
   m_settingsWidget(0), m_length(0.5), m_count(10)
 {
+  m_timer.start();
 }
 
 HairEngine::~HairEngine()
@@ -99,10 +101,13 @@ bool HairEngine::renderOpaque(PainterDevice *pd, const Atom *atom)
     points << start;
     const int segments = 5;
     const double amp = m_length * 0.2;
+    double time = m_timer.elapsed() / 500.0; // slow oscillation
+    double phase = i + atom->id();
     for (int s = 1; s <= segments; ++s) {
       double t = static_cast<double>(s) / segments;
+      double curl = std::sin(t * M_PI + phase + time);
       Vector3d p = start + dir * (m_length * t)
-                   + perp * (std::sin(t * M_PI) * amp);
+                   + perp * (curl * amp);
       points << p;
     }
 
@@ -117,21 +122,21 @@ QWidget *HairEngine::settingsWidget()
 {
   if (!m_settingsWidget) {
     m_settingsWidget = new HairSettingsWidget();
-    connect(m_settingsWidget->lengthSlider, SIGNAL(valueChanged(int)),
-            this, SLOT(setLength(int)));
-    connect(m_settingsWidget->countSlider, SIGNAL(valueChanged(int)),
+    connect(m_settingsWidget->lengthSpinBox, SIGNAL(valueChanged(double)),
+            this, SLOT(setLength(double)));
+    connect(m_settingsWidget->countSpinBox, SIGNAL(valueChanged(int)),
             this, SLOT(setCount(int)));
     connect(m_settingsWidget, SIGNAL(destroyed()),
             this, SLOT(settingsWidgetDestroyed()));
-    m_settingsWidget->lengthSlider->setValue(int(m_length * 10));
-    m_settingsWidget->countSlider->setValue(m_count);
+    m_settingsWidget->lengthSpinBox->setValue(m_length);
+    m_settingsWidget->countSpinBox->setValue(m_count);
   }
   return m_settingsWidget;
 }
 
-void HairEngine::setLength(int value)
+void HairEngine::setLength(double value)
 {
-  m_length = value / 10.0;
+  m_length = value;
   emit changed();
 }
 
@@ -159,19 +164,19 @@ Engine::Layers HairEngine::layers() const
 void HairEngine::writeSettings(QSettings &settings) const
 {
   Engine::writeSettings(settings);
-  settings.setValue("length", int(m_length * 10));
+  settings.setValue("length", m_length);
   settings.setValue("count", m_count);
 }
 
 void HairEngine::readSettings(QSettings &settings)
 {
   Engine::readSettings(settings);
-  setLength(settings.value("length", 5).toInt());
+  setLength(settings.value("length", 0.5).toDouble());
   setCount(settings.value("count", 10).toInt());
   if (m_settingsWidget)
   {
-    m_settingsWidget->lengthSlider->setValue(int(m_length * 10));
-    m_settingsWidget->countSlider->setValue(m_count);
+    m_settingsWidget->lengthSpinBox->setValue(m_length);
+    m_settingsWidget->countSpinBox->setValue(m_count);
   }
 }
 
