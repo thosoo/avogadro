@@ -18,7 +18,6 @@
  ***********************************************************************/
 
 #include <openbabel/generic.h>
-#ifdef HAVE_OB_ORCA_SPEC_DATA
 
 #include "absorption.h"
 #include "spectradialog.h"
@@ -244,4 +243,3 @@ QString OrcaAbsSpectra::getDataStream(PlotObject *plotObject)
 
 } // namespace Avogadro
 
-#endif // HAVE_OB_ORCA_SPEC_DATA

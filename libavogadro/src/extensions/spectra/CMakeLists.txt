@@ -23,13 +23,10 @@ set(spectraextension_SRCS
   raman.cpp
   abstract_orcaspec.cpp
   energy.cpp
+  emission.cpp
+  absorption.cpp
+  nearir.cpp
 )
-
-if(HAVE_OB_ORCA_SPEC_DATA)
-  list(APPEND spectraextension_SRCS emission.cpp absorption.cpp nearir.cpp)
-else()
-  message(STATUS "Building without ORCA spectral support")
-endif()
 
 avogadro_plugin_nogl(spectraextension
   "${spectraextension_SRCS}"

@@ -5,7 +5,8 @@
 #include <openbabel/mol.h>
 #include <openbabel/generic.h>
 
-#ifdef HAVE_OB_ORCA_SPEC_DATA
+#include <vector>
+
 using namespace std;
 
 namespace Avogadro {
@@ -165,4 +166,3 @@ QString NearIRSpectra::getDataStream(PlotObject *plotObject)
     return SpectraType::getDataStream (plotObject, "Frequencies", "Intensities");
 }
 } // namespace Avogadro
-#endif // HAVE_OB_ORCA_SPEC_DATA

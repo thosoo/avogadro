@@ -242,31 +242,6 @@ find_package(Eigen3 REQUIRED) # find and setup Eigen3 if available
 find_package(ZLIB REQUIRED)
 find_package(OpenBabel3 REQUIRED) # find and setup OpenBabel
 
-# Check if OpenBabel provides ORCA spectral data classes
-include(CheckCXXSourceCompiles)
-# Ensure the test uses the OpenBabel include directories
-set(_ob_prev_includes ${CMAKE_REQUIRED_INCLUDES})
-# Prefer the variable exported by OpenBabel3's config, but
-# fall back to the one from our FindOpenBabel3.cmake module.
-if(DEFINED OpenBabel3_INCLUDE_DIRS)
-  set(_ob_inc_dirs ${OpenBabel3_INCLUDE_DIRS})
-else()
-  set(_ob_inc_dirs ${OPENBABEL3_INCLUDE_DIRS})
-endif()
-set(CMAKE_REQUIRED_INCLUDES ${_ob_inc_dirs})
-set(_ob_prev_flags ${CMAKE_REQUIRED_FLAGS})
-set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} ${CMAKE_CXX_FLAGS}")
-check_cxx_source_compiles(
-  "#include <openbabel/generic.h>
-   using namespace OpenBabel;
-   int main(){ OBOrcaSpecData data; OBOrcaNearIRData nird; return 0; }"
-  HAVE_OB_ORCA_SPEC_DATA)
-set(CMAKE_REQUIRED_INCLUDES ${_ob_prev_includes})
-set(CMAKE_REQUIRED_FLAGS ${_ob_prev_flags})
-if(HAVE_OB_ORCA_SPEC_DATA)
-  add_definitions(-DHAVE_OB_ORCA_SPEC_DATA)
-endif()
-
 if (Q_WS_X11)
   find_package(X11 REQUIRED) # avogadro/src/main.cpp calls XInitThread().
 endif()

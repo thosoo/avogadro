@@ -3,8 +3,6 @@
 
 #include "abstract_ir.h"
 
-#ifdef HAVE_OB_ORCA_SPEC_DATA
-
 namespace Avogadro {
 
 class NearIRSpectra : public AbstractIRSpectra
@@ -27,5 +25,4 @@ public:
     QString getDataStream(PlotObject *plotObject);
 };
 }
-#endif // HAVE_OB_ORCA_SPEC_DATA
 #endif // SPECTRATYPE_NEARIR_H
