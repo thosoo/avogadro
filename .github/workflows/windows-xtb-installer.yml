@@ -71,13 +71,8 @@ jobs:
         run: |
           @echo off
           setlocal EnableDelayedExpansion
-          rem ===== snapshot BEFORE =====
           for /f "delims=" %%v in ('set') do echo %%v>>before.txt
-
-          rem ===== run setvars.bat =====
-          call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat" intel64 vs2022 >nul
-
-          rem ===== snapshot AFTER and export only the diffs =====
+          call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat" intel64 vs2022 --force >nul
           for /f "delims=" %%v in ('set') do (
               findstr /x "%%v" before.txt >nul || echo %%v>>"%GITHUB_ENV%"
           )
