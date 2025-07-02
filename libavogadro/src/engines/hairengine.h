@@ -27,6 +27,8 @@
 #include <avogadro/engine.h>
 
 #include <QtCore/QElapsedTimer>
+#include <QtCore/QHash>
+#include <Eigen/Geometry>
 
 
 // Forward declare the generated UI form to avoid requiring the header in
@@ -76,6 +78,7 @@ private:
   double m_length;
   int m_count;
   QElapsedTimer m_timer;
+  QHash<unsigned int, Eigen::Vector3d> m_prevPos;
 };
 
 

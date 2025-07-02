@@ -81,6 +81,10 @@ bool HairEngine::renderOpaque(PainterDevice *pd, const Atom *atom)
   Vector3d origin = *atom->pos();
   double baseRadius = pd->radius(atom);
 
+  Vector3d prev = m_prevPos.value(atom->id(), origin);
+  Vector3d movement = origin - prev;
+  m_prevPos[atom->id()] = origin;
+
   for (int i = 0; i < m_count; ++i) {
     QRandomGenerator gen(static_cast<quint32>(atom->id() * 100 + i));
     double theta = gen.generateDouble() * M_PI * 2.0;
@@ -91,23 +95,28 @@ bool HairEngine::renderOpaque(PainterDevice *pd, const Atom *atom)
 
     Vector3d start = origin + dir * baseRadius;
 
-    // Determine a perpendicular vector for curling.
-    Vector3d perp = dir.cross(Vector3d::UnitX());
-    if (perp.norm() < 1e-3)
-      perp = dir.cross(Vector3d::UnitY());
-    perp.normalize();
+    // Curl direction opposite to movement and perpendicular to the hair
+    Vector3d curlDir = -movement;
+    curlDir -= dir * curlDir.dot(dir);
+    if (curlDir.norm() < 1e-3)
+      curlDir = dir.cross(Vector3d::UnitX());
+    if (curlDir.norm() < 1e-3)
+      curlDir = dir.cross(Vector3d::UnitY());
+    curlDir.normalize();
 
     QList<Vector3d> points;
     points << start;
     const int segments = 5;
-    const double amp = m_length * 0.2;
     double time = m_timer.elapsed() / 500.0; // slow oscillation
     double phase = i + atom->id();
+    double baseAmp = m_length * 0.3 * std::min(movement.norm() * 10.0, 1.0);
+    double dynAmp = m_length * 0.2;
     for (int s = 1; s <= segments; ++s) {
       double t = static_cast<double>(s) / segments;
-      double curl = std::sin(t * M_PI + phase + time);
+      double dyn = std::sin(t * M_PI + phase + time) * dynAmp * t;
+      double base = baseAmp * (1.0 - t);
       Vector3d p = start + dir * (m_length * t)
-                   + perp * (curl * amp);
+                   + curlDir * (base + dyn);
       points << p;
     }
 
