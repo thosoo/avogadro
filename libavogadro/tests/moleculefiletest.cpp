@@ -223,7 +223,9 @@ void MoleculeFileTest::replaceMolecule()
   std::ofstream ofs(filename.toLatin1().data());
   ofs << "c1ccccc1  phenyl" << std::endl;
   ofs << "c1ccccc1N  aniline" << std::endl;
-  ofs << "c1ccccc1C  toluene" << std::endl;
+  // Use the more standard SMILES form with the methyl group first to avoid
+  // Open Babel's kekulization warnings.
+  ofs << "Cc1ccccc1  toluene" << std::endl;
   ofs.close();
 
   MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
@@ -290,7 +292,9 @@ void MoleculeFileTest::appendMolecule()
   std::ofstream ofs(filename.toLatin1().data());
   ofs << "c1ccccc1  phenyl" << std::endl;
   ofs << "c1ccccc1N  aniline" << std::endl;
-  ofs << "c1ccccc1C  toluene" << std::endl;
+  // Use the standard SMILES with the substituent before the ring to avoid
+  // Open Babel kekulization warnings.
+  ofs << "Cc1ccccc1  toluene" << std::endl;
   ofs.close();
 
   MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
