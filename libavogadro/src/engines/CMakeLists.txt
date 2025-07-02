@@ -61,6 +61,13 @@ avogadro_plugin(dipoleengine dipoleengine.cpp dipolesettingswidget.ui)
 # Simple wire engine - designed for efficiency with really big systems
 avogadro_plugin(simplewireengine simplewireengine.cpp)
 
+# Hair engine - overlay fur-like lines on atoms
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+  set(LINK_LIBS ${LINK_LIBS} OpenMP::OpenMP_CXX)
+endif()
+avogadro_plugin(hairengine hairengine.cpp hairsettingswidget.ui)
+
 # QTAIM engine - Quantum Theory of Atoms In Molecules
 avogadro_plugin(qtaimengine qtaimengine.cpp qtaimsettingswidget.ui)
 
