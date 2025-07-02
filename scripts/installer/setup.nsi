@@ -189,6 +189,7 @@ ${Index_RemoveFilesAndSubDirs}-done:
 !define MUI_FINISHPAGE_RUN "${PRODUCT_EXE}"
 !define MUI_FINISHPAGE_TEXT "$(FinishPageMessage)"
 !define MUI_FINISHPAGE_RUN_TEXT "$(FinishPageRun)"
+!define MUI_FINISHPAGE_RUN_FUNCTION LaunchAvogadroAsUser
 !insertmacro MUI_PAGE_FINISH
 
 # The uninstaller
@@ -369,4 +370,10 @@ Function un.onUninstSuccess
   HideWindow
   MessageBox MB_ICONINFORMATION|MB_OK "$(UnRemoveSuccessLabel)"
 
+FunctionEnd
+
+# Launch Avogadro with normal user privileges when the installer finishes.
+Function LaunchAvogadroAsUser
+  ; Use explorer.exe to inherit the current user's privileges
+  Exec '"$WINDIR\explorer.exe" "$INSTDIR\bin\Avogadro.exe"'
 FunctionEnd
