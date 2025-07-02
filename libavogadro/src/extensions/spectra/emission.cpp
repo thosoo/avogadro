@@ -18,7 +18,6 @@
  ***********************************************************************/
 
 #include <openbabel/generic.h>
-#include <openbabel/oborcadata.h>
 
 #include "emission.h"
 #include "spectradialog.h"

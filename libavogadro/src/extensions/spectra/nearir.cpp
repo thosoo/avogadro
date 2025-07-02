@@ -4,7 +4,6 @@
 
 #include <openbabel/mol.h>
 #include <openbabel/generic.h>
-#include <openbabel/oborcadata.h>
 
 #include <vector>
 
