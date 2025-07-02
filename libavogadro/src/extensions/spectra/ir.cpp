@@ -83,6 +83,25 @@ namespace Avogadro {
     // OK, we have valid vibrations, so store them for later
     vector<double> wavenumbers = vibrations->GetFrequencies();
     vector<double> intensities = vibrations->GetIntensities();
+    qDebug() << "has IR data " << wavenumbers.size();
+
+    // check if there are also data from a nearIR spectrum
+    OpenBabel::OBOrcaNearIRData *ond = static_cast<OpenBabel::OBOrcaNearIRData*>(obmol.GetData("OrcaNearIRSpectraData"));
+    if (ond) {
+        qDebug() << "has also nearIR data " << wavenumbers.size();
+
+        if (ond->GetNearIRData())  {
+            // OK, we have valid vibrations, so store them for later
+            vector<double> wavenumbersIR = ond->GetFrequencies();
+            vector<double> intensitiesIR = ond->GetIntensities();
+            for (unsigned int i = 0; i < intensitiesIR.size(); i++) {
+                if (wavenumbersIR.at(i) < 4000.) {
+                    wavenumbers.push_back(wavenumbersIR.at(i));
+                    intensities.push_back(intensitiesIR.at(i));
+                }
+            }
+        }
+    }
 
     // Case where there are no intensities, set all intensities to an arbitrary value, i.e. 1.0
     if (wavenumbers.size() > 0 && intensities.size() == 0) {

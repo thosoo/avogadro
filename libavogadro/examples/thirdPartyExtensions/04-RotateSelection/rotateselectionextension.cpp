@@ -36,7 +36,7 @@
 
 #include <QtCore/QDebug>
 #include <QtGui/QAction>
-#include <QtGui/QMessageBox>
+#include <QtWidgets/QMessageBox>
 
 #include "rotateselectiondialog.h"
 
