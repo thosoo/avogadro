@@ -374,6 +374,7 @@ FunctionEnd
 
 # Launch Avogadro with normal user privileges when the installer finishes.
 Function LaunchAvogadroAsUser
-  ; Use explorer.exe to inherit the current user's privileges
-  Exec '"$WINDIR\explorer.exe" "$INSTDIR\bin\Avogadro.exe"'
+  ; Open the Start Menu shortcut using Explorer so Avogadro runs with
+  ; normal user privileges and the correct working directory
+  Exec '"$WINDIR\explorer.exe" "$SMPROGRAMS\$StartmenuFolder\$(^Name).lnk"'
 FunctionEnd
