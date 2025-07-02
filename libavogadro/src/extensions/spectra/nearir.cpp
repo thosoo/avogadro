@@ -3,7 +3,6 @@
 #include <QtCore/QDebug>
 
 #include <openbabel/mol.h>
-#include <openbabel/oborcadata.h>
 #include <openbabel/generic.h>
 
 #include <vector>
