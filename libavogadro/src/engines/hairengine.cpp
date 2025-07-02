@@ -118,13 +118,14 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
   double time = m_timer.elapsed() / 500.0;
   const int segments = 5;
 
+  const int ctxSize = static_cast<int>(ctxs.size());
 #pragma omp parallel
   {
     std::vector<Segment> local;
     local.reserve(ctxs.size() * m_count);
 
 #pragma omp for nowait schedule(static)
-    for (size_t i = 0; i < ctxs.size(); ++i) {
+    for (int i = 0; i < ctxSize; ++i) {
       const Context &c = ctxs[i];
       for (int j = 0; j < m_count; ++j) {
         QRandomGenerator gen(static_cast<quint32>(c.id * 100 + j));
