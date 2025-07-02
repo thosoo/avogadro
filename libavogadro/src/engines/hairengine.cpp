@@ -127,8 +127,8 @@ bool HairEngine::renderOpaque(PainterDevice *pd, const Atom *atom)
     const int segments = 5;
     double time = m_timer.elapsed() / 500.0; // slow oscillation
     double phase = i + atom->id();
-    double baseAmp = m_length * 0.3 * std::min(movement.norm() * 10.0, 1.0);
-    double dynAmp = m_length * 0.2;
+    double baseAmp = m_length * 0.7 * std::min(movement.norm() * 20.0, 1.0);
+    double dynAmp = m_length * 0.3;
     for (int s = 1; s <= segments; ++s) {
       double t = static_cast<double>(s) / segments;
       double dyn = std::sin(t * M_PI + phase + time) * dynAmp * t;
