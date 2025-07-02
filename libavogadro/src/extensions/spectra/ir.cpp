@@ -25,6 +25,7 @@
 
 #include <openbabel/mol.h>
 #include <openbabel/generic.h>
+#include <openbabel/oborcadata.h>
 
 using namespace std;
 
