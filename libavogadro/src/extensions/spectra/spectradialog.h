@@ -54,8 +54,10 @@ namespace Avogadro {
   class CDSpectra;
   class RamanSpectra;
   class EnergySpectra;
+#ifdef HAVE_OB_ORCA_SPEC_DATA
   class OrcaEmissionSpectra;
   class OrcaAbsSpectra;
+#endif
 
   class SpectraDialog : public QDialog
   {
@@ -116,8 +118,10 @@ namespace Avogadro {
     CDSpectra *m_spectra_cd;
     RamanSpectra *m_spectra_raman;
     EnergySpectra *m_spectra_energy;
+#ifdef HAVE_OB_ORCA_SPEC_DATA
     OrcaEmissionSpectra *m_spectra_emission;
     OrcaAbsSpectra *m_spectra_absorption;
+#endif
     Molecule *m_molecule;
     int m_scheme;
     QList<QHash<QString, QVariant> > *m_schemes;

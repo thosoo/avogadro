@@ -81,8 +81,10 @@ namespace Avogadro {
     m_spectra_cd = new CDSpectra(this);
     m_spectra_raman = new RamanSpectra(this);
     m_spectra_energy = new EnergySpectra(this);
+#ifdef HAVE_OB_ORCA_SPEC_DATA
     m_spectra_absorption = new OrcaAbsSpectra(this);
     m_spectra_emission = new OrcaEmissionSpectra(this);
+#endif
     // Initialize vars
     m_schemes = new QList<QHash<QString, QVariant> >;
 
@@ -173,8 +175,10 @@ namespace Avogadro {
     delete m_spectra_cd;
     delete m_spectra_raman;
     delete m_spectra_energy;
+#ifdef HAVE_OB_ORCA_SPEC_DATA
     delete m_spectra_emission;
     delete m_spectra_absorption;
+#endif
   }
 
   void SpectraDialog::setMolecule(Molecule *molecule)
@@ -194,8 +198,10 @@ namespace Avogadro {
     m_spectra_cd->clear();
     m_spectra_raman->clear();
     m_spectra_energy->clear();
+#ifdef HAVE_OB_ORCA_SPEC_DATA
     m_spectra_absorption->clear();
     m_spectra_emission->clear();
+#endif
     updatePlot();
 
     // set the filename in the image export widget
@@ -274,6 +280,7 @@ namespace Avogadro {
       ui.tab_widget->addTab(m_spectra_raman->getTabWidget(), tr("&Raman Settings"));
     }
 
+#ifdef HAVE_OB_ORCA_SPEC_DATA
     // Check for ORCA absorption data
     bool hasAbsorption = m_spectra_absorption->checkForData(m_molecule);
     if (hasAbsorption) {
@@ -286,6 +293,10 @@ namespace Avogadro {
       ui.combo_spectra->addItem(tr("Emission", "Emission spectrum"));
       ui.tab_widget->addTab(m_spectra_emission->getTabWidget(), tr("&Emission Settings"));
     }
+#else
+    bool hasAbsorption = false;
+    bool hasEmission = false;
+#endif
     // Change this when other spectra are added!!
     if (!hasIR && !hasNearIR && !hasNMR && !hasDOS && !hasUV && !hasCD && !hasRaman && !hasEnergy && !hasAbsorption && !hasEmission) { // Actions if there are no spectra loaded
       qWarning() << "SpectraDialog::setMolecule: No spectra available!";
@@ -1187,10 +1198,12 @@ namespace Avogadro {
         return m_spectra_energy;
     else if (m_spectra == "Raman")
         return m_spectra_raman;
+#ifdef HAVE_OB_ORCA_SPEC_DATA
     else if (m_spectra == "Absorption")
         return m_spectra_absorption;
     else if (m_spectra == "Emission")
         return m_spectra_emission;
+#endif
 
     return NULL;
   }
