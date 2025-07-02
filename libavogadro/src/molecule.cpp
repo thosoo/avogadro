@@ -50,6 +50,7 @@
 #include <openbabel/griddata.h>
 #include <openbabel/grid.h>
 #include <openbabel/generic.h>
+#include <openbabel/oborcadata.h>
 #include <openbabel/obfunctions.h>
 #include <openbabel/forcefield.h>
 #include <openbabel/obiter.h>

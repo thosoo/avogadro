@@ -23,6 +23,7 @@
 #include "spectradialog.h"
 
 #include <QtWidgets/QMessageBox>
+#include <openbabel/oborcadata.h>
 #include <QtCore/QDebug>
 
 #include <openbabel/mol.h>
