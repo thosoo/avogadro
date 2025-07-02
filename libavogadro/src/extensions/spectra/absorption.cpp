@@ -242,6 +242,6 @@ QString OrcaAbsSpectra::getDataStream(PlotObject *plotObject)
     }
 }
 
-#endif // HAVE_OB_ORCA_SPEC_DATA
-
 } // namespace Avogadro
+
+#endif // HAVE_OB_ORCA_SPEC_DATA
