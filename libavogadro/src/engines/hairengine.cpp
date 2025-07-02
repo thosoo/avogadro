@@ -27,6 +27,8 @@
 #include <avogadro/camera.h>
 #include <avogadro/atom.h>
 #include <avogadro/molecule.h>
+#include <avogadro/color.h>
+#include <avogadro/color3f.h>
 
 #include <QtCore/QRandomGenerator>
 #include <QtCore/QElapsedTimer>
@@ -90,11 +92,16 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
     Vector3d movement;
     double amp;
     unsigned int id;
+    Color3f color;
   };
 
   QList<Atom *> atomList = atoms();
   std::vector<Context> ctxs;
   ctxs.reserve(atomList.size());
+
+  Color *map = colorMap();
+  if (!map)
+    map = pd->colorMap();
 
   for (Atom *atom : atomList) {
     Vector3d origin = *atom->pos();
@@ -115,10 +122,13 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
     camDelta = pd->camera()->modelview().linear().inverse() * camDelta;
     movement += camDelta;
 
-    ctxs.push_back({origin, baseRadius, movement, smoothAmp, atom->id()});
+    map->setFromPrimitive(atom);
+    Color3f col(map->red(), map->green(), map->blue());
+
+    ctxs.push_back({origin, baseRadius, movement, smoothAmp, atom->id(), col});
   }
 
-  struct Segment { Vector3d a; Vector3d b; };
+  struct Segment { Vector3d a; Vector3d b; Color3f color; };
   std::vector<Segment> segs;
 
   double time = m_timer.elapsed() / 500.0;
@@ -160,7 +170,7 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
           double dyn = std::sin(t * M_PI + phase + time) * dynAmp * t;
           double base = baseAmp * t;
           Vector3d p = start + dir * (m_length * t) + curlDir * (base + dyn);
-          local.push_back({prevPoint, p});
+          local.push_back({prevPoint, p, c.color});
           prevPoint = p;
         }
       }
@@ -170,8 +180,10 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
     segs.insert(segs.end(), local.begin(), local.end());
   }
 
-  for (const Segment &s : segs)
+  for (const Segment &s : segs) {
+    pd->painter()->setColor(s.color.red(), s.color.green(), s.color.blue(), 1.0f);
     pd->painter()->drawLine(s.a, s.b, 1.0);
+  }
 
   m_prevModelView = curModelView;
   return true;
