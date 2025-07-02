@@ -151,7 +151,7 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
         for (int s = 1; s <= segments; ++s) {
           double t = static_cast<double>(s) / segments;
           double dyn = std::sin(t * M_PI + phase + time) * dynAmp * t;
-          double base = baseAmp * (1.0 - t);
+          double base = baseAmp * t;
           Vector3d p = start + dir * (m_length * t) + curlDir * (base + dyn);
           local.push_back({prevPoint, p});
           prevPoint = p;
