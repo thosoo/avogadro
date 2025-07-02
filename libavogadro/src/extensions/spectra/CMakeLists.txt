@@ -10,6 +10,27 @@ avogadro_plugin_nogl(vibrationextension
   vibrationwidget.ui)
 
 ### Spectra
+set(spectraextension_SRCS
+  spectraextension.cpp
+  spectradialog.cpp
+  spectratype.cpp
+  abstract_ir.cpp
+  ir.cpp
+  nmr.cpp
+  dos.cpp
+  uv.cpp
+  cd.cpp
+  raman.cpp
+  emission.cpp
+  absorption.cpp
+  abstract_orcaspec.cpp
+  energy.cpp
+)
+
+if(HAVE_OB_ORCA_SPEC_DATA)
+  list(APPEND spectraextension_SRCS nearir.cpp)
+endif()
+
 avogadro_plugin_nogl(spectraextension
-  "spectraextension.cpp;spectradialog.cpp;spectratype.cpp;abstract_ir.cpp;ir.cpp;nearir.cpp;nmr.cpp;dos.cpp;uv.cpp;cd.cpp;raman.cpp;emission.cpp;absorption.cpp;abstract_orcaspec.cpp;;energy.cpp"
+  "${spectraextension_SRCS}"
   "spectradialog.ui;tab_ir_raman.ui;tab_nmr.ui;tab_dos.ui;tab_uv.ui;tab_cd.ui;tab_orcaspec.ui;tab_energy.ui")
