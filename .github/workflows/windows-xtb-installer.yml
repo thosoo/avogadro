@@ -73,7 +73,7 @@ jobs:
           set FC=ifort
           set CC=icl	
           set CXX=icl
-          set > "%GITHUB_ENV"
+          set > "%GITHUB_ENV%"
 
       - name: Build zlib
         shell: pwsh
