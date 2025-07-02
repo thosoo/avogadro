@@ -66,16 +66,11 @@ jobs:
               -a --silent --eula accept ^
               --install-dir "C:\Program Files (x86)\Intel\oneAPI"
 
-      - name: Capture oneAPI environment (Windows)
+      - name: Export oneAPI environment variables
         shell: cmd
         run: |
-          @echo off
-          setlocal EnableDelayedExpansion
-          for /f "delims=" %%v in ('set') do echo %%v>>before.txt
-          call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat" intel64 vs2022 --force >nul
-          for /f "delims=" %%v in ('set') do (
-              findstr /x "%%v" before.txt >nul || echo %%v>>"%GITHUB_ENV%"
-          )
+          call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat" intel64 vs2022
+          set > "%GITHUB_ENV"
 
       - name: Build zlib
         shell: pwsh
