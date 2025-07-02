@@ -66,19 +66,11 @@ jobs:
               -a --silent --eula accept ^
               --install-dir "C:\Program Files (x86)\Intel\oneAPI"
 
-      - name: Load oneAPI environment
-        shell: cmd
-        run: |
-          call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
-          where ifort
-          echo MKLROOT=%MKLROOT%>>"%GITHUB_ENV%"
-          echo CC=cl.exe>>"%GITHUB_ENV%"
-          echo CXX=cl.exe>>"%GITHUB_ENV%"
-          echo FC=ifort>>"%GITHUB_ENV%"
       - name: Build zlib
         shell: pwsh
         run: |
           $ver = '1.3.1'
+          . "C:\Program Files (x86)\Intel\oneAPI\setvars.ps1" -Force
           $zip = "$env:RUNNER_TEMP\zlib.zip"
           Invoke-WebRequest "https://zlib.net/zlib$($ver -replace '\.', '').zip" -OutFile $zip
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
@@ -105,6 +97,7 @@ jobs:
         shell: pwsh
         run: |
           $ver = '3.4.0'
+          . "C:\Program Files (x86)\Intel\oneAPI\setvars.ps1" -Force
           $zip = "$env:RUNNER_TEMP\eigen.zip"
           Invoke-WebRequest "https://gitlab.com/libeigen/eigen/-/archive/$ver/eigen-$ver.zip" -OutFile $zip
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
@@ -115,6 +108,7 @@ jobs:
         shell: pwsh
         run: |
           $ver = '2.12.10'
+          . "C:\Program Files (x86)\Intel\oneAPI\setvars.ps1" -Force
           $zip = "$env:RUNNER_TEMP\libxml2.zip"
           Invoke-WebRequest "https://github.com/GNOME/libxml2/archive/refs/tags/v$ver.zip" -OutFile $zip
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
@@ -152,6 +146,7 @@ jobs:
         shell: pwsh
         run: |
           $ver = '2.2.0'
+          . "C:\Program Files (x86)\Intel\oneAPI\setvars.ps1" -Force
           $zip = "$env:RUNNER_TEMP\glew.zip"
           Invoke-WebRequest "https://github.com/nigels-com/glew/releases/download/glew-$ver/glew-$ver.zip" -OutFile $zip
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
@@ -175,6 +170,7 @@ jobs:
         env:
           ENABLE_TESTS: ${{ matrix.target == 'tests' && 'ON' || 'OFF' }}
         run: |
+          . "C:\Program Files (x86)\Intel\oneAPI\setvars.ps1" -Force
           $srcDir = Join-Path $env:RUNNER_TEMP 'openbabel-src'
           git clone --depth 1 https://github.com/openbabel/openbabel $srcDir
           $build = Join-Path $srcDir 'build'
@@ -203,9 +199,6 @@ jobs:
           7z x "%RUNNER_TEMP%\xtb-src.tar.xz" -o"%RUNNER_TEMP%\xtb-src"
           for /r "%RUNNER_TEMP%\xtb-src" %%f in (*.tar) do 7z x "%%f" -o"%RUNNER_TEMP%\xtb-src"
           call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
-          set "CC=cl.exe"
-          set "CXX=cl.exe"
-          set "FC=ifort"
           set "MKL_LIBS=mkl_intel_lp64;mkl_core;mkl_intel_thread;libiomp5md"
           set "LIB=%MKLROOT%\lib\intel64;%LIB%"
           python -m pip install meson ninja
@@ -228,6 +221,7 @@ jobs:
           ENABLE_TESTS: ${{ matrix.target == 'tests' && 'ON' || 'OFF' }}
         run: |
           $dist = Join-Path $pwd 'scripts/installer/dist'
+          . "C:\Program Files (x86)\Intel\oneAPI\setvars.ps1" -Force
           cmake -S . -B build `
             -G "NMake Makefiles" `
             -DCMAKE_BUILD_TYPE=Release `
@@ -250,11 +244,13 @@ jobs:
       - name: Build
         shell: pwsh
         run: |
+          . "C:\Program Files (x86)\Intel\oneAPI\setvars.ps1" -Force
           cmake --build build --config Release --target install
       - name: Create installer
         if: matrix.target == 'installer'
         shell: pwsh
         run: |
+          . "C:\Program Files (x86)\Intel\oneAPI\setvars.ps1" -Force
           python scripts/installer/create_installer.py
       - name: Test
         if: matrix.target == 'tests'
