@@ -872,3 +872,5 @@ namespace Avogadro
 
 } // End namespace Avogadro
 
+Q_EXPORT_PLUGIN2(orbitalextension, Avogadro::OrbitalExtensionFactory)
+
