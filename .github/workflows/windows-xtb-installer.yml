@@ -204,7 +204,7 @@ jobs:
           for /r "%RUNNER_TEMP%\xtb-src" %%f in (*.tar) do 7z x "%%f" -o"%RUNNER_TEMP%\xtb-src"
           call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
           python -m pip install meson ninja
-          cd "%RUNNER_TEMP%\xtb-src\xtb-%XTB_VER%-source"
+          cd "%RUNNER_TEMP%\xtb-src\xtb_%XTB_VER%_source"
           meson setup builddir --default-library=shared --buildtype=release --prefix="%RUNNER_TEMP%\xtb-install"
           meson compile -C builddir
           meson install -C builddir
