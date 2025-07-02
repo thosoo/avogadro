@@ -244,11 +244,15 @@ find_package(OpenBabel3 REQUIRED) # find and setup OpenBabel
 
 # Check if OpenBabel provides ORCA spectral data classes
 include(CheckCXXSourceCompiles)
+# Ensure the test uses the OpenBabel include directories
+set(_ob_prev_includes ${CMAKE_REQUIRED_INCLUDES})
+set(CMAKE_REQUIRED_INCLUDES ${OPENBABEL3_INCLUDE_DIRS})
 check_cxx_source_compiles(
   "#include <openbabel/generic.h>
    using namespace OpenBabel;
    int main(){ OBOrcaSpecData data; OBOrcaNearIRData nird; return 0; }"
   HAVE_OB_ORCA_SPEC_DATA)
+set(CMAKE_REQUIRED_INCLUDES ${_ob_prev_includes})
 if(HAVE_OB_ORCA_SPEC_DATA)
   add_definitions(-DHAVE_OB_ORCA_SPEC_DATA)
 endif()
