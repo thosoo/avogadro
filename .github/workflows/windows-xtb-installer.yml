@@ -70,9 +70,12 @@ jobs:
         shell: cmd
         run: |
           call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat" intel64 vs2022
-          set "FC=ifort"
-          set "CC=icl"
-          set "CXX=icl"
+          where icl
+          where ifort
+          echo MKLROOT=%MKLROOT%>>"%GITHUB_ENV%"
+          echo CC=icl>>"%GITHUB_ENV%"
+          echo CXX=icl>>"%GITHUB_ENV%"
+          echo FC=ifort>>"%GITHUB_ENV%"
           set > "%GITHUB_ENV%"
           echo %ONEAPI_ROOT%\compiler\latest\windows\bin>>"%GITHUB_PATH%"
 
