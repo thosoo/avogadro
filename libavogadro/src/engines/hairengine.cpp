@@ -88,6 +88,7 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
     Vector3d origin;
     double baseRadius;
     Vector3d movement;
+    double amp;
     unsigned int id;
   };
 
@@ -103,13 +104,18 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
     Vector3d movement = origin - prev;
     m_prevPos[atom->id()] = origin;
 
+    double prevAmp = m_motionAmp.value(atom->id(), 0.0);
+    double newAmp = std::min(movement.norm() * 20.0, 1.0);
+    double smoothAmp = prevAmp * 0.95 + newAmp * 0.05;
+    m_motionAmp[atom->id()] = smoothAmp;
+
     Eigen::Vector3d curCam = (pd->camera()->modelview() * origin.homogeneous()).head<3>();
     Eigen::Vector3d prevCam = (m_prevModelView * origin.homogeneous()).head<3>();
     Eigen::Vector3d camDelta = curCam - prevCam;
     camDelta = pd->camera()->modelview().linear().inverse() * camDelta;
     movement += camDelta;
 
-    ctxs.push_back({origin, baseRadius, movement, atom->id()});
+    ctxs.push_back({origin, baseRadius, movement, smoothAmp, atom->id()});
   }
 
   struct Segment { Vector3d a; Vector3d b; };
@@ -147,7 +153,7 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
 
         Vector3d prevPoint = start;
         double phase = j + c.id;
-        double baseAmp = m_length * 0.7 * std::min(c.movement.norm() * 20.0, 1.0);
+        double baseAmp = m_length * 0.7 * c.amp;
         double dynAmp = m_length * 0.3;
         for (int s = 1; s <= segments; ++s) {
           double t = static_cast<double>(s) / segments;

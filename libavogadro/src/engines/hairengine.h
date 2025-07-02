@@ -79,6 +79,7 @@ private:
   int m_count;
   QElapsedTimer m_timer;
   QHash<unsigned int, Eigen::Vector3d> m_prevPos;
+  QHash<unsigned int, double> m_motionAmp;
   Eigen::Projective3d m_prevModelView;
   bool m_hasPrevModelView;
 };
