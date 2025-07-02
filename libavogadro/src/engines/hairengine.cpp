@@ -24,6 +24,7 @@
 #include "ui_hairsettingswidget.h"
 
 #include <avogadro/painterdevice.h>
+#include <avogadro/camera.h>
 #include <avogadro/atom.h>
 #include <avogadro/molecule.h>
 
@@ -48,7 +49,7 @@ public:
 };
 
 HairEngine::HairEngine(QObject *parent) : Engine(parent),
-  m_settingsWidget(0), m_length(0.5), m_count(10)
+  m_settingsWidget(0), m_length(0.5), m_count(10), m_hasPrevModelView(false)
 {
   m_timer.start();
 }
@@ -66,13 +67,23 @@ Engine *HairEngine::clone() const
   engine->setEnabled(isEnabled());
   engine->m_length = m_length;
   engine->m_count = m_count;
+  engine->m_prevModelView = m_prevModelView;
+  engine->m_hasPrevModelView = m_hasPrevModelView;
   return engine;
 }
 
 bool HairEngine::renderOpaque(PainterDevice *pd)
 {
-  foreach(Atom *atom, atoms())
+  Eigen::Projective3d curModelView = pd->camera()->modelview();
+  if (!m_hasPrevModelView) {
+    m_prevModelView = curModelView;
+    m_hasPrevModelView = true;
+  }
+
+  foreach (Atom *atom, atoms())
     renderOpaque(pd, atom);
+
+  m_prevModelView = curModelView;
   return true;
 }
 
@@ -84,6 +95,13 @@ bool HairEngine::renderOpaque(PainterDevice *pd, const Atom *atom)
   Vector3d prev = m_prevPos.value(atom->id(), origin);
   Vector3d movement = origin - prev;
   m_prevPos[atom->id()] = origin;
+
+  // Add apparent motion caused by camera movement
+  Eigen::Vector3d curCam = (pd->camera()->modelview() * origin.homogeneous()).head<3>();
+  Eigen::Vector3d prevCam = (m_prevModelView * origin.homogeneous()).head<3>();
+  Eigen::Vector3d camDelta = curCam - prevCam;
+  camDelta = pd->camera()->modelview().linear().inverse() * camDelta;
+  movement += camDelta;
 
   for (int i = 0; i < m_count; ++i) {
     QRandomGenerator gen(static_cast<quint32>(atom->id() * 100 + i));
