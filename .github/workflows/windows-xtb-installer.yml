@@ -77,7 +77,7 @@ jobs:
           echo CXX=icl>>"%GITHUB_ENV%"
           echo FC=ifort>>"%GITHUB_ENV%"
           set > "%GITHUB_ENV%"
-          echo %ONEAPI_ROOT%\compiler\latest\windows\bin>>"%GITHUB_PATH%"
+          echo %ONEAPI_ROOT%\compiler\latest\windows\bin\intel64>>"%GITHUB_PATH%"
 
       - name: Build zlib
         shell: pwsh
@@ -87,8 +87,8 @@ jobs:
           Invoke-WebRequest "https://zlib.net/zlib$($ver -replace '\.', '').zip" -OutFile $zip
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
           $src = Join-Path $env:RUNNER_TEMP "zlib-$ver"
-          $bld = Join-Path $src "build"
-          cmake -S "$src" -B "$bld" -G "NMake Makefiles" -DCMAKE_INSTALL_PREFIX="$bld\install" -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release
+          $bld = Join-Path $src "build
+          cmake -S "$src" -B "$bld" -G "NMake Makefiles" -DCMAKE_INSTALL_PREFIX="$bld\install" -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=icl -DCMAKE_CXX_COMPILER=icl -DCMAKE_Fortran_COMPILER=ifort
           Push-Location $bld
           nmake install
           Pop-Location
@@ -161,7 +161,7 @@ jobs:
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
           $glewDir = Join-Path $env:RUNNER_TEMP "glew-$ver"
           $buildDir = Join-Path $glewDir 'builddir'
-          cmake -S (Join-Path $glewDir 'build' 'cmake') -B $buildDir -G "NMake Makefiles" -DBUILD_SHARED_LIBS=ON -DBUILD_UTILS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$buildDir\install"
+          cmake -S (Join-Path $glewDir 'build' 'cmake') -B $buildDir -G "NMake Makefiles" -DBUILD_SHARED_LIBS=ON -DBUILD_UTILS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$buildDir\install"  -DCMAKE_C_COMPILER=icl -DCMAKE_CXX_COMPILER=icl -DCMAKE_Fortran_COMPILER=ifort
           cmake --build $buildDir --config Release --target install
           $installDir = Join-Path $buildDir 'install'
           $binDir = Join-Path $installDir 'bin'
@@ -182,7 +182,7 @@ jobs:
           $srcDir = Join-Path $env:RUNNER_TEMP 'openbabel-src'
           git clone --depth 1 https://github.com/openbabel/openbabel $srcDir
           $build = Join-Path $srcDir 'build'
-          cmake -S $srcDir -B $build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$build\install" -DLIBXML2_LIBRARY="$env:LIBXML2_LIBRARY" -DLIBXML2_LIBRARIES="$env:LIBXML2_LIBRARY" -DLIBXML2_INCLUDE_DIR="$env:LIBXML2_INCLUDE_DIR" -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" "-DENABLE_TESTS=$env:ENABLE_TESTS" -DBUILD_SHARED=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DOB_USE_PREBUILT_BINARIES=OFF -DOPENBABEL_USE_SYSTEM_INCHI=OFF -DWITH_INCHI=ON
+          cmake -S $srcDir -B $build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$build\install" -DLIBXML2_LIBRARY="$env:LIBXML2_LIBRARY" -DLIBXML2_LIBRARIES="$env:LIBXML2_LIBRARY" -DLIBXML2_INCLUDE_DIR="$env:LIBXML2_INCLUDE_DIR" -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" "-DENABLE_TESTS=$env:ENABLE_TESTS" -DBUILD_SHARED=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DOB_USE_PREBUILT_BINARIES=OFF -DOPENBABEL_USE_SYSTEM_INCHI=OFF -DWITH_INCHI=ON  -DCMAKE_C_COMPILER=icl -DCMAKE_CXX_COMPILER=icl -DCMAKE_Fortran_COMPILER=ifort
           Push-Location $build
           nmake install
           Pop-Location
@@ -211,6 +211,9 @@ jobs:
           set "LIB=%MKLROOT%\lib\intel64;%LIB%"
           python -m pip install meson ninja
           cd "%RUNNER_TEMP%\xtb-src\xtb_%XTB_VER%_source"
+          set CC=icl
+          set CXX=icl
+          set FC=ifort
           meson setup builddir --default-library=shared --buildtype=release --prefix="%RUNNER_TEMP%\xtb-install" -Dlapack=mkl
           meson compile -C builddir
           meson install -C builddir
