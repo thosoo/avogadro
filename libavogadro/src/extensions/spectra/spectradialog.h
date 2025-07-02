@@ -45,7 +45,9 @@ namespace Avogadro {
 
   class SpectraType;
   class IRSpectra;
+#ifdef HAVE_OB_ORCA_SPEC_DATA
   class NearIRSpectra;
+#endif
   class NMRSpectra;
   class DOSSpectra;
   class UVSpectra;
@@ -105,7 +107,9 @@ namespace Avogadro {
     Ui::SpectraDialog ui;
 
     IRSpectra *m_spectra_ir;
+#ifdef HAVE_OB_ORCA_SPEC_DATA
     NearIRSpectra *m_spectra_nearir;
+#endif
     NMRSpectra *m_spectra_nmr;
     DOSSpectra *m_spectra_dos;
     UVSpectra *m_spectra_uv;

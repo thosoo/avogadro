@@ -21,7 +21,9 @@
 #include "spectratype.h"
 
 #include "ir.h"
+#ifdef HAVE_OB_ORCA_SPEC_DATA
 #include "nearir.h"
+#endif
 #include "nmr.h"
 #include "dos.h"
 #include "uv.h"
@@ -70,7 +72,9 @@ namespace Avogadro {
 
     // Set up spectra variables
     m_spectra_ir = new IRSpectra(this);
+#ifdef HAVE_OB_ORCA_SPEC_DATA
     m_spectra_nearir = new NearIRSpectra(this);
+#endif
     m_spectra_nmr = new NMRSpectra(this);
     m_spectra_dos = new DOSSpectra(this);
     m_spectra_uv = new UVSpectra(this);
@@ -160,7 +164,9 @@ namespace Avogadro {
   {
     writeSettings();
     delete m_spectra_ir;
+#ifdef HAVE_OB_ORCA_SPEC_DATA
     delete m_spectra_nearir;
+#endif
     delete m_spectra_nmr;
     delete m_spectra_dos;
     delete m_spectra_uv;
@@ -179,7 +185,9 @@ namespace Avogadro {
     m_molecule = molecule;
 
     m_spectra_ir->clear();
+#ifdef HAVE_OB_ORCA_SPEC_DATA
     m_spectra_nearir->clear();
+#endif
     m_spectra_nmr->clear();
     m_spectra_dos->clear();
     m_spectra_uv->clear();
@@ -213,11 +221,15 @@ namespace Avogadro {
     }
 
     // Check for NearIR data
+#ifdef HAVE_OB_ORCA_SPEC_DATA
     bool hasNearIR = m_spectra_nearir->checkForData(m_molecule);
     if (hasNearIR) {
       ui.combo_spectra->addItem(tr("NearInfrared", "Overtone and Combined spectra"));
       ui.tab_widget->addTab(m_spectra_nearir->getTabWidget(), tr("&Near Infrared Spectra Settings"));
     }
+#else
+    bool hasNearIR = false;
+#endif
 
     // Check for NMR data
     bool hasNMR = m_spectra_nmr->checkForData(m_molecule);
@@ -1159,8 +1171,10 @@ namespace Avogadro {
   {
     if (m_spectra == "Infrared")
       return m_spectra_ir;
+#ifdef HAVE_OB_ORCA_SPEC_DATA
     else if (m_spectra == "NearInfrared")
         return m_spectra_nearir;
+#endif
     else if (m_spectra == "NMR")
       return m_spectra_nmr;
     else if (m_spectra == "DOS")
