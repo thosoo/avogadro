@@ -31,6 +31,10 @@
 #include <QtCore/QRandomGenerator>
 #include <QtCore/QElapsedTimer>
 #include <Eigen/Geometry>
+#ifdef _OPENMP
+#  include <omp.h>
+#endif
+#include <vector>
 #include <cmath>
 
 using Eigen::Vector3d;
@@ -80,70 +84,93 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
     m_hasPrevModelView = true;
   }
 
-  foreach (Atom *atom, atoms())
-    renderOpaque(pd, atom);
+  struct Context {
+    Vector3d origin;
+    double baseRadius;
+    Vector3d movement;
+    unsigned int id;
+  };
+
+  QList<Atom *> atomList = atoms();
+  std::vector<Context> ctxs;
+  ctxs.reserve(atomList.size());
+
+  for (Atom *atom : atomList) {
+    Vector3d origin = *atom->pos();
+    double baseRadius = pd->radius(atom);
+
+    Vector3d prev = m_prevPos.value(atom->id(), origin);
+    Vector3d movement = origin - prev;
+    m_prevPos[atom->id()] = origin;
+
+    Eigen::Vector3d curCam = (pd->camera()->modelview() * origin.homogeneous()).head<3>();
+    Eigen::Vector3d prevCam = (m_prevModelView * origin.homogeneous()).head<3>();
+    Eigen::Vector3d camDelta = curCam - prevCam;
+    camDelta = pd->camera()->modelview().linear().inverse() * camDelta;
+    movement += camDelta;
+
+    ctxs.push_back({origin, baseRadius, movement, atom->id()});
+  }
+
+  struct Segment { Vector3d a; Vector3d b; };
+  std::vector<Segment> segs;
+
+  double time = m_timer.elapsed() / 500.0;
+  const int segments = 5;
+
+#pragma omp parallel
+  {
+    std::vector<Segment> local;
+    local.reserve(ctxs.size() * m_count);
+
+#pragma omp for nowait schedule(static)
+    for (size_t i = 0; i < ctxs.size(); ++i) {
+      const Context &c = ctxs[i];
+      for (int j = 0; j < m_count; ++j) {
+        QRandomGenerator gen(static_cast<quint32>(c.id * 100 + j));
+        double theta = gen.generateDouble() * M_PI * 2.0;
+        double phi = std::acos(2.0 * gen.generateDouble() - 1.0);
+        Vector3d dir(std::sin(phi) * std::cos(theta),
+                     std::sin(phi) * std::sin(theta),
+                     std::cos(phi));
+
+        Vector3d start = c.origin + dir * c.baseRadius;
+
+        Vector3d curlDir = -c.movement;
+        curlDir -= dir * curlDir.dot(dir);
+        if (curlDir.norm() < 1e-3)
+          curlDir = dir.cross(Vector3d::UnitX());
+        if (curlDir.norm() < 1e-3)
+          curlDir = dir.cross(Vector3d::UnitY());
+        curlDir.normalize();
+
+        Vector3d prevPoint = start;
+        double phase = j + c.id;
+        double baseAmp = m_length * 0.7 * std::min(c.movement.norm() * 20.0, 1.0);
+        double dynAmp = m_length * 0.3;
+        for (int s = 1; s <= segments; ++s) {
+          double t = static_cast<double>(s) / segments;
+          double dyn = std::sin(t * M_PI + phase + time) * dynAmp * t;
+          double base = baseAmp * (1.0 - t);
+          Vector3d p = start + dir * (m_length * t) + curlDir * (base + dyn);
+          local.push_back({prevPoint, p});
+          prevPoint = p;
+        }
+      }
+    }
+
+#pragma omp critical
+    segs.insert(segs.end(), local.begin(), local.end());
+  }
+
+  for (const Segment &s : segs)
+    pd->painter()->drawLine(s.a, s.b, 1.0);
 
   m_prevModelView = curModelView;
   return true;
 }
 
-bool HairEngine::renderOpaque(PainterDevice *pd, const Atom *atom)
-{
-  Vector3d origin = *atom->pos();
-  double baseRadius = pd->radius(atom);
 
-  Vector3d prev = m_prevPos.value(atom->id(), origin);
-  Vector3d movement = origin - prev;
-  m_prevPos[atom->id()] = origin;
-
-  // Add apparent motion caused by camera movement
-  Eigen::Vector3d curCam = (pd->camera()->modelview() * origin.homogeneous()).head<3>();
-  Eigen::Vector3d prevCam = (m_prevModelView * origin.homogeneous()).head<3>();
-  Eigen::Vector3d camDelta = curCam - prevCam;
-  camDelta = pd->camera()->modelview().linear().inverse() * camDelta;
-  movement += camDelta;
-
-  for (int i = 0; i < m_count; ++i) {
-    QRandomGenerator gen(static_cast<quint32>(atom->id() * 100 + i));
-    double theta = gen.generateDouble() * M_PI * 2.0;
-    double phi = std::acos(2.0 * gen.generateDouble() - 1.0);
-    Vector3d dir(std::sin(phi) * std::cos(theta),
-                 std::sin(phi) * std::sin(theta),
-                 std::cos(phi));
-
-    Vector3d start = origin + dir * baseRadius;
-
-    // Curl direction opposite to movement and perpendicular to the hair
-    Vector3d curlDir = -movement;
-    curlDir -= dir * curlDir.dot(dir);
-    if (curlDir.norm() < 1e-3)
-      curlDir = dir.cross(Vector3d::UnitX());
-    if (curlDir.norm() < 1e-3)
-      curlDir = dir.cross(Vector3d::UnitY());
-    curlDir.normalize();
-
-    QList<Vector3d> points;
-    points << start;
-    const int segments = 5;
-    double time = m_timer.elapsed() / 500.0; // slow oscillation
-    double phase = i + atom->id();
-    double baseAmp = m_length * 0.7 * std::min(movement.norm() * 20.0, 1.0);
-    double dynAmp = m_length * 0.3;
-    for (int s = 1; s <= segments; ++s) {
-      double t = static_cast<double>(s) / segments;
-      double dyn = std::sin(t * M_PI + phase + time) * dynAmp * t;
-      double base = baseAmp * (1.0 - t);
-      Vector3d p = start + dir * (m_length * t)
-                   + curlDir * (base + dyn);
-      points << p;
-    }
-
-    for (int s = 0; s < points.size() - 1; ++s)
-      pd->painter()->drawLine(points[s], points[s + 1], 1.0);
-  }
-
-  return true;
-}
 
 QWidget *HairEngine::settingsWidget()
 {

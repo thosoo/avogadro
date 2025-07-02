@@ -29,6 +29,7 @@
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QHash>
 #include <Eigen/Geometry>
+#include <vector>
 
 
 // Forward declare the generated UI form to avoid requiring the header in
@@ -53,7 +54,6 @@ public:
   Engine *clone() const;
 
   bool renderOpaque(PainterDevice *pd);
-  bool renderOpaque(PainterDevice *pd, const Atom *a);
 
   QWidget *settingsWidget();
   bool hasSettings() { return true; }
