@@ -135,7 +135,7 @@ jobs:
           $build      = Join-Path $src 'build'
           $installDir = Join-Path $src 'install'
 
-          cmake -S $src -B $build -G Ninja `
+          cmake -S $src -B $build -G "NMake Makefiles" `
                 -DCMAKE_BUILD_TYPE=Release `
                 -DCMAKE_INSTALL_PREFIX="$installDir" `
                 -DLIBXML2_WITH_ZLIB=ON `
