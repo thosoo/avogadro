@@ -253,7 +253,7 @@ jobs:
           set CC=icx
           set CXX=icpx
           set FC=ifx
-          meson setup builddir --default-library=shared --buildtype=release --prefix="%RUNNER_TEMP%\xtb-install" -Dlapack=mkl_rt
+          meson setup builddir --default-library=shared --buildtype=release --prefix="%RUNNER_TEMP%\xtb-install" -Dlapack=mkl-rt
           meson compile -C builddir
           meson install -C builddir
           echo XTB_DIR=%RUNNER_TEMP%\xtb-install>>%GITHUB_ENV%
