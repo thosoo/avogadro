@@ -145,7 +145,7 @@ jobs:
                 -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" `
                 -DCMAKE_C_COMPILER=icx `
                 -DCMAKE_CXX_COMPILER=icpx `
-                -DBUILD_SHARED_LIBS=OFF
+                -DBUILD_SHARED_LIBS=ON
 
           cmake --build $build --target install
           Write-Host "libxml2 library path after install:" $installDir
