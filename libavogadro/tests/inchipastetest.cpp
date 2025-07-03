@@ -29,6 +29,7 @@ void InChIPasteTest::buildFromInChI()
 
   Molecule mol;
   mol.setOBMol(&obmol);
+  mol.addHydrogens();
 
   QCOMPARE(mol.numAtoms(), static_cast<unsigned int>(5));
 }
