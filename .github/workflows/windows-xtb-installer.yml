@@ -259,7 +259,8 @@ jobs:
                 --prefix "%INSTALLDIR%" ^
                 --default-library=shared ^
                 --buildtype=release ^
-                -Dlapack=mkl-rt
+                -Dlapack=mkl-rt ^
+                -Dc_std=c11 -Dcpp_std=c++17
           ninja -C "%BUILDDIR%"
           ninja -C "%BUILDDIR%" install
           echo XTB_DIR=%INSTALLDIR%>>"%GITHUB_ENV%"
