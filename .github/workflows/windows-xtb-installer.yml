@@ -89,16 +89,14 @@ jobs:
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
           $src = Join-Path $env:RUNNER_TEMP "zlib-$ver"
           $bld = Join-Path $src 'build'          # ← fixed
-          cmake -S "$src" -B "$bld" -G "NMake Makefiles" `
+          cmake -S "$src" -B "$bld" -G "Ninja" `
                 -DCMAKE_INSTALL_PREFIX="$bld\install" `
                 -DBUILD_SHARED_LIBS=OFF `
                 -DCMAKE_BUILD_TYPE=Release `
                 -DCMAKE_C_COMPILER=icx `
                 -DCMAKE_CXX_COMPILER=icpx `
                 -DCMAKE_Fortran_COMPILER=ifort
-          Push-Location $bld
-          nmake install
-          Pop-Location
+          cmake --build $bld --target install --parallel
           $zlibDir = Join-Path $bld 'install'
           $inc     = Join-Path $zlibDir 'include'
           $libDir  = Join-Path $zlibDir 'lib'
@@ -132,20 +130,26 @@ jobs:
           $zip = "$env:RUNNER_TEMP\libxml2.zip"
           Invoke-WebRequest "https://github.com/GNOME/libxml2/archive/refs/tags/v$ver.zip" -OutFile $zip
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
-          $src = Join-Path $env:RUNNER_TEMP "libxml2-$ver"
+
+          $src        = Join-Path $env:RUNNER_TEMP "libxml2-$ver"
+          $build      = Join-Path $src 'build'
           $installDir = Join-Path $src 'install'
-          $win32 = Join-Path $src 'win32'
-          Push-Location $win32
-          cscript configure.js compiler=msvc prefix=$installDir iconv=no zlib=yes include=$env:ZLIB_INCLUDE_DIR lib=$env:ZLIB_LIBRARY_DIR
-          (Get-Content Makefile.msvc).Replace('/OPT:NOWIN98','').Replace('zdll.lib','zlib.lib') | Set-Content Makefile.msvc
-          $conf = Join-Path $src 'config.h'
-          if (Test-Path $conf) {
-            (Get-Content $conf) -replace '^#define snprintf.*', '// removed snprintf define' -replace '^#define vsnprintf.*', '// removed vsnprintf define' | Set-Content $conf
-          }
-          nmake /f Makefile.msvc
-          nmake /f Makefile.msvc install
-          Pop-Location
+
+          cmake -S $src -B $build -G Ninja `
+                -DCMAKE_BUILD_TYPE=Release `
+                -DCMAKE_INSTALL_PREFIX="$installDir" `
+                -DLIBXML2_WITH_ZLIB=ON `
+                -DLIBXML2_WITH_ICONV=OFF `
+                -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" `
+                -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" `
+                -DCMAKE_C_COMPILER=icx `
+                -DCMAKE_CXX_COMPILER=icpx `
+                -DBUILD_SHARED_LIBS=OFF
+
+          cmake --build $build --target install --parallel
+
           Write-Host "libxml2 library path after install:" $installDir
+
           $inc = Join-Path $installDir 'include'
           $lib = Join-Path $installDir 'lib' 'libxml2.lib'
           "CMAKE_PREFIX_PATH=$installDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
