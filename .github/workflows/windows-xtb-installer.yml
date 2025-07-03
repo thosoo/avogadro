@@ -146,8 +146,7 @@ jobs:
                 -DCMAKE_CXX_COMPILER=icpx `
                 -DBUILD_SHARED_LIBS=OFF
 
-          cmake --build $build --target install --parallel
-
+          cmake --build $build --target install
           Write-Host "libxml2 library path after install:" $installDir
 
           $inc = Join-Path $installDir 'include'
