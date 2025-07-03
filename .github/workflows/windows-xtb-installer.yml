@@ -237,7 +237,6 @@ jobs:
           "OPENBABEL3_LIBRARY_DIRS=$libDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "OPENBABEL_INSTALL_DIR=$obDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$obDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
       - name: Build xTB
         shell: cmd
         run: |
@@ -246,11 +245,10 @@ jobs:
               https://github.com/grimme-lab/xtb/releases/download/v%XTB_VER%/xtb-%XTB_VER%-source.tar.xz
           7z x "%RUNNER_TEMP%\xtb-src.tar.xz" -o"%RUNNER_TEMP%\xtb-src"
           for /r "%RUNNER_TEMP%\xtb-src" %%f in (*.tar) do 7z x "%%f" -o"%RUNNER_TEMP%\xtb-src"
-          python -m pip install --quiet meson ninja
+          python -m pip install --quiet meson==1.4.1 ninja
           set "CC=icx"
-          set "CXX=icx"
+          set "CXX=icx"  
           set "FC=ifx"
-          set "MKL_LIBS=mkl_rt;libiomp5md"
           set "LIB=%MKLROOT%\lib\intel64;%LIB%"
           set "SRCDIR=%RUNNER_TEMP%\xtb-src\xtb_%XTB_VER%_source"
           set "BUILDDIR=%SRCDIR%\builddir"
@@ -261,8 +259,8 @@ jobs:
                 --buildtype=release ^
                 -Dlapack=mkl-rt ^
                 -Dc_std=c11 -Dcpp_std=c++17
-          ninja -C "%BUILDDIR%"
-          ninja -C "%BUILDDIR%" install
+          meson compile  -C "%BUILDDIR%"
+          meson install  -C "%BUILDDIR%" --no-rebuild
           echo XTB_DIR=%INSTALLDIR%>>"%GITHUB_ENV%"
           echo PKG_CONFIG_PATH=%INSTALLDIR%\lib\pkgconfig;%PKG_CONFIG_PATH%>>"%GITHUB_ENV%"
           echo CMAKE_PREFIX_PATH=%INSTALLDIR%;%CMAKE_PREFIX_PATH%>>"%GITHUB_ENV%"
