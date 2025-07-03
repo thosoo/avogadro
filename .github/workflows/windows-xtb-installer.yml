@@ -252,7 +252,7 @@ jobs:
           cd "%RUNNER_TEMP%\xtb-src\xtb_%XTB_VER%_source"
           set CC=icx
           set CXX=icpx
-          set FC=ifort
+          set FC=ifx
           meson setup builddir --default-library=shared --buildtype=release --prefix="%RUNNER_TEMP%\xtb-install" -Dlapack=mkl
           meson compile -C builddir
           meson install -C builddir
