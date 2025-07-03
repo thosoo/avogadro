@@ -87,6 +87,8 @@ namespace Avogadro {
 
     // check if there are also data from a nearIR spectrum
 #if OB_VERSION < OB_VERSION_CHECK(3, 0, 0)
+    // Only compiled when using Open Babel 2.x. This guard doesn't solve
+    // near-IR crashes but keeps the build working with Open Babel 3.
     OpenBabel::OBOrcaNearIRData *ond = static_cast<OpenBabel::OBOrcaNearIRData*>(obmol.GetData("OrcaNearIRSpectraData"));
     if (ond) {
         qDebug() << "has also nearIR data " << wavenumbers.size();

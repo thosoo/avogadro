@@ -59,6 +59,8 @@ bool NearIRSpectra::checkForData(Molecule * mol) {
     OpenBabel::OBMol obmol = mol->OBMol();
 //    OpenBabel::OBVibrationData *vibrations = static_cast<OpenBabel::OBVibrationData*>(obmol.GetData(OpenBabel::OBGenericDataType::VibrationData));
 #if OB_VERSION < OB_VERSION_CHECK(3, 0, 0)
+    // Only available in Open Babel 2.x. This guard does not fix crashes
+    // when reading newer files, but it avoids compilation errors.
     OpenBabel::OBOrcaNearIRData *ond = static_cast<OpenBabel::OBOrcaNearIRData*>(obmol.GetData("OrcaNearIRSpectraData"));
 
     if (!ond) return false;
