@@ -68,6 +68,7 @@ namespace Avogadro {
     InsertFragmentDialog *m_fragmentDialog;
     InsertFragmentDialog *m_crystalDialog;
     QString   m_smilesString;
+    QString   m_inchiString;
     Molecule *m_molecule;
 
     bool     m_justFinished;

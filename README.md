@@ -16,7 +16,7 @@ plugin architecture.
 * **Intuitive**: Built to work easily for students and advanced researchers both.
 * **Fast**: Supports multi-threaded rendering and computation.
 * **Extensible:** Plugin architecture for developers, including rendering, interactive tools, commands, and Python scripts.
-* **Flexible**: Features include Open Babel import of chemical files, input generation for multiple computational chemistry packages, crystallography, and biomolecules.
+* **Flexible**: Features include Open Babel import of chemical files, building molecules from SMILES or InChI strings, input generation for multiple computational chemistry packages, crystallography, and biomolecules.
 
 For more information, see <http://avogadro.cc/>
 

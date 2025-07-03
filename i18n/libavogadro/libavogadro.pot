@@ -1715,13 +1715,25 @@ msgstr ""
 msgid "SMILES..."
 msgstr ""
 
+#: src/extensions/insertfragmentextension.cpp:74
+msgid "InChI..."
+msgstr ""
+
 #: src/extensions/insertfragmentextension.cpp:121
 #: src/extensions/insertfragmentextension.cpp:166
 msgid "Insert SMILES"
 msgstr ""
 
+#: src/extensions/insertfragmentextension.cpp:186
+msgid "Insert InChI"
+msgstr ""
+
 #: src/extensions/insertfragmentextension.cpp:122
 msgid "Insert SMILES fragment:"
+msgstr ""
+
+#: src/extensions/insertfragmentextension.cpp:187
+msgid "Insert InChI code:"
 msgstr ""
 
 #: src/extensions/insertfragmentextension.cpp:171

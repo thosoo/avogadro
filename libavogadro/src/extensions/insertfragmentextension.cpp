@@ -46,7 +46,8 @@ namespace Avogadro {
   {
     CrystalFromFileIndex = 0,
     FragmentFromFileIndex,
-    SMILESIndex
+    SMILESIndex,
+    InChIIndex
   };
 
   InsertFragmentExtension::InsertFragmentExtension(QObject *parent) :
@@ -54,7 +55,9 @@ namespace Avogadro {
     m_fragmentDialog(0),
     m_crystalDialog(0),
     m_molecule(0),
-    m_justFinished(false)
+    m_justFinished(false),
+    m_smilesString(),
+    m_inchiString()
   {
     QAction *action = new QAction(this);
     action->setText(tr("Crystal..."));
@@ -69,6 +72,11 @@ namespace Avogadro {
     action = new QAction(this);
     action->setText(tr("SMILES..."));
     action->setData(SMILESIndex);
+    m_actions.append(action);
+
+    action = new QAction(this);
+    action->setText(tr("InChI..."));
+    action->setData(InChIIndex);
     m_actions.append(action);
     // Dialog is created later, if needed
   }
@@ -166,6 +174,56 @@ namespace Avogadro {
       foreach(int id, selectedIds) {
         emit performCommand(new InsertFragmentCommand(m_molecule, fragment, widget, tr("Insert SMILES"), id));
       }
+    } else if (action->data() == InChIIndex) {
+      // Read an InChI code and build the fragment
+      OBBuilder builder;
+      Molecule fragment;
+      OBMol obfragment;
+      OBConversion conv;
+
+      bool ok, noConnection;
+      QList<int> selectedIds;
+      QString inchi = QInputDialog::getText((widget),
+                                            tr("Insert InChI"),
+                                            tr("Insert InChI code:"),
+                                            QLineEdit::Normal,
+                                            m_inchiString, &ok);
+      if (ok && !inchi.isEmpty()) {
+        m_inchiString = inchi; // save for settings
+        std::string InChIString(inchi.toLatin1());
+
+        QList<Primitive *> selectedAtoms = widget->selectedPrimitives().subList(Primitive::AtomType);
+        if (!selectedAtoms.empty()) {
+          selectedIds.append(findSelectedForInsert(selectedAtoms));
+          noConnection = false;
+        } else {
+          selectedIds.append(-1);
+          noConnection = true;
+        }
+
+        if(conv.SetInFormat("inchi") && conv.ReadString(&obfragment, InChIString)) {
+          builder.Build(obfragment);
+          OBForceField* pFF =  OBForceField::FindForceField("MMFF94");
+          if (pFF && pFF->Setup(obfragment)) {
+            pFF->ConjugateGradients(250, 1.0e-4);
+            pFF->UpdateCoordinates(obfragment);
+          } else if ((pFF = OBForceField::FindForceField("UFF")) && pFF->Setup(obfragment)) {
+            pFF->ConjugateGradients(250, 1.0e-4);
+            pFF->UpdateCoordinates(obfragment);
+          }
+
+          fragment.setOBMol(&obfragment);
+          if (noConnection) {
+            fragment.addHydrogens();
+            fragment.center();
+          }
+        }
+      }
+
+      foreach(int id, selectedIds) {
+        emit performCommand(new InsertFragmentCommand(m_molecule, fragment, widget, tr("Insert InChI"), id));
+      }
+
     } else if (action->data() == FragmentFromFileIndex) { // molecular fragments
         if (m_fragmentDialog == NULL) {
           m_fragmentDialog = new InsertFragmentDialog(NULL, "fragments");
@@ -192,6 +250,7 @@ namespace Avogadro {
   {
     Extension::writeSettings(settings);
     settings.setValue("smiles", m_smilesString);
+    settings.setValue("inchi", m_inchiString);
     /* @todo bring back multiple directory paths
     if (m_dialog) {
       settings.setValue("fragmentPath", m_dialog->directoryList().join("\n"));
@@ -204,6 +263,7 @@ namespace Avogadro {
     Extension::readSettings(settings);
 
     m_smilesString = settings.value("smiles").toString();
+    m_inchiString = settings.value("inchi").toString();
     /*
     if(m_dialog) {
       if (settings.contains("fragmentPath")) {
