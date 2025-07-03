@@ -207,7 +207,7 @@ jobs:
           $build = Join-Path $srcDir 'build'
           cmake -S $srcDir `
                 -B $build `
-                -G "Ninja" `
+                -G "NMake Makefiles" `
                 -DCMAKE_BUILD_TYPE=Release `
                 -DCMAKE_INSTALL_PREFIX="$build\install" `
                 -DLIBXML2_LIBRARY="$env:LIBXML2_LIBRARY" `
@@ -221,8 +221,8 @@ jobs:
                 -DOB_USE_PREBUILT_BINARIES=OFF `
                 -DOPENBABEL_USE_SYSTEM_INCHI=OFF `
                 -DWITH_INCHI=ON `
-                -DCMAKE_C_COMPILER=icx `
-                -DCMAKE_CXX_COMPILER=icpx `
+                -DCMAKE_C_COMPILER=cl `
+                -DCMAKE_CXX_COMPILER=cl `
                 -DCMAKE_Fortran_COMPILER=ifort
           cmake --build $build --config Release --target install
           $obDir = Join-Path $build 'install'
