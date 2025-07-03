@@ -58,10 +58,15 @@ void NearIRSpectra::writeSettings()
 bool NearIRSpectra::checkForData(Molecule * mol) {
     OpenBabel::OBMol obmol = mol->OBMol();
 //    OpenBabel::OBVibrationData *vibrations = static_cast<OpenBabel::OBVibrationData*>(obmol.GetData(OpenBabel::OBGenericDataType::VibrationData));
+#if OB_VERSION < OB_VERSION_CHECK(3, 0, 0)
     OpenBabel::OBOrcaNearIRData *ond = static_cast<OpenBabel::OBOrcaNearIRData*>(obmol.GetData("OrcaNearIRSpectraData"));
 
     if (!ond) return false;
     if (!ond->GetNearIRData()) return false;
+#else
+    Q_UNUSED(obmol);
+    return false; // Open Babel 3 removed this data type
+#endif
 
     // OK, we have valid vibrations, so store them for later
     vector<double> wavenumbers = ond->GetFrequencies();

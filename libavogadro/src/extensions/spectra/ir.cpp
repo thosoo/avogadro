@@ -86,6 +86,7 @@ namespace Avogadro {
     qDebug() << "has IR data " << wavenumbers.size();
 
     // check if there are also data from a nearIR spectrum
+#if OB_VERSION < OB_VERSION_CHECK(3, 0, 0)
     OpenBabel::OBOrcaNearIRData *ond = static_cast<OpenBabel::OBOrcaNearIRData*>(obmol.GetData("OrcaNearIRSpectraData"));
     if (ond) {
         qDebug() << "has also nearIR data " << wavenumbers.size();
@@ -102,6 +103,7 @@ namespace Avogadro {
             }
         }
     }
+#endif
 
     // Case where there are no intensities, set all intensities to an arbitrary value, i.e. 1.0
     if (wavenumbers.size() > 0 && intensities.size() == 0) {
