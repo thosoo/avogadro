@@ -252,7 +252,7 @@ jobs:
           set "FC=ifx"
           set "MKL_LIBS=mkl_rt;libiomp5md"
           set "LIB=%MKLROOT%\lib\intel64;%LIB%"
-          set "SRCDIR=%RUNNER_TEMP%\xtb-src\xtb-%XTB_VER%-source"
+          set "SRCDIR=%RUNNER_TEMP%\xtb-src\xtb_%XTB_VER%_source"
           set "BUILDDIR=%SRCDIR%\builddir"
           set "INSTALLDIR=%RUNNER_TEMP%\xtb-install"
           meson setup "%BUILDDIR%" "%SRCDIR%" ^
