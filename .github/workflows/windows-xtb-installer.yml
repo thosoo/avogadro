@@ -253,16 +253,17 @@ jobs:
           set CC=icx
           set CXX=icpx
           set FC=ifx
-          $srcDir   = 'D:\a\_temp\xtb-src\xtb_6.7.1_source'
-          $buildDir = Join-Path $srcDir 'builddir'
-          $install  = 'D:\a\_temp\xtb-install'
-          meson setup $buildDir $srcDir `
-    --prefix "$install" `
-    --default-library=shared `
-    --buildtype=release `
-    -Dlapack=mkl-rt
-          ninja -C $buildDir
-          ninja -C $buildDir install
+          $srcDir = "%RUNNER_TEMP%\xtb-src\xtb_6.7.1_source"
+          set "SRCDIR=%RUNNER_TEMP%\xtb-src\xtb-%XTB_VER%-source"
+          set "BUILDDIR=%SRCDIR%\builddir"
+          set "INSTALLDIR=%RUNNER_TEMP%\xtb-install"
+          meson setup "%BUILDDIR%" "%SRCDIR%" ^
+          --prefix "%INSTALLDIR%" ^
+          --default-library=shared ^
+          --buildtype=release ^
+          -Dlapack=mkl-rt
+          ninja -C "%BUILDDIR%"
+          ninja -C "%BUILDDIR%" install
           echo XTB_DIR=%RUNNER_TEMP%\xtb-install>>%GITHUB_ENV%
           echo PKG_CONFIG_PATH=%RUNNER_TEMP%\xtb-install\lib\pkgconfig;%PKG_CONFIG_PATH%>>%GITHUB_ENV%
           echo CMAKE_PREFIX_PATH=%RUNNER_TEMP%\xtb-install;%CMAKE_PREFIX_PATH%>>%GITHUB_ENV%
