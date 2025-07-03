@@ -140,7 +140,7 @@ jobs:
                 -DCMAKE_INSTALL_PREFIX="$installDir" `
                 -DLIBXML2_WITH_ZLIB=ON `
                 -DLIBXML2_WITH_ICONV=OFF `
-                -DWITH_LZMA=OFF `
+                -DLIBXML2_WITH_LZMA=OFF `
                 -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" `
                 -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" `
                 -DCMAKE_C_COMPILER=icx `
