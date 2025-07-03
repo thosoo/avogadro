@@ -177,7 +177,7 @@ jobs:
           $buildDir = Join-Path $glewDir 'builddir'
           cmake -S (Join-Path $glewDir 'build' 'cmake') `
           -B $buildDir `
-          -G "NMake Makefiles" `
+          -G "Ninja" `
           -DBUILD_SHARED_LIBS=ON `
           -DBUILD_UTILS=OFF `
           -DCMAKE_BUILD_TYPE=Release `
@@ -207,7 +207,7 @@ jobs:
           $build = Join-Path $srcDir 'build'
           cmake -S $srcDir `
                 -B $build `
-                -G "NMake Makefiles" `
+                -G "Ninja" `
                 -DCMAKE_BUILD_TYPE=Release `
                 -DCMAKE_INSTALL_PREFIX="$build\install" `
                 -DLIBXML2_LIBRARY="$env:LIBXML2_LIBRARY" `
@@ -224,9 +224,7 @@ jobs:
                 -DCMAKE_C_COMPILER=icx `
                 -DCMAKE_CXX_COMPILER=icpx `
                 -DCMAKE_Fortran_COMPILER=ifort
-          Push-Location $build
-          nmake install
-          Pop-Location
+          cmake --build $build --config Release --target install
           $obDir = Join-Path $build 'install'
           $inc = Join-Path $obDir 'include' 'openbabel3'
           $lib = Join-Path $obDir 'lib' 'openbabel.lib'
@@ -274,7 +272,7 @@ jobs:
         run: |
           $dist = Join-Path $pwd 'scripts/installer/dist'
           cmake -S . -B build `
-            -G "NMake Makefiles" `
+            -G "Ninja" `
             -DCMAKE_BUILD_TYPE=Release `
             -DBUILD_SHARED_LIBS=ON `
             -DCMAKE_VERBOSE_MAKEFILE=ON `
