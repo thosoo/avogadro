@@ -241,33 +241,31 @@ jobs:
       - name: Build xTB
         shell: cmd
         run: |
-          set XTB_VER=6.7.1
-          curl -L -o "%RUNNER_TEMP%\xtb-src.tar.xz" https://github.com/grimme-lab/xtb/releases/download/v%XTB_VER%/xtb-%XTB_VER%-source.tar.xz
+          set "XTB_VER=6.7.1"
+          curl -L -o "%RUNNER_TEMP%\xtb-src.tar.xz" ^
+              https://github.com/grimme-lab/xtb/releases/download/v%XTB_VER%/xtb-%XTB_VER%-source.tar.xz
           7z x "%RUNNER_TEMP%\xtb-src.tar.xz" -o"%RUNNER_TEMP%\xtb-src"
           for /r "%RUNNER_TEMP%\xtb-src" %%f in (*.tar) do 7z x "%%f" -o"%RUNNER_TEMP%\xtb-src"
-          call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
+          python -m pip install --quiet meson ninja
+          set "CC=icx"
+          set "CXX=icx"
+          set "FC=ifx"
           set "MKL_LIBS=mkl_rt;libiomp5md"
           set "LIB=%MKLROOT%\lib\intel64;%LIB%"
-          python -m pip install meson ninja
-          cd "%RUNNER_TEMP%\xtb-src\xtb_%XTB_VER%_source"
-          set CC=icx
-          set CXX=icpx
-          set FC=ifx
-          $srcDir = "%RUNNER_TEMP%\xtb-src\xtb_6.7.1_source"
           set "SRCDIR=%RUNNER_TEMP%\xtb-src\xtb-%XTB_VER%-source"
           set "BUILDDIR=%SRCDIR%\builddir"
           set "INSTALLDIR=%RUNNER_TEMP%\xtb-install"
           meson setup "%BUILDDIR%" "%SRCDIR%" ^
-          --prefix "%INSTALLDIR%" ^
-          --default-library=shared ^
-          --buildtype=release ^
-          -Dlapack=mkl-rt
+                --prefix "%INSTALLDIR%" ^
+                --default-library=shared ^
+                --buildtype=release ^
+                -Dlapack=mkl-rt
           ninja -C "%BUILDDIR%"
           ninja -C "%BUILDDIR%" install
-          echo XTB_DIR=%RUNNER_TEMP%\xtb-install>>%GITHUB_ENV%
-          echo PKG_CONFIG_PATH=%RUNNER_TEMP%\xtb-install\lib\pkgconfig;%PKG_CONFIG_PATH%>>%GITHUB_ENV%
-          echo CMAKE_PREFIX_PATH=%RUNNER_TEMP%\xtb-install;%CMAKE_PREFIX_PATH%>>%GITHUB_ENV%
-          echo %RUNNER_TEMP%\xtb-install\bin>>%GITHUB_PATH%
+          echo XTB_DIR=%INSTALLDIR%>>"%GITHUB_ENV%"
+          echo PKG_CONFIG_PATH=%INSTALLDIR%\lib\pkgconfig;%PKG_CONFIG_PATH%>>"%GITHUB_ENV%"
+          echo CMAKE_PREFIX_PATH=%INSTALLDIR%;%CMAKE_PREFIX_PATH%>>"%GITHUB_ENV%"
+          echo %INSTALLDIR%\bin>>"%GITHUB_PATH%"
       - name: Configure
         shell: pwsh
         env:
