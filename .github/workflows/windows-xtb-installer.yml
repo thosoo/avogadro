@@ -256,11 +256,6 @@ jobs:
           meson setup builddir --default-library=shared --buildtype=release --prefix="%RUNNER_TEMP%\xtb-install" -Dlapack=mkl_rt
           meson compile -C builddir
           meson install -C builddir
-          curl -L -o "%RUNNER_TEMP%\xtb.zip" https://github.com/grimme-lab/xtb/releases/download/v%XTB_VER%/xtb-%XTB_VER%pre-windows-x86_64.zip
-          7z x "%RUNNER_TEMP%\xtb.zip" -o"%RUNNER_TEMP%\xtb-prebuilt"
-          xcopy /E /I "%RUNNER_TEMP%\xtb-prebuilt\xtb-%XTB_VER%\share" "%RUNNER_TEMP%\xtb-install\share"
-          copy "%RUNNER_TEMP%\xtb-prebuilt\xtb-%XTB_VER%\bin\xtb.exe" "%RUNNER_TEMP%\xtb-install\bin\xtb.exe"
-          copy "%RUNNER_TEMP%\xtb-prebuilt\xtb-%XTB_VER%\bin\libiomp5md.dll" "%RUNNER_TEMP%\xtb-install\bin\libiomp5md.dll"
           echo XTB_DIR=%RUNNER_TEMP%\xtb-install>>%GITHUB_ENV%
           echo PKG_CONFIG_PATH=%RUNNER_TEMP%\xtb-install\lib\pkgconfig;%PKG_CONFIG_PATH%>>%GITHUB_ENV%
           echo CMAKE_PREFIX_PATH=%RUNNER_TEMP%\xtb-install;%CMAKE_PREFIX_PATH%>>%GITHUB_ENV%
