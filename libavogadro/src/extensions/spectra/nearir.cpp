@@ -61,18 +61,21 @@ bool NearIRSpectra::checkForData(Molecule * mol) {
 #if OB_VERSION < OB_VERSION_CHECK(3, 0, 0)
     // Only available in Open Babel 2.x. This guard does not fix crashes
     // when reading newer files, but it avoids compilation errors.
-    OpenBabel::OBOrcaNearIRData *ond = static_cast<OpenBabel::OBOrcaNearIRData*>(obmol.GetData("OrcaNearIRSpectraData"));
+    OpenBabel::OBOrcaNearIRData *ond = static_cast<OpenBabel::OBOrcaNearIRData*>(
+        obmol.GetData("OrcaNearIRSpectraData"));
 
-    if (!ond) return false;
-    if (!ond->GetNearIRData()) return false;
-#else
-    Q_UNUSED(obmol);
-    return false; // Open Babel 3 removed this data type
-#endif
+    if (!ond)
+        return false;
+    if (!ond->GetNearIRData())
+        return false;
 
     // OK, we have valid vibrations, so store them for later
     vector<double> wavenumbers = ond->GetFrequencies();
     vector<double> intensities = ond->GetIntensities();
+#else
+    Q_UNUSED(obmol);
+    return false; // Open Babel 3 removed this data type
+#endif
 
     // Case where there are no intensities, set all intensities to an arbitrary value, i.e. 1.0
     if (wavenumbers.size() > 0 && intensities.size() == 0) {
