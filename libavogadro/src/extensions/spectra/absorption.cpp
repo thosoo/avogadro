@@ -26,6 +26,7 @@
 #include <QtCore/QDebug>
 
 #include <openbabel/mol.h>
+#include <openbabel/babelconfig.h>
 
 using namespace std;
 
@@ -75,12 +76,20 @@ void OrcaAbsSpectra::readSettings() {
 bool OrcaAbsSpectra::checkForData(Molecule * mol) {
 
     OpenBabel::OBMol obmol = mol->OBMol();
+#if OB_VERSION < OB_VERSION_CHECK(3,0,0)
     //OpenBabel::OBOrcaSpecData *osd = static_cast<OpenBabel::OBOrcaSpecData*>(obmol.GetData("OrcaSpectraData"));
     OpenBabel::OBOrcaSpecData *osd = static_cast<OpenBabel::OBOrcaSpecData*>(obmol.GetData(OpenBabel::OBGenericDataType::CustomData0));
+#else
+    void* osd = nullptr;
+#endif
 
     if (!osd) return false;
-    if (!osd->GetSpecData()) return false;
-    if (osd->GetAbsEDipole().size() == 0) return false;
+#if OB_VERSION < OB_VERSION_CHECK(3,0,0)
+    if (!static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetSpecData()) return false;
+    if (static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetAbsEDipole().size() == 0) return false;
+#else
+    return false;
+#endif
 
     m_wavelength.resize(0);
     m_wavenumber.resize(0);
@@ -90,17 +99,19 @@ bool OrcaAbsSpectra::checkForData(Molecule * mol) {
     std::vector<double> tmp_edipole, tmp_velosity, tmp_combined, tmp_D2, tmp_M2, tmp_Q2;
 
     // OK, we have valid data, so store them for later
-    m_wavelength = osd->GetAbsWavelengths();
+#if OB_VERSION < OB_VERSION_CHECK(3,0,0)
+    m_wavelength = static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetAbsWavelengths();
+#endif
     // sort for ascending wavelength
     getSortIdx(m_wavelength);
 
-    tmp_edipole = osd->GetAbsEDipole();
-    if (osd->GetAbsVelocity().size() != 0)  tmp_velosity = osd->GetAbsVelocity();
-    if (osd->GetAbsCombined().size() != 0) {
-        tmp_combined = osd->GetAbsCombined();
-        tmp_D2 = osd->GetAbsD2();
-        tmp_M2 = osd->GetAbsM2();
-        tmp_Q2 = osd->GetAbsQ2();
+    tmp_edipole = static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetAbsEDipole();
+    if (static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetAbsVelocity().size() != 0)  tmp_velosity = static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetAbsVelocity();
+    if (static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetAbsCombined().size() != 0) {
+        tmp_combined = static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetAbsCombined();
+        tmp_D2 = static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetAbsD2();
+        tmp_M2 = static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetAbsM2();
+        tmp_Q2 = static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetAbsQ2();
     }
 
     // resort data
@@ -108,12 +119,14 @@ bool OrcaAbsSpectra::checkForData(Molecule * mol) {
         m_edipole.push_back(tmp_edipole[m_idx[i]]);
     }
     for (uint i = 0; i < tmp_edipole.size(); i++){
-        if (osd->GetAbsCombined().size() != 0) {
+#if OB_VERSION < OB_VERSION_CHECK(3,0,0)
+        if (static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetAbsCombined().size() != 0) {
           m_combined.push_back(tmp_combined[m_idx[i]]);
           m_D2.push_back(tmp_D2[m_idx[i]]);
           m_M2.push_back(tmp_M2[m_idx[i]]);
           m_Q2.push_back(tmp_Q2[m_idx[i]]);
         }
+#endif
     }
 
     // convert nm to cm-1 and eV

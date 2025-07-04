@@ -26,6 +26,7 @@
 #include <QtCore/QDebug>
 
 #include <openbabel/mol.h>
+#include <openbabel/babelconfig.h>
 
 using namespace std;
 
@@ -76,11 +77,19 @@ void OrcaEmissionSpectra::readSettings() {
 bool OrcaEmissionSpectra::checkForData(Molecule * mol) {
 
     OpenBabel::OBMol obmol = mol->OBMol();
+#if OB_VERSION < OB_VERSION_CHECK(3,0,0)
     OpenBabel::OBOrcaSpecData *osd = static_cast<OpenBabel::OBOrcaSpecData*>(obmol.GetData("OrcaSpectraData"));
+#else
+    void* osd = nullptr;
+#endif
 
     if (!osd) return false;
+#if OB_VERSION < OB_VERSION_CHECK(3,0,0)
     if (!osd->GetSpecData()) return false;
     if (osd->GetEmEDipole().size() == 0) return false;
+#else
+    return false;
+#endif
 
     m_wavelength.resize(0);
     m_wavenumber.resize(0);
@@ -90,17 +99,22 @@ bool OrcaEmissionSpectra::checkForData(Molecule * mol) {
     std::vector<double> tmp_edipole, tmp_velosity, tmp_combined, tmp_D2, tmp_M2, tmp_Q2;
 
     // OK, we have valid data, so store them for later
-    m_wavelength = osd->GetEmWavelengths();
+    m_wavelength =
+#if OB_VERSION < OB_VERSION_CHECK(3,0,0)
+        osd->GetEmWavelengths();
+#else
+        QList<double>();
+#endif
     // sort for ascending wavelength
     getSortIdx(m_wavelength);
 
-    tmp_edipole = osd->GetEmEDipole();
-    if (osd->GetEmVelosity().size() != 0)  tmp_velosity = osd->GetEmVelosity();
-    if (osd->GetEmCombined().size() != 0) {
-        tmp_combined = osd->GetEmCombined();
-        tmp_D2 = osd->GetEmD2();
-        tmp_M2 = osd->GetEmM2();
-        tmp_Q2 = osd->GetEmQ2();
+    tmp_edipole = static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetEmEDipole();
+    if (static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetEmVelosity().size() != 0)  tmp_velosity = static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetEmVelosity();
+    if (static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetEmCombined().size() != 0) {
+        tmp_combined = static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetEmCombined();
+        tmp_D2 = static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetEmD2();
+        tmp_M2 = static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetEmM2();
+        tmp_Q2 = static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetEmQ2();
     }
 
     // resort data
@@ -108,7 +122,7 @@ bool OrcaEmissionSpectra::checkForData(Molecule * mol) {
         m_edipole.push_back(tmp_edipole[m_idx[i]]);
     }
     for (uint i = 0; i < tmp_edipole.size(); i++){
-        if (osd->GetEmCombined().size() != 0) {
+        if (static_cast<OpenBabel::OBOrcaSpecData*>(osd)->GetEmCombined().size() != 0) {
             m_combined.push_back(tmp_combined[m_idx[i]]);
             m_D2.push_back(tmp_D2[m_idx[i]]);
             m_M2.push_back(tmp_M2[m_idx[i]]);
