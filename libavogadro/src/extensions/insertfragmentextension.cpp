@@ -184,6 +184,7 @@ namespace Avogadro {
       OBConversion conv;
 
       bool ok, noConnection;
+      bool success = false;
       QList<int> selectedIds;
       QString inchi = QInputDialog::getText((widget),
                                             tr("Insert InChI"),
