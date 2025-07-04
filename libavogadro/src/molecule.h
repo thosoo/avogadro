@@ -27,7 +27,6 @@
 #define MOLECULE_H
 
 #include <avogadro/primitive.h>
-#include <openbabel/babelconfig.h>
 
 // Used by the inline functions
 #include <QReadWriteLock>
@@ -40,11 +39,9 @@ namespace OpenBabel {
   class OBMol;
   class OBUnitCell;
   class OBConformerData;
-#if OB_VERSION < OB_VERSION_CHECK(3,0,0)
   class OBOrcaSpecData;
-  class OBOrcaNearIRData;
-#endif
   class OBElectronicTransitionData;
+  class OBOrcaNearIRData;
   class OBVibrationData;
   class OBDOSData;
 }

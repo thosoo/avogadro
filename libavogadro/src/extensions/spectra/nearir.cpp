@@ -3,7 +3,6 @@
 #include <QtCore/QDebug>
 
 #include <openbabel/mol.h>
-#include <openbabel/babelconfig.h>
 #include <openbabel/generic.h>
 
 #include <vector>
@@ -59,36 +58,14 @@ void NearIRSpectra::writeSettings()
 bool NearIRSpectra::checkForData(Molecule * mol) {
     OpenBabel::OBMol obmol = mol->OBMol();
 //    OpenBabel::OBVibrationData *vibrations = static_cast<OpenBabel::OBVibrationData*>(obmol.GetData(OpenBabel::OBGenericDataType::VibrationData));
-#if OB_VERSION < OB_VERSION_CHECK(3,0,0)
     OpenBabel::OBOrcaNearIRData *ond = static_cast<OpenBabel::OBOrcaNearIRData*>(obmol.GetData("OrcaNearIRSpectraData"));
-#else
-    void* ond = nullptr;
-#endif
 
     if (!ond) return false;
-#if OB_VERSION < OB_VERSION_CHECK(3,0,0)
-#if OB_VERSION < OB_VERSION_CHECK(3,0,0)
     if (!ond->GetNearIRData()) return false;
-#else
-    return false;
-#endif
-#else
-    return false;
-#endif
 
     // OK, we have valid vibrations, so store them for later
-    vector<double> wavenumbers =
-#if OB_VERSION < OB_VERSION_CHECK(3,0,0)
-        ond->GetFrequencies();
-#else
-        vector<double>();
-#endif
-    vector<double> intensities =
-#if OB_VERSION < OB_VERSION_CHECK(3,0,0)
-        ond->GetIntensities();
-#else
-        vector<double>();
-#endif
+    vector<double> wavenumbers = ond->GetFrequencies();
+    vector<double> intensities = ond->GetIntensities();
 
     // Case where there are no intensities, set all intensities to an arbitrary value, i.e. 1.0
     if (wavenumbers.size() > 0 && intensities.size() == 0) {
