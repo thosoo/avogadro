@@ -42,7 +42,8 @@ void InChIPasteTest::heterocycleInChI()
     {"InChI=1S/C4H4O/c1-2-4-5-3-1/h1-4H", 9},    // Furan
     {"InChI=1S/C4H4S/c1-2-4-5-3-1/h1-4H", 9},    // Thiophene
     {"InChI=1S/C4H4N2/c1-2-5-4-6-3-1/h1-4H", 10}, // Pyrimidine
-    {"InChI=1S/C8H7N/c1-2-4-8-7(3-1)5-6-9-8/h1-6,9H", 16} // Indole
+    {"InChI=1S/C8H7N/c1-2-4-8-7(3-1)5-6-9-8/h1-6,9H", 16}, // Indole
+    {"InChI=1S/C13H5N5S/c14-6-8-5-9(7-15)12-13(18-19-17-12)11(8)10-3-1-2-4-16-10/h1-5H", 24} // large heterocycle
   };
 
   OBConversion conv;

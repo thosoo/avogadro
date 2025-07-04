@@ -126,6 +126,7 @@ namespace Avogadro {
       OBConversion conv;
 
       bool ok, noConnection;
+      bool success = false;
       QList<int> selectedIds;
       QString smiles = QInputDialog::getText((widget),
                                              tr("Insert SMILES"),
@@ -206,7 +207,8 @@ namespace Avogadro {
           if(!conv.SetInFormat("inchi") || !conv.ReadString(&obfragment, InChIString))
             throw std::runtime_error("parse failed");
 
-          builder.Build(obfragment);
+          if(!builder.Build(obfragment))
+            throw std::runtime_error("build failed");
           OBForceField* pFF =  OBForceField::FindForceField("MMFF94");
           if (pFF && pFF->Setup(obfragment)) {
             pFF->ConjugateGradients(250, 1.0e-4);
@@ -221,6 +223,7 @@ namespace Avogadro {
             fragment.addHydrogens();
             fragment.center();
           }
+          success = true;
         } catch (std::exception &) {
           QLabel *msg = new QLabel(tr("Could not build from InChI."));
           msg->setStyleSheet("QLabel { color: red; background: rgba(255,255,255,180); }");
@@ -229,8 +232,10 @@ namespace Avogadro {
         }
       }
 
-      foreach(int id, selectedIds) {
-        emit performCommand(new InsertFragmentCommand(m_molecule, fragment, widget, tr("Insert InChI"), id));
+      if (success) {
+        foreach(int id, selectedIds) {
+          emit performCommand(new InsertFragmentCommand(m_molecule, fragment, widget, tr("Insert InChI"), id));
+        }
       }
 
     } else if (action->data() == FragmentFromFileIndex) { // molecular fragments
