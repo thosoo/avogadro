@@ -258,7 +258,7 @@ jobs:
                 --default-library=shared ^
                 --buildtype=release ^
                 -Dlapack=mkl-rt ^
-                -Dtest-drive:f_args=/fpp ^
+                -Dtest-drive:fortran_args=/fpp ^
                 -Ddftd4:default_library=shared
           meson compile  -C "%BUILDDIR%"
           meson install  -C "%BUILDDIR%" --no-rebuild
