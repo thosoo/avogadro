@@ -139,32 +139,32 @@ namespace Avogadro {
           noConnection = true;
         }
 
-        if(conv.SetInFormat("smi")
-           && conv.ReadString(&obfragment, SmilesString))
-          {
-            builder.Build(obfragment);
+        if (conv.SetInFormat("smi") && conv.ReadString(&obfragment, SmilesString)
+            && builder.Build(obfragment)) {
+          // Let's do a quick cleanup
+          OBForceField* pFF = OBForceField::FindForceField("MMFF94");
+          if (pFF && pFF->Setup(obfragment)) {
+            pFF->ConjugateGradients(250, 1.0e-4);
+            pFF->UpdateCoordinates(obfragment);
+          }
+          // Note tricky assignment used as logic below
+          else if ((pFF = OBForceField::FindForceField("UFF")) && pFF->Setup(obfragment)) {
+            pFF->ConjugateGradients(250, 1.0e-4);
+            pFF->UpdateCoordinates(obfragment);
+          }
 
-            // Let's do a quick cleanup
-            OBForceField* pFF =  OBForceField::FindForceField("MMFF94");
-            if (pFF && pFF->Setup(obfragment)) {
-              pFF->ConjugateGradients(250, 1.0e-4);
-              pFF->UpdateCoordinates(obfragment);
-            } // Note tricky assignment used as logic below
-            else if ((pFF = OBForceField::FindForceField("UFF")) && pFF->Setup(obfragment)) {
-              pFF->ConjugateGradients(250, 1.0e-4);
-              pFF->UpdateCoordinates(obfragment);
-            }
+          fragment.setOBMol(&obfragment);
+          if (noConnection) { // if we're not connecting to a specific atom, add Hs, center
+            fragment.addHydrogens(); // hydrogen addition is done by InsertCommand when bonding
+            fragment.center();
+          }
 
-            fragment.setOBMol(&obfragment);
-            if (noConnection) { // if we're not connecting to a specific atom, add Hs, center
-              fragment.addHydrogens(); // hydrogen addition is done by InsertCommand when bonding
-              fragment.center();
+          if (fragment.numAtoms() > 0) {
+            foreach(int id, selectedIds) {
+              emit performCommand(new InsertFragmentCommand(m_molecule, fragment, widget, tr("Insert SMILES"), id));
             }
           }
-      }
-
-      foreach(int id, selectedIds) {
-        emit performCommand(new InsertFragmentCommand(m_molecule, fragment, widget, tr("Insert SMILES"), id));
+        }
       }
     } else if (action->data() == FragmentFromFileIndex) { // molecular fragments
         if (m_fragmentDialog == NULL) {

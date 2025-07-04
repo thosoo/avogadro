@@ -1168,22 +1168,23 @@ protected:
       }
 
       if (build || d->build3D == AlwaysBuild) {
-        // In OB-2.2.2 and later, builder will use 2D coordinates if present
+        // OBBuilder will use 2D coordinates if present (Open Babel 2.2.2+ and 3.x)
         OBBuilder builder;
-        builder.Build(*obMolecule);
-        for (unsigned int i = 1; i <= obMolecule->NumAtoms(); ++i)
-          OpenBabel::OBAtomAssignTypicalImplicitHydrogens(obMolecule->GetAtom(i));
-        obMolecule->AddHydrogens(); // Add some hydrogens before running force field
+        if (builder.Build(*obMolecule)) {
+          for (unsigned int i = 1; i <= obMolecule->NumAtoms(); ++i)
+            OpenBabel::OBAtomAssignTypicalImplicitHydrogens(obMolecule->GetAtom(i));
+          obMolecule->AddHydrogens(); // Add some hydrogens before running force field
 
-        OBForceField* pFF =  OBForceField::FindForceField("MMFF94")->MakeNewInstance();
-        if (pFF && !pFF->Setup(*obMolecule)) {
-          pFF = OBForceField::FindForceField("UFF")->MakeNewInstance();
-          if (!pFF || !pFF->Setup(*obMolecule)) return; // can't do anything more
-        }
-        if (pFF) {
-          pFF->ConjugateGradients(250, 1.0e-4);
-          pFF->UpdateCoordinates(*obMolecule);
-          delete pFF;
+          OBForceField* pFF =  OBForceField::FindForceField("MMFF94")->MakeNewInstance();
+          if (pFF && !pFF->Setup(*obMolecule)) {
+            pFF = OBForceField::FindForceField("UFF")->MakeNewInstance();
+            if (!pFF || !pFF->Setup(*obMolecule)) return; // can't do anything more
+          }
+          if (pFF) {
+            pFF->ConjugateGradients(250, 1.0e-4);
+            pFF->UpdateCoordinates(*obMolecule);
+            delete pFF;
+          }
         }
       } // building geometry
 
