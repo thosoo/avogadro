@@ -258,7 +258,7 @@ jobs:
                 --default-library=shared ^
                 --buildtype=release ^
                 -Dlapack=mkl-rt ^
-                -Dfortran_args="/fpp" ^
+                -Dfortran_args="/fpp /Uerror" ^
                 -Ddftd4:default_library=shared
           meson compile  -C "%BUILDDIR%"
           meson install  -C "%BUILDDIR%" --no-rebuild
