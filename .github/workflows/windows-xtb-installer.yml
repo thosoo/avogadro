@@ -258,8 +258,8 @@ jobs:
                 --default-library=shared ^
                 --buildtype=release ^
                 -Dlapack=mkl-rt ^
-                -Dfortran_args="/fpp /DDFTD4_STATIC_DEFINE" ^
-                -Dc_args="/DDFTD4_STATIC_DEFINE"
+                -Dfortran_args="/fpp" ^
+                -Ddftd4:default_library=shared
           meson compile  -C "%BUILDDIR%"
           meson install  -C "%BUILDDIR%" --no-rebuild
           echo XTB_DIR=%INSTALLDIR%>>"%GITHUB_ENV%"
