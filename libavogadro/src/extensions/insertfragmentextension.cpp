@@ -148,14 +148,21 @@ namespace Avogadro {
               OpenBabel::OBAtomAssignTypicalImplicitHydrogens(obfragment.GetAtom(i));
 
             // Let's do a quick cleanup
-            OBForceField* pFF =  OBForceField::FindForceField("MMFF94")->MakeNewInstance();
+            OBForceField* plugin = OBForceField::FindForceField("MMFF94");
+            OBForceField* pFF = plugin ? plugin->MakeNewInstance() : NULL;
             if (pFF && pFF->Setup(obfragment)) {
               pFF->ConjugateGradients(250, 1.0e-4);
               pFF->UpdateCoordinates(obfragment);
+              delete pFF;
             } // Note tricky assignment used as logic below
-            else if ((pFF = OBForceField::FindForceField("UFF")->MakeNewInstance()) && pFF->Setup(obfragment)) {
-              pFF->ConjugateGradients(250, 1.0e-4);
-              pFF->UpdateCoordinates(obfragment);
+            else {
+              plugin = OBForceField::FindForceField("UFF");
+              pFF = plugin ? plugin->MakeNewInstance() : NULL;
+              if (pFF && pFF->Setup(obfragment)) {
+                pFF->ConjugateGradients(250, 1.0e-4);
+                pFF->UpdateCoordinates(obfragment);
+                delete pFF;
+              }
             }
             
             fragment.setOBMol(&obfragment);

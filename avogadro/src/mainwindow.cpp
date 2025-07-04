@@ -1175,16 +1175,17 @@ protected:
           OpenBabel::OBAtomAssignTypicalImplicitHydrogens(obMolecule->GetAtom(i));
         obMolecule->AddHydrogens(); // Add some hydrogens before running force field
 
-        OBForceField* pFF =  OBForceField::FindForceField("MMFF94")->MakeNewInstance();
-        if (pFF && !pFF->Setup(*obMolecule)) {
-          pFF = OBForceField::FindForceField("UFF")->MakeNewInstance();
+        OBForceField* plugin = OBForceField::FindForceField("MMFF94");
+        OBForceField* pFF = plugin ? plugin->MakeNewInstance() : NULL;
+        if (!pFF || !pFF->Setup(*obMolecule)) {
+          if (pFF) delete pFF;
+          plugin = OBForceField::FindForceField("UFF");
+          pFF = plugin ? plugin->MakeNewInstance() : NULL;
           if (!pFF || !pFF->Setup(*obMolecule)) return; // can't do anything more
         }
-        if (pFF) {
-          pFF->ConjugateGradients(250, 1.0e-4);
-          pFF->UpdateCoordinates(*obMolecule);
-          delete pFF;
-        }
+        pFF->ConjugateGradients(250, 1.0e-4);
+        pFF->UpdateCoordinates(*obMolecule);
+        delete pFF;
       } // building geometry
 
     } // check 3D coordinates
