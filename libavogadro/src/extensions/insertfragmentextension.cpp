@@ -34,6 +34,7 @@
 #include <openbabel/obconversion.h>
 
 #include <QInputDialog>
+#include <QLabel>
 #include <QDebug>
 #include <QTimer>
 
@@ -201,7 +202,10 @@ namespace Avogadro {
           noConnection = true;
         }
 
-        if(conv.SetInFormat("inchi") && conv.ReadString(&obfragment, InChIString)) {
+        try {
+          if(!conv.SetInFormat("inchi") || !conv.ReadString(&obfragment, InChIString))
+            throw std::runtime_error("parse failed");
+
           builder.Build(obfragment);
           OBForceField* pFF =  OBForceField::FindForceField("MMFF94");
           if (pFF && pFF->Setup(obfragment)) {
@@ -217,6 +221,11 @@ namespace Avogadro {
             fragment.addHydrogens();
             fragment.center();
           }
+        } catch (std::exception &) {
+          QLabel *msg = new QLabel(tr("Could not build from InChI."));
+          msg->setStyleSheet("QLabel { color: red; background: rgba(255,255,255,180); }");
+          widget->addTextOverlay(msg);
+          QTimer::singleShot(5000, msg, SLOT(deleteLater()));
         }
       }
 

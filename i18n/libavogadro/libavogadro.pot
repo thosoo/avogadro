@@ -1736,6 +1736,10 @@ msgstr ""
 msgid "Insert InChI code:"
 msgstr ""
 
+#: src/extensions/insertfragmentextension.cpp:203
+msgid "Could not build from InChI."
+msgstr ""
+
 #: src/extensions/insertfragmentextension.cpp:171
 #: src/extensions/insertfragmentextension.cpp:310
 #: src/extensions/insertfragmentextension.h:36
