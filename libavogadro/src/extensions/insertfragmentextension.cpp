@@ -32,6 +32,7 @@
 #include <openbabel/builder.h>
 #include <openbabel/forcefield.h>
 #include <openbabel/obconversion.h>
+#include <openbabel/obfunctions.h>
 
 #include <QInputDialog>
 #include <QDebug>
@@ -143,18 +144,20 @@ namespace Avogadro {
            && conv.ReadString(&obfragment, SmilesString))
           {
             builder.Build(obfragment);
+            for (unsigned int i = 1; i <= obfragment.NumAtoms(); ++i)
+              OpenBabel::OBAtomAssignTypicalImplicitHydrogens(obfragment.GetAtom(i));
 
             // Let's do a quick cleanup
-            OBForceField* pFF =  OBForceField::FindForceField("MMFF94");
+            OBForceField* pFF =  OBForceField::FindForceField("MMFF94")->MakeNewInstance();
             if (pFF && pFF->Setup(obfragment)) {
               pFF->ConjugateGradients(250, 1.0e-4);
               pFF->UpdateCoordinates(obfragment);
             } // Note tricky assignment used as logic below
-            else if ((pFF = OBForceField::FindForceField("UFF")) && pFF->Setup(obfragment)) {
+            else if ((pFF = OBForceField::FindForceField("UFF")->MakeNewInstance()) && pFF->Setup(obfragment)) {
               pFF->ConjugateGradients(250, 1.0e-4);
               pFF->UpdateCoordinates(obfragment);
             }
-
+            
             fragment.setOBMol(&obfragment);
             if (noConnection) { // if we're not connecting to a specific atom, add Hs, center
               fragment.addHydrogens(); // hydrogen addition is done by InsertCommand when bonding
