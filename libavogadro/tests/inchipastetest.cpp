@@ -15,6 +15,7 @@ class InChIPasteTest : public QObject
   Q_OBJECT
 private slots:
   void buildFromInChI();
+  void heterocycleInChI();
 };
 
 void InChIPasteTest::buildFromInChI()
@@ -32,6 +33,33 @@ void InChIPasteTest::buildFromInChI()
   mol.addHydrogens();
 
   QCOMPARE(mol.numAtoms(), static_cast<unsigned int>(5));
+}
+
+void InChIPasteTest::heterocycleInChI()
+{
+  struct Case { const char* inchi; unsigned int atoms; } cases[] = {
+    {"InChI=1S/C5H5N/c1-2-4-6-5-3-1/h1-5H", 11}, // Pyridine
+    {"InChI=1S/C4H4O/c1-2-4-5-3-1/h1-4H", 9},    // Furan
+    {"InChI=1S/C4H4S/c1-2-4-5-3-1/h1-4H", 9},    // Thiophene
+    {"InChI=1S/C4H4N2/c1-2-5-4-6-3-1/h1-4H", 10}, // Pyrimidine
+    {"InChI=1S/C8H7N/c1-2-4-8-7(3-1)5-6-9-8/h1-6,9H", 16} // Indole
+  };
+
+  OBConversion conv;
+  QVERIFY(conv.SetInFormat("inchi"));
+  OBBuilder builder;
+
+  for (const auto &c : cases) {
+    OBMol obmol;
+    QVERIFY(conv.ReadString(&obmol, c.inchi));
+    builder.Build(obmol);
+
+    Molecule mol;
+    mol.setOBMol(&obmol);
+    mol.addHydrogens();
+
+    QCOMPARE(mol.numAtoms(), c.atoms);
+  }
 }
 
 QTEST_MAIN(InChIPasteTest)
