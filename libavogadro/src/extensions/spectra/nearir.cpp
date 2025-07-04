@@ -72,10 +72,6 @@ bool NearIRSpectra::checkForData(Molecule * mol) {
     // OK, we have valid vibrations, so store them for later
     vector<double> wavenumbers = ond->GetFrequencies();
     vector<double> intensities = ond->GetIntensities();
-#else
-    Q_UNUSED(obmol);
-    return false; // Open Babel 3 removed this data type
-#endif
 
     // Case where there are no intensities, set all intensities to an arbitrary value, i.e. 1.0
     if (wavenumbers.size() > 0 && intensities.size() == 0) {
@@ -117,6 +113,10 @@ bool NearIRSpectra::checkForData(Molecule * mol) {
     }
 
     return true;
+#else
+    Q_UNUSED(obmol);
+    return false; // Open Babel 3 removed this data type
+#endif
 }
 void NearIRSpectra::setupPlot(PlotWidget * plot) {
   plot->setDefaultLimits( 3500.0, 400.0, 0.0, 100.0 );
