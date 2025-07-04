@@ -83,6 +83,7 @@ namespace Avogadro {
                                         m_hydrogenCommand(0),
                                         m_comboElements(0),
                                         m_addHydrogensCheck(0),
+                                        m_dockTableCheck(0),
                                         m_periodicTable(0),
                                         m_settingsWidget(0)
   {
@@ -706,14 +707,27 @@ namespace Avogadro {
     // Second case: we have a custom element "Other..."
     // Bring up the periodic table widget
     else {
+      bool dock = m_dockTableCheck && m_dockTableCheck->isChecked();
       if (!m_periodicTable) {
-        // call the method, which will create the widget if needed
-        m_periodicTable = new PeriodicTableView(settingsWidget());
+        QWidget *parent = dock ? settingsWidget() : 0;
+        m_periodicTable = new PeriodicTableView(parent);
         connect(m_periodicTable, SIGNAL(elementChanged(int)),
                 this, SLOT(customElementChanged(int)));
+        if (dock && m_layout)
+          m_layout->addWidget(m_periodicTable);
+      } else if (dock && m_periodicTable->parent() != settingsWidget()) {
+        m_periodicTable->setParent(settingsWidget());
+        if (m_layout && m_layout->indexOf(m_periodicTable) == -1)
+          m_layout->addWidget(m_periodicTable);
+      } else if (!dock && m_periodicTable->parent() == settingsWidget()) {
+        if (m_layout)
+          m_layout->removeWidget(m_periodicTable);
+        m_periodicTable->setParent(0);
+        m_periodicTable->setWindowFlags(Qt::Dialog | Qt::Tool);
       }
+
       m_periodicTable->show();
-      m_periodicTable->setFocus(Qt::PopupFocusReason); // give it keyboard focus
+      m_periodicTable->setFocus(dock ? Qt::OtherFocusReason : Qt::PopupFocusReason);
     }
   }
 
@@ -721,6 +735,9 @@ namespace Avogadro {
   {
     // Set the element so we can draw with it
     setElement(index);
+
+    if (m_periodicTable && (!m_dockTableCheck || !m_dockTableCheck->isChecked()))
+      m_periodicTable->hide();
 
     // Check to see if we already have this in the comboBox list
     // If not, we get back -1 and need to create a new item
@@ -846,9 +863,20 @@ namespace Avogadro {
       m_addHydrogensCheck = new QCheckBox(tr("Adjust Hydrogens"), m_settingsWidget);
       m_addHydrogensCheck->setCheckState(m_addHydrogens ? Qt::Checked : Qt::Unchecked);
 
+      m_dockTableCheck = new QCheckBox(tr("Dock Periodic Table"), m_settingsWidget);
+      m_dockTableCheck->setCheckState(Qt::Unchecked);
+
+      m_periodicTable = new PeriodicTableView();
+      m_periodicTable->hide();
+      connect(m_periodicTable, SIGNAL(elementChanged(int)),
+              this, SLOT(customElementChanged(int)));
+
       m_layout = new QVBoxLayout();
       m_layout->addLayout(grid);
       m_layout->addWidget(m_addHydrogensCheck);
+      m_layout->addWidget(m_dockTableCheck);
+      if (m_dockTableCheck->isChecked())
+        m_layout->addWidget(m_periodicTable);
       m_layout->addStretch(1);
       m_settingsWidget->setLayout(m_layout);
 
@@ -861,6 +889,9 @@ namespace Avogadro {
       connect(m_addHydrogensCheck, SIGNAL(stateChanged(int)),
               this, SLOT(setAddHydrogens(int)));
 
+      connect(m_dockTableCheck, SIGNAL(stateChanged(int)),
+              this, SLOT(toggleDockTable(int)));
+
       connect(m_settingsWidget, SIGNAL(destroyed()),
               this, SLOT(settingsWidgetDestroyed()));
     }
@@ -871,6 +902,27 @@ namespace Avogadro {
   void DrawTool::settingsWidgetDestroyed()
   {
     m_settingsWidget = 0;
+    m_periodicTable = 0;
+    m_dockTableCheck = 0;
+  }
+
+  void DrawTool::toggleDockTable(int state)
+  {
+    if (!m_periodicTable || !m_settingsWidget || !m_layout)
+      return;
+
+    bool dock = (state == Qt::Checked);
+
+    if (dock && m_periodicTable->parent() != m_settingsWidget) {
+      m_periodicTable->setParent(m_settingsWidget);
+      m_periodicTable->setWindowFlags(Qt::Widget);
+      if (m_layout->indexOf(m_periodicTable) == -1)
+        m_layout->addWidget(m_periodicTable);
+    } else if (!dock && m_periodicTable->parent() == m_settingsWidget) {
+      m_layout->removeWidget(m_periodicTable);
+      m_periodicTable->setParent(0);
+      m_periodicTable->setWindowFlags(Qt::Dialog | Qt::Tool);
+    }
   }
 
   void DrawTool::clearKeyPressBuffer()

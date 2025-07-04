@@ -111,6 +111,8 @@ namespace Avogadro {
       void bondOrderChanged( int index );
       void setBondOrder(int i);
 
+      void toggleDockTable(int state);
+
       void clearKeyPressBuffer();
 
     private:
@@ -146,6 +148,7 @@ namespace Avogadro {
       QList<int> m_elementsIndex;
       QComboBox *m_comboBondOrder;
       QCheckBox *m_addHydrogensCheck;
+      QCheckBox *m_dockTableCheck;
       QPushButton *m_tableButton;
       PeriodicTableView *m_periodicTable;
       QPushButton *m_fragmentButton;
