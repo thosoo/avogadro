@@ -142,6 +142,7 @@ namespace Avogadro {
         if (conv.SetInFormat("smi") && conv.ReadString(&obfragment, SmilesString)
             && builder.Build(obfragment)) {
           // Let's do a quick cleanup
+          // Prefer MMFF94 parameters; fall back to UFF if unavailable
           OBForceField* pFF = OBForceField::FindForceField("MMFF94");
           if (pFF && pFF->Setup(obfragment)) {
             pFF->ConjugateGradients(250, 1.0e-4);

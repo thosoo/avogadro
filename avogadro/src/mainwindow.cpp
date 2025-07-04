@@ -1175,6 +1175,7 @@ protected:
             OpenBabel::OBAtomAssignTypicalImplicitHydrogens(obMolecule->GetAtom(i));
           obMolecule->AddHydrogens(); // Add some hydrogens before running force field
 
+          // Prefer MMFF94 parameters; fall back to UFF if unavailable
           OBForceField* pFF =  OBForceField::FindForceField("MMFF94")->MakeNewInstance();
           if (pFF && !pFF->Setup(*obMolecule)) {
             pFF = OBForceField::FindForceField("UFF")->MakeNewInstance();
