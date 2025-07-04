@@ -38,6 +38,7 @@ set(tests
   moleculefile
   neighborlist
   addremovehydrogens
+  insertfragment
 )
 if(XTB_FOUND)
   list(APPEND tests xtbopttool xtbphysics)
