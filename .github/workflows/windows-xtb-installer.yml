@@ -259,7 +259,7 @@ jobs:
                 --buildtype=release ^
                 -Dlapack=mkl-rt ^
                 -Dc_std=c11 -Dcpp_std=c++17 ^
-                -Df_args=/fpp
+                -Dfortran_args=/fpp
           meson compile  -C "%BUILDDIR%"
           meson install  -C "%BUILDDIR%" --no-rebuild
           echo XTB_DIR=%INSTALLDIR%>>"%GITHUB_ENV%"
