@@ -159,8 +159,8 @@ ${Index_RemoveFilesAndSubDirs}-done:
 !define MUI_ABORTWARNING
 
 # Icons for the installer program
-!define MUI_ICON "${NSISDIR}\Contrib\Graphics\Icons\modern-install-full.ico"
-!define MUI_UNICON "${NSISDIR}\Contrib\Graphics\Icons\modern-uninstall-full.ico"
+!define MUI_ICON "..\scripts\installer\avogadro.ico"
+!define MUI_UNICON "..\scripts\installer\avogadro.ico"
 
 # Welcome page
 !define MUI_WELCOMEPAGE_TEXT "$(WelcomePageText)"
