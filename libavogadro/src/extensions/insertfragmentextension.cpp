@@ -140,7 +140,7 @@ namespace Avogadro {
         }
 
         if (conv.SetInFormat("smi") &&
-            conv.ReadString(obfragment, SmilesString))
+            conv.ReadString(&obfragment, SmilesString))
           {
             builder.Build(obfragment);
 
