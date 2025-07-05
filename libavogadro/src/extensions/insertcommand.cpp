@@ -94,8 +94,8 @@ namespace Avogadro {
     // (when all the indices will change)
     if (d->endAtom == -1) {
       // We'll connect to the first atom of the fragment
-      d->endAtom = startIndex;
       endAtom = d->molecule->atom(startIndex);
+      d->endAtom = endAtom->id();
     } else {
       endAtom = d->molecule->atomById(d->endAtom);
     }
