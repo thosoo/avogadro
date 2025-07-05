@@ -23,6 +23,7 @@
 #define INSERTFRAGMENTEXTENSION_H
 
 #include <avogadro/extension.h>
+#include <avogadro/dockwidget.h>
 #include <QAction>
 
 #include "insertfragmentdialog.h"
@@ -65,6 +66,7 @@ namespace Avogadro {
 
     QList<QAction *> m_actions;
     GLWidget* m_widget;
+    DockWidget *m_fragmentDock;
     InsertFragmentDialog *m_fragmentDialog;
     InsertFragmentDialog *m_crystalDialog;
     QString   m_smilesString;

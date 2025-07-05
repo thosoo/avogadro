@@ -22,6 +22,8 @@
 #include "insertfragmentextension.h"
 #include "insertcommand.h"
 
+#include <avogadro/dockwidget.h>
+
 #include <avogadro/atom.h>
 #include <avogadro/glwidget.h>
 #include <avogadro/molecule.h>
@@ -51,6 +53,7 @@ namespace Avogadro {
 
   InsertFragmentExtension::InsertFragmentExtension(QObject *parent) :
     Extension(parent),
+    m_fragmentDock(0),
     m_fragmentDialog(0),
     m_crystalDialog(0),
     m_molecule(0),
@@ -70,7 +73,16 @@ namespace Avogadro {
     action->setText(tr("SMILES..."));
     action->setData(SMILESIndex);
     m_actions.append(action);
-    // Dialog is created later, if needed
+
+    // Create the dock widget for fragments
+    m_fragmentDock = new DockWidget(tr("Fragments"));
+    m_fragmentDock->setObjectName("fragmentDock");
+    m_fragmentDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    m_fragmentDock->setPreferredDockWidgetArea(Qt::LeftDockWidgetArea);
+    m_fragmentDock->hide();
+    m_dockWidgets.append(m_fragmentDock);
+
+    // Dialog is created later, if needed when the dock is shown
   }
 
   InsertFragmentExtension::~InsertFragmentExtension()
@@ -78,6 +90,10 @@ namespace Avogadro {
     if (m_fragmentDialog) {
       m_fragmentDialog->deleteLater();
       m_fragmentDialog = 0;
+    }
+    if (m_fragmentDock) {
+      m_fragmentDock->deleteLater();
+      m_fragmentDock = 0;
     }
     if (m_crystalDialog) {
       m_crystalDialog->deleteLater();
@@ -167,12 +183,14 @@ namespace Avogadro {
         emit performCommand(new InsertFragmentCommand(m_molecule, fragment, widget, tr("Insert SMILES"), id));
       }
     } else if (action->data() == FragmentFromFileIndex) { // molecular fragments
-        if (m_fragmentDialog == NULL) {
-          m_fragmentDialog = new InsertFragmentDialog(NULL, "fragments");
+        if (!m_fragmentDialog) {
+          m_fragmentDialog = new InsertFragmentDialog(m_fragmentDock, "fragments", Qt::Widget);
           m_fragmentDialog->setWindowTitle(tr("Insert Fragment"));
           connect(m_fragmentDialog, SIGNAL(performInsert()), this, SLOT(insertFragment()));
+          m_fragmentDock->setWidget(m_fragmentDialog);
         }
-        m_fragmentDialog->show();
+        if (!m_fragmentDock->isVisible())
+          m_fragmentDock->show();
 
     } else { // crystals
       if (m_crystalDialog == NULL) {
