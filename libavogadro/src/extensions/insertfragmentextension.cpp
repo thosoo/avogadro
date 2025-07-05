@@ -139,8 +139,8 @@ namespace Avogadro {
           noConnection = true;
         }
 
-        if(conv.SetInFormat("smi")
-           && conv.ReadString(&obfragment, SmilesString))
+        if (conv.SetInFormat("smi") &&
+            conv.ReadString(obfragment, SmilesString))
           {
             builder.Build(obfragment);
 
