@@ -70,11 +70,14 @@ namespace Avogadro {
 
   };
 
-  InsertFragmentDialog::InsertFragmentDialog(QWidget *parent, QString directory, Qt::WindowFlags) : QDialog(parent)
+  InsertFragmentDialog::InsertFragmentDialog(QWidget *parent, QString directory, Qt::WindowFlags f) : QDialog(parent)
   {
     // Use a small title bar (Qt::Tool) with no minimize or maximize buttons
     // much like the Periodic Table widget
-    setWindowFlags(Qt::Dialog | Qt::Tool);
+    if (f)
+      setWindowFlags(f);
+    else
+      setWindowFlags(Qt::Dialog | Qt::Tool);
     ui.setupUi(this);
 
     d = new InsertFragmentPrivate;
