@@ -84,12 +84,9 @@ namespace Avogadro {
 
   void InsertFragmentCommand::redo()
   {
-    unsigned int initialAtoms = d->molecule->numAtoms() - 1;
-    bool emptyMol = (d->molecule->numAtoms() == 0);
+    unsigned int startIndex = d->molecule->numAtoms();
+    bool emptyMol = (startIndex == 0);
     Atom *endAtom, *startAtom;
-
-    if (emptyMol)
-      initialAtoms = 0;
 
     *(d->molecule) += d->generatedMolecule;
     // OK, now get the first atom of the newly placed fragment
@@ -97,8 +94,8 @@ namespace Avogadro {
     // (when all the indices will change)
     if (d->endAtom == -1) {
       // We'll connect to the first atom of the fragment
-      d->endAtom = initialAtoms + 1;
-      endAtom = d->molecule->atom(initialAtoms + 1);
+      d->endAtom = startIndex;
+      endAtom = d->molecule->atom(startIndex);
     } else {
       endAtom = d->molecule->atomById(d->endAtom);
     }
@@ -147,7 +144,7 @@ namespace Avogadro {
         matchedAtoms.append(d->molecule->atom(0));
 
       foreach (Atom *atom, d->molecule->atoms()) {
-        if (atom->index() > initialAtoms)
+        if (atom->index() >= startIndex)
           matchedAtoms.append(const_cast<Atom *>(atom));
       }
 

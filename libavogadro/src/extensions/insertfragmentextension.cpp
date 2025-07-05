@@ -32,6 +32,7 @@
 #include <openbabel/builder.h>
 #include <openbabel/forcefield.h>
 #include <openbabel/obconversion.h>
+#include <memory>
 
 #include <QInputDialog>
 #include <QDebug>
@@ -141,26 +142,28 @@ namespace Avogadro {
 
         try {
           if (conv.SetInFormat("smi") && conv.ReadString(&obfragment, SmilesString)) {
-            builder.Build(obfragment);
-
-            // Let's do a quick cleanup
-            OBForceField* pFF = OBForceField::FindForceField("MMFF94");
-            if (pFF)
-              pFF = pFF->MakeNewInstance();
-            if (pFF && pFF->Setup(obfragment)) {
-              pFF->ConjugateGradients(250, 1.0e-4);
-              pFF->UpdateCoordinates(obfragment);
-            } else {
-              delete pFF;
-              pFF = OBForceField::FindForceField("UFF");
-              if (pFF)
-                pFF = pFF->MakeNewInstance();
-              if (pFF && pFF->Setup(obfragment)) {
-                pFF->ConjugateGradients(250, 1.0e-4);
-                pFF->UpdateCoordinates(obfragment);
-              }
+            if (!builder.Build(obfragment)) {
+              emit message(tr("Failed to build 3D structure for: %1").arg(smiles));
+              return NULL;
             }
-            delete pFF;
+
+            std::unique_ptr<OBForceField> ff;
+            OBForceField *tmpFF = OBForceField::FindForceField("MMFF94");
+            if (tmpFF)
+              ff.reset(tmpFF->MakeNewInstance());
+            if (!ff || !ff->Setup(obfragment)) {
+              tmpFF = OBForceField::FindForceField("UFF");
+              ff.reset(tmpFF ? tmpFF->MakeNewInstance() : 0);
+            }
+            if (ff && ff->Setup(obfragment)) {
+              ff->ConjugateGradients(250, 1.0e-4);
+              ff->UpdateCoordinates(obfragment);
+            }
+
+            if (obfragment.NumAtoms() == 0) {
+              emit message(tr("SMILES produced no atoms: %1").arg(smiles));
+              return NULL;
+            }
 
             fragment.setOBMol(&obfragment);
             if (noConnection) { // if we're not connecting to a specific atom, add Hs, center
@@ -170,7 +173,7 @@ namespace Avogadro {
             foreach(int id, selectedIds) {
               emit performCommand(new InsertFragmentCommand(m_molecule, fragment, widget, tr("Insert SMILES"), id));
             }
-        } else {
+          } else {
             emit message(tr("Failed to interpret SMILES: %1").arg(smiles));
           }
         } catch (const std::exception &e) {
