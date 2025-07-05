@@ -139,32 +139,45 @@ namespace Avogadro {
           noConnection = true;
         }
 
-        if(conv.SetInFormat("smi")
-           && conv.ReadString(&obfragment, SmilesString))
-          {
+        try {
+          if (conv.SetInFormat("smi") && conv.ReadString(&obfragment, SmilesString)) {
             builder.Build(obfragment);
 
             // Let's do a quick cleanup
-            OBForceField* pFF =  OBForceField::FindForceField("MMFF94");
+            OBForceField* pFF = OBForceField::FindForceField("MMFF94");
+            if (pFF)
+              pFF = pFF->MakeNewInstance();
             if (pFF && pFF->Setup(obfragment)) {
               pFF->ConjugateGradients(250, 1.0e-4);
               pFF->UpdateCoordinates(obfragment);
-            } // Note tricky assignment used as logic below
-            else if ((pFF = OBForceField::FindForceField("UFF")) && pFF->Setup(obfragment)) {
-              pFF->ConjugateGradients(250, 1.0e-4);
-              pFF->UpdateCoordinates(obfragment);
+            } else {
+              delete pFF;
+              pFF = OBForceField::FindForceField("UFF");
+              if (pFF)
+                pFF = pFF->MakeNewInstance();
+              if (pFF && pFF->Setup(obfragment)) {
+                pFF->ConjugateGradients(250, 1.0e-4);
+                pFF->UpdateCoordinates(obfragment);
+              }
             }
+            delete pFF;
 
             fragment.setOBMol(&obfragment);
             if (noConnection) { // if we're not connecting to a specific atom, add Hs, center
               fragment.addHydrogens(); // hydrogen addition is done by InsertCommand when bonding
               fragment.center();
             }
+            foreach(int id, selectedIds) {
+              emit performCommand(new InsertFragmentCommand(m_molecule, fragment, widget, tr("Insert SMILES"), id));
+            }
+        } else {
+            emit message(tr("Failed to interpret SMILES: %1").arg(smiles));
           }
-      }
-
-      foreach(int id, selectedIds) {
-        emit performCommand(new InsertFragmentCommand(m_molecule, fragment, widget, tr("Insert SMILES"), id));
+        } catch (const std::exception &e) {
+          emit message(tr("Error inserting SMILES: %1").arg(e.what()));
+        } catch (...) {
+          emit message(tr("Unknown error inserting SMILES."));
+        }
       }
     } else if (action->data() == FragmentFromFileIndex) { // molecular fragments
         if (m_fragmentDialog == NULL) {
