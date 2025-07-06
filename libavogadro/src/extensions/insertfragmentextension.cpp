@@ -51,7 +51,10 @@ namespace Avogadro {
     explicit FragmentDock(const QString &title,
                           QWidget *parent = 0,
                           Qt::WindowFlags f = 0)
-      : DockWidget(title, parent, f) {}
+      : DockWidget(title, parent, f)
+    {
+      setWindowFlags(windowFlags() | Qt::Tool | Qt::WindowStaysOnTopHint);
+    }
 
   protected:
     void closeEvent(QCloseEvent *event)
@@ -205,7 +208,8 @@ namespace Avogadro {
         emit performCommand(new InsertFragmentCommand(m_molecule, fragment, widget, tr("Insert SMILES"), id));
       }
     } else if (action->data() == FragmentFromFileIndex) { // molecular fragments
-        m_fragmentDock->show();
+        if (!m_fragmentDock->toggleViewAction()->isChecked())
+          m_fragmentDock->toggleViewAction()->activate(QAction::Trigger);
         m_fragmentDock->raise();
 
     } else { // crystals
