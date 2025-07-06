@@ -61,7 +61,7 @@ namespace Avogadro {
     {
       if (widget())
         widget()->hide();
-      event->accept();
+      QDockWidget::closeEvent(event);
     }
   };
 
@@ -106,6 +106,9 @@ namespace Avogadro {
     connect(m_fragmentDialog, SIGNAL(performInsert()), this, SLOT(insertFragment()));
 
     m_fragmentDock->setWidget(m_fragmentDialog);
+    m_fragmentDock->setMinimumWidth(m_fragmentDialog->sizeHint().width());
+    m_fragmentDock->setMinimumHeight(m_fragmentDialog->sizeHint().height()/2);
+    m_fragmentDock->setFloating(false);
     m_fragmentDock->hide();
     m_dockWidgets.append(m_fragmentDock);
   }
@@ -242,6 +245,8 @@ namespace Avogadro {
     Extension::readSettings(settings);
 
     m_smilesString = settings.value("smiles").toString();
+    if (m_fragmentDock)
+      m_fragmentDock->hide();
     /*
     if(m_dialog) {
       if (settings.contains("fragmentPath")) {

@@ -79,6 +79,7 @@ namespace Avogadro {
     else
       setWindowFlags(Qt::Dialog | Qt::Tool);
     ui.setupUi(this);
+    setMinimumSize(QSize(300, 300));
 
     d = new InsertFragmentPrivate;
 
