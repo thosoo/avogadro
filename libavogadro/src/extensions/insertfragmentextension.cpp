@@ -38,11 +38,29 @@
 #include <QInputDialog>
 #include <QDebug>
 #include <QTimer>
+#include <QCloseEvent>
 
 using namespace std;
 using namespace OpenBabel;
 
 namespace Avogadro {
+
+  class FragmentDock : public DockWidget
+  {
+  public:
+    explicit FragmentDock(const QString &title,
+                          QWidget *parent = 0,
+                          Qt::WindowFlags f = 0)
+      : DockWidget(title, parent, f) {}
+
+  protected:
+    void closeEvent(QCloseEvent *event)
+    {
+      if (widget())
+        widget()->hide();
+      event->accept();
+    }
+  };
 
   enum FragmentIndex
   {
@@ -75,7 +93,7 @@ namespace Avogadro {
     m_actions.append(action);
 
     // Create the dock widget for fragments with its dialog
-    m_fragmentDock = new DockWidget(tr("Fragments"));
+    m_fragmentDock = new FragmentDock(tr("Fragments"));
     m_fragmentDock->setObjectName("fragmentDock");
     m_fragmentDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     m_fragmentDock->setPreferredDockWidgetArea(Qt::LeftDockWidgetArea);
@@ -187,8 +205,8 @@ namespace Avogadro {
         emit performCommand(new InsertFragmentCommand(m_molecule, fragment, widget, tr("Insert SMILES"), id));
       }
     } else if (action->data() == FragmentFromFileIndex) { // molecular fragments
-        if (!m_fragmentDock->isVisible())
-          m_fragmentDock->show();
+        m_fragmentDock->show();
+        m_fragmentDock->raise();
 
     } else { // crystals
       if (m_crystalDialog == NULL) {
