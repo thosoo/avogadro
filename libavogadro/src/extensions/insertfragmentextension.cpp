@@ -74,15 +74,19 @@ namespace Avogadro {
     action->setData(SMILESIndex);
     m_actions.append(action);
 
-    // Create the dock widget for fragments
+    // Create the dock widget for fragments with its dialog
     m_fragmentDock = new DockWidget(tr("Fragments"));
     m_fragmentDock->setObjectName("fragmentDock");
     m_fragmentDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     m_fragmentDock->setPreferredDockWidgetArea(Qt::LeftDockWidgetArea);
+
+    m_fragmentDialog = new InsertFragmentDialog(m_fragmentDock, "fragments", Qt::Widget);
+    m_fragmentDialog->setWindowTitle(tr("Insert Fragment"));
+    connect(m_fragmentDialog, SIGNAL(performInsert()), this, SLOT(insertFragment()));
+
+    m_fragmentDock->setWidget(m_fragmentDialog);
     m_fragmentDock->hide();
     m_dockWidgets.append(m_fragmentDock);
-
-    // Dialog is created later, if needed when the dock is shown
   }
 
   InsertFragmentExtension::~InsertFragmentExtension()
@@ -183,12 +187,6 @@ namespace Avogadro {
         emit performCommand(new InsertFragmentCommand(m_molecule, fragment, widget, tr("Insert SMILES"), id));
       }
     } else if (action->data() == FragmentFromFileIndex) { // molecular fragments
-        if (!m_fragmentDialog) {
-          m_fragmentDialog = new InsertFragmentDialog(m_fragmentDock, "fragments", Qt::Widget);
-          m_fragmentDialog->setWindowTitle(tr("Insert Fragment"));
-          connect(m_fragmentDialog, SIGNAL(performInsert()), this, SLOT(insertFragment()));
-          m_fragmentDock->setWidget(m_fragmentDialog);
-        }
         if (!m_fragmentDock->isVisible())
           m_fragmentDock->show();
 
