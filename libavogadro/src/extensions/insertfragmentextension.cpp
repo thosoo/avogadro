@@ -39,6 +39,7 @@
 #include <QDebug>
 #include <QTimer>
 #include <QCloseEvent>
+#include <QShowEvent>
 
 using namespace std;
 using namespace OpenBabel;
@@ -62,6 +63,13 @@ namespace Avogadro {
       if (widget())
         widget()->hide();
       QDockWidget::closeEvent(event);
+    }
+
+    void showEvent(QShowEvent *event)
+    {
+      if (widget())
+        widget()->show();
+      QDockWidget::showEvent(event);
     }
   };
 
