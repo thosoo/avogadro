@@ -16,6 +16,7 @@ SetCompressor lzma
 
 # set execution level for Windows Vista
 RequestExecutionLevel admin
+ManifestDPIAware true
 
 # general definitions
 # you only need to change this section for new releases
