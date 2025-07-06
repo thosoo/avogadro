@@ -82,7 +82,16 @@ void InsertFragmentCommand::redo() {
   bool emptyMol = (startIndex == 0);
   Atom *endAtom, *startAtom;
 
-  *(d->molecule) += d->generatedMolecule;
+  try {
+    *(d->molecule) += d->generatedMolecule;
+  } catch (const std::exception &e) {
+    qDebug() << "Error adding fragment:" << e.what();
+    return;
+  } catch (...) {
+    qDebug() << "Unknown error adding fragment";
+    return;
+  }
+
   // OK, now get the first atom of the newly placed fragment
   // We need to do this before removing hydrogens
   // (when all the indices will change)
@@ -126,12 +135,16 @@ void InsertFragmentCommand::redo() {
     }
 
     if (startAtom && endAtom) {
-      OpenBabel::OBMol mol = d->molecule->OBMol();
-      // Open Babel indexes atoms from 1, not 0
-      OpenBabel::OBBuilder::Connect(mol, startAtom->index() + 1,
-                                    endAtom->index() + 1);
-      d->molecule->setOBMol(&mol);
-      d->molecule->addHydrogens();
+      try {
+        OpenBabel::OBMol mol = d->molecule->OBMol();
+        // Open Babel indexes atoms from 1, not 0
+        OpenBabel::OBBuilder::Connect(mol, startAtom->index() + 1,
+                                      endAtom->index() + 1);
+        d->molecule->setOBMol(&mol);
+        d->molecule->addHydrogens();
+      } catch (const std::exception &e) {
+        qDebug() << "Error connecting fragments:" << e.what();
+      }
     }
   }
 

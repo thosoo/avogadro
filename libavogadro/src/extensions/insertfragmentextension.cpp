@@ -141,23 +141,34 @@ namespace Avogadro {
         }
 
         try {
-          if (conv.SetInFormat("smi") && conv.ReadString(&obfragment, SmilesString)) {
-            if (!builder.Build(obfragment)) {
-              emit message(tr("Failed to build 3D structure for: %1").arg(smiles));
-              return NULL;
-            }
+          if (!conv.SetInFormat("smi")) {
+            emit message(tr("SMILES format not available"));
+            return NULL;
+          }
+          if (!conv.ReadString(&obfragment, SmilesString)) {
+            emit message(tr("Failed to interpret SMILES: %1").arg(smiles));
+            return NULL;
+          }
+          if (!builder.Build(obfragment)) {
+            emit message(tr("Failed to build 3D structure for: %1").arg(smiles));
+            return NULL;
+          }
 
             std::unique_ptr<OBForceField> ff;
-            OBForceField *tmpFF = OBForceField::FindForceField("MMFF94");
-            if (tmpFF)
-              ff.reset(tmpFF->MakeNewInstance());
-            if (!ff || !ff->Setup(obfragment)) {
-              tmpFF = OBForceField::FindForceField("UFF");
-              ff.reset(tmpFF ? tmpFF->MakeNewInstance() : 0);
-            }
-            if (ff && ff->Setup(obfragment)) {
-              ff->ConjugateGradients(250, 1.0e-4);
-              ff->UpdateCoordinates(obfragment);
+            try {
+              OBForceField *tmpFF = OBForceField::FindForceField("MMFF94");
+              if (tmpFF)
+                ff.reset(tmpFF->MakeNewInstance());
+              if (!ff || !ff->Setup(obfragment)) {
+                tmpFF = OBForceField::FindForceField("UFF");
+                ff.reset(tmpFF ? tmpFF->MakeNewInstance() : 0);
+              }
+              if (ff && ff->Setup(obfragment)) {
+                ff->ConjugateGradients(250, 1.0e-4);
+                ff->UpdateCoordinates(obfragment);
+              }
+            } catch (const std::exception &e) {
+              emit message(tr("Force field error: %1").arg(e.what()));
             }
 
             if (obfragment.NumAtoms() == 0) {
