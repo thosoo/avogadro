@@ -26,137 +26,138 @@
 
 #include "insertcommand.h"
 
-#include <avogadro/molecule.h>
 #include <avogadro/atom.h>
-#include <avogadro/primitivelist.h>
 #include <avogadro/glwidget.h>
+#include <avogadro/molecule.h>
+#include <avogadro/primitivelist.h>
 #include <avogadro/toolgroup.h>
 
-#include <openbabel/mol.h>
 #include <openbabel/builder.h>
+#include <openbabel/mol.h>
 
 #include <QDebug>
 
 namespace Avogadro {
 
-  /////////////////////////////////////////////////////////////////////////////
-  // Insert Fragment
-  /////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
+// Insert Fragment
+/////////////////////////////////////////////////////////////////////////////
 
-  class InsertFragmentCommandPrivate {
-    public:
-      InsertFragmentCommandPrivate() :
-        molecule(0),
-        generatedMolecule(0), widget(0),
-        startAtom(-1), endAtom(-1) {};
+class InsertFragmentCommandPrivate {
+public:
+  InsertFragmentCommandPrivate()
+      : molecule(0), generatedMolecule(0), widget(0), startAtom(-1),
+        endAtom(-1) {};
 
-    Molecule *molecule;
-    Molecule moleculeCopy, generatedMolecule;
-    GLWidget *widget;
-    int startAtom, endAtom; // if we're using OBBuilder::Connect()
-  };
+  Molecule *molecule;
+  Molecule moleculeCopy, generatedMolecule;
+  GLWidget *widget;
+  int startAtom, endAtom; // if we're using OBBuilder::Connect()
+};
 
-  InsertFragmentCommand::InsertFragmentCommand(Molecule *molecule,
-                                               const Molecule &generatedMolecule,
-                                               GLWidget *widget,
-                                               const QString commandName, int start, int end)
-      : d(new InsertFragmentCommandPrivate)
-  {
-    setText(commandName);
-    d->molecule = molecule;
-    d->moleculeCopy = *molecule;
-    d->generatedMolecule = generatedMolecule;
-    d->widget = widget;
-    d->startAtom = start;
-    d->endAtom = end;
-  }
+InsertFragmentCommand::InsertFragmentCommand(Molecule *molecule,
+                                             const Molecule &generatedMolecule,
+                                             GLWidget *widget,
+                                             const QString commandName,
+                                             int start, int end)
+    : d(new InsertFragmentCommandPrivate) {
+  setText(commandName);
+  d->molecule = molecule;
+  d->moleculeCopy = *molecule;
+  d->generatedMolecule = generatedMolecule;
+  d->widget = widget;
+  d->startAtom = start;
+  d->endAtom = end;
+}
 
-  InsertFragmentCommand::~InsertFragmentCommand()
-  {
-    delete d;
-  }
+InsertFragmentCommand::~InsertFragmentCommand() { delete d; }
 
-  void InsertFragmentCommand::undo()
-  {
-    *(d->molecule) = d->moleculeCopy;
-    d->molecule->update();
-  }
+void InsertFragmentCommand::undo() {
+  *(d->molecule) = d->moleculeCopy;
+  d->molecule->update();
+}
 
-  void InsertFragmentCommand::redo()
-  {
-    unsigned int startIndex = d->molecule->numAtoms();
-    bool emptyMol = (startIndex == 0);
-    Atom *endAtom, *startAtom;
+void InsertFragmentCommand::redo() {
+  unsigned int startIndex = d->molecule->numAtoms();
+  bool emptyMol = (startIndex == 0);
+  Atom *endAtom, *startAtom;
 
-    *(d->molecule) += d->generatedMolecule;
-    // OK, now get the first atom of the newly placed fragment
-    // We need to do this before removing hydrogens
-    // (when all the indices will change)
-    if (d->endAtom == -1) {
-      // We'll connect to the first atom of the fragment
-      endAtom = d->molecule->atom(startIndex);
-      d->endAtom = endAtom->id();
-    } else {
-      endAtom = d->molecule->atomById(d->endAtom);
+  *(d->molecule) += d->generatedMolecule;
+  // OK, now get the first atom of the newly placed fragment
+  // We need to do this before removing hydrogens
+  // (when all the indices will change)
+  // Always determine the first inserted atom each time redo() is called
+  if (d->molecule->numAtoms() > startIndex)
+    endAtom = d->molecule->atom(startIndex);
+  else
+    endAtom = 0;
+  if (endAtom)
+    d->endAtom = endAtom->id();
+  else
+    d->endAtom = -1;
+
+  // Do we need to connect the fragment to the original molecule?
+  if (d->startAtom != -1 && !emptyMol && endAtom) {
+    // OK, first, we should see if this atom is a hydrogen
+    startAtom = d->molecule->atomById(d->startAtom);
+    if (startAtom && startAtom->isHydrogen()) {
+      // get the bonded non-hydrogen and remove this atom
+      Atom *hydrogen = startAtom;
+      if (hydrogen->neighbors().size()) {
+        startAtom = d->molecule->atomById(
+            hydrogen->neighbors()[0]); // the first bonded atom to this "H"
+        d->molecule->removeAtom(hydrogen);
+      }
+    } else if (startAtom) { // heavy atom -- remove attached hydrogens
+      d->molecule->removeHydrogens(startAtom);
     }
 
-    // Do we need to connect the fragment to the original molecule?
-    if (d->startAtom != -1 && !emptyMol) {
-      // OK, first, we should see if this atom is a hydrogen
-      startAtom = d->molecule->atomById(d->startAtom);
-      if (startAtom->isHydrogen()) {
-        // get the bonded non-hydrogen and remove this atom
-        Atom *hydrogen = startAtom;
-        if (hydrogen->neighbors().size()) {
-          startAtom = d->molecule->atomById(hydrogen->neighbors()[0]); // the first bonded atom to this "H"
-          d->molecule->removeAtom(hydrogen);
-        }
-      } else { // heavy atom -- remove attached hydrogens
-        d->molecule->removeHydrogens(startAtom);
+    // same procedure as the start atom -- check if endAtom is an H
+    if (endAtom && endAtom->isHydrogen()) {
+      // get the bonded non-hydrogen and remove this atom
+      Atom *hydrogen = endAtom;
+      if (hydrogen->neighbors().size()) {
+        endAtom = d->molecule->atomById(
+            hydrogen->neighbors()[0]); // the first bonded atom to this "H"
+        d->molecule->removeAtom(hydrogen);
       }
+    } else if (endAtom) { // heavy atom -- remove attached hydrogens
+      d->molecule->removeHydrogens(endAtom);
+    }
 
-      // same procedure as the start atom -- check if endAtom is an H
-      if (endAtom->isHydrogen()) {
-        // get the bonded non-hydrogen and remove this atom
-        Atom *hydrogen = endAtom;
-        if (hydrogen->neighbors().size()) {
-          endAtom = d->molecule->atomById(hydrogen->neighbors()[0]); // the first bonded atom to this "H"
-          d->molecule->removeAtom(hydrogen);
-        }
-      } else { // heavy atom -- remove attached hydrogens
-        d->molecule->removeHydrogens(endAtom);
-      }
-
+    if (startAtom && endAtom) {
       OpenBabel::OBMol mol = d->molecule->OBMol();
       // Open Babel indexes atoms from 1, not 0
-      OpenBabel::OBBuilder::Connect(mol, startAtom->index() + 1, endAtom->index() + 1);
+      OpenBabel::OBBuilder::Connect(mol, startAtom->index() + 1,
+                                    endAtom->index() + 1);
       d->molecule->setOBMol(&mol);
       d->molecule->addHydrogens();
     }
+  }
 
-    // now tell the molecule to update
-    d->molecule->update();
+  // now tell the molecule to update
+  d->molecule->update();
 
-    if (d->widget && d->startAtom == -1) {
-      QList<Primitive *> matchedAtoms;
+  if (d->widget && d->startAtom == -1) {
+    QList<Primitive *> matchedAtoms;
 
-      if (emptyMol) // we'll miss atom 0, so add it now
-        matchedAtoms.append(d->molecule->atom(0));
+    if (emptyMol) // we'll miss atom 0, so add it now
+      matchedAtoms.append(d->molecule->atom(0));
 
-      foreach (Atom *atom, d->molecule->atoms()) {
-        if (atom->index() >= startIndex)
-          matchedAtoms.append(const_cast<Atom *>(atom));
-      }
-
-      d->widget->clearSelected();
-      d->widget->setSelected(matchedAtoms, true);
-
-      d->widget->toolGroup()->setActiveTool("Manipulate");
+    foreach (Atom *atom, d->molecule->atoms()) {
+      if (atom->index() >= startIndex)
+        matchedAtoms.append(const_cast<Atom *>(atom));
     }
 
-    // in either case, update the widget
-    if (d->widget)
-      d->widget->update();
+    d->widget->clearSelected();
+    d->widget->setSelected(matchedAtoms, true);
+
+    d->widget->toolGroup()->setActiveTool("Manipulate");
   }
+
+  // in either case, update the widget
+  if (d->widget)
+    d->widget->update();
+}
 
 } // end namespace Avogadro
