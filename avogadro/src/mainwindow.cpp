@@ -870,9 +870,9 @@ protected:
       foreach(Extension *ext, d->pluginManager.extensions(this)) {
         if (ext->identifier() == QLatin1String("InsertFragment")) {
           if (ext->numDockWidgets() > 0)
-            d->fragmentDock = ext->dockWidgets().first();
+            d->fragmentDock = qobject_cast<DockWidget*>(ext->dockWidgets().first());
           else
-            d->fragmentDock = ext->dockWidget();
+            d->fragmentDock = qobject_cast<DockWidget*>(ext->dockWidget());
           break;
         }
       }
