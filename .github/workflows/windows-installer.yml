@@ -134,11 +134,16 @@ jobs:
           Copy-Item (Join-Path $obDir 'bin' 'openbabel-3.lib') $lib -Force
           Copy-Item (Join-Path $obDir 'bin' 'openbabel-3.dll') (Join-Path $obDir 'bin' 'openbabel.dll') -Force
           $libDir = Join-Path $obDir 'lib'
+          $dataDir = Join-Path $obDir 'share' 'openbabel'
+          $pluginDir = Join-Path $libDir 'openbabel'
           "CMAKE_PREFIX_PATH=$obDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "OPENBABEL3_INCLUDE_DIR=$inc" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "OPENBABEL3_LIBRARIES=$lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "OPENBABEL3_LIBRARY_DIRS=$libDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "OPENBABEL_INSTALL_DIR=$obDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "BABEL_DATADIR=$dataDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "BABEL_LIBDIR=$pluginDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "OPENBABEL_PLUGIN_PATH=$pluginDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$obDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Configure
         shell: pwsh
