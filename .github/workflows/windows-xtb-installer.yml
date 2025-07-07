@@ -221,7 +221,8 @@ jobs:
         shell: cmd
         run: |
           for %%f in ("%XTB_DIR%\lib\*.a") do (
-            lib /nologo /machine:X64 /out:%%~dpnf.lib %%f
+            echo Converting %%f
+            lib /verbose /nologo /machine:X64 /out:%%~dpnf.lib %%f
           )
       - name: Configure
         shell: pwsh
