@@ -327,6 +327,7 @@ namespace Avogadro {
 
       void toggleToolSettingsDock();
       void toggleEngineSettingsDock();
+      void toggleFragmentDock();
 
       void centerStep();
   };

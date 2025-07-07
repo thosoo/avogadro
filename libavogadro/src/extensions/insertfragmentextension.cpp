@@ -22,6 +22,8 @@
 #include "insertfragmentextension.h"
 #include "insertcommand.h"
 
+#include <avogadro/dockwidget.h>
+
 #include <avogadro/atom.h>
 #include <avogadro/glwidget.h>
 #include <avogadro/molecule.h>
@@ -36,11 +38,40 @@
 #include <QInputDialog>
 #include <QDebug>
 #include <QTimer>
+#include <QCloseEvent>
+#include <QShowEvent>
 
 using namespace std;
 using namespace OpenBabel;
 
 namespace Avogadro {
+
+  class FragmentDock : public DockWidget
+  {
+  public:
+    explicit FragmentDock(const QString &title,
+                          QWidget *parent = 0,
+                          Qt::WindowFlags f = 0)
+      : DockWidget(title, parent, f)
+    {
+      setWindowFlags(windowFlags() | Qt::Tool | Qt::WindowStaysOnTopHint);
+    }
+
+  protected:
+    void closeEvent(QCloseEvent *event)
+    {
+      if (widget())
+        widget()->hide();
+      QDockWidget::closeEvent(event);
+    }
+
+    void showEvent(QShowEvent *event)
+    {
+      if (widget())
+        widget()->show();
+      QDockWidget::showEvent(event);
+    }
+  };
 
   enum FragmentIndex
   {
@@ -51,6 +82,7 @@ namespace Avogadro {
 
   InsertFragmentExtension::InsertFragmentExtension(QObject *parent) :
     Extension(parent),
+    m_fragmentDock(0),
     m_fragmentDialog(0),
     m_crystalDialog(0),
     m_molecule(0),
@@ -70,7 +102,23 @@ namespace Avogadro {
     action->setText(tr("SMILES..."));
     action->setData(SMILESIndex);
     m_actions.append(action);
-    // Dialog is created later, if needed
+
+    // Create the dock widget for fragments with its dialog
+    m_fragmentDock = new FragmentDock(tr("Fragments"));
+    m_fragmentDock->setObjectName("fragmentDock");
+    m_fragmentDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    m_fragmentDock->setPreferredDockWidgetArea(Qt::LeftDockWidgetArea);
+
+    m_fragmentDialog = new InsertFragmentDialog(m_fragmentDock, "fragments");
+    m_fragmentDialog->setWindowTitle(tr("Insert Fragment"));
+    connect(m_fragmentDialog, SIGNAL(performInsert()), this, SLOT(insertFragment()));
+
+    m_fragmentDock->setWidget(m_fragmentDialog);
+    m_fragmentDock->setMinimumWidth(m_fragmentDialog->sizeHint().width());
+    m_fragmentDock->setMinimumHeight(m_fragmentDialog->sizeHint().height()/2);
+    m_fragmentDock->setFloating(false);
+    m_fragmentDock->hide();
+    m_dockWidgets.append(m_fragmentDock);
   }
 
   InsertFragmentExtension::~InsertFragmentExtension()
@@ -78,6 +126,10 @@ namespace Avogadro {
     if (m_fragmentDialog) {
       m_fragmentDialog->deleteLater();
       m_fragmentDialog = 0;
+    }
+    if (m_fragmentDock) {
+      m_fragmentDock->deleteLater();
+      m_fragmentDock = 0;
     }
     if (m_crystalDialog) {
       m_crystalDialog->deleteLater();
@@ -167,16 +219,14 @@ namespace Avogadro {
         emit performCommand(new InsertFragmentCommand(m_molecule, fragment, widget, tr("Insert SMILES"), id));
       }
     } else if (action->data() == FragmentFromFileIndex) { // molecular fragments
-        if (m_fragmentDialog == NULL) {
-          m_fragmentDialog = new InsertFragmentDialog(NULL, "fragments");
-          m_fragmentDialog->setWindowTitle(tr("Insert Fragment"));
-          connect(m_fragmentDialog, SIGNAL(performInsert()), this, SLOT(insertFragment()));
-        }
-        m_fragmentDialog->show();
+        if (!m_fragmentDock->toggleViewAction()->isChecked())
+          m_fragmentDock->toggleViewAction()->activate(QAction::Trigger);
+        m_fragmentDock->raise();
 
     } else { // crystals
       if (m_crystalDialog == NULL) {
-        m_crystalDialog = new InsertFragmentDialog(NULL, "crystals");
+        m_crystalDialog = new InsertFragmentDialog(NULL, "crystals",
+                                                  Qt::Dialog | Qt::Tool);
         m_crystalDialog->setWindowTitle(tr("Insert Crystal"));
         connect(m_crystalDialog, SIGNAL(performInsert()), this, SLOT(insertCrystal()));
       }
@@ -204,6 +254,8 @@ namespace Avogadro {
     Extension::readSettings(settings);
 
     m_smilesString = settings.value("smiles").toString();
+    if (m_fragmentDock)
+      m_fragmentDock->hide();
     /*
     if(m_dialog) {
       if (settings.contains("fragmentPath")) {

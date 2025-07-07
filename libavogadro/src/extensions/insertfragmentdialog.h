@@ -27,18 +27,16 @@
 
 #include <avogadro/global.h>
 
-#include <QDialog>
+#include <QWidget>
 
 #include "ui_insertfragmentdialog.h"
-
-class QCloseEvent;
 
 namespace Avogadro {
 
   class Molecule;
   class InsertFragmentPrivate;
 
-  class InsertFragmentDialog : public QDialog
+  class InsertFragmentDialog : public QWidget
   {
     Q_OBJECT
 
