@@ -209,7 +209,8 @@ jobs:
           $xtbDir = Get-ChildItem -Directory -Path $env:RUNNER_TEMP -Filter 'xtb-*' | Select-Object -First 1 -ExpandProperty FullName
           $pcFiles = Get-ChildItem "$xtbDir\lib\pkgconfig" -Filter '*.pc'
           foreach ($pc in $pcFiles) {
-            (Get-Content $pc) -replace '^prefix=.*', 'prefix=' + ($xtbDir -replace '\\','/') | Set-Content $pc
+            $prefix = 'prefix=' + ($xtbDir -replace '\\','/')
+            (Get-Content $pc) -replace '^prefix=.*', $prefix | Set-Content $pc
           }
           "XTB_DIR=$xtbDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "PKG_CONFIG_PATH=$xtbDir\lib\pkgconfig;$env:PKG_CONFIG_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
