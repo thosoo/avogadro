@@ -109,7 +109,7 @@ namespace Avogadro {
     m_fragmentDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     m_fragmentDock->setPreferredDockWidgetArea(Qt::LeftDockWidgetArea);
 
-    m_fragmentDialog = new InsertFragmentDialog(m_fragmentDock, "fragments", Qt::Widget);
+    m_fragmentDialog = new InsertFragmentDialog(m_fragmentDock, "fragments");
     m_fragmentDialog->setWindowTitle(tr("Insert Fragment"));
     connect(m_fragmentDialog, SIGNAL(performInsert()), this, SLOT(insertFragment()));
 
@@ -225,7 +225,8 @@ namespace Avogadro {
 
     } else { // crystals
       if (m_crystalDialog == NULL) {
-        m_crystalDialog = new InsertFragmentDialog(NULL, "crystals");
+        m_crystalDialog = new InsertFragmentDialog(NULL, "crystals",
+                                                  Qt::Dialog | Qt::Tool);
         m_crystalDialog->setWindowTitle(tr("Insert Crystal"));
         connect(m_crystalDialog, SIGNAL(performInsert()), this, SLOT(insertCrystal()));
       }

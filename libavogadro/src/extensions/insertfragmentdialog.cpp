@@ -41,7 +41,6 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QDir>
-#include <QCloseEvent>
 #include <QDebug>
 #include <QSortFilterProxyModel>
 #include <QFileSystemModel>
@@ -70,9 +69,10 @@ namespace Avogadro {
 
   };
 
-  InsertFragmentDialog::InsertFragmentDialog(QWidget *parent, QString directory,
+  InsertFragmentDialog::InsertFragmentDialog(QWidget *parent,
+                                             QString directory,
                                              Qt::WindowFlags f)
-    : QDialog(parent, f ? f : (Qt::Dialog | Qt::Tool))
+    : QWidget(parent, f)
   {
     ui.setupUi(this);
     setMinimumSize(QSize(300, 300));
