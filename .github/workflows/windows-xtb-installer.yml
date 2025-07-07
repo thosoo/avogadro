@@ -195,7 +195,7 @@ jobs:
           echo CXX=cl>>"%GITHUB_ENV%"
           echo FC=ifort>>"%GITHUB_ENV%"
           echo %ONEAPI_ROOT%\compiler\latest\windows\bin\intel64>>"%GITHUB_PATH%"
-          echo LIB=%LIB%;%MKLROOT%\lib\intel64;C:\Program Files (x86)\Intel\oneAPI\compiler\2024.0\lib\intel64>>"%GITHUB_ENV%"
+          echo LIB=%LIB%>>"%GITHUB_ENV%"
 
       - name: Download xTB
         shell: pwsh
@@ -207,12 +207,13 @@ jobs:
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
           $xtbDir = Get-ChildItem -Directory -Path $env:RUNNER_TEMP -Filter 'xtb-*' | Select-Object -First 1 -ExpandProperty FullName
           $pcFiles = Get-ChildItem "$xtbDir\lib\pkgconfig" -Filter '*.pc'
-          $mkl = 'C:/Program Files (x86)/Intel/oneAPI/mkl/latest/lib/intel64'
+          $mkl = "$env:MKLROOT/lib/intel64"
+          $omp = "$env:ONEAPI_ROOT/compiler/latest/windows/compiler/lib/intel64_win"
           foreach ($pc in $pcFiles) {
             $prefix = 'prefix=' + ($xtbDir -replace '\\','/')
             $content = Get-Content $pc | ForEach-Object {
               if ($_ -match '^prefix=') { $prefix }
-              elseif ($_ -match '^Libs:') { $_ + " -L$($mkl -replace '\\','/') -lmkl_rt -liomp5md" }
+              elseif ($_ -match '^Libs:') { $_ + " -L$($mkl -replace '\\','/') -L$($omp -replace '\\','/') -lmkl_rt -liomp5md" }
               else { $_ }
             }
             $content | Set-Content $pc
