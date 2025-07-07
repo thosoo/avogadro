@@ -195,7 +195,7 @@ jobs:
           echo CXX=cl>>"%GITHUB_ENV%"
           echo FC=ifort>>"%GITHUB_ENV%"
           echo %ONEAPI_ROOT%\compiler\latest\windows\bin\intel64>>"%GITHUB_PATH%"
-          echo LIB=%LIB%;C:\Program Files (x86)\Intel\oneAPI\compiler\2024.0\lib\intel64>>"%GITHUB_ENV%"
+          echo LIB=%LIB%;%MKLROOT%\lib\intel64;C:\Program Files (x86)\Intel\oneAPI\compiler\2024.0\lib\intel64>>"%GITHUB_ENV%"
 
       - name: Download xTB
         shell: pwsh
@@ -207,9 +207,15 @@ jobs:
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
           $xtbDir = Get-ChildItem -Directory -Path $env:RUNNER_TEMP -Filter 'xtb-*' | Select-Object -First 1 -ExpandProperty FullName
           $pcFiles = Get-ChildItem "$xtbDir\lib\pkgconfig" -Filter '*.pc'
+          $mkl = 'C:/Program Files (x86)/Intel/oneAPI/mkl/latest/lib/intel64'
           foreach ($pc in $pcFiles) {
             $prefix = 'prefix=' + ($xtbDir -replace '\\','/')
-            (Get-Content $pc) -replace '^prefix=.*', $prefix | Set-Content $pc
+            $content = Get-Content $pc | ForEach-Object {
+              if ($_ -match '^prefix=') { $prefix }
+              elseif ($_ -match '^Libs:') { $_ + " -L$($mkl -replace '\\','/') -lmkl_rt -liomp5md" }
+              else { $_ }
+            }
+            $content | Set-Content $pc
           }
           "XTB_DIR=$xtbDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "PKG_CONFIG_PATH=$xtbDir\lib\pkgconfig;$env:PKG_CONFIG_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
