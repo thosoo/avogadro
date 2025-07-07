@@ -194,7 +194,6 @@ jobs:
           echo CC=cl>>"%GITHUB_ENV%"
           echo CXX=cl>>"%GITHUB_ENV%"
           echo FC=ifort>>"%GITHUB_ENV%"
-          set >>"%GITHUB_ENV%"
           echo %ONEAPI_ROOT%\compiler\latest\windows\bin\intel64>>"%GITHUB_PATH%"
           echo LIB=%LIB%;C:\Program Files (x86)\Intel\oneAPI\compiler\2024.0\lib\intel64>>"%GITHUB_ENV%"
 
