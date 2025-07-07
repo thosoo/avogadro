@@ -213,7 +213,7 @@ jobs:
             $prefix = 'prefix=' + ($xtbDir -replace '\\','/')
             $content = Get-Content $pc | ForEach-Object {
               if ($_ -match '^prefix=') { $prefix }
-              elseif ($_ -match '^Libs:') { $_ + " -L$($mkl -replace '\\','/') -L$($omp -replace '\\','/') -lmkl_rt -liomp5md" }
+              elseif ($_ -match '^Libs:') { $_ + " -L$($mkl -replace '\\','/') -L$($omp -replace '\\','/') -lmkl_rt -llibiomp5md" }
               else { $_ }
             }
             $content | Set-Content $pc
