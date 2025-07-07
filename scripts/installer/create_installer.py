@@ -132,6 +132,21 @@ def main():
         if dll.exists():
             copy(dll, dist / 'bin')
 
+    mklroot = os.environ.get("MKLROOT")
+    if mklroot:
+        mkl_dir = Path(mklroot) / 'redist' / 'intel64'
+        for dll in mkl_dir.glob('mkl_rt*.dll'):
+            copy(dll, dist / 'bin')
+            break
+
+    oneapi_root = os.environ.get("ONEAPI_ROOT")
+    if oneapi_root:
+        omp_dir = Path(oneapi_root) / 'compiler' / 'latest' / 'windows' / 'redist' / 'intel64_win' / 'compiler'
+        if omp_dir.exists():
+            for dll in omp_dir.glob('*.dll'):
+                if 'debug' not in dll.name.lower():
+                    copy(dll, dist / 'bin')
+
     xtb_dir = os.environ.get("XTB_DIR")
     if xtb_dir:
         xtb = Path(xtb_dir)
