@@ -87,6 +87,7 @@
 #endif
 
 #include <fstream>
+#include <string>
 #include <algorithm>
 
 #include <QClipboard>
@@ -1996,6 +1997,9 @@ protected:
   } else if (!pasteFormat && mimeData->hasFormat("chemical/x-cdx")) {
     pasteFormat = conv.FindFormat("cdx");
     text = mimeData->data("chemical/x-cdx");
+  } else if (!pasteFormat && mimeData->hasFormat("chemical/x-cdxml")) {
+    pasteFormat = conv.FindFormat("cdxml");
+    text = mimeData->data("chemical/x-cdxml");
   } else if (!pasteFormat && mimeData->hasText()) {
     pasteFormat = conv.FindFormat("xyz");
     text = mimeData->text().toLatin1();
@@ -2010,8 +2014,9 @@ protected:
     }
 
     bool validMol = false;
-    if ( conv.ReadString( &newMol, text.constData() ) // Can we read with OB formats?
-         && newMol.NumAtoms() != 0 ) {
+    std::string input(text.constData(), text.size());
+    if (conv.ReadString(&newMol, input)
+         && newMol.NumAtoms() != 0) {
       validMol = true;
     }
 
