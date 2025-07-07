@@ -1974,23 +1974,31 @@ protected:
 
   bool MainWindow::pasteMimeData(const QMimeData *mimeData)
   {
-    OBConversion conv;
-    OBFormat *pasteFormat = NULL;
-    QByteArray text;
-    OBMol newMol;
+  OBConversion conv;
+  OBFormat *pasteFormat = NULL;
+  QByteArray text;
+  OBMol newMol;
 
-    if ( mimeData->hasFormat( "chemical/x-mdl-molfile" ) ) {
-      pasteFormat = conv.FindFormat( "mdl" );
-
-      text = mimeData->data( "chemical/x-mdl-molfile" );
-    } else if ( mimeData->hasFormat( "chemical/x-cdx" ) ) {
-      pasteFormat = conv.FindFormat( "cdx" );
-      text = mimeData->data( "chemical/x-cdx" );
-    } else if ( mimeData->hasText() ) {
-      pasteFormat = conv.FindFormat( "xyz" );
-
-      text = mimeData->text().toLatin1();
+  // Try to detect the correct format from available MIME types
+  foreach (const QString &format, mimeData->formats()) {
+    OBFormat *obFormat = OBConversion::FormatFromMIME(format.toLatin1().constData());
+    if (obFormat) {
+      pasteFormat = obFormat;
+      text = mimeData->data(format);
+      break;
     }
+  }
+
+  if (!pasteFormat && mimeData->hasFormat("chemical/x-mdl-molfile")) {
+    pasteFormat = conv.FindFormat("mdl");
+    text = mimeData->data("chemical/x-mdl-molfile");
+  } else if (!pasteFormat && mimeData->hasFormat("chemical/x-cdx")) {
+    pasteFormat = conv.FindFormat("cdx");
+    text = mimeData->data("chemical/x-cdx");
+  } else if (!pasteFormat && mimeData->hasText()) {
+    pasteFormat = conv.FindFormat("xyz");
+    text = mimeData->text().toLatin1();
+  }
 
     if ( text.length() == 0 )
       return false;
