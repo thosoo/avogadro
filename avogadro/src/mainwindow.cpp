@@ -74,6 +74,7 @@
 #include <avogadro/color.h>
 
 #include <openbabel/obconversion.h>
+#include <openbabel/format.h>
 #include <openbabel/mol.h>
 #include <openbabel/builder.h>
 #include <openbabel/forcefield.h>
