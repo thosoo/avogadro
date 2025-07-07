@@ -1,0 +1,269 @@
+name: Windows xTB Installer
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master, windows-install ]
+  pull_request:
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        target: [installer, tests]
+    steps:
+      - name: Allow Windows reserved filenames
+        run: git config --system core.protectNTFS false
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Install dependencies
+        run: choco install -y cmake --version=3.28.6 `
+          --no-progress `
+          --installargs '"ADD_CMAKE_TO_PATH=System"' `
+          --allow-downgrade   # harmless if no newer CMake is present
+      - name: Build zlib
+        shell: pwsh
+        run: |
+          $ver = '1.3.1'
+          $zip = "$env:RUNNER_TEMP\zlib.zip"
+          Invoke-WebRequest "https://zlib.net/zlib$($ver -replace '\.', '').zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          $src = Join-Path $env:RUNNER_TEMP "zlib-$ver"
+          $bld = Join-Path $src "build"
+          cmake -S "$src" -B "$bld" -G "NMake Makefiles" -DCMAKE_INSTALL_PREFIX="$bld\install" -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release
+          Push-Location $bld
+          nmake install
+          Pop-Location
+          $zlibDir = Join-Path $bld "install"
+          $inc = Join-Path $zlibDir "include"
+          $libDir = Join-Path $zlibDir "lib"
+          $static = Join-Path $libDir "zlibstatic.lib"
+          $lib = Join-Path $libDir "zlib.lib"
+          Copy-Item $static $lib -Force
+          "CMAKE_PREFIX_PATH=$zlibDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_INCLUDE_PATH=$inc;$env:CMAKE_INCLUDE_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_LIBRARY_PATH=$libDir;$env:CMAKE_LIBRARY_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ZLIB_LIBRARY=$lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ZLIB_INCLUDE_DIR=$inc" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "ZLIB_LIBRARY_DIR=$libDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$zlibDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Install Eigen
+        shell: pwsh
+        run: |
+          $ver = '3.4.0'
+          $zip = "$env:RUNNER_TEMP\eigen.zip"
+          Invoke-WebRequest "https://gitlab.com/libeigen/eigen/-/archive/$ver/eigen-$ver.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          $dir = Join-Path $env:RUNNER_TEMP "eigen-$ver"
+          "EIGEN3_INCLUDE_DIR=$dir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_PREFIX_PATH=$dir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Build libxml2
+        shell: pwsh
+        run: |
+          $ver = '2.12.10'
+          $zip = "$env:RUNNER_TEMP\libxml2.zip"
+          Invoke-WebRequest "https://github.com/GNOME/libxml2/archive/refs/tags/v$ver.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          $src = Join-Path $env:RUNNER_TEMP "libxml2-$ver"
+          $installDir = Join-Path $src 'install'
+          $win32 = Join-Path $src 'win32'
+          Push-Location $win32
+          cscript configure.js compiler=msvc prefix=$installDir iconv=no zlib=yes include=$env:ZLIB_INCLUDE_DIR lib=$env:ZLIB_LIBRARY_DIR
+          (Get-Content Makefile.msvc).Replace('/OPT:NOWIN98','').Replace('zdll.lib','zlib.lib') | Set-Content Makefile.msvc
+          $conf = Join-Path $src 'config.h'
+          if (Test-Path $conf) {
+            (Get-Content $conf) -replace '^#define snprintf.*', '// removed snprintf define' -replace '^#define vsnprintf.*', '// removed vsnprintf define' | Set-Content $conf
+          }
+          nmake /f Makefile.msvc
+          nmake /f Makefile.msvc install
+          Pop-Location
+          Write-Host "libxml2 library path after install:" $installDir
+          $inc = Join-Path $installDir 'include'
+          $lib = Join-Path $installDir 'lib' 'libxml2.lib'
+          "CMAKE_PREFIX_PATH=$installDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "LIBXML2_LIBRARY=$lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "LIBXML2_LIBRARIES=$lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "LIBXML2_INCLUDE_DIR=$inc" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Install Qt
+        shell: pwsh
+        run: |
+          python -m pip install aqtinstall
+          $qtDir = "C:\\Qt"
+          python -m aqt install-qt windows desktop 5.15.2 win64_msvc2019_64 -O $qtDir -m qtcharts qtscript
+          $qt = "$qtDir\5.15.2\msvc2019_64"
+          "Qt5_DIR=$qt" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_PREFIX_PATH=$qt;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$qt\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Build GLEW
+        shell: pwsh
+        run: |
+          $ver = '2.2.0'
+          $zip = "$env:RUNNER_TEMP\glew.zip"
+          Invoke-WebRequest "https://github.com/nigels-com/glew/releases/download/glew-$ver/glew-$ver.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          $glewDir = Join-Path $env:RUNNER_TEMP "glew-$ver"
+          $buildDir = Join-Path $glewDir 'builddir'
+          cmake -S (Join-Path $glewDir 'build' 'cmake') -B $buildDir -G "NMake Makefiles" -DBUILD_SHARED_LIBS=ON -DBUILD_UTILS=OFF -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$buildDir\install"
+          cmake --build $buildDir --config Release --target install
+          $installDir = Join-Path $buildDir 'install'
+          $binDir = Join-Path $installDir 'bin'
+          $libDir = Join-Path $installDir 'lib'
+          $inc = Join-Path $installDir 'include'
+          "GLEW_BIN_DIR=$binDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GLEW_INCLUDE_DIR=$inc" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "GLEW_LIBRARY=$(Join-Path $libDir 'glew32.lib')" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_INCLUDE_PATH=$inc;$env:CMAKE_INCLUDE_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_LIBRARY_PATH=$libDir;$env:CMAKE_LIBRARY_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_PREFIX_PATH=$installDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$binDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Build OpenBabel
+        shell: pwsh
+        env:
+          ENABLE_TESTS: ${{ matrix.target == 'tests' && 'ON' || 'OFF' }}
+        run: |
+          $srcDir = Join-Path $env:RUNNER_TEMP 'openbabel-src'
+          git clone --depth 1 https://github.com/thosoo/openbabel $srcDir
+          $build = Join-Path $srcDir 'build'
+          cmake -S $srcDir -B $build -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="$build\install" -DLIBXML2_LIBRARY="$env:LIBXML2_LIBRARY" -DLIBXML2_LIBRARIES="$env:LIBXML2_LIBRARY" -DLIBXML2_INCLUDE_DIR="$env:LIBXML2_INCLUDE_DIR" -DZLIB_LIBRARY="$env:ZLIB_LIBRARY" -DZLIB_INCLUDE_DIR="$env:ZLIB_INCLUDE_DIR" "-DENABLE_TESTS=$env:ENABLE_TESTS" -DBUILD_SHARED=ON -DCMAKE_VERBOSE_MAKEFILE=ON -DOB_USE_PREBUILT_BINARIES=OFF -DOPENBABEL_USE_SYSTEM_INCHI=OFF -DWITH_INCHI=ON
+          Push-Location $build
+          nmake install
+          Pop-Location
+          $obDir = Join-Path $build 'install'
+          $inc = Join-Path $obDir 'include' 'openbabel3'
+          $lib = Join-Path $obDir 'lib' 'openbabel.lib'
+          Copy-Item (Join-Path $obDir 'bin' 'openbabel-3.lib') $lib -Force
+          Copy-Item (Join-Path $obDir 'bin' 'openbabel-3.dll') (Join-Path $obDir 'bin' 'openbabel.dll') -Force
+          $libDir = Join-Path $obDir 'lib'
+          "CMAKE_PREFIX_PATH=$obDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "OPENBABEL3_INCLUDE_DIR=$inc" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "OPENBABEL3_LIBRARIES=$lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "OPENBABEL3_LIBRARY_DIRS=$libDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "OPENBABEL_INSTALL_DIR=$obDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$obDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Cache oneAPI BaseKit 2024.1 installer
+        id: cache-oneapi-base
+        uses: actions/cache@v4
+        with:
+          key: oneapi-base-2024.1-win64
+          path: ${{ runner.temp }}\w_BaseKit_p_2024.1.0.595_offline.exe
+
+      - name: Cache oneAPI HPC Toolkit 2024.1 installer
+        id: cache-oneapi-hpc
+        uses: actions/cache@v4
+        with:
+          key: oneapi-hpc-2024.1-win64
+          path: ${{ runner.temp }}\w_HPCKit_p_2024.1.0.561_offline.exe
+
+      - name: Download Intel oneAPI BaseKit 2024.1 offline installer
+        if: steps.cache-oneapi-base.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $url = "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/7dff44ba-e3af-4448-841c-0d616c8da6e7/w_BaseKit_p_2024.1.0.595_offline.exe"
+          $dst = "$env:RUNNER_TEMP\w_BaseKit_p_2024.1.0.595_offline.exe"
+          Invoke-WebRequest $url -OutFile $dst
+
+      - name: Download Intel oneAPI HPC Toolkit 2024.1 offline installer
+        if: steps.cache-oneapi-hpc.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $url = "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/c95a3b26-fc45-496c-833b-df08b10297b9/w_HPCKit_p_2024.1.0.561_offline.exe"
+          $dst = "$env:RUNNER_TEMP\w_HPCKit_p_2024.1.0.561_offline.exe"
+          Invoke-WebRequest $url -OutFile $dst
+
+      - name: Install oneAPI BaseKit 2024.1 (silent)
+        shell: cmd
+        run: |
+          "%RUNNER_TEMP%\w_BaseKit_p_2024.1.0.595_offline.exe" ^
+              -a --silent --eula accept ^
+              --install-dir "C:\Program Files (x86)\Intel\oneAPI"
+
+      - name: Install oneAPI HPC Toolkit 2024.1 (silent)
+        shell: cmd
+        run: |
+          "%RUNNER_TEMP%\w_HPCKit_p_2024.1.0.561_offline.exe" ^
+              -a --silent --eula accept ^
+              --install-dir "C:\Program Files (x86)\Intel\oneAPI"
+
+      - name: Load oneAPI environment
+        shell: cmd
+        run: |
+          call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
+          where icl
+          where ifort
+          echo MKLROOT=%MKLROOT%>>"%GITHUB_ENV%"
+          echo CC=cl>>"%GITHUB_ENV%"
+          echo CXX=cl>>"%GITHUB_ENV%"
+          echo FC=ifort>>"%GITHUB_ENV%"
+          set >>"%GITHUB_ENV%"
+          echo %ONEAPI_ROOT%\compiler\latest\windows\bin\intel64>>"%GITHUB_PATH%"
+          echo LIB=%LIB%;C:\Program Files (x86)\Intel\oneAPI\compiler\2024.0\lib\intel64>>"%GITHUB_ENV%"
+
+      - name: Download xTB
+        shell: pwsh
+        run: |
+          $release = Invoke-RestMethod https://api.github.com/repos/grimme-lab/xtb/releases/latest
+          $asset = $release.assets | Where-Object { $_.name -like '*windows-x86_64.zip' } | Select-Object -First 1
+          $zip = "$env:RUNNER_TEMP\xtb.zip"
+          Invoke-WebRequest $asset.browser_download_url -OutFile $zip
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          $xtbDir = Get-ChildItem -Directory -Path $env:RUNNER_TEMP -Filter 'xtb-*' | Select-Object -First 1 -ExpandProperty FullName
+          $pcFiles = Get-ChildItem "$xtbDir\lib\pkgconfig" -Filter '*.pc'
+          foreach ($pc in $pcFiles) {
+            (Get-Content $pc) -replace '^prefix=.*', 'prefix=' + ($xtbDir -replace '\\','/') | Set-Content $pc
+          }
+          "XTB_DIR=$xtbDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "PKG_CONFIG_PATH=$xtbDir\lib\pkgconfig;$env:PKG_CONFIG_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$xtbDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "LIB=$xtbDir\lib;$env:LIB" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Convert xTB libraries
+        shell: cmd
+        run: |
+          for %%f in ("%XTB_DIR%\lib\*.a") do (
+            lib /nologo /machine:X64 /out:%%~dpnxf.lib %%f
+          )
+      - name: Configure
+        shell: pwsh
+        env:
+          ENABLE_TESTS: ${{ matrix.target == 'tests' && 'ON' || 'OFF' }}
+        run: |
+          $dist = Join-Path $pwd 'scripts/installer/dist'
+          cmake -S . -B build `
+            -G "NMake Makefiles" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_SHARED_LIBS=ON `
+            -DCMAKE_VERBOSE_MAKEFILE=ON `
+            "-DENABLE_TESTS=$env:ENABLE_TESTS" `
+            -DCMAKE_INSTALL_PREFIX="$dist" `
+            -DENABLE_AVO_PACKAGE=ON `
+            -DENABLE_GLSL=ON `
+            "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR" `
+            "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY" `
+            "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR" `
+            "-DOPENBABEL3_INCLUDE_DIR=$env:OPENBABEL3_INCLUDE_DIR" `
+            "-DOPENBABEL3_LIBRARIES=$env:OPENBABEL3_LIBRARIES" `
+            "-DOPENBABEL3_LIBRARY_DIRS=$env:OPENBABEL3_LIBRARY_DIRS" `
+            "-DOPENBABEL_INSTALL_DIR=$env:OPENBABEL_INSTALL_DIR" `
+            "-DGLEW_INCLUDE_DIR=$env:GLEW_INCLUDE_DIR" `
+            "-DGLEW_LIBRARY=$env:GLEW_LIBRARY" `
+            -DENABLE_XTB_OPTTOOL=ON
+      - name: Build
+        shell: pwsh
+        run: |
+          cmake --build build --config Release --target install
+      - name: Create installer
+        if: matrix.target == 'installer'
+        shell: pwsh
+        run: |
+          python scripts/installer/create_installer.py
+      - name: Test
+        if: matrix.target == 'tests'
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Upload installer
+        if: matrix.target == 'installer'
+        uses: actions/upload-artifact@v4
+        with:
+          name: avogadro-windows-xtb-installer
+          path: |
+            scripts/installer/avogadro-win32-*.exe
+          if-no-files-found: error
