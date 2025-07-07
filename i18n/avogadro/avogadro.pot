@@ -135,6 +135,10 @@ msgctxt "Display Settings shortcut"
 msgid "Ctrl+D"
 msgstr ""
 
+#: src/mainwindow.cpp:932
+msgid "Fragments..."
+msgstr ""
+
 #: src/mainwindow.cpp:950 src/mainwindow.cpp:1434
 msgid "Common molecule formats"
 msgstr ""
