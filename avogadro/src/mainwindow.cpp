@@ -111,6 +111,7 @@
 #include <QUndoStack>
 #include <QDesktopWidget>
 #include <QInputDialog>
+#include <QRegularExpression>
 #include <QUrl>
 #include <QDesktopServices>
 #include <QTime>
@@ -1975,68 +1976,67 @@ protected:
     }
   }
 
-  bool MainWindow::pasteMimeData(const QMimeData *mimeData)
-  {
-  // Ensure all Open Babel plugins are available so MIME lookup works
+bool MainWindow::pasteMimeData(const QMimeData *mimeData)
+{
+  // Load all plugins so Open Babel can match MIME types
   OBPlugin::LoadAllPlugins();
   OBConversion conv;
-  OBFormat *pasteFormat = NULL;
+  OBFormat *pasteFormat = nullptr;
   QByteArray text;
   OBMol newMol;
 
-  // Try to detect the correct format from available MIME types
-  foreach (const QString &format, mimeData->formats()) {
-    OBFormat *obFormat = OBConversion::FormatFromMIME(format.toLatin1().constData());
-    if (obFormat) {
-      pasteFormat = obFormat;
-      text = mimeData->data(format);
-      break;
+  QStringList formats = mimeData->formats();
+  qDebug() << "Clipboard formats:" << formats;
+
+  for (const QString &fmt : formats) {
+    if (fmt.startsWith("application/x-qt-windows-mime")) {
+      QRegularExpression re("application/x-qt-windows-mime;value=\"([^\"]+)\"");
+      QRegularExpressionMatch m = re.match(fmt);
+      if (m.hasMatch()) {
+        QString win = m.captured(1);
+        if (win.compare("ChemDraw CDX", Qt::CaseInsensitive) == 0) {
+          pasteFormat = conv.FindFormat("cdx");
+        } else if (win.compare("ChemDraw CDXML", Qt::CaseInsensitive) == 0) {
+          pasteFormat = conv.FindFormat("cdxml");
+        } else if (win.compare("CF_TEXT", Qt::CaseInsensitive) == 0 ||
+                   win.compare("CF_UNICODETEXT", Qt::CaseInsensitive) == 0) {
+          pasteFormat = conv.FindFormat("xyz");
+        }
+        if (pasteFormat) {
+          text = mimeData->data(fmt);
+          break;
+        }
+      }
+    } else {
+      OBFormat *obFormat = OBConversion::FormatFromMIME(fmt.toLatin1().constData());
+      if (obFormat) {
+        pasteFormat = obFormat;
+        text = mimeData->data(fmt);
+        break;
+      }
     }
   }
-  if (!pasteFormat) {
-    qDebug() << "Available MIME formats:" << mimeData->formats();
-  }
 
-  if (!pasteFormat && mimeData->hasFormat("chemical/x-mdl-molfile")) {
-    pasteFormat = conv.FindFormat("mdl");
-    text = mimeData->data("chemical/x-mdl-molfile");
-  } else if (!pasteFormat && mimeData->hasFormat("chemical/x-cdx")) {
-    pasteFormat = conv.FindFormat("cdx");
-    text = mimeData->data("chemical/x-cdx");
-  } else if (!pasteFormat && mimeData->hasFormat("chemical/x-cdxml")) {
-    pasteFormat = conv.FindFormat("cdxml");
-    text = mimeData->data("chemical/x-cdxml");
-  } else if (!pasteFormat && mimeData->hasFormat("text/plain")) {
-    pasteFormat = conv.FindFormat("xyz");
-    text = mimeData->data("text/plain");
-  } else if (!pasteFormat && mimeData->hasText()) {
+  if (!pasteFormat && mimeData->hasText()) {
     pasteFormat = conv.FindFormat("xyz");
     text = mimeData->text().toLatin1();
   }
 
-    if ( text.length() == 0 )
-      return false;
+  if (text.isEmpty() || !pasteFormat || !conv.SetInFormat(pasteFormat))
+    return false;
 
-    if ( !pasteFormat || !conv.SetInFormat( pasteFormat ) ) {
-      statusBar()->showMessage( tr( "Paste failed (format unavailable)." ), 5000 );
-      return false;
-    }
+  bool validMol = false;
+  std::string input(text.constData(), text.size());
+  if (conv.ReadString(&newMol, input) && newMol.NumAtoms() != 0)
+    validMol = true;
 
-    bool validMol = false;
-    std::string input(text.constData(), text.size());
-    if (conv.ReadString(&newMol, input)
-         && newMol.NumAtoms() != 0) {
-      validMol = true;
-    }
+  if (!validMol)
+    validMol = parseText(&newMol, QString::fromLatin1(text));
 
-    if (!validMol) { // We failed as an authentic format, try annulen's heuristics
-      validMol = parseText(&newMol, QString(text));
-    }
+  if (!validMol || newMol.NumAtoms() == 0)
+    return false;
 
-    if (validMol && newMol.NumAtoms() == 0)
-      return false;
-
-    // We've got something we can paste
+  // We've got something we can paste
     /*
     vector3 offset; // small offset so that pasted mols don't fall on top
     offset.randomUnitVector();
