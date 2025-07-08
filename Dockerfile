@@ -1,11 +1,19 @@
 FROM ubuntu:24.04
 
-# Install dependencies for building Avogadro
-COPY .github/apt-packages.txt /tmp/apt-packages.txt
-RUN apt-get update && \
-    xargs -a /tmp/apt-packages.txt apt-get install -y \
-    git curl libglew-dev && \
-    rm /tmp/apt-packages.txt
+RUN apt-get update && apt install git -y --no-install-recommends
+
+RUN apt-get update && apt install build-essential \
+cmake \
+qtbase5-dev \
+qttools5-dev \
+qttools5-dev-tools \
+libqt5opengl5-dev \
+libeigen3-dev \
+zlib1g-dev \
+libglu1-mesa-dev \
+libqt5test5t64 \
+curl \
+libglew-dev -y
 
 # Build OpenBabel from source (as in CI)
 RUN src=/tmp/openbabel-src && \
@@ -27,6 +35,7 @@ ENV OPENBABEL_INSTALL_DIR=/tmp/openbabel-src/build/install
 ENV PATH=/tmp/openbabel-src/build/install/bin:$PATH
 
 # Copy the Avogadro source and set the working directory
-WORKDIR /opt/avogadro
-COPY . /opt/avogadro
-CMD ["bash"]
+COPY . /app
+WORKDIR /app
+
+CMD ["/bin/bash"]
