@@ -2006,6 +2006,9 @@ protected:
   } else if (!pasteFormat && mimeData->hasFormat("chemical/x-cdxml")) {
     pasteFormat = conv.FindFormat("cdxml");
     text = mimeData->data("chemical/x-cdxml");
+  } else if (!pasteFormat && mimeData->hasFormat("text/plain")) {
+    pasteFormat = conv.FindFormat("xyz");
+    text = mimeData->data("text/plain");
   } else if (!pasteFormat && mimeData->hasText()) {
     pasteFormat = conv.FindFormat("xyz");
     text = mimeData->text().toLatin1();
