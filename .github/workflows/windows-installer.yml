@@ -135,6 +135,11 @@ jobs:
           Copy-Item (Join-Path $obDir 'bin' 'openbabel-3.dll') (Join-Path $obDir 'bin' 'openbabel.dll') -Force
           $libDir = Join-Path $obDir 'lib'
           $dataDir = Join-Path $obDir 'share' 'openbabel'
+          # Use the installed versioned subdirectory if present
+          $versionDir = Get-ChildItem -Path $dataDir -Directory | Select-Object -First 1
+          if ($versionDir) {
+            $dataDir = $versionDir.FullName
+          }
           # Plugins are installed into the Open Babel bin directory on Windows
           $pluginDir = Join-Path $obDir 'bin'
           "CMAKE_PREFIX_PATH=$obDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
