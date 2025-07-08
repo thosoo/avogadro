@@ -1993,6 +1993,9 @@ protected:
       break;
     }
   }
+  if (!pasteFormat) {
+    qDebug() << "Available MIME formats:" << mimeData->formats();
+  }
 
   if (!pasteFormat && mimeData->hasFormat("chemical/x-mdl-molfile")) {
     pasteFormat = conv.FindFormat("mdl");
