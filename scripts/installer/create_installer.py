@@ -135,7 +135,7 @@ def main():
     mklroot = os.environ.get("MKLROOT")
     if mklroot:
         mkl_dir = Path(mklroot) / 'redist' / 'intel64'
-        for dll in mkl_dir.glob('mkl_rt*.dll'):
+        for dll in mkl_dir.rglob('mkl_rt*.dll'):
             copy(dll, dist / 'bin')
             break
 
