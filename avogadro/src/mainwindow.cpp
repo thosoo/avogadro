@@ -74,6 +74,7 @@
 #include <avogadro/color.h>
 
 #include <openbabel/obconversion.h>
+#include <openbabel/plugin.h>
 #include <openbabel/format.h>
 #include <openbabel/mol.h>
 #include <openbabel/builder.h>
@@ -1976,6 +1977,8 @@ protected:
 
   bool MainWindow::pasteMimeData(const QMimeData *mimeData)
   {
+  // Ensure all Open Babel plugins are available so MIME lookup works
+  OBPlugin::LoadAllPlugins();
   OBConversion conv;
   OBFormat *pasteFormat = NULL;
   QByteArray text;
