@@ -159,6 +159,13 @@ def main():
             log(f"Copying xTB data from {share} to {dest}")
             shutil.copytree(share, dest, dirs_exist_ok=True)
 
+        lib_dest = dist / 'lib'
+        lib_dest.mkdir(parents=True, exist_ok=True)
+        for f in xtb.glob('lib/*.dll'):
+            copy(f, lib_dest)
+        for f in xtb.glob('lib/*.lib'):
+            copy(f, lib_dest)
+
     # Copy the GPLv2 license expected by NSIS
     license_src = root.parent.parent / 'COPYING'
     license_dest = dist / 'gpl.txt'
