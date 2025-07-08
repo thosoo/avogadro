@@ -193,6 +193,7 @@ jobs:
           where icl
           where ifort
           echo MKLROOT=%MKLROOT%>>"%GITHUB_ENV%"
+          echo ONEAPI_ROOT=%ONEAPI_ROOT%>>"%GITHUB_ENV%"
           echo CC=cl>>"%GITHUB_ENV%"
           echo CXX=cl>>"%GITHUB_ENV%"
           echo FC=ifort>>"%GITHUB_ENV%"
