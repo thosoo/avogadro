@@ -2000,7 +2000,7 @@ bool MainWindow::pasteMimeData(const QMimeData *mimeData)
           pasteFormat = conv.FindFormat("cdxml");
         } else if (win.compare("CF_TEXT", Qt::CaseInsensitive) == 0 ||
                    win.compare("CF_UNICODETEXT", Qt::CaseInsensitive) == 0) {
-          pasteFormat = conv.FindFormat("xyz");
+          pasteFormat = conv.FindFormat("mdl");
         }
         if (pasteFormat) {
           text = mimeData->data(fmt);
@@ -2018,7 +2018,7 @@ bool MainWindow::pasteMimeData(const QMimeData *mimeData)
   }
 
   if (!pasteFormat && mimeData->hasText()) {
-    pasteFormat = conv.FindFormat("xyz");
+    pasteFormat = conv.FindFormat("mdl");
     text = mimeData->text().toLatin1();
   }
 
