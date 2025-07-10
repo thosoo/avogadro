@@ -135,9 +135,10 @@ int main(int argc, char *argv[])
 
 #ifdef _MSC_VER
   if (qEnvironmentVariableIsEmpty("BABEL_DATADIR")) {
-    // Data files are installed to bin/data when building from source on Windows
+    // Data files are copied to share/openbabel during CI builds
     QByteArray winDataDir(
-        (QCoreApplication::applicationDirPath() + "/../bin/data").toLatin1());
+        (QCoreApplication::applicationDirPath() + "/../share/openbabel")
+            .toLatin1());
     int res1 = _putenv_s("BABEL_DATADIR", winDataDir.constData());
     Q_UNUSED(res1);
   }
