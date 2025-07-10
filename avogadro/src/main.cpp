@@ -134,17 +134,25 @@ int main(int argc, char *argv[])
       (QCoreApplication::applicationDirPath() + "/../lib/openbabel").toLatin1());
 
 #ifdef _MSC_VER
-  int res1 = _putenv_s("BABEL_DATADIR", babelDataDir.data());
-  int res2 = _putenv_s("BABEL_LIBDIR", babelLibDir.data());
+  if (qEnvironmentVariableIsEmpty("BABEL_DATADIR")) {
+    // Data files are installed to bin/data when building from source on Windows
+    QByteArray winDataDir(
+        (QCoreApplication::applicationDirPath() + "/../bin/data").toLatin1());
+    int res1 = _putenv_s("BABEL_DATADIR", winDataDir.constData());
+    Q_UNUSED(res1);
+  }
+  if (qEnvironmentVariableIsEmpty("BABEL_LIBDIR")) {
+    int res2 = _putenv_s("BABEL_LIBDIR", babelLibDir.data());
+    Q_UNUSED(res2);
+  }
 #else
-  int res1 = setenv("BABEL_DATADIR", babelDataDir.data(), 1);
-  int res2 = setenv("BABEL_LIBDIR", babelLibDir.data(), 1);
+  if (qEnvironmentVariableIsEmpty("BABEL_DATADIR"))
+    setenv("BABEL_DATADIR", babelDataDir.data(), 1);
+  if (qEnvironmentVariableIsEmpty("BABEL_LIBDIR"))
+    setenv("BABEL_LIBDIR", babelLibDir.data(), 1);
 #endif
 
   qDebug() << "BABEL_LIBDIR" << babelLibDir.data();
-
-  if (res1 != 0 || res2 != 0)
-    qDebug() << "Error: setenv failed." << res1 << res2;
 
   // Override the Qt plugin search path too
   QStringList pluginSearchPaths;
