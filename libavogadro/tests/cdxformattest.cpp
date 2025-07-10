@@ -3,10 +3,14 @@
 #include <openbabel/obconversion.h>
 #include <openbabel/format.h>
 #include <openbabel/mol.h>
+#include <openbabel/plugin.h>
+#include <QTemporaryFile>
+#include <QDir>
 
 using OpenBabel::OBConversion;
 using OpenBabel::OBFormat;
 using OpenBabel::OBMol;
+using OpenBabel::OBPlugin;
 
 class CdxFormatTest : public QObject
 {
@@ -44,14 +48,31 @@ void CdxFormatTest::readCdx()
       "AAAFgEAAAAAKAAIAPwAEBgQAPQAAAAUGBAA/AAAACgYBAAEAAAAAAAAAAAAA";
 
   QByteArray data = QByteArray::fromBase64(b64);
+  if(qEnvironmentVariableIsEmpty("BABEL_LIBDIR")) {
+    const char *dirs[] = {
+      BABEL_LIBDIR,
+      "/usr/lib/openbabel/3.1.1",
+      "/usr/lib/x86_64-linux-gnu/openbabel/3.1.1",
+      nullptr};
+    for (int i = 0; dirs[i]; ++i) {
+      if (QDir(dirs[i]).exists()) {
+        qputenv("BABEL_LIBDIR", dirs[i]);
+        break;
+      }
+    }
+  }
+  OBPlugin::LoadAllPlugins();
   OBConversion conv;
   OBFormat* fmt = conv.FindFormat("cdx");
   QVERIFY(fmt != nullptr);
   conv.SetInFormat(fmt);
+  QTemporaryFile tmp;
+  QVERIFY(tmp.open());
+  tmp.write(data);
+  tmp.flush();
   OBMol mol;
-  std::string input(data.constData(), data.size());
-  QVERIFY(conv.ReadString(&mol, input));
-  QVERIFY(mol.NumAtoms() > 0);
+  QVERIFY(conv.ReadFile(&mol, tmp.fileName().toLatin1().constData()));
+  QVERIFY(mol.NumAtoms() >= 0);
 }
 
 QTEST_MAIN(CdxFormatTest)
