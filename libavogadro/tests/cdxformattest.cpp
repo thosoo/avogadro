@@ -53,6 +53,7 @@ void CdxFormatTest::readCdx()
       BABEL_LIBDIR,
       "/usr/lib/openbabel/3.1.1",
       "/usr/lib/x86_64-linux-gnu/openbabel/3.1.1",
+      "/usr/lib/x86_64-linux-gnu/openbabel/3",
       nullptr};
     for (int i = 0; dirs[i]; ++i) {
       if (QDir(dirs[i]).exists()) {
