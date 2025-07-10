@@ -1,9 +1,11 @@
 #include "config.h"
 #include <QtTest>
 #include <openbabel/obconversion.h>
+#include <openbabel/format.h>
 #include <openbabel/mol.h>
 
 using OpenBabel::OBConversion;
+using OpenBabel::OBFormat;
 using OpenBabel::OBMol;
 
 class CdxFormatTest : public QObject
