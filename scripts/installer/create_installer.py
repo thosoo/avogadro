@@ -141,8 +141,11 @@ def main():
 
     oneapi_root = os.environ.get("ONEAPI_ROOT")
     if oneapi_root:
-        omp_dir = Path(oneapi_root) / 'compiler' / 'latest' / 'windows' / 'redist' / 'intel64_win' / 'compiler'
-        if omp_dir.exists():
+        redist = Path(oneapi_root) / 'compiler' / 'latest' / 'windows' / 'redist'
+        for sub in ('intel64_win/compiler', 'intel64/compiler'):
+            omp_dir = redist / sub
+            if not omp_dir.exists():
+                continue
             for dll in omp_dir.glob('*.dll'):
                 if 'debug' not in dll.name.lower():
                     copy(dll, dist / 'bin')
