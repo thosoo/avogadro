@@ -13,4 +13,4 @@ doc/api
 cmake_install*
 cmake_uninstall*
 doc/api
-.aider*
+kwaak.local.toml
