@@ -49,20 +49,24 @@ void CdxFormatTest::readCdx()
 
   QByteArray data = QByteArray::fromBase64(b64);
   if (qEnvironmentVariableIsEmpty("BABEL_LIBDIR")) {
-    const char *dirs[] = {
+    QStringList dirs;
 #ifdef BABEL_LIBDIR
-      BABEL_LIBDIR,
+    dirs << QStringLiteral(BABEL_LIBDIR);
 #endif
-      "/usr/lib/openbabel/3.1.1",
-      "/usr/lib/openbabel/3",
-      "/usr/local/lib/openbabel/3.1.1",
-      "/usr/local/lib/openbabel/3",
-      "/usr/lib/x86_64-linux-gnu/openbabel/3.1.1",
-      "/usr/lib/x86_64-linux-gnu/openbabel/3",
-      nullptr};
-    for (int i = 0; dirs[i]; ++i) {
-      if (QDir(dirs[i]).exists()) {
-        qputenv("BABEL_LIBDIR", dirs[i]);
+    QByteArray inst = qgetenv("OPENBABEL_INSTALL_DIR");
+    if (!inst.isEmpty()) {
+      dirs << QString("%1/lib/openbabel/3").arg(QString::fromLatin1(inst));
+      dirs << QString("%1/lib/openbabel/3.1.1").arg(QString::fromLatin1(inst));
+    }
+    dirs << "/usr/lib/openbabel/3.1.1"
+         << "/usr/lib/openbabel/3"
+         << "/usr/local/lib/openbabel/3.1.1"
+         << "/usr/local/lib/openbabel/3"
+         << "/usr/lib/x86_64-linux-gnu/openbabel/3.1.1"
+         << "/usr/lib/x86_64-linux-gnu/openbabel/3";
+    for (const QString &dir : dirs) {
+      if (QDir(dir).exists()) {
+        qputenv("BABEL_LIBDIR", dir.toLocal8Bit());
         break;
       }
     }
