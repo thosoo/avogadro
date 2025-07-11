@@ -52,12 +52,8 @@ foreach (test ${tests})
   ADD_CUSTOM_TARGET(${test}testmoc ALL DEPENDS ${test_MOC_SRCS})
   add_executable(${test}test ${test_SRCS})
   if(test STREQUAL "cdxformat")
-    if(DEFINED OPENBABEL_INSTALL_DIR)
-      set(plugin_dir "${OPENBABEL_INSTALL_DIR}/lib/openbabel/3")
-    else()
-      set(plugin_dir "${OPENBABEL3_LIBRARY_DIRS}/openbabel/3")
-    endif()
-    target_compile_definitions(${test}test PRIVATE BABEL_LIBDIR="${plugin_dir}")
+    # Plugin directory is determined at runtime using environment variables
+    # set in the CI workflow; no compile-time definition is required.
   endif()
   add_dependencies(${test}test ${test}testmoc)
   target_link_libraries(${test}test
@@ -68,7 +64,7 @@ foreach (test ${tests})
   add_test(${test}Test ${CMAKE_BINARY_DIR}/bin/${test}test)
   set(test_env "QT_QPA_PLATFORM=offscreen")
   if(test STREQUAL "cdxformat")
-    set(test_env "BABEL_LIBDIR=${plugin_dir};${test_env}")
+    # The CDX unit test sets BABEL_LIBDIR at runtime if necessary.
   endif()
   set_tests_properties(${test}Test PROPERTIES ENVIRONMENT "${test_env}")
   set_property(SOURCE ${test_SRCS} PROPERTY LABELS avogadro)
