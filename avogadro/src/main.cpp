@@ -130,8 +130,18 @@ int main(int argc, char *argv[])
   // OpenBabel will append its version internally when needed.
   QByteArray babelDataDir(
       (QCoreApplication::applicationDirPath() + "/../share/openbabel").toLatin1());
-  QByteArray babelLibDir(
-      (QCoreApplication::applicationDirPath() + "/../lib/openbabel").toLatin1());
+  QByteArray babelLibDir;
+  QString base = QCoreApplication::applicationDirPath() + "/../lib/openbabel";
+  QStringList candidates;
+  candidates << base + "/3" << base + "/3.1.1" << base;
+  for (const QString &cand : candidates) {
+    if (QDir(cand).exists()) {
+      babelLibDir = cand.toLatin1();
+      break;
+    }
+  }
+  if (babelLibDir.isEmpty())
+    babelLibDir = base.toLatin1();
 
 #ifdef _MSC_VER
   int res1 = _putenv_s("BABEL_DATADIR", babelDataDir.data());
