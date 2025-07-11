@@ -132,6 +132,43 @@ def main():
         if dll.exists():
             copy(dll, dist / 'bin')
 
+    mklroot = os.environ.get("MKLROOT")
+    if mklroot:
+        mkl_dir = Path(mklroot) / 'redist' / 'intel64'
+        for dll in mkl_dir.rglob('mkl_rt*.dll'):
+            copy(dll, dist / 'bin')
+            break
+
+    oneapi_root = os.environ.get("ONEAPI_ROOT")
+    if oneapi_root:
+        redist = Path(oneapi_root) / 'compiler' / 'latest' / 'windows' / 'redist'
+        for sub in ('intel64_win/compiler', 'intel64/compiler'):
+            omp_dir = redist / sub
+            if not omp_dir.exists():
+                continue
+            for dll in omp_dir.glob('*.dll'):
+                if 'debug' not in dll.name.lower():
+                    copy(dll, dist / 'bin')
+
+    xtb_dir = os.environ.get("XTB_DIR")
+    if xtb_dir:
+        xtb = Path(xtb_dir)
+        for f in xtb.glob('bin/*'):
+            if f.suffix.lower() in ('.exe', '.dll'):
+                copy(f, dist / 'bin')
+        share = xtb / 'share' / 'xtb'
+        if share.exists():
+            dest = dist / 'share' / 'xtb'
+            log(f"Copying xTB data from {share} to {dest}")
+            shutil.copytree(share, dest, dirs_exist_ok=True)
+
+        lib_dest = dist / 'lib'
+        lib_dest.mkdir(parents=True, exist_ok=True)
+        for f in xtb.glob('lib/*.dll'):
+            copy(f, lib_dest)
+        for f in xtb.glob('lib/*.lib'):
+            copy(f, lib_dest)
+
     # Copy the GPLv2 license expected by NSIS
     license_src = root.parent.parent / 'COPYING'
     license_dest = dist / 'gpl.txt'
