@@ -38,6 +38,7 @@ set(tests
   moleculefile
   neighborlist
   addremovehydrogens
+  cdxformat
 )
 if(XTB_FOUND)
   list(APPEND tests xtbopttool xtbphysics)
@@ -50,6 +51,10 @@ foreach (test ${tests})
   QT4_WRAP_CPP(test_MOC_SRCS ${test_MOC_CPPS})
   ADD_CUSTOM_TARGET(${test}testmoc ALL DEPENDS ${test_MOC_SRCS})
   add_executable(${test}test ${test_SRCS})
+  if(test STREQUAL "cdxformat")
+    # Plugin directory is determined at runtime using environment variables
+    # set in the CI workflow; no compile-time definition is required.
+  endif()
   add_dependencies(${test}test ${test}testmoc)
   target_link_libraries(${test}test
     ${OPENBABEL2_LIBRARIES}
@@ -57,7 +62,11 @@ foreach (test ${tests})
     ${QT_QTTEST_LIBRARY}
     avogadro)
   add_test(${test}Test ${CMAKE_BINARY_DIR}/bin/${test}test)
-  set_tests_properties(${test}Test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  set(test_env "QT_QPA_PLATFORM=offscreen")
+  if(test STREQUAL "cdxformat")
+    # The CDX unit test sets BABEL_LIBDIR at runtime if necessary.
+  endif()
+  set_tests_properties(${test}Test PROPERTIES ENVIRONMENT "${test_env}")
   set_property(SOURCE ${test_SRCS} PROPERTY LABELS avogadro)
   set_property(TARGET ${test}test PROPERTY LABELS avogadro)
   set_property(TEST ${test}Test PROPERTY LABELS avogadro)
