@@ -160,14 +160,17 @@ def main():
             'libdecimal.dll',
             'libintlc.dll',
         ]
-        for sub in ('intel64_win/compiler', 'intel64/compiler'):
-            lib_dir = redist / sub
-            if not lib_dir.exists():
-                continue
-            for flib in fortran_libs:
-                dll = lib_dir / flib
-                if dll.exists():
-                    copy(dll, dist / 'bin')
+        search_bases = [redist, Path(oneapi_root) / 'compiler' / 'latest' / 'redist']
+        subdirs = ['intel64_win/compiler', 'intel64/compiler', 'intel64_win', 'intel64']
+        for base in search_bases:
+            for sub in subdirs:
+                lib_dir = base / sub
+                if not lib_dir.exists():
+                    continue
+                for flib in fortran_libs:
+                    dll = lib_dir / flib
+                    if dll.exists():
+                        copy(dll, dist / 'bin')
 
     xtb_dir = os.environ.get("XTB_DIR")
     if xtb_dir:
