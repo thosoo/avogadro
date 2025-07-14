@@ -150,6 +150,25 @@ def main():
                 if 'debug' not in dll.name.lower():
                     copy(dll, dist / 'bin')
 
+        # Ensure Fortran runtime libraries are bundled
+        fortran_libs = [
+            'libifcoremd.dll',
+            'libifportmd.dll',
+            'libimf.dll',
+            'libirc.dll',
+            'svml_dispmd.dll',
+            'libdecimal.dll',
+            'libintlc.dll',
+        ]
+        for sub in ('intel64_win/compiler', 'intel64/compiler'):
+            lib_dir = redist / sub
+            if not lib_dir.exists():
+                continue
+            for flib in fortran_libs:
+                dll = lib_dir / flib
+                if dll.exists():
+                    copy(dll, dist / 'bin')
+
     xtb_dir = os.environ.get("XTB_DIR")
     if xtb_dir:
         xtb = Path(xtb_dir)
