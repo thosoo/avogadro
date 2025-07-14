@@ -184,6 +184,12 @@ def main():
             log(f"Copying xTB data from {share} to {dest}")
             shutil.copytree(share, dest, dirs_exist_ok=True)
 
+        bat = dist / 'bin' / 'Avogadro-xTB.bat'
+        with open(bat, 'w', encoding='utf8') as f:
+            f.write('@echo off\n')
+            f.write('set "XTBPATH=%~dp0..\\share\\xtb"\n')
+            f.write('"%~dp0Avogadro.exe" %*\n')
+
         lib_dest = dist / 'lib'
         lib_dest.mkdir(parents=True, exist_ok=True)
         for f in xtb.glob('lib/*.dll'):
