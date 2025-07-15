@@ -16,6 +16,9 @@ cmake_policy(SET CMP0003 NEW)
 if(POLICY CMP0074)
   cmake_policy(SET CMP0074 NEW)
 endif()
+if(POLICY CMP0079)
+  cmake_policy(SET CMP0079 NEW)
+endif()
 
 # this is adapted from KDE's FindKDE4Internal.cmake : default the build type to
 # "release with debug info".
@@ -30,6 +33,7 @@ message(STATUS "The build type is ${CMAKE_BUILD_TYPE}")
 include(CheckCXXCompilerFlag)
 include(MacroEnsureVersion)
 include(TestIfWeNeedFPermissive)
+include(ExternalProject)
 
 # use mulithreaded dll runtime on windows when using MSVC
 if (MSVC)
@@ -226,7 +230,31 @@ if(${CMAKE_CXX_COMPILER_ID} MATCHES Intel AND UNIX)
   endif()
 endif()
 
+
 set(I18N_LANGUAGE "" CACHE STRING "Build i18n only for selected language")
+
+# Build Open Babel from our fork so CMake can find it below
+set(OPENBABEL_INSTALL_DIR "${CMAKE_BINARY_DIR}/openbabel-install")
+file(MAKE_DIRECTORY "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
+file(MAKE_DIRECTORY "${OPENBABEL_INSTALL_DIR}/lib")
+ExternalProject_Add(openbabel_ext
+  URL https://github.com/thosoo/openbabel/archive/6a16a3d3b7870c28cf8573e6c2873d78959efb31.zip
+  URL_HASH SHA256=4322af1a67b8406c266dfa0a6f18be98f3f20e04a1cd990a7a2eabde74e02269
+  CMAKE_ARGS
+    -DCMAKE_INSTALL_PREFIX=${OPENBABEL_INSTALL_DIR}
+    -DCMAKE_BUILD_TYPE=Release
+    -DBUILD_SHARED=ON
+    -DOB_USE_PREBUILT_BINARIES=OFF
+    -DOPENBABEL_USE_SYSTEM_INCHI=OFF
+    -DWITH_INCHI=ON
+  UPDATE_COMMAND ""
+)
+set(OpenBabel3_DIR "${OPENBABEL_INSTALL_DIR}/lib/cmake/openbabel3")
+set(ENV{OpenBabel3_DIR} "${OpenBabel3_DIR}")
+set(ENV{PKG_CONFIG_PATH} "${OPENBABEL_INSTALL_DIR}/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+set(ENV{OPENBABEL3_INCLUDE_DIR} "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
+set(ENV{OPENBABEL3_LIBRARIES} "${OPENBABEL_INSTALL_DIR}/lib/libopenbabel.so")
+set(ENV{OPENBABEL3_LIBRARY_DIRS} "${OPENBABEL_INSTALL_DIR}/lib")
 
 include(cmake/Qt5Compat.cmake)
 find_package(Qt5 REQUIRED COMPONENTS Widgets Gui OpenGL Network LinguistTools Core Concurrent Test)
@@ -240,7 +268,21 @@ endif()
 find_package(Eigen3 REQUIRED) # find and setup Eigen3 if available
 
 find_package(ZLIB REQUIRED)
-find_package(OpenBabel3 REQUIRED) # find and setup OpenBabel
+find_package(OpenBabel3 QUIET) # find and setup OpenBabel
+if(NOT OpenBabel3_FOUND)
+  add_library(OpenBabel3::openbabel SHARED IMPORTED)
+  set_target_properties(OpenBabel3::openbabel PROPERTIES
+    IMPORTED_LOCATION "${OPENBABEL_INSTALL_DIR}/lib/libopenbabel.so"
+    INTERFACE_INCLUDE_DIRECTORIES "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
+  set(OPENBABEL3_FOUND TRUE)
+  set(OPENBABEL3_INCLUDE_DIR "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
+  set(OPENBABEL3_LIBRARIES "${OPENBABEL_INSTALL_DIR}/lib/libopenbabel.so")
+  set(OPENBABEL3_LIBRARY_DIRS "${OPENBABEL_INSTALL_DIR}/lib")
+  set(OPENBABEL2_FOUND ${OPENBABEL3_FOUND})
+  set(OPENBABEL2_INCLUDE_DIR ${OPENBABEL3_INCLUDE_DIR})
+  set(OPENBABEL2_LIBRARIES ${OPENBABEL3_LIBRARIES})
+  set(OPENBABEL2_LIBRARY_DIRS ${OPENBABEL3_LIBRARY_DIRS})
+endif()
 
 if (Q_WS_X11)
   find_package(X11 REQUIRED) # avogadro/src/main.cpp calls XInitThread().
@@ -493,6 +535,9 @@ mark_as_advanced(CMAKE_LIBRARY_OUTPUT_DIRECTORY
 
 # tell cmake to process CMakeLists.txt in that subdirectory
 add_subdirectory(libavogadro)
+add_library(avogadro-lib ALIAS avogadro)
+add_dependencies(avogadro openbabel_ext)
+target_link_libraries(avogadro OpenBabel3::openbabel)
 add_subdirectory(avogadro)
 add_subdirectory(doc)
 

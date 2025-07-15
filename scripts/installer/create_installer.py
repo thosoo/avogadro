@@ -33,7 +33,7 @@ def main():
     subprocess.check_call(["windeployqt", "--release", "--dir", str(dist / "bin"), str(exe)])
 
     ob_dir_env = os.environ.get("OPENBABEL_INSTALL_DIR")
-    ob_dir = Path(ob_dir_env) if ob_dir_env else None
+    ob_dir = Path(ob_dir_env) if ob_dir_env else build_dir / "openbabel-install"
     ob_bindir = os.environ.get("OPENBABEL_BINDIR")
     if ob_bindir and ob_dir is None:
         ob_dir = Path(ob_bindir).parent
