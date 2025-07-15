@@ -278,12 +278,19 @@ if(NOT OpenBabel3_FOUND)
   add_library(OpenBabel3::openbabel SHARED IMPORTED)
   if(WIN32)
     set(_oblib "${OPENBABEL_INSTALL_DIR}/lib/openbabel.lib")
+    set(_obdll "${OPENBABEL_INSTALL_DIR}/bin/openbabel.dll")
+    set_target_properties(OpenBabel3::openbabel PROPERTIES
+      IMPORTED_IMPLIB "${_oblib}"
+      IMPORTED_LOCATION "${_obdll}"
+      INTERFACE_INCLUDE_DIRECTORIES
+        "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
   else()
     set(_oblib "${OPENBABEL_INSTALL_DIR}/lib/libopenbabel.so")
+    set_target_properties(OpenBabel3::openbabel PROPERTIES
+      IMPORTED_LOCATION "${_oblib}"
+      INTERFACE_INCLUDE_DIRECTORIES
+        "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
   endif()
-  set_target_properties(OpenBabel3::openbabel PROPERTIES
-    IMPORTED_LOCATION "${_oblib}"
-    INTERFACE_INCLUDE_DIRECTORIES "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
   set(OPENBABEL3_FOUND TRUE)
   set(OPENBABEL3_INCLUDE_DIR "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
   set(OPENBABEL3_LIBRARIES "${_oblib}")
