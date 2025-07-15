@@ -141,7 +141,9 @@ def main():
 
     oneapi_root = os.environ.get("ONEAPI_ROOT")
     if oneapi_root:
-        redist = Path(oneapi_root) / 'compiler' / 'latest' / 'windows' / 'redist'
+        root_path = Path(oneapi_root) / 'compiler' / 'latest' / 'windows'
+        redist = root_path / 'redist'
+        compiler_lib = root_path / 'compiler' / 'lib'
         for sub in ('intel64_win/compiler', 'intel64/compiler'):
             omp_dir = redist / sub
             if not omp_dir.exists():
@@ -160,7 +162,7 @@ def main():
             'libdecimal.dll',
             'libintlc.dll',
         ]
-        search_bases = [redist, Path(oneapi_root) / 'compiler' / 'latest' / 'redist']
+        search_bases = [redist, Path(oneapi_root) / 'compiler' / 'latest' / 'redist', compiler_lib]
         subdirs = ['intel64_win/compiler', 'intel64/compiler', 'intel64_win', 'intel64']
         for base in search_bases:
             for sub in subdirs:
