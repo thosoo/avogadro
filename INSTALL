@@ -2,8 +2,8 @@ Requirements
 ============
  -- CMake 2.8.9 or later (3.0 or later recommended)
  -- Qt 5.0 or later
- -- OpenBabel 3.1 or later (development version from
-  https://github.com/openbabel/openbabel is recommended)
+ -- OpenBabel 3.1 or later (downloaded automatically from
+  https://github.com/thosoo/openbabel if not found)
  -- Eigen 3.x
 
 
@@ -43,9 +43,12 @@ installation locations.
    -DLIB_INSTALL_DIR : specify the install location for libraries
                        (default ${CMAKE_INSTALL_PREFIX}/lib)
 
-   -DOPENBABEL2_LIBRARIES : specify the OpenBabel2 libraries
+   OpenBabel will be downloaded and built automatically unless these variables
+   or `OpenBabel3_DIR` are set to use an existing installation.
 
-   -DOPENBABEL2_INCLUDE_DIR : specify the OpenBabel2 include directory
+   -DOPENBABEL2_LIBRARIES : specify the OpenBabel2 libraries (optional)
+
+   -DOPENBABEL2_INCLUDE_DIR : specify the OpenBabel2 include directory (optional)
 
    -DEIGEN3_INCLUDE_DIR : specify the Eigen include directory
 

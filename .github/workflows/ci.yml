@@ -27,36 +27,6 @@ jobs:
           if [ "${{ matrix.xtb }}" = "on" ]; then
             sudo apt-get install -y xtb libxtb-dev
           fi
-      - name: Build OpenBabel
-        run: |
-          src="$RUNNER_TEMP/openbabel-src"
-          mkdir -p "$src"
-          curl -L https://github.com/thosoo/openbabel/tarball/master | tar -xz --strip-components=1 -C "$src"
-          cmake -S "$src" -B "$src/build" \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX="$src/build/install" \
-            -DBUILD_SHARED=ON \
-            -DCMAKE_VERBOSE_MAKEFILE=ON \
-            -DOB_USE_PREBUILT_BINARIES=OFF \
-            -DOPENBABEL_USE_SYSTEM_INCHI=OFF \
-            -DWITH_INCHI=ON
-          cmake --build "$src/build" --target install -j2
-          obdir="$src/build/install"
-          inc="$obdir/include/openbabel3"
-          libdir="$obdir/lib"
-          lib="$libdir/libopenbabel.so"
-          sudo ldconfig "$libdir"
-          echo "LD_LIBRARY_PATH=$libdir:$LD_LIBRARY_PATH" >> "$GITHUB_ENV"
-          echo "LDFLAGS=-L$libdir $LDFLAGS" >> "$GITHUB_ENV"
-          echo "CMAKE_PREFIX_PATH=$obdir:$CMAKE_PREFIX_PATH" >> "$GITHUB_ENV"
-          cmake_dir="$libdir/cmake/openbabel3"
-          echo "OpenBabel3_DIR=$cmake_dir" >> "$GITHUB_ENV"
-          echo "PKG_CONFIG_PATH=$libdir/pkgconfig:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
-          echo "OPENBABEL3_INCLUDE_DIR=$inc" >> "$GITHUB_ENV"
-          echo "OPENBABEL3_LIBRARIES=$lib" >> "$GITHUB_ENV"
-          echo "OPENBABEL3_LIBRARY_DIRS=$libdir" >> "$GITHUB_ENV"
-          echo "OPENBABEL_INSTALL_DIR=$obdir" >> "$GITHUB_ENV"
-          echo "$obdir/bin" >> "$GITHUB_PATH"
       - name: Configure
         run: |
           cmake -S . -B build \
@@ -69,4 +39,6 @@ jobs:
           cmake --build build -- -j1 VERBOSE=1
       - name: Test
         run: |
+          export LD_LIBRARY_PATH="$PWD/build/openbabel-install/lib:$LD_LIBRARY_PATH"
+          export PATH="$PWD/build/openbabel-install/bin:$PATH"
           ctest --test-dir build --output-on-failure
