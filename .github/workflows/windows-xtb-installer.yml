@@ -212,10 +212,11 @@ jobs:
           $mkl = "$env:MKLROOT/lib/intel64"
           $omp = "$env:ONEAPI_ROOT/compiler/latest/windows/compiler/lib/intel64_win"
           $prefixLine = 'prefix=' + ($xtbDir -replace '\\','/')
+          $libsSuffix = " /LIBPATH:`"$mkl`" /LIBPATH:`"$omp`" mkl_rt.lib libiomp5md.lib"
           foreach ($pc in $pcFiles) {
             $lines = Get-Content $pc | ForEach-Object {
               if ($_ -match '^prefix=') { $prefixLine }
-              elseif ($_ -match '^Libs:') { $_ + " -L$($mkl -replace '\\','/') -L$($omp -replace '\\','/') -lmkl_rt -llibiomp5md" }
+              elseif ($_ -match '^Libs:') { $_ + $libsSuffix }
               else { $_ }
             }
             Set-Content -Path $pc -Value $lines
