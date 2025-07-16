@@ -240,6 +240,10 @@ file(MAKE_DIRECTORY "${OPENBABEL_INSTALL_DIR}/lib")
 ExternalProject_Add(openbabel_ext
   URL https://github.com/thosoo/openbabel/archive/6a16a3d3b7870c28cf8573e6c2873d78959efb31.zip
   URL_HASH SHA256=4322af1a67b8406c266dfa0a6f18be98f3f20e04a1cd990a7a2eabde74e02269
+  BUILD_BYPRODUCTS
+    $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/lib/openbabel.lib>
+    $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/bin/openbabel.dll>
+    $<$<NOT:$<PLATFORM_ID:Windows>>:${OPENBABEL_INSTALL_DIR}/lib/libopenbabel.so>
   CMAKE_ARGS
     -DCMAKE_INSTALL_PREFIX=${OPENBABEL_INSTALL_DIR}
     -DCMAKE_BUILD_TYPE=Release
