@@ -249,6 +249,7 @@ protected:
     MainWindowPrivate() : molecule( 0 ),
       undoStack( 0 ), toolsLayout( 0 ),
       toolSettingsStacked(0), toolSettingsWidget(0), toolSettingsDock(0),
+      fragmentDock(0),
       currentSelectedEngine(0),
       messagesText( 0 ),
       glWidget(0),
@@ -277,6 +278,7 @@ protected:
     QStackedLayout *toolSettingsStacked;
     QWidget *toolSettingsWidget;
     QDockWidget *toolSettingsDock;
+    DockWidget *fragmentDock;
 
     QStackedLayout *enginesStacked;
     Engine         *currentSelectedEngine; // for settings widget title, etc.
@@ -863,6 +865,19 @@ protected:
     d->toolGroup->removeAllTools();
     d->toolGroup->append(d->pluginManager.tools(this));
 
+    // Ensure the fragments dock is available
+    if (!d->fragmentDock) {
+      foreach(Extension *ext, d->pluginManager.extensions(this)) {
+        if (ext->identifier() == QLatin1String("InsertFragment")) {
+          if (ext->numDockWidgets() > 0)
+            d->fragmentDock = qobject_cast<DockWidget*>(ext->dockWidgets().first());
+          else
+            d->fragmentDock = qobject_cast<DockWidget*>(ext->dockWidget());
+          break;
+        }
+      }
+    }
+
     const QList<Tool *> tools = d->toolGroup->tools();
     int toolCount = tools.size();
 
@@ -913,6 +928,15 @@ protected:
     connect(ui.enginesDock, SIGNAL(visibilityChanged(bool)), displaySettings, SLOT(setChecked(bool)));
     connect(displaySettings, SIGNAL(released()), this, SLOT(toggleEngineSettingsDock()));
     ui.toolBar->addWidget(displaySettings);
+
+    QPushButton* fragmentsButton = new QPushButton(tr("Fragments..."), ui.toolBar);
+    fragmentsButton->setCheckable(true);
+    if (d->fragmentDock)
+      fragmentsButton->setChecked(d->fragmentDock->isVisible());
+    connect(fragmentsButton, SIGNAL(released()), this, SLOT(toggleFragmentDock()));
+    if (d->fragmentDock)
+      connect(d->fragmentDock, SIGNAL(visibilityChanged(bool)), fragmentsButton, SLOT(setChecked(bool)));
+    ui.toolBar->addWidget(fragmentsButton);
 
     // Call GLWidget::setToolGroup which will store a pointer to the navigate tool
     foreach(GLWidget *glWidget, d->glWidgets)
@@ -3474,6 +3498,8 @@ protected:
       // window
       if (extension->numDockWidgets() != 0) {
         QList<DockWidget *> widgets = extension->dockWidgets();
+        if (!d->fragmentDock && extension->identifier() == QLatin1String("InsertFragment"))
+          d->fragmentDock = widgets.first();
         for (QList<DockWidget*>::const_iterator it = widgets.constBegin(),
              it_end = widgets.constEnd(); it != it_end; ++it) {
           if (!this->restoreDockWidget(*it)) {
@@ -3488,6 +3514,8 @@ protected:
       else {
         // These are deprecated methods for adding dock widgets.
         QDockWidget *dockWidget = extension->dockWidget();
+        if (!d->fragmentDock && extension->identifier() == QLatin1String("InsertFragment"))
+          d->fragmentDock = qobject_cast<DockWidget*>(dockWidget);
         if(dockWidget) {
           Qt::DockWidgetArea area = Qt::RightDockWidgetArea;
           DockExtension *dock = qobject_cast<DockExtension *>(extension);
@@ -3822,6 +3850,12 @@ protected:
   void MainWindow::toggleEngineSettingsDock()
   {
     ui.enginesDock->setVisible(! ui.enginesDock->isVisible() );
+  }
+
+  void MainWindow::toggleFragmentDock()
+  {
+    if (d->fragmentDock)
+      d->fragmentDock->setVisible(!d->fragmentDock->isVisible());
   }
 
   QStringList MainWindow::pluginSearchDirs()
