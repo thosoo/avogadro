@@ -163,6 +163,30 @@ jobs:
         shell: pwsh
         run: |
           cmake --build build --config Release --target install
+      - name: Copy Intel redist DLLs
+        shell: pwsh
+        run: |
+          $distBin = Join-Path $pwd 'scripts/installer/dist/bin'
+          $dllDir = $null
+          if ($env:ONEAPI_ROOT) {
+            $try = Get-ChildItem -Path (Join-Path $env:ONEAPI_ROOT 'compiler') -Directory | ForEach-Object {
+              Join-Path $_ 'windows\redist\intel64'
+            } | Where-Object { Test-Path $_ } | Select-Object -First 1
+            if ($try) { $dllDir = $try }
+          }
+          if (-not $dllDir) {
+            $dllDir = python - <<'PY'
+import os, pathlib
+root = os.environ.get('ONEAPI_ROOT', r'C:\\Program Files (x86)\\Intel\\oneAPI')
+path = sorted(pathlib.Path(root).glob('compiler/*/windows/redist/intel64'))
+print(path[0] if path else '')
+PY
+          }
+          if (-not $dllDir -or !(Test-Path $dllDir)) { throw 'Intel redist directory not found' }
+          Get-ChildItem $dllDir -Filter *.dll | ForEach-Object {
+            Copy-Item $_ $distBin -Force
+            Write-Host "Copied $($_.Name)"
+          }
       - name: Create installer
         shell: pwsh
         run: |
