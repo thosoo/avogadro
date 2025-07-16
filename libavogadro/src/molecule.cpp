@@ -62,6 +62,7 @@
 
 namespace Avogadro{
 
+
   using std::vector;
   using Eigen::Vector3d;
 

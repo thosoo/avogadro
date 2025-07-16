@@ -72,6 +72,8 @@
 #include <QtCore/QReadWriteLock>
 #include <QtCore/QTime>
 #include <QtCore/QMutex>
+#include <QtCore/QFile>
+#include <QtCore/QIODevice>
 
 #ifdef ENABLE_THREADED_GL
   #include <QtCore/QWaitCondition>
@@ -96,6 +98,19 @@ using namespace OpenBabel;
 using namespace Eigen;
 
 namespace Avogadro {
+
+  static bool runningUnderWSL()
+  {
+    if (qEnvironmentVariableIsSet("WSL_DISTRO_NAME"))
+      return true;
+    QFile osrelease("/proc/sys/kernel/osrelease");
+    if (osrelease.open(QIODevice::ReadOnly)) {
+      QByteArray content = osrelease.readAll();
+      if (content.contains("Microsoft"))
+        return true;
+    }
+    return false;
+  }
 
   bool engineLessThan( const Engine* lhs, const Engine* rhs )
   {
@@ -185,6 +200,7 @@ namespace Avogadro {
                         renderAxes(false),
                         renderDebug(false),
                         renderModelViewDebug(false),
+                        displayListsAvailable(true),
                         dlistQuick(0), dlistOpaque(0), dlistTransparent(0),
                         pd(0)
     {
@@ -263,6 +279,8 @@ namespace Avogadro {
     bool                   renderDebug; // Should the debug information be shown?
     bool                   renderModelViewDebug; // Should the modelview matrix be shown?
 
+    bool                   displayListsAvailable; // Are GL display lists supported?
+
     GLuint                 dlistQuick;
     GLuint                 dlistOpaque;
     GLuint                 dlistTransparent;
@@ -281,10 +299,27 @@ namespace Avogadro {
     // this was only done when updateCache was set, which caused outdated
     // geometry to be shown while the view was being manipulated.
 
-    if (dlistQuick == 0)
-      dlistQuick = glGenLists(1);
+    if (!displayListsAvailable) {
+      foreach (Engine *engine, engines) {
+        if (engine->isEnabled()) {
+          molecule->lock()->lockForRead();
+          engine->renderQuick(pd);
+          molecule->lock()->unlock();
+        }
+      }
+      return;
+    }
 
-    // Don't use dynamic scaling when rendering quickly
+    if (dlistQuick == 0) {
+      dlistQuick = glGenLists(1);
+      if (dlistQuick == 0) {
+        displayListsAvailable = false;
+        qWarning() << "glGenLists failed for quick display list";
+        updateListQuick();
+        return;
+      }
+    }
+
     painter->setDynamicScaling(false);
 
     glNewList(dlistQuick, GL_COMPILE);
@@ -297,7 +332,6 @@ namespace Avogadro {
     }
     glEndList();
 
-    // Keep track that the quick cache is current
     updateCache = false;
     painter->setDynamicScaling(true);
   }
@@ -449,6 +483,11 @@ namespace Avogadro {
     setAutoBufferSwap( false );
     m_glslEnabled = false;
     m_navigateTool = 0;
+
+    if (qEnvironmentVariableIsSet("AVOGADRO_NO_DISPLAY_LISTS") || runningUnderWSL()) {
+      d->displayListsAvailable = false;
+      qWarning() << "Display lists disabled due to environment";
+    }
 
 #ifdef ENABLE_THREADED_GL
     qDebug() << "Threaded GL enabled.";
@@ -791,37 +830,59 @@ namespace Avogadro {
     // Use renderQuick if the view is being moved, otherwise full render
     if (d->quickRender) {
       d->updateListQuick();
-      glCallList(d->dlistQuick);
-      if (hasUnitCell) {
-        renderCrystal(d->dlistQuick);
+      if (d->displayListsAvailable && d->dlistQuick) {
+        glCallList(d->dlistQuick);
+        if (hasUnitCell) {
+          renderCrystal(d->dlistQuick);
+        }
       }
-      // Render the active tool
+      if (!d->displayListsAvailable) {
+        foreach (Engine *engine, d->engines) {
+          if (engine->isEnabled()) {
+            engine->renderQuick(d->pd);
+          }
+        }
+        if (hasUnitCell)
+          renderCrystal(0);
+      }
       if ( d->tool ) {
         d->tool->paint( this );
       }
     }
     else {
-      // we save a display list if we're doing a crystal
-      if (d->dlistOpaque == 0)
-        d->dlistOpaque = glGenLists(1);
-      if (d->dlistTransparent == 0)
-        d->dlistTransparent = glGenLists(1);
-
-      // Opaque engine elements rendered first
-      if (hasUnitCell) glNewList(d->dlistOpaque, GL_COMPILE);
-      foreach(Engine *engine, d->engines)
-        if(engine->isEnabled()) {
-#ifdef ENABLE_GLSL
-          if (m_glslEnabled) glUseProgramObjectARB(engine->shader());
-#endif
-          engine->renderOpaque(d->pd);
+      if (d->displayListsAvailable) {
+        if (d->dlistOpaque == 0)
+          d->dlistOpaque = glGenLists(1);
+        if (d->dlistTransparent == 0)
+          d->dlistTransparent = glGenLists(1);
+        if (d->dlistOpaque == 0 || d->dlistTransparent == 0) {
+          d->displayListsAvailable = false;
+          qWarning() << "glGenLists failed for main display lists";
         }
+      }
+
+      if (d->displayListsAvailable) {
+        if (hasUnitCell) glNewList(d->dlistOpaque, GL_COMPILE);
+        foreach(Engine *engine, d->engines)
+          if(engine->isEnabled()) {
 #ifdef ENABLE_GLSL
-          if (m_glslEnabled) glUseProgramObjectARB(0);
+            if (m_glslEnabled) glUseProgramObjectARB(engine->shader());
 #endif
-      if (hasUnitCell) { // end the main list and render the opaque crystal
-        glEndList();
-        renderCrystal(d->dlistOpaque);
+            engine->renderOpaque(d->pd);
+          }
+#ifdef ENABLE_GLSL
+            if (m_glslEnabled) glUseProgramObjectARB(0);
+#endif
+        if (hasUnitCell) { // end the main list and render the opaque crystal
+          glEndList();
+          renderCrystal(d->dlistOpaque);
+        }
+      } else {
+        foreach(Engine *engine, d->engines)
+          if(engine->isEnabled())
+            engine->renderOpaque(d->pd);
+        if (hasUnitCell)
+          renderCrystal(0);
       }
 
       // Render the active tool
@@ -847,7 +908,7 @@ namespace Avogadro {
 
       // Now render transparent
       glEnable(GL_BLEND);
-      if (hasUnitCell)
+      if (d->displayListsAvailable && hasUnitCell)
         glNewList(d->dlistTransparent, GL_COMPILE);
       foreach(Engine *engine, d->engines) {
         if(engine->isEnabled() && engine->layers() & Engine::Transparent) {
@@ -861,9 +922,11 @@ namespace Avogadro {
 #ifdef ENABLE_GLSL
           if (m_glslEnabled) glUseProgramObjectARB(0);
 #endif
-      if (hasUnitCell) { // end the main list and render the transparent bits
+      if (d->displayListsAvailable && hasUnitCell) {
         glEndList();
         renderCrystal(d->dlistTransparent);
+      } else if (!d->displayListsAvailable && hasUnitCell) {
+        renderCrystal(0);
       }
     }
     // Render all the inactive tools
@@ -905,7 +968,8 @@ namespace Avogadro {
                        + cellVectors[1].z() * b
                        + cellVectors[2].z() * c );
 
-          glCallList(displayList);
+          if (displayList)
+            glCallList(displayList);
           glPopMatrix();
         }
       }

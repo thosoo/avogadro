@@ -361,7 +361,8 @@ namespace Avogadro
 
     d->color.applyAsMaterials();
     pushName();
-    d->spheres[detailLevel]->draw (center, radius);
+    if (d->spheres[detailLevel])
+      d->spheres[detailLevel]->draw (center, radius);
     popName();
   }
 

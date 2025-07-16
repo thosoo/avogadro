@@ -86,6 +86,8 @@ namespace Avogadro {
 
   void Sphere::draw(const Eigen::Vector3d &center, double radius) const
   {
+    if (!d->displayList)
+      return;
     glPushMatrix();
     glTranslated( center.x(), center.y(), center.z() );
     glScaled( radius, radius, radius );
