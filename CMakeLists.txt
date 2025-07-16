@@ -241,8 +241,8 @@ ExternalProject_Add(openbabel_ext
   URL https://github.com/thosoo/openbabel/archive/6a16a3d3b7870c28cf8573e6c2873d78959efb31.zip
   URL_HASH SHA256=4322af1a67b8406c266dfa0a6f18be98f3f20e04a1cd990a7a2eabde74e02269
   BUILD_BYPRODUCTS
-    $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/lib/openbabel.lib>
-    $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/bin/openbabel.dll>
+    $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/lib/openbabel-3.lib>
+    $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.dll>
     $<$<NOT:$<PLATFORM_ID:Windows>>:${OPENBABEL_INSTALL_DIR}/lib/libopenbabel.so>
   CMAKE_ARGS
     -DCMAKE_INSTALL_PREFIX=${OPENBABEL_INSTALL_DIR}
@@ -258,7 +258,8 @@ set(ENV{OpenBabel3_DIR} "${OpenBabel3_DIR}")
 set(ENV{PKG_CONFIG_PATH} "${OPENBABEL_INSTALL_DIR}/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
 set(ENV{OPENBABEL3_INCLUDE_DIR} "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
 if(WIN32)
-  set(_oblib "${OPENBABEL_INSTALL_DIR}/lib/openbabel.lib")
+  set(_oblib "${OPENBABEL_INSTALL_DIR}/lib/openbabel-3.lib")
+  set(_obdll "${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.dll")
 else()
   set(_oblib "${OPENBABEL_INSTALL_DIR}/lib/libopenbabel.so")
 endif()
@@ -281,8 +282,8 @@ find_package(OpenBabel3 QUIET) # find and setup OpenBabel
 if(NOT OpenBabel3_FOUND)
   add_library(OpenBabel3::openbabel SHARED IMPORTED)
   if(WIN32)
-    set(_oblib "${OPENBABEL_INSTALL_DIR}/lib/openbabel.lib")
-    set(_obdll "${OPENBABEL_INSTALL_DIR}/bin/openbabel.dll")
+    set(_oblib "${OPENBABEL_INSTALL_DIR}/lib/openbabel-3.lib")
+    set(_obdll "${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.dll")
     set_target_properties(OpenBabel3::openbabel PROPERTIES
       IMPORTED_IMPLIB "${_oblib}"
       IMPORTED_LOCATION "${_obdll}"
