@@ -255,15 +255,14 @@ ExternalProject_Add(openbabel_ext
 )
 if(WIN32)
   set(_obdir "${OPENBABEL_INSTALL_DIR}/bin")
-  set(OpenBabel3_DIR "${_obdir}/cmake/openbabel3")
   set(_oblib "${_obdir}/openbabel-3.lib")
   set(_obdll "${_obdir}/openbabel-3.dll")
 else()
   set(_obdir "${OPENBABEL_INSTALL_DIR}/lib")
-  set(OpenBabel3_DIR "${_obdir}/cmake/openbabel3")
   set(_oblib "${_obdir}/libopenbabel.so")
 endif()
-set(ENV{OpenBabel3_DIR} "${OpenBabel3_DIR}")
+
+set(CMAKE_PREFIX_PATH "${OPENBABEL_INSTALL_DIR};${CMAKE_PREFIX_PATH}")
 set(ENV{PKG_CONFIG_PATH} "${_obdir}/pkgconfig:$ENV{PKG_CONFIG_PATH}")
 set(ENV{OPENBABEL3_INCLUDE_DIR} "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
 set(ENV{OPENBABEL3_LIBRARIES} "${_oblib}")
@@ -282,7 +281,7 @@ find_package(Eigen3 REQUIRED) # find and setup Eigen3 if available
 
 find_package(ZLIB REQUIRED)
 find_package(OpenBabel3 QUIET) # find and setup OpenBabel
-if(NOT OpenBabel3_FOUND)
+if(NOT OPENBABEL3_FOUND)
   add_library(OpenBabel3::openbabel SHARED IMPORTED)
   if(WIN32)
     set(_obdir "${OPENBABEL_INSTALL_DIR}/bin")
