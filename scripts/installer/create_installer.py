@@ -170,6 +170,11 @@ def main():
             compiler_lib / 'intel64_win',
             compiler_lib / 'intel64',
         ]
+        lib_env = os.environ.get('LIB')
+        if lib_env:
+            for path in lib_env.split(';'):
+                if path:
+                    search_dirs.append(Path(path))
         for lib_dir in search_dirs:
             if not lib_dir.exists():
                 continue
