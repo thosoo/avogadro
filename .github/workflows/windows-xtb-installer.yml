@@ -207,17 +207,18 @@ jobs:
           Invoke-WebRequest $asset.browser_download_url -OutFile $zip
           Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
           $xtbDir = Get-ChildItem -Directory -Path $env:RUNNER_TEMP -Filter 'xtb-*' | Select-Object -First 1 -ExpandProperty FullName
-          $pcFiles = Get-ChildItem "$xtbDir\lib\pkgconfig" -Filter '*.pc'
+          $pcDir = Join-Path $xtbDir 'lib\pkgconfig'
+          $pcFiles = Get-ChildItem $pcDir -Filter '*.pc'
           $mkl = "$env:MKLROOT/lib/intel64"
           $omp = "$env:ONEAPI_ROOT/compiler/latest/windows/compiler/lib/intel64_win"
+          $prefixLine = 'prefix=' + ($xtbDir -replace '\\','/')
           foreach ($pc in $pcFiles) {
-            $prefix = 'prefix=' + ($xtbDir -replace '\\','/')
-            $content = Get-Content $pc | ForEach-Object {
-              if ($_ -match '^prefix=') { $prefix }
+            $lines = Get-Content $pc | ForEach-Object {
+              if ($_ -match '^prefix=') { $prefixLine }
               elseif ($_ -match '^Libs:') { $_ + " -L$($mkl -replace '\\','/') -L$($omp -replace '\\','/') -lmkl_rt -llibiomp5md" }
               else { $_ }
             }
-            $content | Set-Content $pc
+            Set-Content -Path $pc -Value $lines
           }
           "XTB_DIR=$xtbDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "PKG_CONFIG_PATH=$xtbDir\lib\pkgconfig;$env:PKG_CONFIG_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
