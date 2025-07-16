@@ -236,12 +236,12 @@ set(I18N_LANGUAGE "" CACHE STRING "Build i18n only for selected language")
 # Build Open Babel from our fork so CMake can find it below
 set(OPENBABEL_INSTALL_DIR "${CMAKE_BINARY_DIR}/openbabel-install")
 file(MAKE_DIRECTORY "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
-file(MAKE_DIRECTORY "${OPENBABEL_INSTALL_DIR}/lib")
+file(MAKE_DIRECTORY "${OPENBABEL_INSTALL_DIR}/bin")
 ExternalProject_Add(openbabel_ext
   URL https://github.com/thosoo/openbabel/archive/6a16a3d3b7870c28cf8573e6c2873d78959efb31.zip
   URL_HASH SHA256=4322af1a67b8406c266dfa0a6f18be98f3f20e04a1cd990a7a2eabde74e02269
   BUILD_BYPRODUCTS
-    $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/lib/openbabel-3.lib>
+    $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.lib>
     $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.dll>
     $<$<NOT:$<PLATFORM_ID:Windows>>:${OPENBABEL_INSTALL_DIR}/lib/libopenbabel.so>
   CMAKE_ARGS
@@ -253,18 +253,21 @@ ExternalProject_Add(openbabel_ext
     -DWITH_INCHI=ON
   UPDATE_COMMAND ""
 )
-set(OpenBabel3_DIR "${OPENBABEL_INSTALL_DIR}/lib/cmake/openbabel3")
-set(ENV{OpenBabel3_DIR} "${OpenBabel3_DIR}")
-set(ENV{PKG_CONFIG_PATH} "${OPENBABEL_INSTALL_DIR}/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
-set(ENV{OPENBABEL3_INCLUDE_DIR} "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
 if(WIN32)
-  set(_oblib "${OPENBABEL_INSTALL_DIR}/lib/openbabel-3.lib")
-  set(_obdll "${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.dll")
+  set(_obdir "${OPENBABEL_INSTALL_DIR}/bin")
+  set(OpenBabel3_DIR "${_obdir}/cmake/openbabel3")
+  set(_oblib "${_obdir}/openbabel-3.lib")
+  set(_obdll "${_obdir}/openbabel-3.dll")
 else()
-  set(_oblib "${OPENBABEL_INSTALL_DIR}/lib/libopenbabel.so")
+  set(_obdir "${OPENBABEL_INSTALL_DIR}/lib")
+  set(OpenBabel3_DIR "${_obdir}/cmake/openbabel3")
+  set(_oblib "${_obdir}/libopenbabel.so")
 endif()
+set(ENV{OpenBabel3_DIR} "${OpenBabel3_DIR}")
+set(ENV{PKG_CONFIG_PATH} "${_obdir}/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+set(ENV{OPENBABEL3_INCLUDE_DIR} "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
 set(ENV{OPENBABEL3_LIBRARIES} "${_oblib}")
-set(ENV{OPENBABEL3_LIBRARY_DIRS} "${OPENBABEL_INSTALL_DIR}/lib")
+set(ENV{OPENBABEL3_LIBRARY_DIRS} "${_obdir}")
 
 include(cmake/Qt5Compat.cmake)
 find_package(Qt5 REQUIRED COMPONENTS Widgets Gui OpenGL Network LinguistTools Core Concurrent Test)
@@ -282,15 +285,17 @@ find_package(OpenBabel3 QUIET) # find and setup OpenBabel
 if(NOT OpenBabel3_FOUND)
   add_library(OpenBabel3::openbabel SHARED IMPORTED)
   if(WIN32)
-    set(_oblib "${OPENBABEL_INSTALL_DIR}/lib/openbabel-3.lib")
-    set(_obdll "${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.dll")
+    set(_obdir "${OPENBABEL_INSTALL_DIR}/bin")
+    set(_oblib "${_obdir}/openbabel-3.lib")
+    set(_obdll "${_obdir}/openbabel-3.dll")
     set_target_properties(OpenBabel3::openbabel PROPERTIES
       IMPORTED_IMPLIB "${_oblib}"
       IMPORTED_LOCATION "${_obdll}"
       INTERFACE_INCLUDE_DIRECTORIES
         "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
   else()
-    set(_oblib "${OPENBABEL_INSTALL_DIR}/lib/libopenbabel.so")
+    set(_obdir "${OPENBABEL_INSTALL_DIR}/lib")
+    set(_oblib "${_obdir}/libopenbabel.so")
     set_target_properties(OpenBabel3::openbabel PROPERTIES
       IMPORTED_LOCATION "${_oblib}"
       INTERFACE_INCLUDE_DIRECTORIES
@@ -299,7 +304,7 @@ if(NOT OpenBabel3_FOUND)
   set(OPENBABEL3_FOUND TRUE)
   set(OPENBABEL3_INCLUDE_DIR "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
   set(OPENBABEL3_LIBRARIES "${_oblib}")
-  set(OPENBABEL3_LIBRARY_DIRS "${OPENBABEL_INSTALL_DIR}/lib")
+  set(OPENBABEL3_LIBRARY_DIRS "${_obdir}")
   set(OPENBABEL2_FOUND ${OPENBABEL3_FOUND})
   set(OPENBABEL2_INCLUDE_DIR ${OPENBABEL3_INCLUDE_DIR})
   set(OPENBABEL2_LIBRARIES ${OPENBABEL3_LIBRARIES})
