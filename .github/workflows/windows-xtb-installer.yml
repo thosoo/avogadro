@@ -2,7 +2,7 @@ name: Windows xTB Installer
 on:
   workflow_dispatch:
   push:
-    branches: [ master, windows-install ]
+    branches: [ master, main, windows-install ]
   pull_request:
 
 jobs:
