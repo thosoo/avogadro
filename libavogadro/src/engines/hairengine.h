@@ -42,6 +42,30 @@ namespace Avogadro {
 
 class HairSettingsWidget;
 class Atom;
+
+/**
+ * \brief Available inertia models for hair animation.
+ */
+enum InertiaModel {
+  VectorEMA,  /**< Exponential moving average smoothing. */
+  SpringLag,  /**< Critically damped torsional spring.   */
+  MassSpring  /**< Full mass–spring strands.             */
+};
+
+/**
+ * \brief Runtime settings controlling the hair dynamics.
+ */
+struct Settings
+{
+  InertiaModel model;     ///< Selected inertia model.
+  double alpha;           ///< EMA coefficient for VectorEMA.
+  double lagFactor;       ///< Amplitude scale for Spring-Lag.
+  double naturalFreq;     ///< Natural spring frequency in rad/s.
+  int    nodesPerStrand;  ///< Number of nodes in Mass-Spring mode.
+  double stiffness;       ///< Constraint stiffness for Mass-Spring.
+  double drag;            ///< Velocity drag for Mass-Spring.
+  int    constraintIters; ///< Constraint solver iterations.
+};
 class HairEngine : public Engine
 {
   Q_OBJECT
@@ -69,17 +93,42 @@ public slots:
   void setLength(double value);
   /// Set the number of hairs drawn per atom.
   void setCount(int value);
+  /// Change the inertia model.
+  void setInertiaModel(int value);
+  /// Set EMA alpha parameter.
+  void setAlpha(double value);
+  /// Set torsional spring lag factor.
+  void setLagFactor(double value);
+  /// Set torsional spring natural frequency.
+  void setNaturalFreq(double value);
+  /// Set nodes per strand for mass-spring mode.
+  void setNodes(int value);
+  /// Set mass-spring stiffness.
+  void setStiffness(double value);
+  /// Set mass-spring drag.
+  void setDrag(double value);
+  /// Set mass-spring constraint iterations.
+  void setConstraintIters(int value);
 
 private slots:
   void settingsWidgetDestroyed();
 
 private:
   HairSettingsWidget *m_settingsWidget;
+  void clearState();
+  Settings m_settings;
   double m_length;
   int m_count;
-  QElapsedTimer m_timer;
+  QElapsedTimer m_timer;       ///< Timer used for animation phases.
+  QElapsedTimer m_frameTimer;  ///< Tracks per-frame time step.
   QHash<unsigned int, Eigen::Vector3d> m_prevPos;
-  QHash<unsigned int, double> m_motionAmp;
+  QHash<unsigned int, Eigen::Vector3d> m_prevVel;
+  QHash<unsigned int, Eigen::Vector3d> m_smoothVel;
+  struct SpringState { Eigen::Vector3d baseDir; Eigen::Vector3d dir; Eigen::Vector3d omega; };
+  struct NodeState { Eigen::Vector3d pos; Eigen::Vector3d prev; };
+  struct Strand { Eigen::Vector3d baseDir; std::vector<NodeState> nodes; };
+  QHash<unsigned int, std::vector<SpringState>> m_springStrands;
+  QHash<unsigned int, std::vector<Strand>> m_massStrands;
   Eigen::Projective3d m_prevModelView;
   bool m_hasPrevModelView;
 };
