@@ -11,6 +11,8 @@
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QProgressBar>
 #include <QtCore/QElapsedTimer>
+#include <QtCore/QCoreApplication>
+#include <QtCore/QDir>
 #include <Eigen/Core>
 #include <QtCore/QMutexLocker>
 
@@ -389,6 +391,13 @@ bool XtbOptThread::setup(Molecule *mol, int method, int engine, int level,
   m_molecule = mol;
   m_steps = steps;
   m_stop = false;
+
+  if (qEnvironmentVariableIsEmpty("XTBPATH")) {
+    QDir dir(QCoreApplication::applicationDirPath());
+    dir.cdUp();
+    QString share = dir.filePath("share/xtb");
+    qputenv("XTBPATH", QDir::toNativeSeparators(share).toLocal8Bit());
+  }
 
   m_env = xtb_newEnvironment();
   if (!m_env) {
