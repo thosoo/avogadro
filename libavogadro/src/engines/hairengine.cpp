@@ -67,6 +67,7 @@ HairEngine::HairEngine(QObject *parent) : Engine(parent),
   m_settings.constraintIters = 3;
   m_timer.start();
   m_frameTimer.start();
+  m_frameCount = 0;
 }
 
 HairEngine::~HairEngine()
@@ -85,6 +86,7 @@ Engine *HairEngine::clone() const
   engine->m_settings = m_settings;
   engine->m_prevModelView = m_prevModelView;
   engine->m_hasPrevModelView = m_hasPrevModelView;
+  engine->m_frameCount = m_frameCount;
   return engine;
 }
 
@@ -93,6 +95,7 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
   double dt = m_frameTimer.restart() / 1000.0;
   if (dt <= 1e-6)
     dt = 1.0 / 60.0;
+  ++m_frameCount;
 
   Eigen::Projective3d curModelView = pd->camera()->modelview();
   if (!m_hasPrevModelView) {
@@ -233,12 +236,13 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
           SpringState &st = (*(c.springs))[j];
           Vector3d target = -c.velocity;
           target -= dir * target.dot(dir);
-          if (target.norm() < 1e-3)
-            target = dir.cross(Vector3d::UnitX());
-          if (target.norm() < 1e-3)
-            target = dir.cross(Vector3d::UnitY());
-          target.normalize();
-          double targetAmp = std::min(c.velocity.norm() * dt * 20.0 *
+          double speed = target.norm();
+          if (speed < 1e-3) {
+            target.setZero();
+          } else {
+            target.normalize();
+          }
+          double targetAmp = std::min(speed * dt * 20.0 *
                                       m_settings.lagFactor, 1.0);
           target *= targetAmp;
           Vector3d accel = -2.0 * m_settings.naturalFreq * st.omega -
@@ -256,7 +260,11 @@ bool HairEngine::renderOpaque(PainterDevice *pd)
           for (size_t n = 0; n < nodeCount; ++n) {
             Vector3d vel = st.nodes[n].pos - st.nodes[n].prev;
             vel *= (1.0 - m_settings.drag);
-            vel += (-rootAcc + Vector3d(0,0,-9.81)) * dt * dt;
+            QRandomGenerator gen(static_cast<quint32>(c.id * 1000 + j * 10 + n + m_frameCount));
+            Vector3d jitter(gen.generateDouble() - 0.5,
+                           gen.generateDouble() - 0.5,
+                           gen.generateDouble() - 0.5);
+            vel += (-rootAcc + jitter * 0.2) * dt * dt;
             st.nodes[n].prev = st.nodes[n].pos;
             st.nodes[n].pos += vel;
           }

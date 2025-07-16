@@ -121,6 +121,7 @@ private:
   int m_count;
   QElapsedTimer m_timer;       ///< Timer used for animation phases.
   QElapsedTimer m_frameTimer;  ///< Tracks per-frame time step.
+  unsigned int m_frameCount;   ///< Incremented each frame for RNG.
   QHash<unsigned int, Eigen::Vector3d> m_prevPos;
   QHash<unsigned int, Eigen::Vector3d> m_prevVel;
   QHash<unsigned int, Eigen::Vector3d> m_smoothVel;
