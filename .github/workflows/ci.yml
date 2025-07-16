@@ -39,4 +39,6 @@ jobs:
           cmake --build build -- -j1 VERBOSE=1
       - name: Test
         run: |
+          export LD_LIBRARY_PATH="$PWD/build/openbabel-install/lib:$LD_LIBRARY_PATH"
+          export PATH="$PWD/build/openbabel-install/bin:$PATH"
           ctest --test-dir build --output-on-failure

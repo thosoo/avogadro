@@ -147,7 +147,10 @@ jobs:
           python scripts/installer/create_installer.py
       - name: Test
         if: matrix.target == 'tests'
-        run: ctest --test-dir build -C Release --output-on-failure
+        shell: pwsh
+        run: |
+          $env:PATH = "$PWD\build\openbabel-install\bin;$env:PATH"
+          ctest --test-dir build -C Release --output-on-failure
       - name: Upload installer
         if: matrix.target == 'installer'
         uses: actions/upload-artifact@v4
