@@ -381,10 +381,9 @@ if(GLEW_FOUND)
 endif()
 
 if(AVOGADRO_NO_DISPLAY_LISTS)
-  add_definitions(-DAVO_NO_DISPLAY_LISTS)
-  set(AVO_NO_DISPLAY_LISTS true)
+  set(AVO_NO_DISPLAY_LISTS 1)
 else()
-  set(AVO_NO_DISPLAY_LISTS false)
+  set(AVO_NO_DISPLAY_LISTS "")
 endif()
 
 # Multithreaded OpenGL. Seems mostly broken on Linux right now.
