@@ -2701,6 +2701,7 @@ namespace Avogadro {
     settings.setValue("renderDebug", d->renderDebug);
     settings.setValue("renderModelViewDebug", d->renderModelViewDebug);
     settings.setValue("allowQuickRender", d->allowQuickRender);
+    settings.setValue("useVbo", d->painter->vboEnabled());
     settings.setValue("renderUnitCellAxes", d->renderUnitCellAxes);
     settings.setValue("projection", d->projection);
 
@@ -2726,6 +2727,7 @@ namespace Avogadro {
     d->renderModelViewDebug =
         settings.value("renderModelViewDebug", 0).value<bool>();
     d->allowQuickRender = settings.value("allowQuickRender", 1).value<bool>();
+    d->painter->setVboEnabled(settings.value("useVbo", d->painter->vboEnabled()).value<bool>());
     d->renderUnitCellAxes = settings.value("renderUnitCellAxes", 1).value<bool>();
     int pr = settings.value("projection", GLWidget::Perspective).toInt();
     // Makes the compiler happy about the type conversion.
@@ -2834,6 +2836,17 @@ namespace Avogadro {
   bool GLWidget::quickRender() const
   {
     return d->allowQuickRender;
+  }
+
+  void GLWidget::setVboEnabled(bool enable)
+  {
+    if (d->painter)
+      d->painter->setVboEnabled(enable);
+  }
+
+  bool GLWidget::vboEnabled() const
+  {
+    return d->painter ? d->painter->vboEnabled() : false;
   }
 
   void GLWidget::setRenderUnitCellAxes(bool enabled)

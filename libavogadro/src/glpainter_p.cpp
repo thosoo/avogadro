@@ -117,6 +117,16 @@ namespace Avogadro
 
   static bool g_useVbo = false;
 
+  void GLPainter::setVboEnabled(bool enable)
+  {
+    g_useVbo = enable;
+  }
+
+  bool GLPainter::vboEnabled()
+  {
+    return g_useVbo;
+  }
+
   struct VboMesh {
     GLuint vao = 0;
     GLuint vbo = 0;

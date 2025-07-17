@@ -134,6 +134,16 @@ namespace Avogadro {
       bool quickRender() const;
 
       /**
+       * Enable or disable VBO rendering.
+       */
+      void setVboEnabled(bool enable);
+
+      /**
+       * @return true if VBO rendering is enabled.
+       */
+      bool vboEnabled() const;
+
+      /**
       * @param enabled True if we should render the unit cell axes
       */
       void setRenderUnitCellAxes(bool enabled);
