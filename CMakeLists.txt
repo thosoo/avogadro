@@ -373,6 +373,20 @@ if(ENABLE_GLSL)
   endif()
 endif()
 
+# Optionally disable OpenGL display lists and use VBO/VAO rendering
+option(AVOGADRO_NO_DISPLAY_LISTS "Render using VBOs instead of display lists" OFF)
+find_package(GLEW REQUIRED)
+if(GLEW_FOUND)
+  include_directories(${GLEW_INCLUDE_DIR})
+endif()
+
+if(AVOGADRO_NO_DISPLAY_LISTS)
+  add_definitions(-DAVO_NO_DISPLAY_LISTS)
+  set(AVO_NO_DISPLAY_LISTS true)
+else()
+  set(AVO_NO_DISPLAY_LISTS false)
+endif()
+
 # Multithreaded OpenGL. Seems mostly broken on Linux right now.
 option(ENABLE_THREADEDGL "Enable threaded OpenGL rendering" OFF)
 if(ENABLE_THREADEDGL)
