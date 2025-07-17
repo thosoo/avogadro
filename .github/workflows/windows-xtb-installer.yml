@@ -239,19 +239,7 @@ jobs:
       - name: Copy Intel redist DLLs
         shell: pwsh
         run: |
-          $distBin = Join-Path $pwd 'scripts/installer/dist/bin'
-          $root    = if ($env:ONEAPI_ROOT) { $env:ONEAPI_ROOT } else { 'C:\Program Files (x86)\Intel\oneAPI' }
-
-          $candidates = Get-ChildItem (Join-Path $root 'compiler') -Directory |
-            ForEach-Object {
-              @( Join-Path $_ 'windows\redist\intel64_win\compiler' )
-              @( Join-Path $_ 'windows\redist\intel64\compiler'      )
-            }
-
-          $dllDir = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if (-not $dllDir) { throw 'Intel redist directory not found' }
-
-          Copy-Item -Path (Join-Path $dllDir '*.dll') -Destination $distBin -Recurse -Force
+          & "${{ github.workspace }}\ci\copy_intel_redist.ps1"
       - name: Create installer
         shell: pwsh
         run: |
