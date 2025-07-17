@@ -240,7 +240,7 @@ jobs:
         shell: pwsh
         run: |
           $distBin = Join-Path $pwd 'scripts/installer/dist/bin'
-          $root = if ($env:ONEAPI_ROOT) { $env:ONEAPI_ROOT } else { 'C:\\Program Files (x86)\\Intel\\oneAPI' }
+          $root = if ($env:ONEAPI_ROOT) { $env:ONEAPI_ROOT } else { 'C:\Program Files (x86)\Intel\oneAPI' }
           $candidates = Get-ChildItem (Join-Path $root 'compiler') -Directory |
             ForEach-Object {
               @( Join-Path $_ 'windows\redist\intel64_win\compiler' )
