@@ -240,15 +240,29 @@ jobs:
         shell: pwsh
         run: |
           $distBin = Join-Path $pwd 'scripts/installer/dist/bin'
+
+          # 1. classic (<=2023) layout under %ONEAPI_ROOT%\compiler\<ver>\windows\redist
           $root = if ($env:ONEAPI_ROOT) { $env:ONEAPI_ROOT } else { 'C:\Program Files (x86)\Intel\oneAPI' }
-          $candidates = Get-ChildItem (Join-Path $root 'compiler') -Directory |
-            ForEach-Object {
-              @( Join-Path $_ 'windows\redist\intel64_win\compiler' )
-              @( Join-Path $_ 'windows\redist\intel64\compiler' )
-            }
+          $candidates = Get-ChildItem (Join-Path $root 'compiler') -Directory | ForEach-Object {
+            Join-Path $_ 'windows\redist\intel64_win\compiler'
+            Join-Path $_ 'windows\redist\intel64\compiler'
+          }
+
+          # 2. unified (2024+) layout, if available
+          if ($env:INTEL_DEV_REDIST) {
+            $candidates += Join-Path $env:INTEL_DEV_REDIST 'redist\intel64_win\compiler'
+            $candidates += Join-Path $env:INTEL_DEV_REDIST 'redist\intel64\compiler'
+          }
+
+          # 3. final hard-coded fallback
+          $candidates += 'C:\Program Files (x86)\Common Files\Intel\Shared Libraries\redist\intel64_win\compiler'
+
           $dllDir = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-          if (-not $dllDir) { throw 'Intel redist directory not found' }
-          Copy-Item -Path (Join-Path $dllDir '*.dll') -Destination $distBin -Recurse -Force
+          if (-not $dllDir) {
+            Write-Host "Checked paths: $($candidates -join ';')"
+            throw 'Intel redistributable directory not found - check toolkit install.'
+          }
+          Copy-Item (Join-Path $dllDir '*.dll') $distBin -Recurse -Force
       - name: Create installer
         shell: pwsh
         run: |
