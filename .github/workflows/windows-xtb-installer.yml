@@ -240,19 +240,15 @@ jobs:
         shell: pwsh
         run: |
           $distBin = Join-Path $pwd 'scripts/installer/dist/bin'
-          $root = $env:ONEAPI_ROOT
-          if (-not $root) { $root = 'C:\\Program Files (x86)\\Intel\\oneAPI' }
-          $dllDir = Get-ChildItem -Path (Join-Path $root 'compiler') -Directory |
+          $root = if ($env:ONEAPI_ROOT) { $env:ONEAPI_ROOT } else { 'C:\\Program Files (x86)\\Intel\\oneAPI' }
+          $candidates = Get-ChildItem (Join-Path $root 'compiler') -Directory |
             ForEach-Object {
-              $p = Join-Path $_ 'windows\redist\intel64_win'
-              if (Test-Path $p) { $p } else { Join-Path $_ 'windows\redist\intel64' }
-            } |
-            Where-Object { Test-Path $_ } | Select-Object -First 1
+              @( Join-Path $_ 'windows\redist\intel64_win\compiler' )
+              @( Join-Path $_ 'windows\redist\intel64\compiler' )
+            }
+          $dllDir = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
           if (-not $dllDir) { throw 'Intel redist directory not found' }
-          Get-ChildItem $dllDir -Filter *.dll | ForEach-Object {
-            Copy-Item $_ $distBin -Force
-            Write-Host "Copied $($_.Name)"
-          }
+          Copy-Item -Path (Join-Path $dllDir '*.dll') -Destination $distBin -Recurse -Force
       - name: Create installer
         shell: pwsh
         run: |
