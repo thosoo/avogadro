@@ -238,8 +238,8 @@ set(OPENBABEL_INSTALL_DIR "${CMAKE_BINARY_DIR}/openbabel-install")
 file(MAKE_DIRECTORY "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
 file(MAKE_DIRECTORY "${OPENBABEL_INSTALL_DIR}/bin")
 ExternalProject_Add(openbabel_ext
-  URL https://github.com/thosoo/openbabel/archive/6a16a3d3b7870c28cf8573e6c2873d78959efb31.zip
-  URL_HASH SHA256=4322af1a67b8406c266dfa0a6f18be98f3f20e04a1cd990a7a2eabde74e02269
+  URL https://github.com/thosoo/openbabel/archive/052ba3dab10a8c59a9d821e04b2faba24e104c72.zip
+  URL_HASH SHA256=26144b05b4f47dc3e78a7474b4789a5fe4049f4289a5aaed4a0a00689f123ad4
   BUILD_BYPRODUCTS
     $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.lib>
     $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.dll>
