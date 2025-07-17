@@ -27,6 +27,7 @@
 #ifndef GLHIT_H
 #define GLHIT_H
 
+#include "config.h"
 #include <avogadro/global.h>
 
 #if defined(ENABLE_GLSL) || defined(AVO_NO_DISPLAY_LISTS)
