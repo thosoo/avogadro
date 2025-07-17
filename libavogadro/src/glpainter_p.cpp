@@ -475,9 +475,14 @@ namespace Avogadro
       } else {
         double angleOffset = (order == 3 ? 90.0 : 22.5);
         Eigen::Vector3d axis = (end2 - end1).normalized();
-        Eigen::Vector3d ortho1 = axis.cross(d->widget->normalVector()).normalized()*radius*shift;
-        if (ortho1.norm() < 1e-3) ortho1 = axis.unitOrthogonal()*radius*shift;
-        Eigen::Vector3d ortho2 = axis.cross(ortho1);
+        Eigen::Vector3d ortho1Dir = axis.cross(d->widget->normalVector());
+        if (ortho1Dir.norm() < 1e-3)
+          ortho1Dir = axis.unitOrthogonal();
+        else
+          ortho1Dir.normalize();
+        Eigen::Vector3d ortho2Dir = axis.cross(ortho1Dir);
+        Eigen::Vector3d ortho1 = ortho1Dir * shift;
+        Eigen::Vector3d ortho2 = ortho2Dir * shift;
         for (int i = 0; i < order; ++i) {
           double angle = (angleOffset + 360.0 * i / order) * M_PI/180.0;
           Eigen::Vector3d disp = cos(angle)*ortho1 + sin(angle)*ortho2;
