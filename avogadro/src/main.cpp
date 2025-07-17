@@ -24,6 +24,8 @@
   02110-1301, USA.
  **********************************************************************/
 
+#include "config.h" // krazy:exclude=includes
+
 #include <avogadro/global.h>
 #include <openbabel/babelconfig.h>
 
