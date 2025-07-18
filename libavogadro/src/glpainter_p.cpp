@@ -1431,9 +1431,12 @@ namespace Avogadro
 
   void GLPainter::drawSphereVBO(const Eigen::Vector3d &center, double radius, int detail)
   {
-    if(detail < 0) detail = 0;
-    if(detail >= PAINTER_DETAIL_LEVELS) detail = PAINTER_DETAIL_LEVELS-1;
-    generateSphereMesh(sphereMeshes[detail], detail);
+    if (detail < 0)
+      detail = 0;
+    if (detail >= PAINTER_DETAIL_LEVELS)
+      detail = PAINTER_DETAIL_LEVELS - 1;
+    int lod = PAINTER_SPHERES_LEVELS_ARRAY[d->quality][detail];
+    generateSphereMesh(sphereMeshes[detail], lod);
     const VboMesh &m = sphereMeshes[detail];
     glPushMatrix();
     glTranslated(center.x(), center.y(), center.z());
@@ -1449,9 +1452,12 @@ namespace Avogadro
   void GLPainter::drawCylinderVBO(const Eigen::Vector3d &end1, const Eigen::Vector3d &end2,
                                   double radius, int detail)
   {
-    if(detail < 0) detail = 0;
-    if(detail >= PAINTER_DETAIL_LEVELS) detail = PAINTER_DETAIL_LEVELS-1;
-    generateCylinderMesh(cylinderMeshes[detail], detail);
+    if (detail < 0)
+      detail = 0;
+    if (detail >= PAINTER_DETAIL_LEVELS)
+      detail = PAINTER_DETAIL_LEVELS - 1;
+    int faces = PAINTER_CYLINDERS_LEVELS_ARRAY[d->quality][detail];
+    generateCylinderMesh(cylinderMeshes[detail], faces);
     const VboMesh &m = cylinderMeshes[detail];
     Eigen::Matrix4d matrix;
     matrix.row(3) << 0,0,0,1;
