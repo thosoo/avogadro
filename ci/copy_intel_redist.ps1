@@ -1,15 +1,13 @@
 
+
 $distBin = Join-Path $pwd 'scripts/installer/dist/bin'
 $root    = if ($Env:ONEAPI_ROOT) { $Env:ONEAPI_ROOT } else { 'C:\Program Files (x86)\Intel\oneAPI' }
 
-# Probe all compiler versions for the redistributable folder
-$candidates = Get-ChildItem (Join-Path $root 'compiler') -Directory | ForEach-Object {
-    @( Join-Path $_ 'windows\redist\intel64_win\compiler' )
-    @( Join-Path $_ 'windows\redist\intel64\compiler' )
+# Copy the required runtime DLLs from the 2024.1 bin directory
+$binDir = Join-Path $root '2024.1\bin'
+if (-not (Test-Path $binDir)) {
+    throw 'Intel redist directory not found'
 }
-
-$dllDir = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $dllDir) { throw 'Intel redist directory not found' }
 
 $dlls = @(
     'libifcoremd.dll',
@@ -18,16 +16,13 @@ $dlls = @(
     'libmmd.dll',
     'libirc.dll',
     'svml_dispmd.dll',
-    'libiomp5md.dll'
+    'libiomp5md.dll',
+    'mkl_rt.dll'
 )
 foreach ($dll in $dlls) {
-    $path = Join-Path $dllDir $dll
+    $path = Join-Path $binDir $dll
     if (Test-Path $path) {
         Copy-Item $path $distBin -Force
     }
 }
 
-if ($Env:MKLROOT) {
-    $mkl = Join-Path $Env:MKLROOT 'redist\intel64\mkl_rt.dll'
-    if (Test-Path $mkl) { Copy-Item $mkl $distBin -Force }
-}

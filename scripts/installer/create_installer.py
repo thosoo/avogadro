@@ -132,30 +132,11 @@ def main():
         if dll.exists():
             copy(dll, dist / 'bin')
 
-    mklroot = os.environ.get("MKLROOT")
-    if mklroot:
-        dll = Path(mklroot) / 'redist' / 'intel64' / 'mkl_rt.dll'
-        if dll.exists():
-            copy(dll, dist / 'bin')
-
     oneapi_root = os.environ.get("ONEAPI_ROOT")
     if oneapi_root:
-        dll_dir = None
-        comp_root = Path(oneapi_root) / 'compiler'
-        if comp_root.exists():
-            for ver in comp_root.iterdir():
-                if not ver.is_dir():
-                    continue
-                for sub in ('windows/redist/intel64_win/compiler',
-                            'windows/redist/intel64/compiler'):
-                    cand = ver / sub
-                    if cand.exists():
-                        dll_dir = cand
-                        break
-                if dll_dir:
-                    break
-        if dll_dir:
-            needed = [
+        bin_dir = Path(oneapi_root) / '2024.1' / 'bin'
+        if bin_dir.exists():
+            dlls = [
                 'libifcoremd.dll',
                 'libifcorert.dll',
                 'libifportmd.dll',
@@ -163,9 +144,10 @@ def main():
                 'libirc.dll',
                 'svml_dispmd.dll',
                 'libiomp5md.dll',
+                'mkl_rt.dll',
             ]
-            for name in needed:
-                src = dll_dir / name
+            for name in dlls:
+                src = bin_dir / name
                 if src.exists():
                     copy(src, dist / 'bin')
 
