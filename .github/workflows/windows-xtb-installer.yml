@@ -188,7 +188,12 @@ jobs:
           $pcDir = Join-Path $xtbDir 'lib\pkgconfig'
           $pcFiles = Get-ChildItem $pcDir -Filter '*.pc'
           $mkl = "$env:MKLROOT/lib/intel64"
-          $omp = "$env:ONEAPI_ROOT/compiler/latest/windows/compiler/lib/intel64_win"
+          $omp = Get-ChildItem $env:ONEAPI_ROOT -Directory | ForEach-Object {
+            Join-Path $_ 'compiler\lib\intel64_win'
+          } | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $omp) {
+            $omp = "$env:ONEAPI_ROOT/compiler/latest/windows/compiler/lib/intel64_win"
+          }
           $prefixLine = 'prefix=' + ($xtbDir -replace '\\','/')
           $libsSuffix = " /LIBPATH:`"$mkl`" /LIBPATH:`"$omp`" mkl_rt.lib libiomp5md.lib"
           foreach ($pc in $pcFiles) {
