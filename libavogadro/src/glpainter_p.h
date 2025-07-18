@@ -77,6 +77,10 @@ namespace Avogadro
      */
     int quality() const;
 
+    /** Enable or disable VBO rendering globally. */
+    static void setVboEnabled(bool enable);
+    static bool vboEnabled();
+
     /**
      * Uses the primitive to set the type and name if the Paint Device supports it.
      * @param primitive the primitive about to be drawn.
@@ -135,6 +139,10 @@ namespace Avogadro
      */
     void drawCylinder(const Eigen::Vector3d &end1, const Eigen::Vector3d &end2,
                       double radius);
+
+    void drawSphereVBO(const Eigen::Vector3d &center, double radius, int lod);
+    void drawCylinderVBO(const Eigen::Vector3d &end1, const Eigen::Vector3d &end2,
+                         double radius, int lod);
 
     /**
      * Draws a multiple cylinder (see below), leaving the Painter choose the appropriate
