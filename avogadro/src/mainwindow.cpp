@@ -74,6 +74,8 @@
 #include <avogadro/color.h>
 
 #include <openbabel/obconversion.h>
+#include <openbabel/plugin.h>
+#include <openbabel/format.h>
 #include <openbabel/mol.h>
 #include <openbabel/builder.h>
 #include <openbabel/forcefield.h>
@@ -86,6 +88,7 @@
 #endif
 
 #include <fstream>
+#include <string>
 #include <algorithm>
 
 #include <QClipboard>
@@ -108,6 +111,7 @@
 #include <QUndoStack>
 #include <QDesktopWidget>
 #include <QInputDialog>
+#include <QRegularExpression>
 #include <QUrl>
 #include <QDesktopServices>
 #include <QTime>
@@ -1972,48 +1976,78 @@ protected:
     }
   }
 
-  bool MainWindow::pasteMimeData(const QMimeData *mimeData)
-  {
-    OBConversion conv;
-    OBFormat *pasteFormat = NULL;
-    QByteArray text;
-    OBMol newMol;
+bool MainWindow::pasteMimeData(const QMimeData *mimeData)
+{
+  // Load all plugins so Open Babel can match MIME types
+  OBPlugin::LoadAllPlugins();
+  OBConversion conv;
+  OBFormat *pasteFormat = nullptr;
+  QByteArray text;
+  OBMol newMol;
 
-    if ( mimeData->hasFormat( "chemical/x-mdl-molfile" ) ) {
-      pasteFormat = conv.FindFormat( "mdl" );
+  QStringList formats = mimeData->formats();
+  qDebug() << "Clipboard formats:" << formats;
 
-      text = mimeData->data( "chemical/x-mdl-molfile" );
-    } else if ( mimeData->hasFormat( "chemical/x-cdx" ) ) {
-      pasteFormat = conv.FindFormat( "cdx" );
-      text = mimeData->data( "chemical/x-cdx" );
-    } else if ( mimeData->hasText() ) {
-      pasteFormat = conv.FindFormat( "xyz" );
-
-      text = mimeData->text().toLatin1();
+  for (const QString &fmt : formats) {
+    if (fmt.startsWith("application/x-qt-windows-mime")) {
+      QRegularExpression re("application/x-qt-windows-mime;value=\"([^\"]+)\"");
+      QRegularExpressionMatch m = re.match(fmt);
+      if (m.hasMatch()) {
+        QString win = m.captured(1);
+        if (win.compare("ChemDraw CDX", Qt::CaseInsensitive) == 0) {
+          pasteFormat = conv.FindFormat("cdx");
+        } else if (win.compare("ChemDraw CDXML", Qt::CaseInsensitive) == 0) {
+          pasteFormat = conv.FindFormat("cdxml");
+        } else if (win.compare("CF_TEXT", Qt::CaseInsensitive) == 0 ||
+                   win.compare("CF_UNICODETEXT", Qt::CaseInsensitive) == 0) {
+          pasteFormat = conv.FindFormat("mdl");
+        }
+        if (pasteFormat) {
+          text = mimeData->data(fmt);
+          break;
+        }
+      }
+    } else {
+      OBFormat *obFormat = OBConversion::FormatFromMIME(fmt.toLatin1().constData());
+      if (obFormat) {
+        pasteFormat = obFormat;
+        text = mimeData->data(fmt);
+        break;
+      }
     }
+  }
 
-    if ( text.length() == 0 )
-      return false;
-
-    if ( !pasteFormat || !conv.SetInFormat( pasteFormat ) ) {
-      statusBar()->showMessage( tr( "Paste failed (format unavailable)." ), 5000 );
-      return false;
+  if (!pasteFormat) {
+    for (const QString &fmt : formats) {
+      QByteArray data = mimeData->data(fmt);
+      if (data.startsWith("VjCD")) {
+        pasteFormat = conv.FindFormat("cdx");
+        text = data;
+        break;
+      }
     }
+  }
 
-    bool validMol = false;
-    if ( conv.ReadString( &newMol, text.constData() ) // Can we read with OB formats?
-         && newMol.NumAtoms() != 0 ) {
-      validMol = true;
-    }
+  if (!pasteFormat && mimeData->hasText()) {
+    pasteFormat = conv.FindFormat("mdl");
+    text = mimeData->text().toLatin1();
+  }
 
-    if (!validMol) { // We failed as an authentic format, try annulen's heuristics
-      validMol = parseText(&newMol, QString(text));
-    }
+  if (text.isEmpty() || !pasteFormat || !conv.SetInFormat(pasteFormat))
+    return false;
 
-    if (validMol && newMol.NumAtoms() == 0)
-      return false;
+  bool validMol = false;
+  std::string input(text.constData(), text.size());
+  if (conv.ReadString(&newMol, input) && newMol.NumAtoms() != 0)
+    validMol = true;
 
-    // We've got something we can paste
+  if (!validMol)
+    validMol = parseText(&newMol, QString::fromLatin1(text));
+
+  if (!validMol || newMol.NumAtoms() == 0)
+    return false;
+
+  // We've got something we can paste
     /*
     vector3 offset; // small offset so that pasted mols don't fall on top
     offset.randomUnitVector();
