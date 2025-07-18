@@ -134,18 +134,40 @@ def main():
 
     mklroot = os.environ.get("MKLROOT")
     if mklroot:
-        mkl_dir = Path(mklroot) / 'redist' / 'intel64'
-        for dll in mkl_dir.rglob('mkl_rt*.dll'):
+        dll = Path(mklroot) / 'redist' / 'intel64' / 'mkl_rt.dll'
+        if dll.exists():
             copy(dll, dist / 'bin')
-            break
 
     oneapi_root = os.environ.get("ONEAPI_ROOT")
     if oneapi_root:
-        dll_dir = Path(oneapi_root) / '2024.1' / 'bin'
-        if dll_dir.exists():
-            for dll in dll_dir.glob('*.dll'):
-                if 'debug' not in dll.name.lower():
-                    copy(dll, dist / 'bin')
+        dll_dir = None
+        comp_root = Path(oneapi_root) / 'compiler'
+        if comp_root.exists():
+            for ver in comp_root.iterdir():
+                if not ver.is_dir():
+                    continue
+                for sub in ('windows/redist/intel64_win/compiler',
+                            'windows/redist/intel64/compiler'):
+                    cand = ver / sub
+                    if cand.exists():
+                        dll_dir = cand
+                        break
+                if dll_dir:
+                    break
+        if dll_dir:
+            needed = [
+                'libifcoremd.dll',
+                'libifcorert.dll',
+                'libifportmd.dll',
+                'libmmd.dll',
+                'libirc.dll',
+                'svml_dispmd.dll',
+                'libiomp5md.dll',
+            ]
+            for name in needed:
+                src = dll_dir / name
+                if src.exists():
+                    copy(src, dist / 'bin')
 
     xtb_dir = os.environ.get("XTB_DIR")
     if xtb_dir:
