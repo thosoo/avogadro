@@ -282,6 +282,9 @@ namespace Avogadro
 
   void GLPainterPrivate::createObjects()
   {
+    if (g_useVbo)
+      return;
+
     // create the spheres. More than one sphere detail level may have the same value.
     // in that case we want to reuse the corresponding sphere by just copying the pointer,
     // instead of creating redundant spheres.

@@ -66,8 +66,10 @@ namespace Avogadro {
   Sphere::~Sphere()
   {
     freeBuffers();
+#ifndef AVO_NO_DISPLAY_LISTS
     if( d->displayList )
       glDeleteLists( d->displayList, 1 );
+#endif
     delete d;
   }
 
@@ -97,6 +99,11 @@ namespace Avogadro {
   void Sphere::initialize()
   {
     if( d->detail < 0 ) return;
+
+#ifdef AVO_NO_DISPLAY_LISTS
+    d->isValid = true;
+    return;
+#endif
 
     // deallocate any previously allocated buffer
     freeBuffers();

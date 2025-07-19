@@ -130,6 +130,7 @@ jobs:
             "-DENABLE_TESTS=$env:ENABLE_TESTS" `
             -DCMAKE_INSTALL_PREFIX="$dist" `
             -DENABLE_AVO_PACKAGE=ON `
+            -DAVOGADRO_NO_DISPLAY_LISTS=ON `
             -DENABLE_GLSL=ON `
             "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR" `
             "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY" `

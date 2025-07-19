@@ -71,9 +71,11 @@ namespace Avogadro {
   Cylinder::~Cylinder()
   {
     freeBuffers();
+#ifndef AVO_NO_DISPLAY_LISTS
     if( d->displayList ) {
       glDeleteLists( d->displayList, 1 );
     }
+#endif
     delete d;
   }
 
@@ -102,6 +104,11 @@ namespace Avogadro {
   {
     d->isValid = false;
     if( d->faces < 0 ) return;
+
+#ifdef AVO_NO_DISPLAY_LISTS
+    d->isValid = true;
+    return;
+#endif
 
     // compile display list and free buffers
     if( ! d->displayList ) d->displayList = glGenLists( 1 );
