@@ -151,7 +151,9 @@ jobs:
         run: |
           $obDir = "$PWD\build\openbabel-install"
           $env:PATH = "$obDir\bin;$env:PATH"
-          $env:BABEL_LIBDIR = "$obDir\lib\openbabel"
+          # OpenBabel installs plugins to the bin directory when built with
+          # MSVC, so point BABEL_LIBDIR there for the tests
+          $env:BABEL_LIBDIR = "$obDir\bin"
           $env:BABEL_DATADIR = "$obDir\share\openbabel"
           ctest --test-dir build -C Release --output-on-failure
       - name: Upload installer
