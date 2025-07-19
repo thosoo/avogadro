@@ -152,7 +152,7 @@ jobs:
           $obDir = "$PWD\build\openbabel-install"
           $env:PATH = "$obDir\bin;$env:PATH"
           $env:BABEL_LIBDIR = "$obDir\bin"
-          $env:BABEL_DATADIR = "$obDir\share\openbabel"
+          $env:BABEL_DATADIR = "$obDir\bin\data"
           ctest --test-dir build -C Release --output-on-failure
       - name: Upload installer
         if: matrix.target == 'installer'
