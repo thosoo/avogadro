@@ -25,6 +25,7 @@
 #include "config.h"
 
 #include "cylinder_p.h"
+#include "glpainter_p.h"
 
 #if defined(ENABLE_GLSL) || defined(AVO_NO_DISPLAY_LISTS)
   #include <GL/glew.h>
@@ -71,11 +72,10 @@ namespace Avogadro {
   Cylinder::~Cylinder()
   {
     freeBuffers();
-#ifndef AVO_NO_DISPLAY_LISTS
-    if( d->displayList ) {
-      glDeleteLists( d->displayList, 1 );
+    if (d->displayList) {
+      glDeleteLists(d->displayList, 1);
+      d->displayList = 0;
     }
-#endif
     delete d;
   }
 
@@ -105,10 +105,11 @@ namespace Avogadro {
     d->isValid = false;
     if( d->faces < 0 ) return;
 
-#ifdef AVO_NO_DISPLAY_LISTS
-    d->isValid = true;
-    return;
-#endif
+    if (GLPainter::globalVboEnabled())
+    {
+      d->isValid = true;
+      return;
+    }
 
     // compile display list and free buffers
     if( ! d->displayList ) d->displayList = glGenLists( 1 );

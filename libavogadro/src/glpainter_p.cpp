@@ -133,6 +133,11 @@ namespace Avogadro
     return g_useVbo;
   }
 
+  bool GLPainter::globalVboEnabled()
+  {
+    return g_useVbo;
+  }
+
   struct VboMesh {
     GLuint vao = 0;
     GLuint vbo = 0;

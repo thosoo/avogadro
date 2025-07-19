@@ -80,6 +80,8 @@ namespace Avogadro
     /** Enable or disable VBO rendering globally. */
     void setVboEnabled(bool enable);
     bool vboEnabled() const;
+    /** Return current global VBO state, accessible outside painter instances */
+    static bool globalVboEnabled();
 
     /**
      * Uses the primitive to set the type and name if the Paint Device supports it.
