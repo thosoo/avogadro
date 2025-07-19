@@ -119,10 +119,16 @@ namespace Avogadro
 
   void GLPainter::setVboEnabled(bool enable)
   {
+    if (g_useVbo == enable)
+      return;
     g_useVbo = enable;
+    if (d) {
+      d->deleteObjects();
+      d->initialized = false;
+    }
   }
 
-  bool GLPainter::vboEnabled()
+  bool GLPainter::vboEnabled() const
   {
     return g_useVbo;
   }

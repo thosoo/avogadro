@@ -78,8 +78,8 @@ namespace Avogadro
     int quality() const;
 
     /** Enable or disable VBO rendering globally. */
-    static void setVboEnabled(bool enable);
-    static bool vboEnabled();
+    void setVboEnabled(bool enable);
+    bool vboEnabled() const;
 
     /**
      * Uses the primitive to set the type and name if the Paint Device supports it.
