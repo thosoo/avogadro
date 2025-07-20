@@ -154,10 +154,10 @@ jobs:
           # OpenBabel installs plugins to the bin directory when built with
           # MSVC, so point BABEL_LIBDIR there for the tests
           $env:BABEL_LIBDIR = "$obDir\bin"
-          # OpenBabel installs data files under share/openbabel, so point
-          # BABEL_DATADIR there so tests can locate ringtyp.txt, patterns.txt,
-          # and other resources.
-          $env:BABEL_DATADIR = "$obDir\share\openbabel"
+          # OpenBabel installs its data files under bin/data when built with
+          # MSVC. Point BABEL_DATADIR there so tests can locate ringtyp.txt,
+          # patterns.txt and other resources.
+          $env:BABEL_DATADIR = "$obDir\bin\data"
           ctest --test-dir build -C Release --output-on-failure
       - name: Upload installer
         if: matrix.target == 'installer'
