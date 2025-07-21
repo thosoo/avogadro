@@ -112,11 +112,17 @@ int main(int argc, char *argv[])
 
 #ifdef WIN32
 #ifndef AVO_APP_BUNDLE
-  // Need to add an environment variable to the current process in order
-  // to load the forcefield parameters in OpenBabel.
-  QString babelDataDir = "BABEL_DATADIR=" + QCoreApplication::applicationDirPath();
-  qDebug() << babelDataDir;
-  _putenv(babelDataDir.toStdString().c_str());
+  // Allow the environment to specify the OpenBabel paths (e.g. from the CI
+  // workflow). Only set them here if they are not already defined so that unit
+  // tests can override the locations.
+  if (qEnvironmentVariableIsEmpty("BABEL_DATADIR")) {
+    QString dataDir = QCoreApplication::applicationDirPath() + "/../share/openbabel";
+    qputenv("BABEL_DATADIR", dataDir.toLatin1());
+  }
+  if (qEnvironmentVariableIsEmpty("BABEL_LIBDIR")) {
+    QString libDir = QCoreApplication::applicationDirPath() + "/../lib/openbabel";
+    qputenv("BABEL_LIBDIR", libDir.toLatin1());
+  }
 #endif
 #endif
 
