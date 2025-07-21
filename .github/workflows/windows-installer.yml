@@ -132,7 +132,8 @@ jobs:
             "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY" `
             "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR" `
             "-DGLEW_INCLUDE_DIR=$env:GLEW_INCLUDE_DIR" `
-            "-DGLEW_LIBRARY=$env:GLEW_LIBRARY"
+            "-DGLEW_LIBRARY=$env:GLEW_LIBRARY" `
+            -DENABLE_XTB_OPTTOOL=OFF
       - name: Build
         shell: pwsh
         run: |

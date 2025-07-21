@@ -13,44 +13,37 @@
 # Usage: find_package(XTB REQUIRED)
 
 find_package(PkgConfig)
-pkg_check_modules(XTB xtb)
+pkg_check_modules(XTB_PC QUIET xtb)
 
-if(NOT XTB_FOUND)
-  if(NOT XTB_DIR)
-    set(XTB_DIR $ENV{XTB_DIR})
-  endif()
-  if(XTB_DIR)
-    file(TO_CMAKE_PATH "${XTB_DIR}" XTB_DIR)
-    find_path(XTB_INCLUDE_DIRS
-      NAMES xtb.h
-      HINTS "${XTB_DIR}"
-      PATH_SUFFIXES include
-    )
-    find_library(XTB_LIBRARY
-      NAMES xtb
-      HINTS "${XTB_DIR}"
-      PATH_SUFFIXES lib lib64
-    )
-    if(XTB_LIBRARY)
-      get_filename_component(XTB_LIBRARY_DIRS "${XTB_LIBRARY}" DIRECTORY)
-      set(XTB_LIBRARIES ${XTB_LIBRARY})
-    endif()
-    if(XTB_INCLUDE_DIRS AND XTB_LIBRARIES)
-      set(XTB_FOUND TRUE)
-    else()
-      set(XTB_FOUND FALSE)
-    endif()
-  endif()
+set(_XTB_HINTS "")
+if(XTB_PC_FOUND)
+  list(APPEND _XTB_HINTS ${XTB_PC_LIBRARY_DIRS} ${XTB_PC_INCLUDE_DIRS})
 endif()
 
-if(XTB_FOUND)
-  if(NOT XTB_FIND_QUIETLY)
-    message(STATUS "Found xTB: ${XTB_LIBRARIES}")
-  endif()
-else()
-  if(XTB_FIND_REQUIRED)
-    message(FATAL_ERROR "Could not find xTB")
-  endif()
+if(NOT XTB_DIR AND DEFINED ENV{XTB_DIR})
+  set(XTB_DIR "$ENV{XTB_DIR}")
+endif()
+if(XTB_DIR)
+  list(APPEND _XTB_HINTS "${XTB_DIR}")
 endif()
 
-mark_as_advanced(XTB_INCLUDE_DIRS XTB_LIBRARIES XTB_LIBRARY_DIRS XTB_DIR)
+find_path(XTB_INCLUDE_DIR NAMES xtb.h
+  HINTS ${_XTB_HINTS}
+  PATH_SUFFIXES include)
+
+find_library(XTB_LIBRARY NAMES xtb
+  HINTS ${_XTB_HINTS}
+  PATH_SUFFIXES lib lib64)
+
+if(XTB_LIBRARY)
+  get_filename_component(XTB_LIBRARY_DIR "${XTB_LIBRARY}" DIRECTORY)
+endif()
+
+set(XTB_LIBRARIES ${XTB_LIBRARY})
+set(XTB_INCLUDE_DIRS ${XTB_INCLUDE_DIR})
+set(XTB_LIBRARY_DIRS ${XTB_LIBRARY_DIR})
+
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(XTB DEFAULT_MSG XTB_LIBRARY XTB_INCLUDE_DIR)
+
+mark_as_advanced(XTB_INCLUDE_DIR XTB_LIBRARY XTB_LIBRARY_DIR XTB_DIR)
