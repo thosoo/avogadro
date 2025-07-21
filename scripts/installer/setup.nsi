@@ -254,7 +254,6 @@ Section "-Installation actions" SecInstallation
   SetOverwrite on
   # extract all files from dist/ directory (recursively)
   File /r dist\*.*
-  File "dist\bin\avogadro_env.bat"
   WriteRegStr SHCTX "${REGKEY}\Components" Main 1
   
   # register Avogadro
@@ -268,14 +267,14 @@ Section "-Installation actions" SecInstallation
   # ensure the working directory is the binary path so avogadro.dll resolves
   SetOutPath "$INSTDIR\bin"
   CreateDirectory "$SMPROGRAMS\$StartmenuFolder"
-  CreateShortCut "$SMPROGRAMS\$StartmenuFolder\$(^Name).lnk" "$INSTDIR\bin\avogadro_env.bat" "" "${PRODUCT_EXE}"
+  CreateShortCut "$SMPROGRAMS\$StartmenuFolder\$(^Name).lnk" "${PRODUCT_EXE}" "" "${PRODUCT_EXE}"
   CreateShortCut "$SMPROGRAMS\$StartmenuFolder\Release Notes.lnk" "http://avogadro.cc/wiki/Avogadro_${VERSION}" ""
   CreateShortCut "$SMPROGRAMS\$StartmenuFolder\Uninstall.lnk" "$INSTDIR\uninstall.exe"
   
   # create desktop icon
   ${if} $CreateDesktopIcon == "true"
     SetOutPath "$INSTDIR\bin"
-    CreateShortCut "$DESKTOP\$(^Name).lnk" "$INSTDIR\bin\avogadro_env.bat" "" "${PRODUCT_EXE}" #$(^Name).lnk
+    CreateShortCut "$DESKTOP\$(^Name).lnk" "${PRODUCT_EXE}" "" "${PRODUCT_EXE}" #$(^Name).lnk
   ${endif}
   WriteRegStr SHCTX "${PRODUCT_UNINST_KEY}" "StartMenu" "$SMPROGRAMS\$StartmenuFolder"
   
@@ -294,7 +293,7 @@ Section "-Installation actions" SecInstallation
     # write informations about file type
     WriteRegStr SHCTX "Software\Classes\${PRODUCT_REGNAME}" "" "${PRODUCT_NAME} Document"
     WriteRegStr SHCTX "Software\Classes\${PRODUCT_REGNAME}\DefaultIcon" "" "${PRODUCT_EXE},0"
-    WriteRegStr SHCTX "Software\Classes\${PRODUCT_REGNAME}\Shell\open\command" "" '"$INSTDIR\bin\avogadro_env.bat" "%1"'
+    WriteRegStr SHCTX "Software\Classes\${PRODUCT_REGNAME}\Shell\open\command" "" '"${PRODUCT_EXE}" "%1"'
     # write informations about file extensions
     WriteRegStr SHCTX "Software\Classes\${PRODUCT_EXT}" "" "${PRODUCT_REGNAME}"
     # refresh shell

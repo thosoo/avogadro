@@ -110,18 +110,6 @@ def main():
                     if f.is_file():
                         copy(f, dist / "bin")
 
-        # ------------------------------------------------------------------
-        # Teach Open Babel where its data lives at runtime (Windows only)
-        if os.name == "nt":
-            data_dir = dist / "share" / "openbabel" / ob_version
-            lib_dir = dist / "lib" / "openbabel" / ob_version
-            env_bat = dist / "bin" / "avogadro_env.bat"
-            env_bat.write_text(
-                f'@echo off\n'
-                f'set "BABEL_DATADIR=%~dp0\\..\\share\\openbabel\\{ob_version}"\n'
-                f'set "BABEL_LIBDIR=%~dp0\\..\\lib\\openbabel\\{ob_version}"\n'
-                f'start "" "%~dp0\\Avogadro.exe" %*\n'
-            )
 
     libxml = os.environ.get("LIBXML2_LIBRARY")
     if libxml:
