@@ -289,12 +289,10 @@ void MoleculeFileTest::replaceMolecule()
 void MoleculeFileTest::appendMolecule()
 {
   QString filename = "moleculefiletest_tmp.smi";
-  std::ofstream ofs(filename.toLatin1().data());
-  ofs << "c1ccccc1  phenyl" << std::endl;
-  ofs << "c1ccccc1N  aniline" << std::endl;
-  // Use the standard SMILES with the substituent before the ring to avoid
-  // Open Babel kekulization warnings.
-  ofs << "Cc1ccccc1  toluene" << std::endl;
+  std::ofstream ofs(filename.toLatin1().data(), std::ios::binary);
+  ofs << "c1ccccc1  phenyl\n"
+      << "c1ccccc1N  aniline\n"
+      << "Cc1ccccc1  toluene\n"; // standard order avoids kekulization warnings
   ofs.close();
 
   MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
