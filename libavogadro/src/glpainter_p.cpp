@@ -115,28 +115,7 @@ namespace Avogadro
     / ( PAINTER_CYLINDERS_SQRT_LIMIT_MAX_LEVEL - PAINTER_CYLINDERS_SQRT_LIMIT_MIN_LEVEL );
 //  const double   PAINTER_FRUSTUM_CULL_TRESHOLD = -0.8;
 
-  static bool g_useVbo = false;
-
-  void GLPainter::setVboEnabled(bool enable)
-  {
-    if (g_useVbo == enable)
-      return;
-    g_useVbo = enable;
-    if (d) {
-      d->deleteObjects();
-      d->initialized = false;
-    }
-  }
-
-  bool GLPainter::vboEnabled() const
-  {
-    return g_useVbo;
-  }
-
-  bool GLPainter::globalVboEnabled()
-  {
-    return g_useVbo;
-  }
+static bool g_useVbo = false;
 
   struct VboMesh {
     GLuint vao = 0;
@@ -359,10 +338,31 @@ namespace Avogadro
 #endif
   }
 
-  GLPainter::~GLPainter()
-  {
-    delete d;
+GLPainter::~GLPainter()
+{
+  delete d;
+}
+
+void GLPainter::setVboEnabled(bool enable)
+{
+  if (g_useVbo == enable)
+    return;
+  g_useVbo = enable;
+  if (d) {
+    d->deleteObjects();
+    d->initialized = false;
   }
+}
+
+bool GLPainter::vboEnabled() const
+{
+  return g_useVbo;
+}
+
+bool GLPainter::globalVboEnabled()
+{
+  return g_useVbo;
+}
 
   void GLPainter::setQuality ( int quality )
   {
