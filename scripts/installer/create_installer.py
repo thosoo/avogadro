@@ -71,15 +71,15 @@ def main():
         if not ob_version:
             ob_version = "2"
 
+        dest_plugins = dist / "lib" / "openbabel" / ob_version
+        dest_plugins.mkdir(parents=True, exist_ok=True)
+
         for f in ob.glob("bin/*"):
             if f.suffix.lower() in (".dll", ".exe", ".obf"):
                 copy(f, dist / "bin")
                 # ensure core DLL is available beside plugins for dependency lookup
                 if f.name.lower().startswith("openbabel") and f.suffix.lower() == ".dll":
                     copy(f, dest_plugins)
-
-        dest_plugins = dist / "lib" / "openbabel" / ob_version
-        dest_plugins.mkdir(parents=True, exist_ok=True)
 
         for plugins in [ob / "lib" / "openbabel", ob / "bin" / "openbabel"]:
             if plugins.exists():
