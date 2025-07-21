@@ -132,6 +132,44 @@ def main():
         if dll.exists():
             copy(dll, dist / 'bin')
 
+    oneapi_root = os.environ.get("ONEAPI_ROOT")
+    if oneapi_root:
+        bin_dir = Path(oneapi_root) / '2024.1' / 'bin'
+        if bin_dir.exists():
+            dlls = [
+                'libifcoremd.dll',
+                'libifcorert.dll',
+                'libifportmd.dll',
+                'libmmd.dll',
+                'libirc.dll',
+                'svml_dispmd.dll',
+                'libiomp5md.dll',
+                'mkl_rt.dll',
+            ]
+            for name in dlls:
+                src = bin_dir / name
+                if src.exists():
+                    copy(src, dist / 'bin')
+
+    xtb_dir = os.environ.get("XTB_DIR")
+    if xtb_dir:
+        xtb = Path(xtb_dir)
+        for f in xtb.glob('bin/*'):
+            if f.suffix.lower() in ('.exe', '.dll'):
+                copy(f, dist / 'bin')
+        share = xtb / 'share' / 'xtb'
+        if share.exists():
+            dest = dist / 'share' / 'xtb'
+            log(f"Copying xTB data from {share} to {dest}")
+            shutil.copytree(share, dest, dirs_exist_ok=True)
+
+        lib_dest = dist / 'lib'
+        lib_dest.mkdir(parents=True, exist_ok=True)
+        for f in xtb.glob('lib/*.dll'):
+            copy(f, lib_dest)
+        for f in xtb.glob('lib/*.lib'):
+            copy(f, lib_dest)
+
     # Copy the GPLv2 license expected by NSIS
     license_src = root.parent.parent / 'COPYING'
     license_dest = dist / 'gpl.txt'
