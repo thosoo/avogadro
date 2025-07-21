@@ -151,11 +151,18 @@ jobs:
         run: |
           $obDir = "$PWD\build\openbabel-install"
           "BABEL_LIBDIR=$obDir\bin" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "OPENBABEL_PLUGIN_PATH=$obDir\bin" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "BABEL_DATADIR=$obDir\bin\data" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$obDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Test
         if: matrix.target == 'tests'
         shell: pwsh
+        env:
+          OB_DIR: ${{github.workspace}}\build\openbabel-install
+          BABEL_LIBDIR: ${{github.workspace}}\build\openbabel-install\bin
+          OPENBABEL_PLUGIN_PATH: ${{github.workspace}}\build\openbabel-install\bin
+          BABEL_DATADIR: ${{github.workspace}}\build\openbabel-install\bin\data
+          PATH: ${{github.workspace}}\build\openbabel-install\bin;${{env.PATH}}
         run: |
           ctest --test-dir build -C Release --output-on-failure
       - name: Upload installer

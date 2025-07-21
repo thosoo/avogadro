@@ -251,7 +251,11 @@ ExternalProject_Add(openbabel_ext
     -DOB_USE_PREBUILT_BINARIES=OFF
     -DOPENBABEL_USE_SYSTEM_INCHI=OFF
     -DWITH_INCHI=ON
+    -DCMAKE_INSTALL_BINDIR=bin
+    -DCMAKE_INSTALL_LIBDIR=bin
   UPDATE_COMMAND ""
+  BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --config Release
+  INSTALL_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> --config Release --target install
 )
 if(WIN32)
   set(_obdir "${OPENBABEL_INSTALL_DIR}/bin")
