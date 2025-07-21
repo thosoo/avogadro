@@ -112,16 +112,13 @@ int main(int argc, char *argv[])
 
 #ifdef WIN32
 #ifndef AVO_APP_BUNDLE
-  // Need to add an environment variable to the current process in order
-  // to load the forcefield parameters in OpenBabel. Use qputenv so we only
-  // set the value without repeating the key, avoiding "BABEL_DATADIR=BABEL_DATADIR=..."
-  QByteArray dataDir = QCoreApplication::applicationDirPath().toLatin1();
-  qDebug() << "BABEL_DATADIR" << dataDir;
-#  ifdef _MSC_VER
-  _putenv_s("BABEL_DATADIR", dataDir.constData());
-#  else
-  setenv("BABEL_DATADIR", dataDir.constData(), 1);
-#  endif
+  // OpenBabel expects its data and plugin directories in the install tree.
+  // Use qputenv so we only pass the value string.
+  QString dataDir = QCoreApplication::applicationDirPath() + "/../share/openbabel";
+  QString libDir = QCoreApplication::applicationDirPath() + "/../lib/openbabel";
+  qDebug() << "BABEL_DATADIR" << dataDir << "BABEL_LIBDIR" << libDir;
+  qputenv("BABEL_DATADIR", dataDir.toLatin1());
+  qputenv("BABEL_LIBDIR", libDir.toLatin1());
 #endif
 #endif
 
