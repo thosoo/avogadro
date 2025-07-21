@@ -112,10 +112,12 @@ int main(int argc, char *argv[])
 
 #ifdef WIN32
 #ifndef AVO_APP_BUNDLE
-  // OpenBabel expects its data and plugin directories in the install tree.
-  // Use qputenv so we only pass the value string.
-  QString dataDir = QCoreApplication::applicationDirPath() + "/../share/openbabel";
-  QString libDir = QCoreApplication::applicationDirPath() + "/../lib/openbabel";
+  // Open Babel installs its data under bin/data and its plugins directly in the
+  // bin directory when built with MSVC. Set these paths explicitly so tests and
+  // the application can locate the resources.
+  QString installBinDir = QCoreApplication::applicationDirPath();
+  QString dataDir = installBinDir + "/../bin/data";
+  QString libDir = installBinDir + "/../bin";
   qDebug() << "BABEL_DATADIR" << dataDir << "BABEL_LIBDIR" << libDir;
   qputenv("BABEL_DATADIR", dataDir.toLatin1());
   qputenv("BABEL_LIBDIR", libDir.toLatin1());
