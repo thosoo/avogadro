@@ -34,6 +34,9 @@
 #include "sphere_p.h"
 #include "cylinder_p.h"
 #include "textrenderer_p.h"
+#if defined(ENABLE_GLSL) || defined(AVO_NO_DISPLAY_LISTS)
+#  include <GL/glew.h>
+#endif
 
 #include <avogadro/atom.h>
 #include <avogadro/bond.h>
@@ -110,13 +113,104 @@ namespace Avogadro
     / ( PAINTER_CYLINDERS_SQRT_LIMIT_MAX_LEVEL - PAINTER_CYLINDERS_SQRT_LIMIT_MIN_LEVEL );
 //  const double   PAINTER_FRUSTUM_CULL_TRESHOLD = -0.8;
 
+#ifdef AVO_NO_DISPLAY_LISTS
+struct VBOHandle { GLuint vao; GLuint vbo; GLuint ibo; GLsizei count; bool init; VBOHandle():vao(0),vbo(0),ibo(0),count(0),init(false){} };
+static std::array<VBOHandle, PAINTER_DETAIL_LEVELS> sphereVBOs;
+static std::array<VBOHandle, PAINTER_DETAIL_LEVELS> cylinderVBOs;
+static void buildSphereMesh(int lod, VBOHandle &handle);
+static void buildCylinderMesh(int faces, VBOHandle &handle);
+#endif
+
+#ifdef AVO_NO_DISPLAY_LISTS
+static void buildSphereMesh(int lod, VBOHandle &handle)
+{
+  int stacks = 8 + lod * 2;
+  int slices = stacks * 2;
+  std::vector<float> verts;
+  std::vector<unsigned int> idx;
+  for(int i=0;i<=stacks;i++) {
+    double phi = M_PI * i / stacks;
+    for(int j=0;j<=slices;j++) {
+      double theta = 2*M_PI*j/slices;
+      float x = sin(phi)*cos(theta);
+      float y = cos(phi);
+      float z = sin(phi)*sin(theta);
+      verts.push_back(x); verts.push_back(y); verts.push_back(z);
+      verts.push_back(x); verts.push_back(y); verts.push_back(z);
+    }
+  }
+  for(int i=0;i<stacks;i++) {
+    for(int j=0;j<slices;j++) {
+      unsigned int a=i*(slices+1)+j;
+      unsigned int b=a+slices+1;
+      idx.push_back(a); idx.push_back(b); idx.push_back(a+1);
+      idx.push_back(b); idx.push_back(b+1); idx.push_back(a+1);
+    }
+  }
+  glGenVertexArrays(1,&handle.vao);
+  glBindVertexArray(handle.vao);
+  glGenBuffers(1,&handle.vbo);
+  glBindBuffer(GL_ARRAY_BUFFER, handle.vbo);
+  glBufferData(GL_ARRAY_BUFFER, verts.size()*sizeof(float), verts.data(), GL_STATIC_DRAW);
+  glGenBuffers(1,&handle.ibo);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, handle.ibo);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, idx.size()*sizeof(unsigned int), idx.data(), GL_STATIC_DRAW);
+  glEnableClientState(GL_VERTEX_ARRAY);
+  glVertexPointer(3, GL_FLOAT, 6*sizeof(float), (void*)0);
+  glEnableClientState(GL_NORMAL_ARRAY);
+  glNormalPointer(GL_FLOAT, 6*sizeof(float), (void*)(3*sizeof(float)));
+  glBindVertexArray(0);
+  handle.count = idx.size();
+  handle.init = true;
+}
+
+static void buildCylinderMesh(int faces, VBOHandle &handle)
+{
+  int slices = faces;
+  std::vector<float> verts;
+  std::vector<unsigned int> idx;
+  for(int i=0;i<=slices;i++) {
+    double theta = 2*M_PI*i/slices;
+    float x = cos(theta);
+    float y = sin(theta);
+    verts.push_back(x); verts.push_back(y); verts.push_back(0); // pos
+    verts.push_back(x); verts.push_back(y); verts.push_back(0); // normal
+    verts.push_back(x); verts.push_back(y); verts.push_back(1);
+    verts.push_back(x); verts.push_back(y); verts.push_back(0);
+  }
+  for(int i=0;i<slices;i++) {
+    unsigned int a=2*i;
+    unsigned int b=2*i+1;
+    unsigned int c=2*(i+1);
+    unsigned int d=2*(i+1)+1;
+    idx.push_back(a); idx.push_back(b); idx.push_back(c);
+    idx.push_back(b); idx.push_back(d); idx.push_back(c);
+  }
+  glGenVertexArrays(1,&handle.vao);
+  glBindVertexArray(handle.vao);
+  glGenBuffers(1,&handle.vbo);
+  glBindBuffer(GL_ARRAY_BUFFER, handle.vbo);
+  glBufferData(GL_ARRAY_BUFFER, verts.size()*sizeof(float), verts.data(), GL_STATIC_DRAW);
+  glGenBuffers(1,&handle.ibo);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, handle.ibo);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, idx.size()*sizeof(unsigned int), idx.data(), GL_STATIC_DRAW);
+  glEnableClientState(GL_VERTEX_ARRAY);
+  glVertexPointer(3, GL_FLOAT, 6*sizeof(float), (void*)0);
+  glEnableClientState(GL_NORMAL_ARRAY);
+  glNormalPointer(GL_FLOAT, 6*sizeof(float), (void*)(3*sizeof(float)));
+  glBindVertexArray(0);
+  handle.count = idx.size();
+  handle.init = true;
+}
+#endif
+
   class GLPainterPrivate
   {
   public:
     GLPainterPrivate() : widget ( 0 ), newQuality(-1), quality ( 0 ), overflow(0),
                          spheres ( 0 ), cylinders ( 0 ),
                          textRenderer ( new TextRenderer ), initialized ( false ), sharing ( 0 ),
-                         type(Primitive::OtherType), id ( -1 ), color(0)  {};
+                         type(Primitive::OtherType), id ( -1 ), color(0), useVBOs(false)  {};
     ~GLPainterPrivate()
     {
       deleteObjects();
@@ -160,6 +254,7 @@ namespace Avogadro
     Primitive::Type type;
     int id;
     Color color;
+    bool useVBOs;
   };
 
   inline bool GLPainterPrivate::isValid()
@@ -283,8 +378,22 @@ namespace Avogadro
   {
     if (quality < 0 || quality >= PAINTER_MAX_DETAIL_LEVEL)
       quality = DEFAULT_GLOBAL_QUALITY_SETTING;
-    else
-      d->quality = quality;
+    d->quality = quality;
+
+#ifdef AVO_NO_DISPLAY_LISTS
+    d->useVBOs = true;
+#else
+    d->useVBOs = false;
+    FILE *f = fopen("/proc/sys/kernel/osrelease", "r");
+    if (f) {
+      char buf[256];
+      if (fgets(buf, sizeof(buf), f) && strstr(buf, "Microsoft")) {
+        qWarning("WSL detected - disabling display lists");
+        d->useVBOs = true;
+      }
+      fclose(f);
+    }
+#endif
   }
 
   GLPainter::~GLPainter()
@@ -361,7 +470,10 @@ namespace Avogadro
 
     d->color.applyAsMaterials();
     pushName();
-    d->spheres[detailLevel]->draw (center, radius);
+    if (d->useVBOs)
+      drawSphereVBO(center, radius, detailLevel);
+    else
+      d->spheres[detailLevel]->draw(center, radius);
     popName();
   }
 
@@ -388,7 +500,10 @@ namespace Avogadro
 
     d->color.applyAsMaterials();
     pushName();
-    d->cylinders[detailLevel]->draw ( end1, end2, radius );
+    if (d->useVBOs)
+      drawCylinderVBO(end1, end2, radius, detailLevel);
+    else
+      d->cylinders[detailLevel]->draw(end1, end2, radius);
     popName();
   }
 
@@ -415,8 +530,22 @@ namespace Avogadro
 
     d->color.applyAsMaterials();
     pushName();
-    d->cylinders[detailLevel]->drawMulti ( end1, end2, radius, order,
-                                           shift, d->widget->normalVector() );
+    if (d->useVBOs) {
+      Eigen::Vector3d axis = (end2 - end1).normalized();
+      Eigen::Vector3d offset = axis.cross(d->widget->normalVector());
+      if (offset.norm() < 0.001)
+        offset = axis.unitOrthogonal();
+      offset.normalize();
+      double angleOffset = (order >= 3) ? (order==3 ? 90.0 : 22.5) : 0.0;
+      for (int i = 0; i < order; ++i) {
+        Eigen::AngleAxisd rot((angleOffset + 360.0 * i / order) * M_PI / 180.0, axis);
+        Eigen::Vector3d disp = rot * offset * shift;
+        drawCylinderVBO(end1 + disp, end2 + disp, radius, detailLevel);
+      }
+    } else {
+      d->cylinders[detailLevel]->drawMulti(end1, end2, radius, order,
+                                           shift, d->widget->normalVector());
+    }
     popName();
   }
 
@@ -1234,6 +1363,48 @@ namespace Avogadro
   {
   }
 
+#ifdef AVO_NO_DISPLAY_LISTS
+  void GLPainter::drawSphereVBO(const Eigen::Vector3d &c, double r, int lod)
+  {
+    VBOHandle &h = sphereVBOs[lod];
+    if(!h.init)
+      buildSphereMesh(lod, h);
+    glPushMatrix();
+    glTranslated(c.x(), c.y(), c.z());
+    glScaled(r, r, r);
+    glBindVertexArray(h.vao);
+    glDrawElements(GL_TRIANGLES, h.count, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
+    glPopMatrix();
+  }
+
+  void GLPainter::drawCylinderVBO(const Eigen::Vector3d &a, const Eigen::Vector3d &b,
+                                  double r, int lod)
+  {
+    VBOHandle &h = cylinderVBOs[lod];
+    if(!h.init)
+      buildCylinderMesh(lod+20, h);
+    Eigen::Vector3d axis = b - a;
+    Eigen::Matrix4d m; m.row(3)<<0,0,0,1;
+    Eigen::Vector3d z = axis;
+    double len = z.norm();
+    if(len==0) return;
+    z.normalize();
+    Eigen::Vector3d x = z.unitOrthogonal();
+    Eigen::Vector3d y = z.cross(x);
+    m.block<3,1>(0,0) = x*r;
+    m.block<3,1>(0,1) = y*r;
+    m.block<3,1>(0,2) = z*len;
+    m.block<3,1>(0,3) = a;
+    glPushMatrix();
+    glMultMatrixd(m.data());
+    glBindVertexArray(h.vao);
+    glDrawElements(GL_TRIANGLES, h.count, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
+    glPopMatrix();
+  }
+#endif
+
   int GLPainter::defaultQuality()
   {
     return DEFAULT_GLOBAL_QUALITY_SETTING;
@@ -1341,6 +1512,16 @@ namespace Avogadro
   void GLPainter::setDynamicScaling(bool scaling)
   {
     m_dynamicScaling = scaling;
+  }
+
+  void GLPainter::setUseVBOs(bool enable)
+  {
+    d->useVBOs = enable;
+  }
+
+  bool GLPainter::useVBOs() const
+  {
+    return d->useVBOs;
   }
 
 } // end namespace Avogadro

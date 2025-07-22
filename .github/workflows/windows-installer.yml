@@ -131,6 +131,7 @@ jobs:
             -DCMAKE_INSTALL_PREFIX="$dist" `
             -DENABLE_AVO_PACKAGE=ON `
             -DENABLE_GLSL=ON `
+            -DAVOGADRO_NO_DISPLAY_LISTS=ON `
             "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR" `
             "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY" `
             "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR" `

@@ -80,7 +80,7 @@
 
 #include <Eigen/Geometry>
 
-#ifdef ENABLE_GLSL
+#if defined(ENABLE_GLSL) || defined(AVO_NO_DISPLAY_LISTS)
   #include <GL/glew.h>
 #endif
 
@@ -492,26 +492,28 @@ namespace Avogadro {
       abort();
     }
 
-    // Try to initialise GLEW if GLSL was enabled, test for OpenGL 2.0 support
-    #ifdef ENABLE_GLSL
+    // Initialize GLEW when shaders or VBO rendering are requested
+#if defined(ENABLE_GLSL) || defined(AVO_NO_DISPLAY_LISTS)
     GLenum err = glewInit();
-    if (err != GLEW_OK) {
-      qDebug() << "GLSL support enabled but GLEW could not initialise!";
-      m_glslEnabled = false;
+    if (err != GLEW_OK)
+      qDebug() << "GLEW could not initialise!";
+#endif
+#ifdef ENABLE_GLSL
+    if (err == GLEW_OK) {
+      if (GLEW_VERSION_2_0) {
+        qDebug() << "GLSL support enabled, OpenGL 2.0 support confirmed.";
+        m_glslEnabled = true;
+      }
+      else if (GLEW_ARB_vertex_shader && GLEW_ARB_fragment_shader) {
+        qDebug() << "GLSL support enabled, no OpenGL 2.0 support.";
+        m_glslEnabled = true;
+      }
+      else {
+        qDebug() << "GLSL support disabled, OpenGL 2.0 support not present.";
+        m_glslEnabled = false;
+      }
     }
-    if (GLEW_VERSION_2_0) {
-      qDebug() << "GLSL support enabled, OpenGL 2.0 support confirmed.";
-      m_glslEnabled = true;
-    }
-    else if (GLEW_ARB_vertex_shader && GLEW_ARB_fragment_shader) {
-      qDebug() << "GLSL support enabled, no OpenGL 2.0 support.";
-      m_glslEnabled = true;
-    }
-    else {
-      qDebug() << "GLSL support disabled, OpenGL 2.0 support not present.";
-      m_glslEnabled = false;
-    }
-    #endif
+#endif
 
     qglClearColor( d->background );
 
@@ -712,9 +714,20 @@ namespace Avogadro {
     d->fogLevel = level;
   }
 
+  void GLWidget::setUseVBOs(bool enable)
+  {
+    d->painter->setUseVBOs(enable);
+    invalidateDLs();
+  }
+
   int GLWidget::fogLevel() const
   {
     return d->fogLevel;
+  }
+
+  bool GLWidget::useVBOs() const
+  {
+    return d->painter->useVBOs();
   }
 
   void GLWidget::setRenderAxes(bool renderAxes)
@@ -2693,6 +2706,7 @@ namespace Avogadro {
     settings.setValue("background", d->background);
     settings.setValue("quality", d->painter->quality());
     settings.setValue("fogLevel", d->fogLevel);
+    settings.setValue("useVBOs", d->painter->useVBOs());
     settings.setValue("renderAxes", d->renderAxes);
     settings.setValue("renderDebug", d->renderDebug);
     settings.setValue("renderModelViewDebug", d->renderModelViewDebug);
@@ -2716,6 +2730,7 @@ namespace Avogadro {
     // Make sure to provide some default values for any settings.value("", DEFAULT) call
     setQuality(settings.value("quality", 2).toInt());
     setFogLevel(settings.value("fogLevel", 0).toInt());
+    setUseVBOs(settings.value("useVBOs", d->painter->useVBOs()).toBool());
     d->background = settings.value("background", QColor(0,0,0,0)).value<QColor>();
     d->renderAxes = settings.value("renderAxes", 1).value<bool>();
     d->renderDebug = settings.value("renderDebug", 0).value<bool>();

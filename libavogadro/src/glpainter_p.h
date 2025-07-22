@@ -136,6 +136,12 @@ namespace Avogadro
     void drawCylinder(const Eigen::Vector3d &end1, const Eigen::Vector3d &end2,
                       double radius);
 
+#ifdef AVO_NO_DISPLAY_LISTS
+    void drawSphereVBO(const Eigen::Vector3d &center, double radius, int lod);
+    void drawCylinderVBO(const Eigen::Vector3d &end1, const Eigen::Vector3d &end2,
+                         double radius, int lod);
+#endif
+
     /**
      * Draws a multiple cylinder (see below), leaving the Painter choose the appropriate
      * detail level based on the apparent radius (ratio of radius over distance) and the
@@ -495,6 +501,9 @@ namespace Avogadro
      * Set to true to turn dynamic object scaling on, false for off.
      */
     void setDynamicScaling(bool scaling);
+
+    void setUseVBOs(bool enable);
+    bool useVBOs() const;
 
   protected:
     GLPainterPrivate * const d;

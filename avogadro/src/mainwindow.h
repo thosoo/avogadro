@@ -75,6 +75,7 @@ namespace Avogadro {
 
       int painterQuality() const;
       int fogLevel() const;
+      bool useVBOs() const;
       bool renderAxes() const;
       bool renderDebug() const;
       bool quickRender() const;
@@ -159,6 +160,7 @@ namespace Avogadro {
       void setBackgroundColor();
       void setPainterQuality(int quality);
       void setFogLevel(int level);
+      void setUseVBOs(bool enable);
 
       /**
        * Slot to switch glWidget to the perspective projection mode
