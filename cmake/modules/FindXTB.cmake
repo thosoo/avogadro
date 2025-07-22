@@ -56,14 +56,28 @@ find_library(XTB_BLAS_LIBRARY
   HINTS ${_XTB_HINTS}
   PATH_SUFFIXES lib lib64)
 
+if(NOT XTB_LAPACK_LIBRARY AND XTB_DIR)
+  file(GLOB _lapack_candidates
+    "${XTB_DIR}/lib/*lapack*.lib" "${XTB_DIR}/lib/*openblas*.lib")
+  list(GET _lapack_candidates 0 XTB_LAPACK_LIBRARY)
+endif()
+
+if(NOT XTB_BLAS_LIBRARY AND XTB_DIR)
+  file(GLOB _blas_candidates
+    "${XTB_DIR}/lib/*blas*.lib" "${XTB_DIR}/lib/*openblas*.lib")
+  list(GET _blas_candidates 0 XTB_BLAS_LIBRARY)
+endif()
+
 if(XTB_CORE_LIBRARY)
   get_filename_component(XTB_LIBRARY_DIR "${XTB_CORE_LIBRARY}" DIRECTORY)
 endif()
 
 set(XTB_LIBRARIES ${XTB_CORE_LIBRARY})
+set(_XTB_EXTRA_LIBS "")
 foreach(_lib IN LISTS XTB_LAPACK_LIBRARY XTB_BLAS_LIBRARY)
   if(_lib)
     list(APPEND XTB_LIBRARIES ${_lib})
+    list(APPEND _XTB_EXTRA_LIBS ${_lib})
   endif()
 endforeach()
 
@@ -79,7 +93,7 @@ if(XTB_FOUND AND NOT TARGET XTB::xtb)
   set_target_properties(XTB::xtb PROPERTIES
     IMPORTED_LOCATION "${XTB_CORE_LIBRARY}"
     INTERFACE_INCLUDE_DIRECTORIES "${XTB_INCLUDE_DIR}"
-    INTERFACE_LINK_LIBRARIES "${XTB_LIBRARIES}")
+    INTERFACE_LINK_LIBRARIES "${_XTB_EXTRA_LIBS}")
 endif()
 
 mark_as_advanced(
