@@ -5,10 +5,10 @@
 # of the same name) if pkg-config fails.  The following variables are
 # defined:
 #
-#  XTB_FOUND        - True if xTB was found
-#  XTB_INCLUDE_DIRS - Include directories for xTB
-#  XTB_LIBRARIES    - Libraries to link against
-#  XTB_LIBRARY_DIRS - Library directories
+#  XTB_FOUND         - True if xTB was found
+#  XTB_INCLUDE_DIRS  - Include directories for xTB
+#  XTB_LIBRARIES     - Libraries to link against (always includes libxtb)
+#  XTB_LIBRARY_DIRS  - Library directories
 #
 # Usage: find_package(XTB REQUIRED)
 
@@ -42,7 +42,7 @@ find_path(XTB_INCLUDE_DIR NAMES xtb.h
   HINTS ${_XTB_HINTS}
   PATH_SUFFIXES include)
 
-find_library(XTB_LIBRARY NAMES xtb
+find_library(XTB_CORE_LIBRARY NAMES xtb
   HINTS ${_XTB_HINTS}
   PATH_SUFFIXES lib lib64)
 
@@ -56,33 +56,32 @@ find_library(XTB_BLAS_LIBRARY
   HINTS ${_XTB_HINTS}
   PATH_SUFFIXES lib lib64)
 
-if(XTB_LIBRARY)
-  get_filename_component(XTB_LIBRARY_DIR "${XTB_LIBRARY}" DIRECTORY)
+if(XTB_CORE_LIBRARY)
+  get_filename_component(XTB_LIBRARY_DIR "${XTB_CORE_LIBRARY}" DIRECTORY)
 endif()
 
-set(XTB_LIBRARIES ${XTB_LIBRARY})
-if(XTB_LAPACK_LIBRARY)
-  list(APPEND XTB_LIBRARIES ${XTB_LAPACK_LIBRARY})
-endif()
-if(XTB_BLAS_LIBRARY)
-  list(APPEND XTB_LIBRARIES ${XTB_BLAS_LIBRARY})
-endif()
+set(XTB_LIBRARIES ${XTB_CORE_LIBRARY})
+foreach(_lib IN LISTS XTB_LAPACK_LIBRARY XTB_BLAS_LIBRARY)
+  if(_lib)
+    list(APPEND XTB_LIBRARIES ${_lib})
+  endif()
+endforeach()
 
 set(XTB_INCLUDE_DIRS ${XTB_INCLUDE_DIR})
 set(XTB_LIBRARY_DIRS ${XTB_LIBRARY_DIR})
 
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(XTB DEFAULT_MSG
-  XTB_LIBRARY XTB_INCLUDE_DIR XTB_LAPACK_LIBRARY XTB_BLAS_LIBRARY)
+  XTB_CORE_LIBRARY XTB_INCLUDE_DIR)
 
 if(XTB_FOUND AND NOT TARGET XTB::xtb)
   add_library(XTB::xtb UNKNOWN IMPORTED)
   set_target_properties(XTB::xtb PROPERTIES
-    IMPORTED_LOCATION "${XTB_LIBRARY}"
+    IMPORTED_LOCATION "${XTB_CORE_LIBRARY}"
     INTERFACE_INCLUDE_DIRECTORIES "${XTB_INCLUDE_DIR}"
-    INTERFACE_LINK_LIBRARIES "${XTB_LAPACK_LIBRARY};${XTB_BLAS_LIBRARY}")
+    INTERFACE_LINK_LIBRARIES "${XTB_LIBRARIES}")
 endif()
 
 mark_as_advanced(
-  XTB_INCLUDE_DIR XTB_LIBRARY XTB_LAPACK_LIBRARY XTB_BLAS_LIBRARY
+  XTB_INCLUDE_DIR XTB_CORE_LIBRARY XTB_LAPACK_LIBRARY XTB_BLAS_LIBRARY
   XTB_LIBRARY_DIR XTB_DIR)
