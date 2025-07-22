@@ -26,6 +26,7 @@
 #include "config.h"
 
 #include <QtTest>
+#include <QFile>
 #include <avogadro/moleculefile.h>
 #include <avogadro/molecule.h>
 #include <avogadro/atom.h>
@@ -221,14 +222,14 @@ void MoleculeFileTest::readWriteConformers()
 void MoleculeFileTest::replaceMolecule()
 {
   QString filename = "moleculefiletest_tmp.smi";
-  const QByteArray fname = filename.toLatin1();
+  const QByteArray fname = QFile::encodeName(filename);
 
   {
     std::ofstream ofs(fname.constData(),
-                      std::ios::binary | std::ios::trunc);
-    ofs << "c1ccccc1\tphenyl\n"
-        << "c1ccccc1N\taniline\n"
-        << "Cc1ccccc1\ttoluene\n";
+                      std::ios::out | std::ios::binary | std::ios::trunc);
+    ofs << "c1ccccc1 phenyl\n"
+        << "c1ccccc1N aniline\n"
+        << "Cc1ccccc1 toluene\n";
   }
 
   std::unique_ptr<MoleculeFile> moleculeFile{
@@ -293,14 +294,14 @@ void MoleculeFileTest::replaceMolecule()
 void MoleculeFileTest::appendMolecule()
 {
   QString filename = "moleculefiletest_tmp.smi";
-  const QByteArray fname = filename.toLatin1();
+  const QByteArray fname = QFile::encodeName(filename);
 
   {
     std::ofstream ofs(fname.constData(),
-                      std::ios::binary | std::ios::trunc);
-    ofs << "c1ccccc1\tphenyl\n"
-        << "c1ccccc1N\taniline\n"
-        << "Cc1ccccc1\ttoluene\n";
+                      std::ios::out | std::ios::binary | std::ios::trunc);
+    ofs << "c1ccccc1 phenyl\n"
+        << "c1ccccc1N aniline\n"
+        << "Cc1ccccc1 toluene\n";
   }
 
   std::unique_ptr<MoleculeFile> moleculeFile{
