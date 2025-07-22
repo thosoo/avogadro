@@ -772,11 +772,22 @@ protected:
     return d->glWidget->quickRender();
   }
 
+  bool MainWindow::vboEnabled() const
+  {
+    return d->glWidget->vboEnabled();
+  }
+
   void MainWindow::setQuickRender(bool quick)
   {
     ui.actionQuickRender->setChecked(quick);
     if (d->glWidget && d->glWidget->quickRender() != quick)
       d->glWidget->setQuickRender(quick);
+  }
+
+  void MainWindow::setVboEnabled(bool enable)
+  {
+    if (d->glWidget)
+      d->glWidget->setVboEnabled(enable);
   }
 
   void MainWindow::showAllMolecules(bool)

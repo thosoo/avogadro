@@ -130,6 +130,7 @@ jobs:
             "-DENABLE_TESTS=$env:ENABLE_TESTS" `
             -DCMAKE_INSTALL_PREFIX="$dist" `
             -DENABLE_AVO_PACKAGE=ON `
+            -DAVOGADRO_NO_DISPLAY_LISTS=ON `
             -DENABLE_GLSL=ON `
             "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR" `
             "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY" `
@@ -140,6 +141,14 @@ jobs:
         shell: pwsh
         run: |
           cmake --build build --config Release --target install
+      - name: Export Open Babel paths
+        if: matrix.target == 'tests'
+        shell: pwsh
+        run: |
+          $hdr = Get-Content "$PWD\build\openbabel-install\include\openbabel3\openbabel\babelconfig.h"
+          $ver = ($hdr | Select-String 'BABEL_VERSION' | ForEach-Object { ($_ -split '"')[1] })
+          "BABEL_DATADIR=$PWD\build\openbabel-install\share\openbabel\$ver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "BABEL_LIBDIR=$PWD\build\openbabel-install\lib\openbabel\$ver" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Create installer
         if: matrix.target == 'installer'
         shell: pwsh
@@ -148,6 +157,9 @@ jobs:
       - name: Test
         if: matrix.target == 'tests'
         shell: pwsh
+        env:
+          BABEL_DATADIR: ${{ env.BABEL_DATADIR }}
+          BABEL_LIBDIR: ${{ env.BABEL_LIBDIR }}
         run: |
           $env:PATH = "$PWD\build\openbabel-install\bin;$env:PATH"
           ctest --test-dir build -C Release --output-on-failure

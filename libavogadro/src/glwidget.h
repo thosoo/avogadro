@@ -33,7 +33,7 @@
 
 #include <Eigen/Core>
 
-#ifdef ENABLE_GLSL
+#if defined(ENABLE_GLSL) || defined(AVO_NO_DISPLAY_LISTS)
   #include <GL/glew.h>
 #endif
 
@@ -132,6 +132,16 @@ namespace Avogadro {
        * @return True if quick rendering is being used.
        */
       bool quickRender() const;
+
+      /**
+       * Enable or disable VBO rendering.
+       */
+      void setVboEnabled(bool enable);
+
+      /**
+       * @return true if VBO rendering is enabled.
+       */
+      bool vboEnabled() const;
 
       /**
       * @param enabled True if we should render the unit cell axes

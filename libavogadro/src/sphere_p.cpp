@@ -22,9 +22,11 @@
   02110-1301, USA.
  **********************************************************************/
 
+#include "config.h"
 #include "sphere_p.h"
+#include "glpainter_p.h"
 
-#ifdef ENABLE_GLSL
+#if defined(ENABLE_GLSL) || defined(AVO_NO_DISPLAY_LISTS)
   #include <GL/glew.h>
 #endif
 
@@ -65,8 +67,10 @@ namespace Avogadro {
   Sphere::~Sphere()
   {
     freeBuffers();
-    if( d->displayList )
-      glDeleteLists( d->displayList, 1 );
+    if (d->displayList) {
+      glDeleteLists(d->displayList, 1);
+      d->displayList = 0;
+    }
     delete d;
   }
 
@@ -96,6 +100,11 @@ namespace Avogadro {
   void Sphere::initialize()
   {
     if( d->detail < 0 ) return;
+
+    if (GLPainter::globalVboEnabled()) {
+      d->isValid = true;
+      return;
+    }
 
     // deallocate any previously allocated buffer
     freeBuffers();

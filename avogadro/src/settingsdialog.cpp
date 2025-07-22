@@ -87,6 +87,7 @@ namespace Avogadro {
   {
     m_mainWindow->setPainterQuality(ui.qualitySlider->value());
     m_mainWindow->setFogLevel(ui.fogSlider->value());
+    m_mainWindow->setVboEnabled(ui.vboCheckBox->isChecked());
   }
 
   void SettingsDialog::loadValues()
@@ -94,6 +95,7 @@ namespace Avogadro {
     ui.qualitySlider->setValue(m_mainWindow->painterQuality());
     fogChanged(m_mainWindow->fogLevel());
     qualityChanged(m_mainWindow->painterQuality());
+    ui.vboCheckBox->setChecked(m_mainWindow->vboEnabled());
   }
 
   void SettingsDialog::qualityChanged(int value)
