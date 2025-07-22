@@ -35,8 +35,8 @@ Name "Avogadro"
 ; Executable is installed in the 'bin' directory.
 ; Pointing shortcuts here ensures the bundled avogadro.dll is loaded,
 ; avoiding the "Prozedureinsprungspunkt" runtime error.
-!define PRODUCT_EXE "$INSTDIR\bin\Avogadro.exe"
-!define PRODUCT_EXE2 "Avogadro.exe"
+!define PRODUCT_EXE "$INSTDIR\bin\Avogadro-ob.bat"
+!define PRODUCT_EXE2 "Avogadro-ob.bat"
 !define PRODUCT_REGNAME "Avogadro.Document"
 !define PRODUCT_EXT ".cml"
 !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\$(^Name)"

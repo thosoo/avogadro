@@ -45,84 +45,52 @@ def main():
         if not ob_version:
             header = ob / "include" / "openbabel3" / "openbabel" / "babelconfig.h"
             if header.exists():
-                m = re.search(r"BABEL_VERSION\s+\"([^\"]+)\"", header.read_text())
+                txt = header.read_text()
+                m = re.search(r"BABEL_VERSION\s+\"([^\"]+)\"", txt)
+                if not m:
+                    m = re.search(r"OB_VERSION\s+\"([^\"]+)\"", txt)
                 if m:
                     ob_version = m.group(1)
+                else:
+                    raise RuntimeError("Failed to parse Open Babel version from babelconfig.h")
+            else:
+                raise RuntimeError(f"Missing {header}")
         if not ob_version:
-            ver_header = ob_build / "include" / "openbabel3" / "openbabel" / "openbabel_version.h"
-            if ver_header.exists():
-                txt = ver_header.read_text()
-                maj = re.search(r"OPENBABEL_VERSION_MAJOR\s+(\d+)", txt)
-                min_ = re.search(r"OPENBABEL_VERSION_MINOR\s+(\d+)", txt)
-                pat = re.search(r"OPENBABEL_VERSION_PATCH\s+(\d+)", txt)
-                if maj and min_ and pat:
-                    ob_version = f"{maj.group(1)}.{min_.group(1)}.{pat.group(1)}"
-        if not ob_version:
-            share_dir = ob / "share" / "openbabel"
-            if share_dir.exists():
-                for sub in share_dir.iterdir():
-                    if sub.is_dir() and sub.name[0].isdigit():
-                        ob_version = sub.name
-                        break
-        if not ob_version:
-            exe = None
-            for cand in (ob / "bin" / "obabel.exe", ob / "bin" / "babel.exe", ob / "bin" / "obabel", ob / "bin" / "babel"):
-                if cand.exists():
-                    exe = cand
-                    break
-            if exe:
-                try:
-                    out = subprocess.check_output([str(exe), "--version"], text=True)
-                    m = re.search(r"Open Babel\s+(\d+\.\d+\.\d+)", out)
-                    if m:
-                        ob_version = m.group(1)
-                except Exception:
-                    pass
-        if not ob_version:
-            ob_version = "2"
+            raise RuntimeError("Unable to determine Open Babel version")
 
         dest_plugins = dist / "lib" / "openbabel" / ob_version
-        dest_plugins.mkdir(parents=True, exist_ok=True)
+        if (ob / "lib" / "openbabel" / ob_version).exists():
+            shutil.copytree(ob / "lib" / "openbabel" / ob_version, dest_plugins, dirs_exist_ok=True)
 
         for f in ob.glob("bin/*"):
             if f.suffix.lower() in (".dll", ".exe", ".obf"):
+                if f.name.lower().startswith("openbabel-3") and f.suffix.lower() == ".dll":
+                    continue
                 copy(f, dist / "bin")
-                # ensure core DLL is available beside plugins for dependency lookup
-                if f.name.lower().startswith("openbabel") and f.suffix.lower() == ".dll":
-                    copy(f, dest_plugins)
 
-        for plugins in [ob / "lib" / "openbabel", ob / "bin" / "openbabel"]:
+        for plugins in [ob / "bin" / "openbabel"]:
             if plugins.exists():
-                log(f"Copying plugins from {plugins} to {dest_plugins}")
                 shutil.copytree(plugins, dest_plugins, dirs_exist_ok=True)
 
-        for dll in ob.glob("bin/plugin_*.dll"):
-            copy(dll, dest_plugins)
-        for obf in ob.glob("bin/plugin_*.obf"):
-            copy(obf, dest_plugins)
+        stray = dist / "bin" / "openbabel-3.dll"
+        if stray.exists():
+            stray.unlink()
+
+        env_bat = dist / "bin" / "Avogadro-ob.bat"
+        env_bat.write_text(
+            "@echo off\n"
+            f"set \"BABEL_LIBDIR=%~dp0..\\lib\\openbabel\\{ob_version}\"\n"
+            f"set \"BABEL_DATADIR=%~dp0..\\share\\openbabel\\{ob_version}\"\n"
+            "start \"\" \"%~dp0Avogadro.exe\" %*\n"
+        )
 
         share = ob / "share" / "openbabel" / ob_version
-        alt_share = ob / "bin" / "data"
         build_share = ob_build / "share" / "openbabel" / ob_version
         if not share.exists() and build_share.exists():
             share = build_share
-        if not share.exists() and alt_share.exists():
-            share = alt_share
         if share.exists():
             dest = dist / "share" / "openbabel" / ob_version
-            if not dest.exists():
-                log(f"Copying OpenBabel data from {share} to {dest}")
-                shutil.copytree(share, dest, dirs_exist_ok=True)
-            patterns = ["*.txt", "*.par", "*.prm", "*.ff", "*.dat"]
-            for pat in patterns:
-                for f in share.glob(pat):
-                    if f.is_file():
-                        copy(f, dist / "bin")
-        if alt_share.exists():
-            for pat in ["*.txt", "*.par", "*.prm", "*.ff", "*.dat"]:
-                for f in alt_share.glob(pat):
-                    if f.is_file():
-                        copy(f, dist / "bin")
+            shutil.copytree(share, dest, dirs_exist_ok=True)
 
 
     libxml = os.environ.get("LIBXML2_LIBRARY")
