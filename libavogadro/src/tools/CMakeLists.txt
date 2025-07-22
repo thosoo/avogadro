@@ -69,6 +69,19 @@ endif()
 if(ENABLE_XTB_OPTTOOL)
   avogadro_plugin(xtbopttool xtbopttool.cpp xtbopttool.qrc)
   target_link_libraries(xtbopttool ${LINK_LIBS})
+  if(TARGET xtbopttool AND WIN32)
+    find_library(MKL_LIB
+      NAMES mkl_rt
+      PATHS ENV MKLROOT
+      PATH_SUFFIXES lib/intel64
+      REQUIRED)
+    find_library(OMP_LIB
+      NAMES libiomp5md
+      PATHS ENV ONEAPI_ROOT
+      PATH_SUFFIXES compiler/lib/intel64_win
+      REQUIRED)
+    target_link_libraries(xtbopttool PRIVATE ${MKL_LIB} ${OMP_LIB})
+  endif()
 endif()
 
 ### navigatetool
