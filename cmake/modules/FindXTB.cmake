@@ -46,27 +46,17 @@ find_library(XTB_CORE_LIBRARY NAMES xtb
   HINTS ${_XTB_HINTS}
   PATH_SUFFIXES lib lib64)
 
-find_library(XTB_LAPACK_LIBRARY
-  NAMES liblapack lapack openblas libopenblas
-  HINTS ${_XTB_HINTS}
-  PATH_SUFFIXES lib lib64)
+find_library(MKL_RT_LIBRARY
+  NAMES mkl_rt
+  HINTS "$ENV{ONEAPI_ROOT}/mkl/latest/lib/intel64"
+        "$ENV{MKLROOT}/lib/intel64"
+        "${XTB_DIR}/lib"
+  NO_DEFAULT_PATH)
 
-find_library(XTB_BLAS_LIBRARY
-  NAMES libblas blas openblas libopenblas
-  HINTS ${_XTB_HINTS}
-  PATH_SUFFIXES lib lib64)
-
-if(NOT XTB_LAPACK_LIBRARY AND XTB_DIR)
-  file(GLOB _lapack_candidates
-    "${XTB_DIR}/lib/*lapack*.lib" "${XTB_DIR}/lib/*openblas*.lib")
-  list(GET _lapack_candidates 0 XTB_LAPACK_LIBRARY)
-endif()
-
-if(NOT XTB_BLAS_LIBRARY AND XTB_DIR)
-  file(GLOB _blas_candidates
-    "${XTB_DIR}/lib/*blas*.lib" "${XTB_DIR}/lib/*openblas*.lib")
-  list(GET _blas_candidates 0 XTB_BLAS_LIBRARY)
-endif()
+find_library(MKL_OMP_LIBRARY
+  NAMES libiomp5md iomp5md
+  HINTS "$ENV{ONEAPI_ROOT}/compiler/latest/windows/redist/intel64_win/compiler"
+  NO_DEFAULT_PATH)
 
 if(XTB_CORE_LIBRARY)
   get_filename_component(XTB_LIBRARY_DIR "${XTB_CORE_LIBRARY}" DIRECTORY)
@@ -74,12 +64,14 @@ endif()
 
 set(XTB_LIBRARIES ${XTB_CORE_LIBRARY})
 set(_XTB_EXTRA_LIBS "")
-foreach(_lib IN LISTS XTB_LAPACK_LIBRARY XTB_BLAS_LIBRARY)
-  if(_lib)
-    list(APPEND XTB_LIBRARIES ${_lib})
-    list(APPEND _XTB_EXTRA_LIBS ${_lib})
-  endif()
-endforeach()
+if(MKL_RT_LIBRARY)
+  list(APPEND XTB_LIBRARIES ${MKL_RT_LIBRARY} ${MKL_OMP_LIBRARY})
+  list(APPEND _XTB_EXTRA_LIBS ${MKL_RT_LIBRARY} ${MKL_OMP_LIBRARY})
+endif()
+
+if(XTB_INCLUDE_DIR AND XTB_CORE_LIBRARY)
+  set(XTB_FOUND TRUE)
+endif()
 
 set(XTB_INCLUDE_DIRS ${XTB_INCLUDE_DIR})
 set(XTB_LIBRARY_DIRS ${XTB_LIBRARY_DIR})
@@ -97,5 +89,4 @@ if(XTB_FOUND AND NOT TARGET XTB::xtb)
 endif()
 
 mark_as_advanced(
-  XTB_INCLUDE_DIR XTB_CORE_LIBRARY XTB_LAPACK_LIBRARY XTB_BLAS_LIBRARY
-  XTB_LIBRARY_DIR XTB_DIR)
+  XTB_INCLUDE_DIR XTB_CORE_LIBRARY XTB_LIBRARY_DIR XTB_DIR)
