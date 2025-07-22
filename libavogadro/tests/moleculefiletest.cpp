@@ -220,12 +220,10 @@ void MoleculeFileTest::readWriteConformers()
 void MoleculeFileTest::replaceMolecule()
 {
   QString filename = "moleculefiletest_tmp.smi";
-  std::ofstream ofs(filename.toLatin1().data());
-  ofs << "c1ccccc1  phenyl" << std::endl;
-  ofs << "c1ccccc1N  aniline" << std::endl;
-  // Use the more standard SMILES form with the methyl group first to avoid
-  // Open Babel's kekulization warnings.
-  ofs << "Cc1ccccc1  toluene" << std::endl;
+  std::ofstream ofs(filename.toLatin1().data(), std::ios::binary);
+  ofs << "c1ccccc1  phenyl\n"
+      << "c1ccccc1N  aniline\n"
+      << "Cc1ccccc1  toluene\n"; // standard order avoids kekulization warnings
   ofs.close();
 
   MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
