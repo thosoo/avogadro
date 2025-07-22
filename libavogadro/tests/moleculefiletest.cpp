@@ -34,6 +34,7 @@
 #include <openbabel/obconversion.h>
 
 #include <Eigen/Core>
+#include <memory>
 
 using OpenBabel::OBMol;
 using OpenBabel::OBConversion;
@@ -220,13 +221,18 @@ void MoleculeFileTest::readWriteConformers()
 void MoleculeFileTest::replaceMolecule()
 {
   QString filename = "moleculefiletest_tmp.smi";
-  std::ofstream ofs(filename.toLatin1().data(), std::ios::binary);
-  ofs << "c1ccccc1  phenyl\n"
-      << "c1ccccc1N  aniline\n"
-      << "Cc1ccccc1  toluene\n"; // standard order avoids kekulization warnings
-  ofs.close();
+  const QByteArray fname = filename.toLatin1();
 
-  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
+  {
+    std::ofstream ofs(fname.constData(),
+                      std::ios::binary | std::ios::trunc);
+    ofs << "c1ccccc1\tphenyl\n"
+        << "c1ccccc1N\taniline\n"
+        << "Cc1ccccc1\ttoluene\n";
+  }
+
+  std::unique_ptr<MoleculeFile> moleculeFile{
+      MoleculeFile::readFile(fname.constData())};
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), false );
@@ -287,13 +293,18 @@ void MoleculeFileTest::replaceMolecule()
 void MoleculeFileTest::appendMolecule()
 {
   QString filename = "moleculefiletest_tmp.smi";
-  std::ofstream ofs(filename.toLatin1().data(), std::ios::binary);
-  ofs << "c1ccccc1  phenyl\n"
-      << "c1ccccc1N  aniline\n"
-      << "Cc1ccccc1  toluene\n"; // standard order avoids kekulization warnings
-  ofs.close();
+  const QByteArray fname = filename.toLatin1();
 
-  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
+  {
+    std::ofstream ofs(fname.constData(),
+                      std::ios::binary | std::ios::trunc);
+    ofs << "c1ccccc1\tphenyl\n"
+        << "c1ccccc1N\taniline\n"
+        << "Cc1ccccc1\ttoluene\n";
+  }
+
+  std::unique_ptr<MoleculeFile> moleculeFile{
+      MoleculeFile::readFile(fname.constData())};
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), false );
