@@ -34,6 +34,7 @@ def main():
 
     ob_dir_env = os.environ.get("OPENBABEL_INSTALL_DIR")
     ob_dir = Path(ob_dir_env) if ob_dir_env else build_dir / "openbabel-install"
+    ob_build = build_dir / "openbabel_ext-prefix" / "src" / "openbabel_ext-build"
     ob_bindir = os.environ.get("OPENBABEL_BINDIR")
     if ob_bindir and ob_dir is None:
         ob_dir = Path(ob_bindir).parent
@@ -47,6 +48,15 @@ def main():
                 m = re.search(r"BABEL_VERSION\s+\"([^\"]+)\"", header.read_text())
                 if m:
                     ob_version = m.group(1)
+        if not ob_version:
+            ver_header = ob_build / "include" / "openbabel3" / "openbabel" / "openbabel_version.h"
+            if ver_header.exists():
+                txt = ver_header.read_text()
+                maj = re.search(r"OPENBABEL_VERSION_MAJOR\s+(\d+)", txt)
+                min_ = re.search(r"OPENBABEL_VERSION_MINOR\s+(\d+)", txt)
+                pat = re.search(r"OPENBABEL_VERSION_PATCH\s+(\d+)", txt)
+                if maj and min_ and pat:
+                    ob_version = f"{maj.group(1)}.{min_.group(1)}.{pat.group(1)}"
         if not ob_version:
             share_dir = ob / "share" / "openbabel"
             if share_dir.exists():
@@ -93,12 +103,16 @@ def main():
 
         share = ob / "share" / "openbabel" / ob_version
         alt_share = ob / "bin" / "data"
+        build_share = ob_build / "share" / "openbabel" / ob_version
+        if not share.exists() and build_share.exists():
+            share = build_share
         if not share.exists() and alt_share.exists():
             share = alt_share
         if share.exists():
             dest = dist / "share" / "openbabel" / ob_version
-            log(f"Copying OpenBabel data from {share} to {dest}")
-            shutil.copytree(share, dest, dirs_exist_ok=True)
+            if not dest.exists():
+                log(f"Copying OpenBabel data from {share} to {dest}")
+                shutil.copytree(share, dest, dirs_exist_ok=True)
             patterns = ["*.txt", "*.par", "*.prm", "*.ff", "*.dat"]
             for pat in patterns:
                 for f in share.glob(pat):
