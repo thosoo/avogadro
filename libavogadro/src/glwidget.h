@@ -719,6 +719,7 @@ namespace Avogadro {
       void loadEngines(QSettings &settings);
 
       bool              m_glslEnabled;
+      bool              m_useVBOs{false};
       Tool*             m_navigateTool; /// NavigateTool is a super tool
 
     public Q_SLOTS:

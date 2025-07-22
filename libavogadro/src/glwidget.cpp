@@ -41,6 +41,10 @@
 #include <QtWidgets/QUndoStack>
 #include <QtWidgets/QLabel>
 
+#if defined(ENABLE_GLSL) || defined(AVO_NO_DISPLAY_LISTS)
+  #include <GL/glew.h>
+#endif
+
 #ifdef Q_WS_MAC
 # include <OpenGL/glu.h>
 #else
@@ -79,10 +83,6 @@
 #endif
 
 #include <Eigen/Geometry>
-
-#if defined(ENABLE_GLSL) || defined(AVO_NO_DISPLAY_LISTS)
-  #include <GL/glew.h>
-#endif
 
 #include <cstdio>
 #include <vector>
@@ -378,14 +378,14 @@ namespace Avogadro {
 #endif
 
   GLWidget::GLWidget( QWidget *parent )
-    : QGLWidget( parent ), d( new GLWidgetPrivate )
+    : QGLWidget( parent ), d( new GLWidgetPrivate ), m_useVBOs(false)
   {
     constructor();
   }
 
   GLWidget::GLWidget( const QGLFormat &format, QWidget *parent,
                       const GLWidget *shareWidget )
-    : QGLWidget( format, parent, shareWidget ), d( new GLWidgetPrivate )
+    : QGLWidget( format, parent, shareWidget ), d( new GLWidgetPrivate ), m_useVBOs(false)
   {
     constructor(shareWidget);
   }
@@ -393,7 +393,7 @@ namespace Avogadro {
   GLWidget::GLWidget( Molecule *molecule,
                       const QGLFormat &format, QWidget *parent,
                       const GLWidget *shareWidget )
-    : QGLWidget( format, parent, shareWidget ), d( new GLWidgetPrivate )
+    : QGLWidget( format, parent, shareWidget ), d( new GLWidgetPrivate ), m_useVBOs(false)
   {
     constructor(shareWidget);
     setMolecule( molecule );
@@ -716,8 +716,10 @@ namespace Avogadro {
 
   void GLWidget::setUseVBOs(bool enable)
   {
+    m_useVBOs = enable;
     d->painter->setUseVBOs(enable);
     invalidateDLs();
+    updateGL();
   }
 
   int GLWidget::fogLevel() const
@@ -727,7 +729,7 @@ namespace Avogadro {
 
   bool GLWidget::useVBOs() const
   {
-    return d->painter->useVBOs();
+    return m_useVBOs;
   }
 
   void GLWidget::setRenderAxes(bool renderAxes)
@@ -2706,7 +2708,7 @@ namespace Avogadro {
     settings.setValue("background", d->background);
     settings.setValue("quality", d->painter->quality());
     settings.setValue("fogLevel", d->fogLevel);
-    settings.setValue("useVBOs", d->painter->useVBOs());
+    settings.setValue("useVBOs", m_useVBOs);
     settings.setValue("renderAxes", d->renderAxes);
     settings.setValue("renderDebug", d->renderDebug);
     settings.setValue("renderModelViewDebug", d->renderModelViewDebug);
@@ -2730,7 +2732,7 @@ namespace Avogadro {
     // Make sure to provide some default values for any settings.value("", DEFAULT) call
     setQuality(settings.value("quality", 2).toInt());
     setFogLevel(settings.value("fogLevel", 0).toInt());
-    setUseVBOs(settings.value("useVBOs", d->painter->useVBOs()).toBool());
+    setUseVBOs(settings.value("useVBOs", m_useVBOs).toBool());
     d->background = settings.value("background", QColor(0,0,0,0)).value<QColor>();
     d->renderAxes = settings.value("renderAxes", 1).value<bool>();
     d->renderDebug = settings.value("renderDebug", 0).value<bool>();

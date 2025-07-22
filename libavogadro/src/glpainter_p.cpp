@@ -470,9 +470,11 @@ static void buildCylinderMesh(int faces, VBOHandle &handle)
 
     d->color.applyAsMaterials();
     pushName();
+#ifdef AVO_NO_DISPLAY_LISTS
     if (d->useVBOs)
       drawSphereVBO(center, radius, detailLevel);
     else
+#endif
       d->spheres[detailLevel]->draw(center, radius);
     popName();
   }
@@ -500,9 +502,11 @@ static void buildCylinderMesh(int faces, VBOHandle &handle)
 
     d->color.applyAsMaterials();
     pushName();
+#ifdef AVO_NO_DISPLAY_LISTS
     if (d->useVBOs)
       drawCylinderVBO(end1, end2, radius, detailLevel);
     else
+#endif
       d->cylinders[detailLevel]->draw(end1, end2, radius);
     popName();
   }
@@ -530,6 +534,7 @@ static void buildCylinderMesh(int faces, VBOHandle &handle)
 
     d->color.applyAsMaterials();
     pushName();
+#ifdef AVO_NO_DISPLAY_LISTS
     if (d->useVBOs) {
       Eigen::Vector3d axis = (end2 - end1).normalized();
       Eigen::Vector3d offset = axis.cross(d->widget->normalVector());
@@ -543,9 +548,12 @@ static void buildCylinderMesh(int faces, VBOHandle &handle)
         drawCylinderVBO(end1 + disp, end2 + disp, radius, detailLevel);
       }
     } else {
+#endif
       d->cylinders[detailLevel]->drawMulti(end1, end2, radius, order,
                                            shift, d->widget->normalVector());
+#ifdef AVO_NO_DISPLAY_LISTS
     }
+#endif
     popName();
   }
 
