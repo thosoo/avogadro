@@ -80,7 +80,7 @@ if(ENABLE_XTB_OPTTOOL)
       PATHS ENV ONEAPI_ROOT
       PATH_SUFFIXES compiler/lib/intel64_win
       REQUIRED)
-    target_link_libraries(xtbopttool PRIVATE ${MKL_LIB} ${OMP_LIB})
+    target_link_libraries(xtbopttool ${MKL_LIB} ${OMP_LIB})
   endif()
 endif()
 
