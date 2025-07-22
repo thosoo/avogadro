@@ -150,10 +150,13 @@ jobs:
         shell: pwsh
         env:
           OB_DIR: ${{ github.workspace }}\build\openbabel-install
-          BABEL_LIBDIR: ${{ github.workspace }}\build\openbabel-install\bin\openbabel\3
-          OPENBABEL_PLUGIN_PATH: ${{ github.workspace }}\build\openbabel-install\bin\openbabel\3
-          BABEL_DATADIR: ${{ github.workspace }}\build\openbabel-install\bin\data
-          PATH: ${{ github.workspace }}\build\openbabel-install\bin;${{ env.PATH }}
+          # Base directory where Open Babel installs its libraries
+          BABEL_LIBDIR: ${{ env.OB_DIR }}\bin
+          # Explicit plugin directory for clarity
+          OPENBABEL_PLUGIN_PATH: ${{ env.BABEL_LIBDIR }}\openbabel\3
+          # Data files are installed under share/openbabel
+          BABEL_DATADIR: ${{ env.OB_DIR }}\share\openbabel
+          PATH: ${{ env.OB_DIR }}\bin;${{ env.PATH }}
         run: |
           ctest --test-dir build -C Release --output-on-failure
       - name: Upload installer
