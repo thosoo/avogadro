@@ -287,7 +287,7 @@ void MoleculeFileTest::replaceMolecule()
   delete phenyl;
  
 
-  delete moleculeFile;
+
 }
 
 void MoleculeFileTest::appendMolecule()
