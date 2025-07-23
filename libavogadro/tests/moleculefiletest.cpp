@@ -288,20 +288,23 @@ void MoleculeFileTest::replaceMolecule()
 
 void MoleculeFileTest::appendMolecule()
 {
-  QString filename = "moleculefiletest_tmp.smi";
-  std::ofstream ofs(filename.toLatin1().data());
-  ofs << "c1ccccc1  phenyl" << std::endl;
-  ofs << "c1ccccc1N  aniline" << std::endl;
-  // Use the standard SMILES with the substituent before the ring to avoid
-  // Open Babel kekulization warnings.
-  ofs << "Cc1ccccc1  toluene" << std::endl;
-  ofs.close();
+  const QString filename = QStringLiteral("moleculefiletest_tmp.smi");
+  const QByteArray fname = QFile::encodeName(filename);
 
-  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
-  QVERIFY( moleculeFile );
-  QVERIFY( moleculeFile->errors().isEmpty() );
-  QCOMPARE( moleculeFile->isConformerFile(), false );
-  QCOMPARE( moleculeFile->numMolecules(), static_cast<unsigned int>(3) );
+  {
+    std::ofstream out(fname.constData(),
+                      std::ios::out | std::ios::binary | std::ios::trunc);
+    out << "c1ccccc1  phenyl\n"
+        << "c1ccccc1N  aniline\n"
+        << "Cc1ccccc1  toluene\n";
+  }
+
+  std::unique_ptr<MoleculeFile> moleculeFile{
+      MoleculeFile::readFile(fname.constData())};
+  QVERIFY2(moleculeFile.get(), "readFile() returned nullptr");
+  QVERIFY(moleculeFile->errors().isEmpty());
+  QCOMPARE(moleculeFile->isConformerFile(), false);
+  QCOMPARE(moleculeFile->numMolecules(), 3u);
 }
 
 QTEST_MAIN(MoleculeFileTest)
