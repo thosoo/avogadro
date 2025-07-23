@@ -81,11 +81,10 @@ namespace Avogadro {
     connect(m_thread, SIGNAL(setupFailed()),  this, SLOT(setupFailed()));
     connect(m_thread, SIGNAL(setupSucces()),  this, SLOT(setupSucces()));
 
+    OBPlugin::LoadAllPlugins();
     OBPlugin::ListAsVector("forcefields", "ids", m_forceFieldList);
-    if (m_forceFieldList.empty()) {
-      OBPlugin::LoadAllPlugins();
-      OBPlugin::ListAsVector("forcefields", "ids", m_forceFieldList);
-    }
+    if (m_forceFieldList.empty())
+      qWarning() << "No Open Babel force fields found";
     //action->setShortcut(Qt::Key_F10);
   }
 
