@@ -537,8 +537,9 @@ static void buildCylinderMesh(int faces, VBOHandle &handle)
       Eigen::Vector3d offset = axis.cross(d->widget->normalVector());
       if (offset.norm() < 0.001)
         offset = axis.unitOrthogonal();
-      offset.normalize();
-      double angleOffset = (order >= 3) ? (order==3 ? 90.0 : 22.5) : 0.0;
+      else
+        offset.normalize();
+      double angleOffset = (order >= 3) ? (order == 3 ? 90.0 : 22.5) : 0.0;
       for (int i = 0; i < order; ++i) {
         Eigen::AngleAxisd rot((angleOffset + 360.0 * i / order) * M_PI / 180.0, axis);
         Eigen::Vector3d disp = rot * offset * shift;
@@ -1381,8 +1382,8 @@ static void buildCylinderMesh(int faces, VBOHandle &handle)
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, h.ibo);
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
-    glVertexPointer(3, GL_FLOAT, 6*sizeof(float), (void*)0);
-    glNormalPointer(GL_FLOAT, 6*sizeof(float), (void*)(3*sizeof(float)));
+    glVertexPointer(3, GL_FLOAT, 6*sizeof(float), reinterpret_cast<void*>(0));
+    glNormalPointer(GL_FLOAT, 6*sizeof(float), reinterpret_cast<void*>(3*sizeof(float)));
     glDrawElements(GL_TRIANGLES, h.count, GL_UNSIGNED_INT, 0);
     glDisableClientState(GL_VERTEX_ARRAY);
     glDisableClientState(GL_NORMAL_ARRAY);
@@ -1415,8 +1416,8 @@ static void buildCylinderMesh(int faces, VBOHandle &handle)
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, h.ibo);
     glEnableClientState(GL_VERTEX_ARRAY);
     glEnableClientState(GL_NORMAL_ARRAY);
-    glVertexPointer(3, GL_FLOAT, 6*sizeof(float), (void*)0);
-    glNormalPointer(GL_FLOAT, 6*sizeof(float), (void*)(3*sizeof(float)));
+    glVertexPointer(3, GL_FLOAT, 6*sizeof(float), reinterpret_cast<void*>(0));
+    glNormalPointer(GL_FLOAT, 6*sizeof(float), reinterpret_cast<void*>(3*sizeof(float)));
     glDrawElements(GL_TRIANGLES, h.count, GL_UNSIGNED_INT, 0);
     glDisableClientState(GL_VERTEX_ARRAY);
     glDisableClientState(GL_NORMAL_ARRAY);
