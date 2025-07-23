@@ -224,19 +224,12 @@ void MoleculeFileTest::readWriteConformers()
 void MoleculeFileTest::replaceMolecule()
 {
   QString filename = "moleculefiletest_tmp.smi";
-  const QByteArray fname = QFile::encodeName(filename);
-
-  {
-    std::ofstream ofs(fname.constData(),
-                      std::ios::out | std::ios::binary | std::ios::trunc);
-    // Use a tab delimiter so Open Babel stops parsing the SMILES at the title
-    ofs << "c1ccccc1\tphenyl\n"
-        << "c1ccccc1N\taniline\n"
-        << "Cc1ccccc1\ttoluene\n";
-  }
-
-  std::unique_ptr<MoleculeFile> moleculeFile{
-      MoleculeFile::readFile(fname.constData())};
+  std::ofstream ofs(filename.toLatin1().data(), std::ios::binary);
+  ofs << "c1ccccc1  phenyl\n"
+      << "c1ccccc1N  aniline\n"
+      << "Cc1ccccc1  toluene\n";
+  ofs.close();
+  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), false );
@@ -297,19 +290,13 @@ void MoleculeFileTest::replaceMolecule()
 void MoleculeFileTest::appendMolecule()
 {
   QString filename = "moleculefiletest_tmp.smi";
-  const QByteArray fname = QFile::encodeName(filename);
+  std::ofstream ofs(filename.toLatin1().data(), std::ios::binary);
+  ofs << "c1ccccc1  phenyl\n"
+      << "c1ccccc1N  aniline\n"
+      << "Cc1ccccc1  toluene\n";
+  ofs.close();
 
-  {
-    std::ofstream ofs(fname.constData(),
-                      std::ios::out | std::ios::binary | std::ios::trunc);
-    // Use a tab delimiter so Open Babel stops parsing the SMILES at the title
-    ofs << "c1ccccc1\tphenyl\n"
-        << "c1ccccc1N\taniline\n"
-        << "Cc1ccccc1\ttoluene\n";
-  }
-
-  std::unique_ptr<MoleculeFile> moleculeFile{
-      MoleculeFile::readFile(fname.constData())};
+  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), false );
