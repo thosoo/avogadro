@@ -168,23 +168,27 @@ static void buildSphereMesh(int lod, VBOHandle &handle)
 
 static void buildCylinderMesh(int faces, VBOHandle &handle)
 {
-  int slices = faces;
+  const int slices = faces;
   std::vector<float> verts;
   std::vector<unsigned int> idx;
-  for(int i=0;i<=slices;i++) {
-    double theta = 2*M_PI*i/slices;
-    float x = cos(theta);
-    float y = sin(theta);
-    verts.push_back(x); verts.push_back(y); verts.push_back(0); // pos
-    verts.push_back(x); verts.push_back(y); verts.push_back(0); // normal
-    verts.push_back(x); verts.push_back(y); verts.push_back(1);
-    verts.push_back(x); verts.push_back(y); verts.push_back(0);
+  verts.reserve((slices + 1) * 12);
+  idx.reserve(slices * 6);
+  for (int i = 0; i <= slices; ++i) {
+    const double theta = 2 * M_PI * i / slices;
+    float nx = cos(theta);
+    float ny = sin(theta);
+    // bottom vertex
+    verts.push_back(nx); verts.push_back(ny); verts.push_back(0.f);
+    verts.push_back(nx); verts.push_back(ny); verts.push_back(0.f);
+    // top vertex
+    verts.push_back(nx); verts.push_back(ny); verts.push_back(1.f);
+    verts.push_back(nx); verts.push_back(ny); verts.push_back(0.f);
   }
-  for(int i=0;i<slices;i++) {
-    unsigned int a=2*i;
-    unsigned int b=2*i+1;
-    unsigned int c=2*(i+1);
-    unsigned int d=2*(i+1)+1;
+  for (int i = 0; i < slices; ++i) {
+    unsigned int a = 2 * i;
+    unsigned int b = a + 1;
+    unsigned int c = 2 * (i + 1);
+    unsigned int d = c + 1;
     idx.push_back(a); idx.push_back(b); idx.push_back(c);
     idx.push_back(b); idx.push_back(d); idx.push_back(c);
   }
