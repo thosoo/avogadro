@@ -543,11 +543,13 @@ static void buildCylinderMesh(int faces, VBOHandle &handle)
         offset = axis.unitOrthogonal();
       else
         offset.normalize();
+      Eigen::Vector3d xBase = offset * radius;
       double angleOffset = (order >= 3) ? (order == 3 ? 90.0 : 22.5) : 0.0;
       for (int i = 0; i < order; ++i) {
         Eigen::AngleAxisd rot((angleOffset + 360.0 * i / order) * M_PI / 180.0, axis);
         Eigen::Vector3d disp = rot * offset * shift;
-        drawCylinderVBO(end1 + disp, end2 + disp, radius, detailLevel);
+        Eigen::Vector3d x = rot * xBase;
+        drawCylinderVBO(end1 + disp, end2 + disp, radius, detailLevel, &x);
       }
     } else {
 #endif
@@ -1397,11 +1399,12 @@ static void buildCylinderMesh(int faces, VBOHandle &handle)
   }
 
   void GLPainter::drawCylinderVBO(const Eigen::Vector3d &a, const Eigen::Vector3d &b,
-                                  double r, int lod)
+                                  double r, int lod,
+                                  const Eigen::Vector3d *xDir)
   {
     VBOHandle &h = cylinderVBOs[lod];
     if (!h.init)
-      buildCylinderMesh(lod + 20, h);
+      buildCylinderMesh(PAINTER_CYLINDERS_LEVELS_ARRAY[d->quality][lod], h);
 
     Eigen::Vector3d axis = b - a;
     double len = axis.norm();
@@ -1409,7 +1412,11 @@ static void buildCylinderMesh(int faces, VBOHandle &handle)
       return;
 
     Eigen::Vector3d z = axis / len;
-    Eigen::Vector3d x = z.unitOrthogonal() * r;
+    Eigen::Vector3d x;
+    if (xDir)
+      x = *xDir;
+    else
+      x = z.unitOrthogonal() * r;
     Eigen::Vector3d y = z.cross(x);
 
     Eigen::Matrix4d m; m.setIdentity();

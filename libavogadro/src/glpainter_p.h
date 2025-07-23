@@ -139,7 +139,8 @@ namespace Avogadro
 #ifdef AVO_NO_DISPLAY_LISTS
     void drawSphereVBO(const Eigen::Vector3d &center, double radius, int lod);
     void drawCylinderVBO(const Eigen::Vector3d &end1, const Eigen::Vector3d &end2,
-                         double radius, int lod);
+                         double radius, int lod,
+                         const Eigen::Vector3d *xDir = 0);
 #endif
 
     /**
