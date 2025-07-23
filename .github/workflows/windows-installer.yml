@@ -148,13 +148,13 @@ jobs:
       - name: Test
         if: matrix.target == 'tests'
         shell: pwsh
-        env:
-          OB_DIR: ${{ github.workspace }}\build\openbabel-install
-          BABEL_LIBDIR: ${{ github.workspace }}\build\openbabel-install\bin
-          OPENBABEL_PLUGIN_PATH: ${{ github.workspace }}\build\openbabel-install\bin\openbabel\3
-          BABEL_DATADIR: ${{ github.workspace }}\build\openbabel-install\share\openbabel
-          PATH: ${{ github.workspace }}\build\openbabel-install\bin;${{ env.PATH }}
         run: |
+          $obDir = Join-Path $PWD 'build\openbabel-install'
+          $env:OB_DIR = $obDir
+          $env:BABEL_LIBDIR = Join-Path $obDir 'bin'
+          $env:OPENBABEL_PLUGIN_PATH = Join-Path $env:BABEL_LIBDIR 'openbabel\3'
+          $env:BABEL_DATADIR = Join-Path $obDir 'share\openbabel'
+          $env:PATH = "$env:BABEL_LIBDIR;$env:PATH"
           ctest --test-dir build -C Release --output-on-failure
       - name: Upload installer
         if: matrix.target == 'installer'

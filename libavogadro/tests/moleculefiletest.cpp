@@ -150,11 +150,12 @@ void MoleculeFileTest::readWriteMolecule()
 void MoleculeFileTest::readFile()
 {
   QString filename = "moleculefiletest_tmp.sdf";
+  const QByteArray fname = QFile::encodeName(filename);
 
   OpenBabel::OBMol mol = m_molecule->OBMol();
   OBConversion conv;
   conv.SetOutFormat("sdf");
-  std::ofstream ofs(filename.toLatin1().data());
+  std::ofstream ofs(fname.constData(), std::ios::out | std::ios::binary | std::ios::trunc);
   QVERIFY( ofs );
   // write the molecule 4 times...
   conv.Write(&mol, &ofs);
@@ -165,7 +166,7 @@ void MoleculeFileTest::readFile()
 
 
 
-  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
+  MoleculeFile* moleculeFile = MoleculeFile::readFile(fname.constData());
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), true );
@@ -174,7 +175,7 @@ void MoleculeFileTest::readFile()
       static_cast<std::vector<int>::size_type>(4) );
 
 
-  ofs.open(filename.toLatin1().data());
+  ofs.open(fname.constData(), std::ios::out | std::ios::binary | std::ios::trunc);
   QVERIFY( ofs );
   // write the molecule 4 times...
   conv.Write(&mol, &ofs);
@@ -183,7 +184,7 @@ void MoleculeFileTest::readFile()
   conv.Write(&mol, &ofs);
   conv.Write(&mol, &ofs);
 
-  moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
+  moleculeFile = MoleculeFile::readFile(fname.constData());
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), false );
@@ -208,9 +209,10 @@ void MoleculeFileTest::readWriteConformers()
   m_molecule->setAllConformers(conformers);
 
   QString filename = "moleculefiletest_tmp.sdf";
+  const QByteArray fname = QFile::encodeName(filename);
   QVERIFY( MoleculeFile::writeConformers(m_molecule, filename) );
 
-  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
+  MoleculeFile* moleculeFile = MoleculeFile::readFile(fname.constData());
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), true );
