@@ -225,9 +225,10 @@ void MoleculeFileTest::replaceMolecule()
 {
   QString filename = "moleculefiletest_tmp.smi";
   std::ofstream ofs(filename.toLatin1().data(), std::ios::binary);
-  ofs << "c1ccccc1  phenyl\n"
-      << "c1ccccc1N  aniline\n"
-      << "Cc1ccccc1  toluene\n";
+  // Open Babel stops parsing the SMILES at the first TAB
+  ofs << "c1ccccc1\tphenyl\n"
+      << "c1ccccc1N\taniline\n"
+      << "Cc1ccccc1\ttoluene\n";
   ofs.close();
   MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
   QVERIFY( moleculeFile );
@@ -291,9 +292,9 @@ void MoleculeFileTest::appendMolecule()
 {
   QString filename = "moleculefiletest_tmp.smi";
   std::ofstream ofs(filename.toLatin1().data(), std::ios::binary);
-  ofs << "c1ccccc1  phenyl\n"
-      << "c1ccccc1N  aniline\n"
-      << "Cc1ccccc1  toluene\n";
+  ofs << "c1ccccc1\tphenyl\n"
+      << "c1ccccc1N\taniline\n"
+      << "Cc1ccccc1\ttoluene\n";
   ofs.close();
 
   MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
