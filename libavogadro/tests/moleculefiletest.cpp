@@ -227,9 +227,9 @@ void MoleculeFileTest::replaceMolecule()
   {
     std::ofstream ofs(fname.constData(),
                       std::ios::out | std::ios::binary | std::ios::trunc);
-    ofs << "c1ccccc1 phenyl\n"
-        << "c1ccccc1N aniline\n"
-        << "Cc1ccccc1 toluene\n";
+    ofs << "c1ccccc1  phenyl\n"
+        << "c1ccccc1N  aniline\n"
+        << "Cc1ccccc1  toluene\n";
   }
 
   std::unique_ptr<MoleculeFile> moleculeFile{
@@ -299,9 +299,9 @@ void MoleculeFileTest::appendMolecule()
   {
     std::ofstream ofs(fname.constData(),
                       std::ios::out | std::ios::binary | std::ios::trunc);
-    ofs << "c1ccccc1 phenyl\n"
-        << "c1ccccc1N aniline\n"
-        << "Cc1ccccc1 toluene\n";
+    ofs << "c1ccccc1  phenyl\n"
+        << "c1ccccc1N  aniline\n"
+        << "Cc1ccccc1  toluene\n";
   }
 
   std::unique_ptr<MoleculeFile> moleculeFile{
