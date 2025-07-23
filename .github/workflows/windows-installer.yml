@@ -151,10 +151,11 @@ jobs:
         run: |
           $obDir = Join-Path $PWD 'build\openbabel-install'
           $env:OB_DIR = $obDir
-          $env:BABEL_LIBDIR = Join-Path $obDir 'bin'
-          $env:OPENBABEL_PLUGIN_PATH = Join-Path $env:BABEL_LIBDIR 'openbabel\3'
+          $pluginDir = Join-Path $obDir 'bin\openbabel\3'
+          $env:BABEL_LIBDIR = $pluginDir
+          $env:OPENBABEL_PLUGIN_PATH = $pluginDir
           $env:BABEL_DATADIR = Join-Path $obDir 'share\openbabel'
-          $env:PATH = "$env:BABEL_LIBDIR;$env:PATH"
+          $env:PATH = "$(Join-Path $obDir 'bin');$env:PATH"
           ctest --test-dir build -C Release --output-on-failure
       - name: Upload installer
         if: matrix.target == 'installer'
