@@ -177,11 +177,11 @@ static void buildCylinderMesh(int faces, VBOHandle &handle)
     const double theta = 2 * M_PI * i / slices;
     float nx = cos(theta);
     float ny = sin(theta);
+    // top vertex first
+    verts.push_back(nx); verts.push_back(ny); verts.push_back(1.f);
+    verts.push_back(nx); verts.push_back(ny); verts.push_back(0.f);
     // bottom vertex
     verts.push_back(nx); verts.push_back(ny); verts.push_back(0.f);
-    verts.push_back(nx); verts.push_back(ny); verts.push_back(0.f);
-    // top vertex
-    verts.push_back(nx); verts.push_back(ny); verts.push_back(1.f);
     verts.push_back(nx); verts.push_back(ny); verts.push_back(0.f);
   }
   for (int i = 0; i < slices; ++i) {
@@ -1400,19 +1400,22 @@ static void buildCylinderMesh(int faces, VBOHandle &handle)
                                   double r, int lod)
   {
     VBOHandle &h = cylinderVBOs[lod];
-    if(!h.init)
-      buildCylinderMesh(lod+20, h);
+    if (!h.init)
+      buildCylinderMesh(lod + 20, h);
+
     Eigen::Vector3d axis = b - a;
-    Eigen::Matrix4d m; m.row(3)<<0,0,0,1;
     double len = axis.norm();
-    if(len==0) return;
+    if (len == 0)
+      return;
+
     Eigen::Vector3d z = axis / len;
-    Eigen::Vector3d x = z.unitOrthogonal();
-    x.normalize();
-    Eigen::Vector3d y = z.cross(x).normalized();
-    m.block<3,1>(0,0) = x*r;
-    m.block<3,1>(0,1) = y*r;
-    m.block<3,1>(0,2) = z*len;
+    Eigen::Vector3d x = z.unitOrthogonal() * r;
+    Eigen::Vector3d y = z.cross(x);
+
+    Eigen::Matrix4d m; m.setIdentity();
+    m.block<3,1>(0,0) = x;
+    m.block<3,1>(0,1) = y;
+    m.block<3,1>(0,2) = axis;
     m.block<3,1>(0,3) = a;
     glPushMatrix();
     glMultMatrixd(m.data());
