@@ -187,7 +187,7 @@ def main():
         version = f"{maj.group(1)}.{min_.group(1)}.{patch.group(1)}"
         vi_version = version + ".0"
 
-    # Copy Intel runtimes next to xtbopttool.dll so the plugin loads
+    # Copy runtimes next to xtbopttool.dll so the plugin loads
     if maj and min_:
         tool_dir = dist / 'lib' / 'avogadro' / f"{maj.group(1)}_{min_.group(1)}" / 'tools'
         tool_dir.mkdir(parents=True, exist_ok=True)
@@ -198,6 +198,8 @@ def main():
             'libifcoremd.dll',
             'libifportmd.dll',
             'svml_dispmd.dll',
+            'xtb.dll',
+            'cpx.dll',
         ]
         for pattern in needed:
             for dll in bin_dir.glob(pattern):
