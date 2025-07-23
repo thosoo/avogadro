@@ -150,7 +150,7 @@ jobs:
         shell: pwsh
         env:
           OB_DIR: "${{ github.workspace }}\build\openbabel-install"
-          BABEL_LIBDIR: "${{ github.workspace }}\build\openbabel-install\bin"
+          BABEL_LIBDIR: "${{ github.workspace }}\build\openbabel-install\bin\openbabel\3"
           OPENBABEL_PLUGIN_PATH: "${{ github.workspace }}\build\openbabel-install\bin\openbabel\3"
           BABEL_DATADIR: "${{ github.workspace }}\build\openbabel-install\bin\data"
           PATH: "${{ github.workspace }}\build\openbabel-install\bin;${{ env.PATH }}"
