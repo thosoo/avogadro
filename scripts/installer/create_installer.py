@@ -178,15 +178,34 @@ def main():
 
     version = os.environ.get("AVOGADRO_VERSION")
     vi_version = None
-    if not version:
-        cmake_lists = root.parent.parent / "CMakeLists.txt"
-        text = cmake_lists.read_text()
-        maj = re.search(r"Avogadro_VERSION_MAJOR\s+(\d+)", text)
-        min_ = re.search(r"Avogadro_VERSION_MINOR\s+(\d+)", text)
-        patch = re.search(r"Avogadro_VERSION_PATCH\s+(\d+)", text)
-        if maj and min_ and patch:
-            version = f"{maj.group(1)}.{min_.group(1)}.{patch.group(1)}"
-            vi_version = version + ".0"
+    cmake_lists = root.parent.parent / "CMakeLists.txt"
+    text = cmake_lists.read_text()
+    maj = re.search(r"Avogadro_VERSION_MAJOR\s+(\d+)", text)
+    min_ = re.search(r"Avogadro_VERSION_MINOR\s+(\d+)", text)
+    patch = re.search(r"Avogadro_VERSION_PATCH\s+(\d+)", text)
+    if not version and maj and min_ and patch:
+        version = f"{maj.group(1)}.{min_.group(1)}.{patch.group(1)}"
+        vi_version = version + ".0"
+
+    # Copy runtimes next to xtbopttool.dll so the plugin loads
+    if maj and min_:
+        tool_dir = dist / 'lib' / 'avogadro' / f"{maj.group(1)}_{min_.group(1)}" / 'tools'
+        tool_dir.mkdir(parents=True, exist_ok=True)
+        bin_dir = dist / 'bin'
+        needed = [
+            'mkl_rt*.dll',
+            'libiomp5md.dll',
+            'libifcoremd.dll',
+            'libifportmd.dll',
+            'svml_dispmd.dll',
+            'xtb.dll',
+            'cpx.dll',
+        ]
+        for pattern in needed:
+            for dll in bin_dir.glob(pattern):
+                dst = tool_dir / dll.name
+                log(f"Copying {dll.name} -> {dst}")
+                shutil.copy2(dll, dst)
     args = ["makensis"]
     if version:
         args.append(f"/DVERSION={version}")

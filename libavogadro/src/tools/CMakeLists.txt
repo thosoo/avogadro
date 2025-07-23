@@ -9,12 +9,14 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 set(LINK_LIBS avogadro)
 option(ENABLE_XTB_OPTTOOL "Build xTB optimization tool" ON)
 if(ENABLE_XTB_OPTTOOL)
-  find_package(PkgConfig)
-  pkg_check_modules(XTB xtb)
+  find_package(XTB QUIET)
   if(XTB_FOUND)
+    message(STATUS "Found xTB - xtbopttool will be built")
     include_directories(${XTB_INCLUDE_DIRS})
-    link_directories(${XTB_LIBRARY_DIRS})
-    set(LINK_LIBS ${LINK_LIBS} ${XTB_LIBRARIES})
+    if(XTB_LIBRARY_DIRS)
+      link_directories(${XTB_LIBRARY_DIRS})
+    endif()
+    set(LINK_LIBS ${LINK_LIBS} XTB::xtb)
     set(ENABLE_XTB_OPTTOOL TRUE)
   else()
     message(STATUS "xTB not found - xtbopttool will not be built")
@@ -68,6 +70,19 @@ endif()
 if(ENABLE_XTB_OPTTOOL)
   avogadro_plugin(xtbopttool xtbopttool.cpp xtbopttool.qrc)
   target_link_libraries(xtbopttool ${LINK_LIBS})
+  if(TARGET xtbopttool AND WIN32)
+    find_library(MKL_LIB
+      NAMES mkl_rt
+      PATHS ENV MKLROOT
+      PATH_SUFFIXES lib/intel64
+      REQUIRED)
+    find_library(OMP_LIB
+      NAMES libiomp5md
+      PATHS ENV ONEAPI_ROOT
+      PATH_SUFFIXES compiler/lib/intel64_win
+      REQUIRED)
+    target_link_libraries(xtbopttool ${MKL_LIB} ${OMP_LIB})
+  endif()
 endif()
 
 ### navigatetool
