@@ -548,7 +548,7 @@ static void buildCylinderMesh(int faces, VBOHandle &handle)
       for (int i = 0; i < order; ++i) {
         Eigen::AngleAxisd rot((angleOffset + 360.0 * i / order) * M_PI / 180.0, axis);
         Eigen::Vector3d disp = rot * offset * shift;
-        Eigen::Vector3d x = rot * xBase;
+        Eigen::Vector3d x = rot * offset;
         drawCylinderVBO(end1 + disp, end2 + disp, radius, detailLevel, &x);
       }
     } else {
@@ -1412,20 +1412,17 @@ static void buildCylinderMesh(int faces, VBOHandle &handle)
       return;
 
     Eigen::Vector3d z = axis / len;
-    Eigen::Vector3d x;
-    if (xDir)
-      x = *xDir;
-    else
-      x = z.unitOrthogonal() * r;
+    Eigen::Vector3d x = xDir ? xDir->normalized() : z.unitOrthogonal();
     Eigen::Vector3d y = z.cross(x);
 
     Eigen::Matrix4d m; m.setIdentity();
     m.block<3,1>(0,0) = x;
     m.block<3,1>(0,1) = y;
-    m.block<3,1>(0,2) = axis;
+    m.block<3,1>(0,2) = z;
     m.block<3,1>(0,3) = a;
     glPushMatrix();
     glMultMatrixd(m.data());
+    glScaled(r, r, len);
     glBindBuffer(GL_ARRAY_BUFFER, h.vbo);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, h.ibo);
     glEnableClientState(GL_VERTEX_ARRAY);
