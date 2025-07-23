@@ -82,6 +82,10 @@ namespace Avogadro {
     connect(m_thread, SIGNAL(setupSucces()),  this, SLOT(setupSucces()));
 
     OBPlugin::ListAsVector("forcefields", "ids", m_forceFieldList);
+    if (m_forceFieldList.empty()) {
+      OBPlugin::LoadAllPlugins();
+      OBPlugin::ListAsVector("forcefields", "ids", m_forceFieldList);
+    }
     //action->setShortcut(Qt::Key_F10);
   }
 

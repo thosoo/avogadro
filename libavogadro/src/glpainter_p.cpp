@@ -114,7 +114,14 @@ namespace Avogadro
 //  const double   PAINTER_FRUSTUM_CULL_TRESHOLD = -0.8;
 
 #ifdef AVO_NO_DISPLAY_LISTS
-struct VBOHandle { GLuint vao; GLuint vbo; GLuint ibo; GLsizei count; bool init; VBOHandle():vao(0),vbo(0),ibo(0),count(0),init(false){} };
+struct VBOHandle
+{
+  GLuint vbo;
+  GLuint ibo;
+  GLsizei count;
+  bool init;
+  VBOHandle() : vbo(0), ibo(0), count(0), init(false) {}
+};
 static std::array<VBOHandle, PAINTER_DETAIL_LEVELS> sphereVBOs;
 static std::array<VBOHandle, PAINTER_DETAIL_LEVELS> cylinderVBOs;
 static void buildSphereMesh(int lod, VBOHandle &handle);
@@ -147,19 +154,14 @@ static void buildSphereMesh(int lod, VBOHandle &handle)
       idx.push_back(b); idx.push_back(b+1); idx.push_back(a+1);
     }
   }
-  glGenVertexArrays(1,&handle.vao);
-  glBindVertexArray(handle.vao);
   glGenBuffers(1,&handle.vbo);
   glBindBuffer(GL_ARRAY_BUFFER, handle.vbo);
   glBufferData(GL_ARRAY_BUFFER, verts.size()*sizeof(float), verts.data(), GL_STATIC_DRAW);
   glGenBuffers(1,&handle.ibo);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, handle.ibo);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, idx.size()*sizeof(unsigned int), idx.data(), GL_STATIC_DRAW);
-  glEnableClientState(GL_VERTEX_ARRAY);
-  glVertexPointer(3, GL_FLOAT, 6*sizeof(float), (void*)0);
-  glEnableClientState(GL_NORMAL_ARRAY);
-  glNormalPointer(GL_FLOAT, 6*sizeof(float), (void*)(3*sizeof(float)));
-  glBindVertexArray(0);
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
   handle.count = idx.size();
   handle.init = true;
 }
@@ -186,19 +188,14 @@ static void buildCylinderMesh(int faces, VBOHandle &handle)
     idx.push_back(a); idx.push_back(b); idx.push_back(c);
     idx.push_back(b); idx.push_back(d); idx.push_back(c);
   }
-  glGenVertexArrays(1,&handle.vao);
-  glBindVertexArray(handle.vao);
   glGenBuffers(1,&handle.vbo);
   glBindBuffer(GL_ARRAY_BUFFER, handle.vbo);
   glBufferData(GL_ARRAY_BUFFER, verts.size()*sizeof(float), verts.data(), GL_STATIC_DRAW);
   glGenBuffers(1,&handle.ibo);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, handle.ibo);
   glBufferData(GL_ELEMENT_ARRAY_BUFFER, idx.size()*sizeof(unsigned int), idx.data(), GL_STATIC_DRAW);
-  glEnableClientState(GL_VERTEX_ARRAY);
-  glVertexPointer(3, GL_FLOAT, 6*sizeof(float), (void*)0);
-  glEnableClientState(GL_NORMAL_ARRAY);
-  glNormalPointer(GL_FLOAT, 6*sizeof(float), (void*)(3*sizeof(float)));
-  glBindVertexArray(0);
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
   handle.count = idx.size();
   handle.init = true;
 }
@@ -1380,9 +1377,17 @@ static void buildCylinderMesh(int faces, VBOHandle &handle)
     glPushMatrix();
     glTranslated(c.x(), c.y(), c.z());
     glScaled(r, r, r);
-    glBindVertexArray(h.vao);
+    glBindBuffer(GL_ARRAY_BUFFER, h.vbo);
+    glVertexPointer(3, GL_FLOAT, 6*sizeof(float), (void*)0);
+    glNormalPointer(GL_FLOAT, 6*sizeof(float), (void*)(3*sizeof(float)));
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, h.ibo);
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_NORMAL_ARRAY);
     glDrawElements(GL_TRIANGLES, h.count, GL_UNSIGNED_INT, 0);
-    glBindVertexArray(0);
+    glDisableClientState(GL_VERTEX_ARRAY);
+    glDisableClientState(GL_NORMAL_ARRAY);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glPopMatrix();
   }
 
@@ -1399,16 +1404,25 @@ static void buildCylinderMesh(int faces, VBOHandle &handle)
     if(len==0) return;
     z.normalize();
     Eigen::Vector3d x = z.unitOrthogonal();
-    Eigen::Vector3d y = z.cross(x);
+    x.normalize();
+    Eigen::Vector3d y = z.cross(x).normalized();
     m.block<3,1>(0,0) = x*r;
     m.block<3,1>(0,1) = y*r;
     m.block<3,1>(0,2) = z*len;
     m.block<3,1>(0,3) = a;
     glPushMatrix();
     glMultMatrixd(m.data());
-    glBindVertexArray(h.vao);
+    glBindBuffer(GL_ARRAY_BUFFER, h.vbo);
+    glVertexPointer(3, GL_FLOAT, 6*sizeof(float), (void*)0);
+    glNormalPointer(GL_FLOAT, 6*sizeof(float), (void*)(3*sizeof(float)));
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, h.ibo);
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_NORMAL_ARRAY);
     glDrawElements(GL_TRIANGLES, h.count, GL_UNSIGNED_INT, 0);
-    glBindVertexArray(0);
+    glDisableClientState(GL_VERTEX_ARRAY);
+    glDisableClientState(GL_NORMAL_ARRAY);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     glPopMatrix();
   }
 #endif
