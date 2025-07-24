@@ -10,6 +10,7 @@ set(Avogadro_VERSION         "${Avogadro_VERSION_MAJOR}.${Avogadro_VERSION_MINOR
 
 set(Avogadro_ENABLE_PYTHON   "@ENABLE_PYTHON@")
 set(Avogadro_ENABLE_GLSL     "@ENABLE_GLSL@")
+set(Avogadro_NO_DISPLAY_LISTS "@AVOGADRO_NO_DISPLAY_LISTS@")
 
 set(Avogadro_INSTALL_PREFIX  "@CMAKE_INSTALL_PREFIX@")
 set(Avogadro_INCLUDE_DIRS    "@CMAKE_INSTALL_PREFIX@/include")

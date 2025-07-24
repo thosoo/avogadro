@@ -33,7 +33,7 @@
 
 #include <Eigen/Core>
 
-#ifdef ENABLE_GLSL
+#if defined(ENABLE_GLSL) || defined(AVO_NO_DISPLAY_LISTS)
   #include <GL/glew.h>
 #endif
 
@@ -281,10 +281,14 @@ namespace Avogadro {
        */
       void setFogLevel(int level);
 
+      void setUseVBOs(bool enable);
+
       /**
        * @return The global fog level of the widget.
        */
       int fogLevel() const;
+
+      bool useVBOs() const;
 
       /**
        * Set to render x, y, z axes as an overlay in the bottom left of the widget.
@@ -715,6 +719,7 @@ namespace Avogadro {
       void loadEngines(QSettings &settings);
 
       bool              m_glslEnabled;
+      bool              m_useVBOs{false};
       Tool*             m_navigateTool; /// NavigateTool is a super tool
 
     public Q_SLOTS:

@@ -24,6 +24,9 @@
 #include <QObject>
 #include <QList>
 #include <QWidget>
+#if defined(ENABLE_GLSL) || defined(AVO_NO_DISPLAY_LISTS)
+#  include <GL/glew.h>
+#endif
 #include <QGLWidget>
 #include <QDockWidget>
 #include <QAction>

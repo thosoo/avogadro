@@ -22,13 +22,18 @@ else(EIGEN3_FOUND)
   include_directories(${EIGEN2_INCLUDE_DIR})
 endif(EIGEN3_FOUND)
 
-if(Avogadro_ENABLE_GLSL)
+if(Avogadro_ENABLE_GLSL OR Avogadro_NO_DISPLAY_LISTS)
   find_package(GLEW)
   if(GLEW_FOUND)
     include_directories(${GLEW_INCLUDE_DIR})
-    add_definitions(-DENABLE_GLSL)
-  endif(GLEW_FOUND)
-endif(Avogadro_ENABLE_GLSL)
+    if(Avogadro_ENABLE_GLSL)
+      add_definitions(-DENABLE_GLSL)
+    endif()
+    if(Avogadro_NO_DISPLAY_LISTS)
+      add_definitions(-DAVO_NO_DISPLAY_LISTS)
+    endif()
+  endif()
+endif()
 
 # Use this function to add a new plugin. It also uses the global variables
 # LINK_LIBS to determine what libraries the plugin should link to and
