@@ -1820,20 +1820,12 @@ namespace Avogadro {
     // Set the event to ignored, check whether any tools accept it
     event->ignore();
 
-    // Scale mouse event coordinates for HiDPI
-    QMouseEvent scaledEvent(
-      event->type(),
-      event->localPos() * devicePixelRatioF(),
-      event->windowPos() * devicePixelRatioF(),
-      event->screenPos() * devicePixelRatioF(),
-      event->button(), event->buttons(), event->modifiers()
-    );
     if ( d->tool ) {
       QUndoCommand *command = 0;
-      command = d->tool->mousePressEvent( this, &scaledEvent );
+      command = d->tool->mousePressEvent( this, event );
       // If the mouse event is not accepted, pass it to the navigate tool
-      if (!scaledEvent.isAccepted() && m_navigateTool) {
-        command = m_navigateTool->mousePressEvent(this, &scaledEvent);
+      if (!event->isAccepted() && m_navigateTool) {
+        command = m_navigateTool->mousePressEvent(this, event);
       }
 
       if ( command && d->undoStack ) {
@@ -1851,19 +1843,12 @@ namespace Avogadro {
     // Set the event to ignored, check whether any tools accept it
     event->ignore();
 
-    QMouseEvent scaledEvent(
-      event->type(),
-      event->localPos() * devicePixelRatioF(),
-      event->windowPos() * devicePixelRatioF(),
-      event->screenPos() * devicePixelRatioF(),
-      event->button(), event->buttons(), event->modifiers()
-    );
     if ( d->tool ) {
       QUndoCommand *command;
-      command = d->tool->mouseReleaseEvent( this, &scaledEvent );
+      command = d->tool->mouseReleaseEvent( this, event );
       // If the mouse event is not accepted, pass it to the navigate tool
-      if (!scaledEvent.isAccepted() && m_navigateTool) {
-        command = m_navigateTool->mouseReleaseEvent(this, &scaledEvent);
+      if (!event->isAccepted() && m_navigateTool) {
+        command = m_navigateTool->mouseReleaseEvent(this, event);
       }
 
       if ( command && d->undoStack ) {
@@ -1897,19 +1882,12 @@ namespace Avogadro {
 #ifdef ENABLE_THREADED_GL
     d->renderMutex.unlock();
 #endif
-    QMouseEvent scaledEvent(
-      event->type(),
-      event->localPos() * devicePixelRatioF(),
-      event->windowPos() * devicePixelRatioF(),
-      event->screenPos() * devicePixelRatioF(),
-      event->button(), event->buttons(), event->modifiers()
-    );
     if ( d->tool ) {
       QUndoCommand *command;
-      command = d->tool->mouseMoveEvent( this, &scaledEvent );
+      command = d->tool->mouseMoveEvent( this, event );
       // If the mouse event is not accepted, pass it to the navigate tool
-      if (!scaledEvent.isAccepted() && m_navigateTool) {
-        command = m_navigateTool->mouseMoveEvent(this, &scaledEvent);
+      if (!event->isAccepted() && m_navigateTool) {
+        command = m_navigateTool->mouseMoveEvent(this, event);
       }
       if ( command && d->undoStack ) {
         d->undoStack->push( command );
