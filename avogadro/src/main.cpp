@@ -86,6 +86,13 @@ int main(int argc, char *argv[])
     }
 #endif
 
+#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
+  // Fix issue #112: ensure Qt scales the UI correctly on HiDPI displays
+  // Enable Qt high-DPI attributes before creating the application
+  QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+  QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+#endif
+
   // set up groups for QSettings
   QCoreApplication::setOrganizationName("SourceForge");
   QCoreApplication::setOrganizationDomain("sourceforge.net");

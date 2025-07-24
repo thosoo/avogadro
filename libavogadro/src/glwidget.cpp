@@ -645,7 +645,13 @@ namespace Avogadro {
 
   void GLWidget::resizeGL( int width, int height )
   {
-    glViewport( 0, 0, width, height );
+#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
+    const qreal dpr = devicePixelRatioF();
+    glViewport(0, 0, static_cast<int>(width * dpr),
+               static_cast<int>(height * dpr));
+#else
+    glViewport(0, 0, width, height);
+#endif
   }
 
   void GLWidget::setBackground( const QColor &background )
