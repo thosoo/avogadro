@@ -1407,15 +1407,17 @@ static void buildCylinderMesh(int faces, VBOHandle &handle)
       buildCylinderMesh(PAINTER_CYLINDERS_LEVELS_ARRAY[d->quality][lod], h);
 
     Eigen::Vector3d axis = b - a;
-    double len = axis.norm();
-    if (len == 0)
+    const double len = axis.norm();
+    if (len == 0.0)
       return;
 
     Eigen::Vector3d z = axis / len;
-    Eigen::Vector3d x = xDir ? xDir->normalized() : z.unitOrthogonal();
-    Eigen::Vector3d y = z.cross(x);
+    Eigen::Vector3d x = xDir ? *xDir : z.unitOrthogonal();
+    x.normalize();
+    Eigen::Vector3d y = z.cross(x).normalized();
+    x = y.cross(z);
 
-    Eigen::Matrix4d m; m.setIdentity();
+    Eigen::Matrix4d m = Eigen::Matrix4d::Identity();
     m.block<3,1>(0,0) = x;
     m.block<3,1>(0,1) = y;
     m.block<3,1>(0,2) = z;
