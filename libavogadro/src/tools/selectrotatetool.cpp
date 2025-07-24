@@ -117,14 +117,16 @@ namespace Avogadro {
   {
     m_movedSinceButtonPressed = false;
     m_doubleClick = false; // set true if we get a doubleClick event
-    m_lastDraggingPosition = event->pos();
-    m_initialDraggingPosition = event->pos();
+    qreal dpr = widget->devicePixelRatioF();
+    m_lastDraggingPosition = event->pos() * dpr;
+    m_initialDraggingPosition = event->pos() * dpr;
 
     m_widget = widget; // save for defining centroids
 
     //! List of hits from a selection/pick
-    m_hits = widget->hits(event->pos().x()-SEL_BOX_HALF_SIZE,
-        event->pos().y()-SEL_BOX_HALF_SIZE,
+    QPoint scaledPos = event->pos() * dpr;
+    m_hits = widget->hits(scaledPos.x()-SEL_BOX_HALF_SIZE,
+        scaledPos.y()-SEL_BOX_HALF_SIZE,
         SEL_BOX_SIZE, SEL_BOX_SIZE);
 
     if (event->buttons() & Qt::LeftButton && !m_hits.size()) {
@@ -396,14 +398,18 @@ namespace Avogadro {
     if (m_leftButtonPressed && !m_hits.size()) {
       event->accept();
 
-      if( ( event->pos() - m_initialDraggingPosition ).manhattanLength() > 2 )
+      qreal dpr = widget->devicePixelRatioF();
+      QPoint scaledPos = event->pos() * dpr;
+      if( ( scaledPos - m_initialDraggingPosition ).manhattanLength() > 2 )
         m_movedSinceButtonPressed = true;
 
-      m_lastDraggingPosition = event->pos();
+      m_lastDraggingPosition = scaledPos;
       widget->update();
     }
     else /*if (m_leftButtonPressed)*/ {
-      if((event->pos() - m_initialDraggingPosition).manhattanLength() > 2)
+      qreal dpr = widget->devicePixelRatioF();
+      QPoint scaledPos = event->pos() * dpr;
+      if((scaledPos - m_initialDraggingPosition).manhattanLength() > 2)
         m_movedSinceButtonPressed = true;
       else
         event->accept();

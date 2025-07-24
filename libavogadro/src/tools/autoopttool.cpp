@@ -135,7 +135,8 @@ namespace Avogadro {
                                              QMouseEvent *event)
   {
     m_glwidget = widget;
-    m_lastDraggingPosition = event->pos();
+    qreal dpr = widget->devicePixelRatioF();
+    m_lastDraggingPosition = event->pos() * dpr;
 
     m_leftButtonPressed = (event->buttons() & Qt::LeftButton
         && event->modifiers() == Qt::NoModifier);
@@ -150,7 +151,7 @@ namespace Avogadro {
          (event->modifiers() == Qt::ControlModifier ||
           event->modifiers() == Qt::MetaModifier)));
 
-    m_clickedAtom = widget->computeClickedAtom(event->pos());
+    m_clickedAtom = widget->computeClickedAtom(event->pos() * dpr);
     if(m_clickedAtom != 0 && m_leftButtonPressed && m_running)
     {
       event->accept();
@@ -202,14 +203,15 @@ namespace Avogadro {
       if (m_leftButtonPressed) {
         event->accept();
         // translate the molecule following mouse movement
+        qreal dpr = widget->devicePixelRatioF();
         Vector3d begin = widget->camera()->project(*m_clickedAtom->pos());
         QPoint point = QPoint(begin.x(), begin.y());
         translate(widget, *m_clickedAtom->pos(),
-                  point/*m_lastDraggingPosition*/, event->pos());
+                  point/*m_lastDraggingPosition*/, event->pos() * dpr);
       }
     }
 
-    m_lastDraggingPosition = event->pos();
+    m_lastDraggingPosition = event->pos() * widget->devicePixelRatioF();
     widget->update();
 
     return 0;
