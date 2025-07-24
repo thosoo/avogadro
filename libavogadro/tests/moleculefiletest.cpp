@@ -26,6 +26,7 @@
 #include "config.h"
 
 #include <QtTest>
+#include <QFile>
 #include <avogadro/moleculefile.h>
 #include <avogadro/molecule.h>
 #include <avogadro/atom.h>
@@ -34,6 +35,7 @@
 #include <openbabel/obconversion.h>
 
 #include <Eigen/Core>
+#include <memory>
 
 using OpenBabel::OBMol;
 using OpenBabel::OBConversion;
@@ -148,11 +150,12 @@ void MoleculeFileTest::readWriteMolecule()
 void MoleculeFileTest::readFile()
 {
   QString filename = "moleculefiletest_tmp.sdf";
+  const QByteArray fname = QFile::encodeName(filename);
 
   OpenBabel::OBMol mol = m_molecule->OBMol();
   OBConversion conv;
   conv.SetOutFormat("sdf");
-  std::ofstream ofs(filename.toLatin1().data());
+  std::ofstream ofs(fname.constData(), std::ios::out | std::ios::binary | std::ios::trunc);
   QVERIFY( ofs );
   // write the molecule 4 times...
   conv.Write(&mol, &ofs);
@@ -163,7 +166,7 @@ void MoleculeFileTest::readFile()
 
 
 
-  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
+  MoleculeFile* moleculeFile = MoleculeFile::readFile(fname.constData());
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), true );
@@ -172,7 +175,7 @@ void MoleculeFileTest::readFile()
       static_cast<std::vector<int>::size_type>(4) );
 
 
-  ofs.open(filename.toLatin1().data());
+  ofs.open(fname.constData(), std::ios::out | std::ios::binary | std::ios::trunc);
   QVERIFY( ofs );
   // write the molecule 4 times...
   conv.Write(&mol, &ofs);
@@ -181,7 +184,7 @@ void MoleculeFileTest::readFile()
   conv.Write(&mol, &ofs);
   conv.Write(&mol, &ofs);
 
-  moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
+  moleculeFile = MoleculeFile::readFile(fname.constData());
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), false );
@@ -206,9 +209,10 @@ void MoleculeFileTest::readWriteConformers()
   m_molecule->setAllConformers(conformers);
 
   QString filename = "moleculefiletest_tmp.sdf";
+  const QByteArray fname = QFile::encodeName(filename);
   QVERIFY( MoleculeFile::writeConformers(m_molecule, filename) );
 
-  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
+  MoleculeFile* moleculeFile = MoleculeFile::readFile(fname.constData());
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), true );
@@ -220,14 +224,12 @@ void MoleculeFileTest::readWriteConformers()
 void MoleculeFileTest::replaceMolecule()
 {
   QString filename = "moleculefiletest_tmp.smi";
-  std::ofstream ofs(filename.toLatin1().data());
-  ofs << "c1ccccc1  phenyl" << std::endl;
-  ofs << "c1ccccc1N  aniline" << std::endl;
-  // Use the more standard SMILES form with the methyl group first to avoid
-  // Open Babel's kekulization warnings.
-  ofs << "Cc1ccccc1  toluene" << std::endl;
+  std::ofstream ofs(filename.toLatin1().data(), std::ios::binary);
+  // Open Babel stops parsing the SMILES at the first TAB
+  ofs << "c1ccccc1\tphenyl\n"
+      << "c1ccccc1N\taniline\n"
+      << "Cc1ccccc1\ttoluene\n";
   ofs.close();
-
   MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
@@ -283,18 +285,16 @@ void MoleculeFileTest::replaceMolecule()
   delete phenyl;
  
 
-  delete moleculeFile;
+
 }
 
 void MoleculeFileTest::appendMolecule()
 {
   QString filename = "moleculefiletest_tmp.smi";
-  std::ofstream ofs(filename.toLatin1().data());
-  ofs << "c1ccccc1  phenyl" << std::endl;
-  ofs << "c1ccccc1N  aniline" << std::endl;
-  // Use the standard SMILES with the substituent before the ring to avoid
-  // Open Babel kekulization warnings.
-  ofs << "Cc1ccccc1  toluene" << std::endl;
+  std::ofstream ofs(filename.toLatin1().data(), std::ios::binary);
+  ofs << "c1ccccc1\tphenyl\n"
+      << "c1ccccc1N\taniline\n"
+      << "Cc1ccccc1\ttoluene\n";
   ofs.close();
 
   MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
