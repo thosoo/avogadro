@@ -225,10 +225,9 @@ void MoleculeFileTest::replaceMolecule()
 {
   QString filename = "moleculefiletest_tmp.smi";
   std::ofstream ofs(filename.toLatin1().data(), std::ios::binary);
-  // Open Babel stops parsing the SMILES at the first TAB
-  ofs << "c1ccccc1\tphenyl\n"
-      << "c1ccccc1N\taniline\n"
-      << "Cc1ccccc1\ttoluene\n";
+  ofs << "c1ccccc1  phenyl\n"
+      << "c1ccccc1N  aniline\n"
+      << "Cc1ccccc1  toluene\n"; // standard order avoids kekulization warnings
   ofs.close();
   MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
   QVERIFY( moleculeFile );
@@ -283,6 +282,8 @@ void MoleculeFileTest::replaceMolecule()
   QVERIFY( phenyl );
   QCOMPARE( phenyl->numAtoms(), static_cast<unsigned int>(8) );
   delete phenyl;
+
+  delete moleculeFile;
  
 
 
@@ -292,9 +293,9 @@ void MoleculeFileTest::appendMolecule()
 {
   QString filename = "moleculefiletest_tmp.smi";
   std::ofstream ofs(filename.toLatin1().data(), std::ios::binary);
-  ofs << "c1ccccc1\tphenyl\n"
-      << "c1ccccc1N\taniline\n"
-      << "Cc1ccccc1\ttoluene\n";
+  ofs << "c1ccccc1  phenyl\n"
+      << "c1ccccc1N  aniline\n"
+      << "Cc1ccccc1  toluene\n";
   ofs.close();
 
   MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
