@@ -229,7 +229,8 @@ void MoleculeFileTest::replaceMolecule()
       << "c1ccccc1N  aniline\n"
       << "Cc1ccccc1  toluene\n"; // standard order avoids kekulization warnings
   ofs.close();
-  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
+  MoleculeFile* moleculeFile = MoleculeFile::readFile(
+      filename.toLatin1().data(), QString(), QStringLiteral("delimiter=space"));
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), false );
@@ -298,7 +299,8 @@ void MoleculeFileTest::appendMolecule()
       << "Cc1ccccc1  toluene\n"; // standard order avoids kekulization warnings
   ofs.close();
 
-  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
+  MoleculeFile* moleculeFile = MoleculeFile::readFile(
+      filename.toLatin1().data(), QString(), QStringLiteral("delimiter=space"));
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), false );
