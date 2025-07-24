@@ -224,13 +224,15 @@ void MoleculeFileTest::readWriteConformers()
 void MoleculeFileTest::replaceMolecule()
 {
   QString filename = "moleculefiletest_tmp.smi";
-  std::ofstream ofs(filename.toLatin1().data(), std::ios::binary);
-  ofs << "c1ccccc1  phenyl\n"
-      << "c1ccccc1N  aniline\n"
-      << "Cc1ccccc1  toluene\n"; // standard order avoids kekulization warnings
-  ofs.close();
+  const QByteArray fname = QFile::encodeName(filename);
+  {
+    std::ofstream ofs(fname.constData(), std::ios::binary);
+    ofs << "c1ccccc1  phenyl\n"
+        << "c1ccccc1N  aniline\n"
+        << "Cc1ccccc1  toluene\n"; // standard order avoids kekulization warnings
+  }
   MoleculeFile* moleculeFile = MoleculeFile::readFile(
-      filename.toLatin1().data(), QString(), QStringLiteral("delimiter=space"));
+      fname.constData(), QString(), QStringLiteral("delimiter=space"));
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), false );
@@ -293,14 +295,16 @@ void MoleculeFileTest::replaceMolecule()
 void MoleculeFileTest::appendMolecule()
 {
   QString filename = "moleculefiletest_tmp.smi";
-  std::ofstream ofs(filename.toLatin1().data(), std::ios::binary);
-  ofs << "c1ccccc1  phenyl\n"
-      << "c1ccccc1N  aniline\n"
-      << "Cc1ccccc1  toluene\n"; // standard order avoids kekulization warnings
-  ofs.close();
+  const QByteArray fname = QFile::encodeName(filename);
+  {
+    std::ofstream ofs(fname.constData(), std::ios::binary);
+    ofs << "c1ccccc1  phenyl\n"
+        << "c1ccccc1N  aniline\n"
+        << "Cc1ccccc1  toluene\n"; // standard order avoids kekulization warnings
+  }
 
   MoleculeFile* moleculeFile = MoleculeFile::readFile(
-      filename.toLatin1().data(), QString(), QStringLiteral("delimiter=space"));
+      fname.constData(), QString(), QStringLiteral("delimiter=space"));
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), false );
