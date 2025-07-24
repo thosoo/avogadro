@@ -295,7 +295,7 @@ void MoleculeFileTest::appendMolecule()
   std::ofstream ofs(filename.toLatin1().data(), std::ios::binary);
   ofs << "c1ccccc1  phenyl\n"
       << "c1ccccc1N  aniline\n"
-      << "Cc1ccccc1  toluene\n";
+      << "Cc1ccccc1  toluene\n"; // standard order avoids kekulization warnings
   ofs.close();
 
   MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
