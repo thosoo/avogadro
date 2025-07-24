@@ -645,7 +645,13 @@ namespace Avogadro {
 
   void GLWidget::resizeGL( int width, int height )
   {
-    glViewport( 0, 0, width, height );
+  // Use devicePixelRatioF for HiDPI support
+#if QT_VERSION >= QT_VERSION_CHECK(5, 6, 0)
+  qreal dpr = devicePixelRatioF();
+#else
+  qreal dpr = devicePixelRatio();
+#endif
+  glViewport(0, 0, static_cast<GLint>(width * dpr), static_cast<GLint>(height * dpr));
   }
 
   void GLWidget::setBackground( const QColor &background )
