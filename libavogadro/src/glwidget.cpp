@@ -96,6 +96,11 @@ using namespace OpenBabel;
 using namespace Eigen;
 
 namespace Avogadro {
+void GLWidget::showEvent(QShowEvent *event)
+{
+  QGLWidget::showEvent(event);
+  update();
+}
 
   bool engineLessThan( const Engine* lhs, const Engine* rhs )
   {
