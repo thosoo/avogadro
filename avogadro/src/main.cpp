@@ -86,6 +86,20 @@ int main(int argc, char *argv[])
     }
 #endif
 
+
+  // Check for --disable-hidpi-scaling flag before setting high-DPI attributes
+  bool disableHiDpi = false;
+  for (int i = 1; i < argc; ++i) {
+    if (QString(argv[i]) == "--disable-hidpi-scaling") {
+      disableHiDpi = true;
+      break;
+    }
+  }
+  if (!disableHiDpi) {
+    QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+    QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+  }
+
   // set up groups for QSettings
   QCoreApplication::setOrganizationName("SourceForge");
   QCoreApplication::setOrganizationDomain("sourceforge.net");
@@ -227,7 +241,7 @@ int main(int argc, char *argv[])
     return 0;
   }
   else if(arguments.contains("-h") || arguments.contains("-help")
-  	|| arguments.contains("--help")) {
+    || arguments.contains("--help")) {
     printHelp(arguments[0]);
     return 0;
   }
@@ -301,12 +315,14 @@ void printHelp(const QString &appName)
   std::cout << "Options:" << std::endl;
   std::cout << "  -h, --help\t\tShow help options (this)" << std::endl;
   std::cout << "  -v, --version\t\tShow version information" << std::endl;
+  std::cout << "  --disable-hidpi-scaling\tDisable Qt high-DPI scaling (for GPU driver quirks)" << std::endl;
   #else
   std::wcout << QCoreApplication::translate("main.cpp", "Usage: %1 [options] [files]\n\n"
       "Avogadro - Advanced Molecular Editor (version %2)\n\n"
       "Options:\n"
       "  -h, --help\t\tShow help options (this)\n"
       "  -v, --version\t\tShow version information\n"
+      "  --disable-hidpi-scaling\tDisable Qt high-DPI scaling (for GPU driver quirks)\n"
       ).arg(appName, VERSION).toStdWString();
   #endif
 }

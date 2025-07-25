@@ -276,9 +276,15 @@ namespace Avogadro
 
   Eigen::Vector3d Camera::unProject(const Eigen::Vector3d & v) const
   {
-    GLint viewport[4] = {0, 0, parent()->width(), parent()->height() };
+    // Use devicePixelRatioF for HiDPI support - viewport must match what was set in resizeGL
+#if QT_VERSION >= QT_VERSION_CHECK(5, 6, 0)
+    qreal dpr = parent()->devicePixelRatioF();
+#else
+    qreal dpr = parent()->devicePixelRatio();
+#endif
+    GLint viewport[4] = {0, 0, static_cast<GLint>(parent()->width() * dpr), static_cast<GLint>(parent()->height() * dpr)};
     Eigen::Vector3d pos;
-    gluUnProject(v.x(), parent()->height() - v.y(), v.z(),
+    gluUnProject(v.x(), static_cast<GLint>(parent()->height() * dpr) - v.y(), v.z(),
                  d->modelview.data(), d->projection.data(), viewport, &pos.x(), &pos.y(), &pos.z());
     return pos;
   }
@@ -295,12 +301,18 @@ namespace Avogadro
 
   Eigen::Vector3d Camera::project(const Eigen::Vector3d & v) const
   {
-    GLint viewport[4] = {0, 0, parent()->width(), parent()->height() };
+    // Use devicePixelRatioF for HiDPI support - viewport must match what was set in resizeGL
+#if QT_VERSION >= QT_VERSION_CHECK(5, 6, 0)
+    qreal dpr = parent()->devicePixelRatioF();
+#else
+    qreal dpr = parent()->devicePixelRatio();
+#endif
+    GLint viewport[4] = {0, 0, static_cast<GLint>(parent()->width() * dpr), static_cast<GLint>(parent()->height() * dpr)};
     Eigen::Vector3d pos;
     gluProject(v.x(), v.y(), v.z(),
                d->modelview.data(), d->projection.data(), viewport, &pos.x(), &pos.y(), &pos.z());
 
-    pos.y() = parent()->height() - pos.y();
+    pos.y() = static_cast<GLint>(parent()->height() * dpr) - pos.y();
     return pos;
   }
 

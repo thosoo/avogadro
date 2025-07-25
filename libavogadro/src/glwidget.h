@@ -94,6 +94,8 @@ namespace Avogadro {
 //    Q_PROPERTY(float scale READ scale WRITE setScale)
 
     public:
+      // Override showEvent to force update on show
+      void showEvent(QShowEvent *event) override;
       /**
        * Constructor.
        * @param parent the widget parent.

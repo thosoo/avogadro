@@ -96,6 +96,11 @@ using namespace OpenBabel;
 using namespace Eigen;
 
 namespace Avogadro {
+void GLWidget::showEvent(QShowEvent *event)
+{
+  QGLWidget::showEvent(event);
+  update();
+}
 
   bool engineLessThan( const Engine* lhs, const Engine* rhs )
   {
@@ -645,7 +650,13 @@ namespace Avogadro {
 
   void GLWidget::resizeGL( int width, int height )
   {
-    glViewport( 0, 0, width, height );
+  // Use devicePixelRatioF for HiDPI support
+#if QT_VERSION >= QT_VERSION_CHECK(5, 6, 0)
+  qreal dpr = devicePixelRatioF();
+#else
+  qreal dpr = devicePixelRatio();
+#endif
+  glViewport(0, 0, static_cast<GLint>(width * dpr), static_cast<GLint>(height * dpr));
   }
 
   void GLWidget::setBackground( const QColor &background )
@@ -1649,7 +1660,9 @@ namespace Avogadro {
     glPushMatrix();
     glLoadIdentity();
     // Ensure the axes are of the same length
-    double aspectRatio = static_cast<double>(d->pd->width())/static_cast<double>(d->pd->height());
+    // Use devicePixelRatioF for HiDPI support
+    qreal dpr = devicePixelRatioF();
+    double aspectRatio = static_cast<double>(d->pd->width() * dpr)/static_cast<double>(d->pd->height() * dpr);
     glOrtho(0, aspectRatio, 0, 1, 0, 1);
     glMatrixMode(GL_MODELVIEW);
     glPushMatrix();
@@ -1812,12 +1825,20 @@ namespace Avogadro {
     // Set the event to ignored, check whether any tools accept it
     event->ignore();
 
+    // Scale mouse event coordinates for HiDPI
+    QMouseEvent scaledEvent(
+      event->type(),
+      event->localPos() * devicePixelRatioF(),
+      event->windowPos() * devicePixelRatioF(),
+      event->screenPos() * devicePixelRatioF(),
+      event->button(), event->buttons(), event->modifiers()
+    );
     if ( d->tool ) {
       QUndoCommand *command = 0;
-      command = d->tool->mousePressEvent( this, event );
+      command = d->tool->mousePressEvent( this, &scaledEvent );
       // If the mouse event is not accepted, pass it to the navigate tool
-      if (!event->isAccepted() && m_navigateTool) {
-        command = m_navigateTool->mousePressEvent(this, event);
+      if (!scaledEvent.isAccepted() && m_navigateTool) {
+        command = m_navigateTool->mousePressEvent(this, &scaledEvent);
       }
 
       if ( command && d->undoStack ) {
@@ -1835,12 +1856,19 @@ namespace Avogadro {
     // Set the event to ignored, check whether any tools accept it
     event->ignore();
 
+    QMouseEvent scaledEvent(
+      event->type(),
+      event->localPos() * devicePixelRatioF(),
+      event->windowPos() * devicePixelRatioF(),
+      event->screenPos() * devicePixelRatioF(),
+      event->button(), event->buttons(), event->modifiers()
+    );
     if ( d->tool ) {
       QUndoCommand *command;
-      command = d->tool->mouseReleaseEvent( this, event );
+      command = d->tool->mouseReleaseEvent( this, &scaledEvent );
       // If the mouse event is not accepted, pass it to the navigate tool
-      if (!event->isAccepted() && m_navigateTool) {
-        command = m_navigateTool->mouseReleaseEvent(this, event);
+      if (!scaledEvent.isAccepted() && m_navigateTool) {
+        command = m_navigateTool->mouseReleaseEvent(this, &scaledEvent);
       }
 
       if ( command && d->undoStack ) {
@@ -1874,12 +1902,19 @@ namespace Avogadro {
 #ifdef ENABLE_THREADED_GL
     d->renderMutex.unlock();
 #endif
+    QMouseEvent scaledEvent(
+      event->type(),
+      event->localPos() * devicePixelRatioF(),
+      event->windowPos() * devicePixelRatioF(),
+      event->screenPos() * devicePixelRatioF(),
+      event->button(), event->buttons(), event->modifiers()
+    );
     if ( d->tool ) {
       QUndoCommand *command;
-      command = d->tool->mouseMoveEvent( this, event );
+      command = d->tool->mouseMoveEvent( this, &scaledEvent );
       // If the mouse event is not accepted, pass it to the navigate tool
-      if (!event->isAccepted() && m_navigateTool) {
-        command = m_navigateTool->mouseMoveEvent(this, event);
+      if (!scaledEvent.isAccepted() && m_navigateTool) {
+        command = m_navigateTool->mouseMoveEvent(this, &scaledEvent);
       }
       if ( command && d->undoStack ) {
         d->undoStack->push( command );
@@ -3023,8 +3058,12 @@ static inline GLint gluProject(GLdouble objx, GLdouble objy, GLdouble objz,
     }
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glViewport(0, 0, width, height);
-    glOrtho(0, width, height, 0, 0, 1);
+    // Use devicePixelRatioF for HiDPI support
+    qreal dpr = devicePixelRatioF();
+    int physWidth = static_cast<int>(width * dpr);
+    int physHeight = static_cast<int>(height * dpr);
+    glViewport(0, 0, physWidth, physHeight);
+    glOrtho(0, physWidth, physHeight, 0, 0, 1);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glAlphaFunc(GL_GREATER, 0.0);

@@ -1,0 +1,14 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"label": "Build Avogadro after HiDPI fix",
+			"command": "make -C build",
+			"group": "build",
+			"problemMatcher": [
+				"$gcc"
+			]
+		}
+	]
+}
