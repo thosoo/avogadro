@@ -50,7 +50,19 @@ installation locations.
 
    -DOPENBABEL2_INCLUDE_DIR : specify the OpenBabel2 include directory (optional)
 
-   -DEIGEN3_INCLUDE_DIR : specify the Eigen include directory
+   -DEIGEN3_INCLUDE_DIR : specify the Eigen include directory (also forwarded
+                          to the bundled Open Babel build)
+
+   The following variables are also passed to the bundled Open Babel build when
+   defined. They allow overriding dependency locations:
+     INCHI_INCLUDE_DIR / INCHI_LIBRARY
+     CAIRO_INCLUDE_DIRS / CAIRO_LIBRARIES
+     RAPIDJSON_INCLUDE_DIRS
+     MAEPARSER_DIR (with maeparser_INCLUDE_DIRS/maeparser_LIBRARIES)
+     coordgen_DIR (with coordgen_INCLUDE_DIRS/coordgen_LIBRARIES)
+     LIBXML2_INCLUDE_DIR / LIBXML2_LIBRARY
+     ZLIB_INCLUDE_DIR / ZLIB_LIBRARY
+     wxWidgets_LIB_DIR
 
    -DENABLE_PYTHON : specify whether to build Boost.Python interpreter
                     (default = TRUE)
