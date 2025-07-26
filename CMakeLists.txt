@@ -237,6 +237,30 @@ set(I18N_LANGUAGE "" CACHE STRING "Build i18n only for selected language")
 set(OPENBABEL_INSTALL_DIR "${CMAKE_BINARY_DIR}/openbabel-install")
 file(MAKE_DIRECTORY "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
 file(MAKE_DIRECTORY "${OPENBABEL_INSTALL_DIR}/bin")
+set(OB_OVERRIDE_ARGS "")
+macro(pass_ob_arg var)
+  if(DEFINED ${var})
+    list(APPEND OB_OVERRIDE_ARGS -D${var}=${${var}})
+  endif()
+endmacro()
+pass_ob_arg(EIGEN3_INCLUDE_DIR)
+pass_ob_arg(INCHI_INCLUDE_DIR)
+pass_ob_arg(INCHI_LIBRARY)
+pass_ob_arg(CAIRO_INCLUDE_DIRS)
+pass_ob_arg(CAIRO_LIBRARIES)
+pass_ob_arg(RAPIDJSON_INCLUDE_DIRS)
+pass_ob_arg(MAEPARSER_DIR)
+pass_ob_arg(maeparser_INCLUDE_DIRS)
+pass_ob_arg(maeparser_LIBRARIES)
+pass_ob_arg(coordgen_DIR)
+pass_ob_arg(coordgen_INCLUDE_DIRS)
+pass_ob_arg(coordgen_LIBRARIES)
+pass_ob_arg(LIBXML2_LIBRARIES)
+pass_ob_arg(LIBXML2_INCLUDE_DIR)
+pass_ob_arg(ZLIB_LIBRARY)
+pass_ob_arg(ZLIB_INCLUDE_DIR)
+pass_ob_arg(wxWidgets_LIB_DIR)
+pass_ob_arg(LIB_INSTALL_DIR)
 ExternalProject_Add(openbabel_ext
   URL https://github.com/thosoo/openbabel/archive/052ba3dab10a8c59a9d821e04b2faba24e104c72.zip
   URL_HASH SHA256=26144b05b4f47dc3e78a7474b4789a5fe4049f4289a5aaed4a0a00689f123ad4
@@ -251,6 +275,7 @@ ExternalProject_Add(openbabel_ext
     -DOB_USE_PREBUILT_BINARIES=OFF
     -DOPENBABEL_USE_SYSTEM_INCHI=OFF
     -DWITH_INCHI=ON
+    ${OB_OVERRIDE_ARGS}
   UPDATE_COMMAND ""
 )
 if(WIN32)
