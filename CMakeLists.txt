@@ -255,11 +255,12 @@ pass_ob_arg(maeparser_LIBRARIES)
 pass_ob_arg(coordgen_DIR)
 pass_ob_arg(coordgen_INCLUDE_DIRS)
 pass_ob_arg(coordgen_LIBRARIES)
-pass_ob_arg(LIBXML2_LIBRARY)
+pass_ob_arg(LIBXML2_LIBRARIES)
 pass_ob_arg(LIBXML2_INCLUDE_DIR)
 pass_ob_arg(ZLIB_LIBRARY)
 pass_ob_arg(ZLIB_INCLUDE_DIR)
 pass_ob_arg(wxWidgets_LIB_DIR)
+pass_ob_arg(LIB_INSTALL_DIR)
 ExternalProject_Add(openbabel_ext
   URL https://github.com/thosoo/openbabel/archive/052ba3dab10a8c59a9d821e04b2faba24e104c72.zip
   URL_HASH SHA256=26144b05b4f47dc3e78a7474b4789a5fe4049f4289a5aaed4a0a00689f123ad4
