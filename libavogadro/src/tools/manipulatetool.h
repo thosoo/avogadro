@@ -29,7 +29,7 @@
 
 #include <avogadro/molecule.h>
 
-#include <QGLWidget>
+#include <QOpenGLWidget>
 #include <QObject>
 #include <QStringList>
 #include <QImage>

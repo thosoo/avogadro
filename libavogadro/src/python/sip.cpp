@@ -24,7 +24,7 @@
 #include <QObject>
 #include <QList>
 #include <QWidget>
-#include <QGLWidget>
+#include <QOpenGLWidget>
 #include <QDockWidget>
 #include <QAction>
 #include <QUndoCommand>
@@ -99,7 +99,7 @@ template <> struct MetaData<Avogadro::Cube> { static const char* className() { r
 template <> struct MetaData<Avogadro::Engine> { static const char* className() { return "QObject";} };
 template <> struct MetaData<Avogadro::Extension> { static const char* className() { return "QObject";} }; 
 template <> struct MetaData<Avogadro::Fragment> { static const char* className() { return "QObject";} }; 
-//template <> struct MetaData<Avogadro::GLWidget> { static const char* className() { return "QGLWidget";} }; 
+//template <> struct MetaData<Avogadro::GLWidget> { static const char* className() { return "QOpenGLWidget";} };
 template <> struct MetaData<Avogadro::GLWidget> { static const char* className() { return "QWidget";} }; 
 template <> struct MetaData<Avogadro::Mesh> { static const char* className() { return "QObject";} };
 template <> struct MetaData<Avogadro::Molecule> { static const char* className() { return "QObject";} }; 

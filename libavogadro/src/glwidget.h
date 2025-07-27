@@ -37,9 +37,9 @@
   #include <GL/glew.h>
 #endif
 
-#include <QtOpenGL/QGLWidget>
+#include <QOpenGLWidget>
 
-class QGLContext;
+class QOpenGLContext;
 class QLabel;
 class QMouseEvent;
 class QSettings;
@@ -85,7 +85,7 @@ namespace Avogadro {
   class GLThread;
   class GLWidgetPrivate;
   class GLPainterDevice;
-  class A_EXPORT GLWidget : public QGLWidget
+  class A_EXPORT GLWidget : public QOpenGLWidget
   {
     friend class GLThread;
 
@@ -104,20 +104,20 @@ namespace Avogadro {
 
       /**
        * Constructor.
-       * @param format the QGLFormat information.
+       * @param format the QSurfaceFormat information.
        * @param parent the widget parent.
        * @param shareWidget a widget to share the same graphics -- i.e., the underlying GLPainterDevice
        */
-      explicit GLWidget(const QGLFormat &format, QWidget *parent = 0, const GLWidget * shareWidget = 0);
+      explicit GLWidget(const QSurfaceFormat &format, QWidget *parent = 0, const GLWidget * shareWidget = 0);
 
       /**
        * Constructor.
        * @param molecule the molecule to view.
-       * @param format the QGLFormat information.
+       * @param format the QSurfaceFormat information.
        * @param parent the widget parent.
        * @param shareWidget a widget to share the same graphics -- i.e., the underlying GLPainterDevice
        */
-      GLWidget(Molecule *molecule, const QGLFormat &format, QWidget *parent = 0, const GLWidget * shareWidget = 0);
+      GLWidget(Molecule *molecule, const QSurfaceFormat &format, QWidget *parent = 0, const GLWidget * shareWidget = 0);
 
       /**
        * Destructor.
@@ -548,7 +548,7 @@ namespace Avogadro {
     protected:
       friend class GLGraphicsView;
       /**
-       * Virtual function called by QGLWidget on initialization of
+       * Virtual function called by QOpenGLWidget on initialization of
        * the GL area.
        */
       virtual void initializeGL();

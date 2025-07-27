@@ -111,7 +111,7 @@
 #include <QUrl>
 #include <QDesktopServices>
 #include <QTime>
-#include <QGLFramebufferObject>
+#include <QOpenGLFramebufferObject>
 #include <QStatusBar>
 #include <QTableWidget>
 #include <QProgressDialog>
@@ -1723,7 +1723,7 @@ protected:
     QImage exportImage;
     d->glWidget->raise();
     d->glWidget->repaint();
-    if (QGLFramebufferObject::hasOpenGLFramebufferObjects()) {
+    if (QOpenGLFramebufferObject::hasOpenGLFramebufferObjects()) {
       exportImage = d->glWidget->grabFrameBuffer( true );
     } else {
       QPixmap pixmap = QPixmap::grabWindow( d->glWidget->winId() );
@@ -2437,7 +2437,7 @@ protected:
       // we do this first, so we can embed the molecular data too
       d->glWidget->raise();
       d->glWidget->repaint();
-      if (QGLFramebufferObject::hasOpenGLFramebufferObjects()) {
+      if (QOpenGLFramebufferObject::hasOpenGLFramebufferObjects()) {
         clipboardImage = d->glWidget->grabFrameBuffer( true );
       } else {
         QPixmap pixmap = QPixmap::grabWindow( d->glWidget->winId() );

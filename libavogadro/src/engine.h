@@ -31,7 +31,7 @@
 #ifdef ENABLE_GLSL
   #include <GL/glew.h>
 #else
-  #include <QGLWidget>
+  #include <QOpenGLWidget>
 #endif
 
 #include "primitivelist.h"

@@ -5,7 +5,7 @@
 #include <avogadro/color.h>
 #include <avogadro/primitive.h>
 
-#include <QtOpenGL/QGLWidget>
+#include <QOpenGLWidget>
 
 using namespace boost::python;
 using namespace Avogadro;

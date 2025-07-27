@@ -98,7 +98,7 @@ using namespace Eigen;
 namespace Avogadro {
 void GLWidget::showEvent(QShowEvent *event)
 {
-  QGLWidget::showEvent(event);
+  QOpenGLWidget::showEvent(event);
   update();
 }
 
@@ -320,7 +320,7 @@ void GLWidget::showEvent(QShowEvent *event)
 
   private:
     GLWidget *m_widget;
-    QGLContext *m_context;
+    QOpenGLContext *m_context;
     bool m_running;
     bool m_resize;
     bool m_initialized;
@@ -361,9 +361,10 @@ void GLWidget::showEvent(QShowEvent *event)
       }
 
       d->background.setAlphaF(0.0);
-      m_widget->qglClearColor(d->background);
+      const QColor &c = d->background;
+      glClearColor(c.redF(), c.greenF(), c.blueF(), c.alphaF());
       m_widget->paintGL();
-      m_widget->swapBuffers();
+      m_widget->context()->swapBuffers(m_widget->context()->surface());
       m_widget->doneCurrent();
       d->renderMutex.unlock();
     }
@@ -382,24 +383,26 @@ void GLWidget::showEvent(QShowEvent *event)
   }
 #endif
 
-  GLWidget::GLWidget( QWidget *parent )
-    : QGLWidget( parent ), d( new GLWidgetPrivate )
+GLWidget::GLWidget( QWidget *parent )
+  : QOpenGLWidget( parent ), d( new GLWidgetPrivate )
   {
     constructor();
   }
 
-  GLWidget::GLWidget( const QGLFormat &format, QWidget *parent,
-                      const GLWidget *shareWidget )
-    : QGLWidget( format, parent, shareWidget ), d( new GLWidgetPrivate )
-  {
-    constructor(shareWidget);
-  }
+GLWidget::GLWidget( const QSurfaceFormat &format, QWidget *parent,
+                    const GLWidget *shareWidget )
+  : QOpenGLWidget( parent ), d( new GLWidgetPrivate )
+{
+  setFormat(format);
+  constructor(shareWidget);
+}
 
-  GLWidget::GLWidget( Molecule *molecule,
-                      const QGLFormat &format, QWidget *parent,
-                      const GLWidget *shareWidget )
-    : QGLWidget( format, parent, shareWidget ), d( new GLWidgetPrivate )
+GLWidget::GLWidget( Molecule *molecule,
+                    const QSurfaceFormat &format, QWidget *parent,
+                    const GLWidget *shareWidget )
+  : QOpenGLWidget( parent ), d( new GLWidgetPrivate )
   {
+    setFormat(format);
     constructor(shareWidget);
     setMolecule( molecule );
   }
@@ -518,7 +521,8 @@ void GLWidget::showEvent(QShowEvent *event)
     }
     #endif
 
-    qglClearColor( d->background );
+    glClearColor(d->background.redF(), d->background.greenF(),
+                 d->background.blueF(), d->background.alphaF());
 
     glShadeModel( GL_SMOOTH );
     glEnable( GL_DEPTH_TEST );
@@ -621,9 +625,10 @@ void GLWidget::showEvent(QShowEvent *event)
         d->initialized = true;
         initializeGL();
       }
-      qglClearColor(d->background);
+      glClearColor(d->background.redF(), d->background.greenF(),
+                   d->background.blueF(), d->background.alphaF());
       paintGL();
-      swapBuffers();
+      context()->swapBuffers(context()->surface());
 #endif
     }
   }
@@ -651,11 +656,7 @@ void GLWidget::showEvent(QShowEvent *event)
   void GLWidget::resizeGL( int width, int height )
   {
   // Use devicePixelRatioF for HiDPI support
-#if QT_VERSION >= QT_VERSION_CHECK(5, 6, 0)
   qreal dpr = devicePixelRatioF();
-#else
-  qreal dpr = devicePixelRatio();
-#endif
   glViewport(0, 0, static_cast<GLint>(width * dpr), static_cast<GLint>(height * dpr));
   }
 
@@ -1817,7 +1818,7 @@ namespace Avogadro {
         GLWidget::setCurrent(this);
       }
 
-    return QGLWidget::event(event);
+    return QOpenGLWidget::event(event);
   }
 
   void GLWidget::mousePressEvent( QMouseEvent * event )
@@ -3009,7 +3010,7 @@ static inline GLint gluProject(GLdouble objx, GLdouble objy, GLdouble objz,
   // Based on Qt code
   void GLWidget::renderText(double x, double y, double z, const QString &str, const QFont &font, int)
   {
-    //QGLWidget::renderText(x,y,z,str,font, i);
+    //QOpenGLWidget::renderText(x,y,z,str,font, i);
 
 #ifndef QT_OPENGL_ES
     if (str.isEmpty() || !isValid())
@@ -3089,7 +3090,7 @@ static inline GLint gluProject(GLdouble objx, GLdouble objy, GLdouble objz,
     Q_UNUSED(z);
     Q_UNUSED(str);
     Q_UNUSED(font);
-    qWarning("QGLWidget::renderText is not supported under OpenGL/ES");
+    qWarning("QOpenGLWidget::renderText is not supported under OpenGL/ES");
 #endif
   }
 }
