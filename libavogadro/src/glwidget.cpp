@@ -38,6 +38,7 @@
 #include <QtGui/QPen>
 #include <QtGui/QPainter>
 #include <QtGui/QPaintEngine>
+#include <QOpenGLContext>
 #include <QtWidgets/QUndoStack>
 #include <QtWidgets/QLabel>
 
@@ -441,12 +442,10 @@ GLWidget::GLWidget( Molecule *molecule,
 
     // New PainterDevice
     d->pd = new GLPainterDevice(this);
-    if(shareWidget && isSharing()) {
-      // we are sharing contexts
+    if (shareWidget) {
+      // share painter with the supplied widget
       d->painter = static_cast<GLPainter *>(shareWidget->painter());
-    }
-    else
-    {
+    } else {
       d->painter = new GLPainter();
     }
     d->painter->incrementShare();
@@ -454,7 +453,6 @@ GLWidget::GLWidget( Molecule *molecule,
     setAutoFillBackground( false );
     setSizePolicy( QSizePolicy::MinimumExpanding,QSizePolicy::MinimumExpanding );
     d->camera->setParent( this );
-    setAutoBufferSwap( false );
     m_glslEnabled = false;
     m_navigateTool = 0;
 
@@ -3016,7 +3014,6 @@ static inline GLint gluProject(GLdouble objx, GLdouble objy, GLdouble objz,
     if (str.isEmpty() || !isValid())
         return;
 
-    bool auto_swap = autoBufferSwap();
 
     int width = d->pd->width();
     int height = d->pd->height();
@@ -3044,7 +3041,6 @@ static inline GLint gluProject(GLdouble objx, GLdouble objy, GLdouble objz,
         p = engine->painter();
         save_gl_state();
     } else {
-        setAutoBufferSwap(false);
         // disable glClear() as a result of QPainter::begin()
         //d->disable_clear_on_painter_begin = true;
         p = new QPainter(this);
@@ -3080,7 +3076,6 @@ static inline GLint gluProject(GLdouble objx, GLdouble objy, GLdouble objz,
     } else {
         p->end();
         delete p;
-        setAutoBufferSwap(auto_swap);
       //  d->disable_clear_on_painter_begin = false;
     }
     //qgl_engine_selector()->setPreferredPaintEngine(oldEngineType);
