@@ -41,6 +41,10 @@
 #include <QtWidgets/QUndoStack>
 #include <QtWidgets/QLabel>
 
+#if defined(ENABLE_GLSL) || defined(AVO_NO_DISPLAY_LISTS)
+  #include <GL/glew.h>
+#endif
+
 #ifdef Q_WS_MAC
 # include <OpenGL/glu.h>
 #else
@@ -79,10 +83,6 @@
 #endif
 
 #include <Eigen/Geometry>
-
-#ifdef ENABLE_GLSL
-  #include <GL/glew.h>
-#endif
 
 #include <cstdio>
 #include <vector>
@@ -378,14 +378,14 @@ namespace Avogadro {
 #endif
 
   GLWidget::GLWidget( QWidget *parent )
-    : QGLWidget( parent ), d( new GLWidgetPrivate )
+    : QGLWidget( parent ), d( new GLWidgetPrivate ), m_useVBOs(false)
   {
     constructor();
   }
 
   GLWidget::GLWidget( const QGLFormat &format, QWidget *parent,
                       const GLWidget *shareWidget )
-    : QGLWidget( format, parent, shareWidget ), d( new GLWidgetPrivate )
+    : QGLWidget( format, parent, shareWidget ), d( new GLWidgetPrivate ), m_useVBOs(false)
   {
     constructor(shareWidget);
   }
@@ -393,7 +393,7 @@ namespace Avogadro {
   GLWidget::GLWidget( Molecule *molecule,
                       const QGLFormat &format, QWidget *parent,
                       const GLWidget *shareWidget )
-    : QGLWidget( format, parent, shareWidget ), d( new GLWidgetPrivate )
+    : QGLWidget( format, parent, shareWidget ), d( new GLWidgetPrivate ), m_useVBOs(false)
   {
     constructor(shareWidget);
     setMolecule( molecule );
@@ -492,26 +492,28 @@ namespace Avogadro {
       abort();
     }
 
-    // Try to initialise GLEW if GLSL was enabled, test for OpenGL 2.0 support
-    #ifdef ENABLE_GLSL
+    // Initialize GLEW when shaders or VBO rendering are requested
+#if defined(ENABLE_GLSL) || defined(AVO_NO_DISPLAY_LISTS)
     GLenum err = glewInit();
-    if (err != GLEW_OK) {
-      qDebug() << "GLSL support enabled but GLEW could not initialise!";
-      m_glslEnabled = false;
+    if (err != GLEW_OK)
+      qDebug() << "GLEW could not initialise!";
+#endif
+#ifdef ENABLE_GLSL
+    if (err == GLEW_OK) {
+      if (GLEW_VERSION_2_0) {
+        qDebug() << "GLSL support enabled, OpenGL 2.0 support confirmed.";
+        m_glslEnabled = true;
+      }
+      else if (GLEW_ARB_vertex_shader && GLEW_ARB_fragment_shader) {
+        qDebug() << "GLSL support enabled, no OpenGL 2.0 support.";
+        m_glslEnabled = true;
+      }
+      else {
+        qDebug() << "GLSL support disabled, OpenGL 2.0 support not present.";
+        m_glslEnabled = false;
+      }
     }
-    if (GLEW_VERSION_2_0) {
-      qDebug() << "GLSL support enabled, OpenGL 2.0 support confirmed.";
-      m_glslEnabled = true;
-    }
-    else if (GLEW_ARB_vertex_shader && GLEW_ARB_fragment_shader) {
-      qDebug() << "GLSL support enabled, no OpenGL 2.0 support.";
-      m_glslEnabled = true;
-    }
-    else {
-      qDebug() << "GLSL support disabled, OpenGL 2.0 support not present.";
-      m_glslEnabled = false;
-    }
-    #endif
+#endif
 
     qglClearColor( d->background );
 
@@ -712,9 +714,22 @@ namespace Avogadro {
     d->fogLevel = level;
   }
 
+  void GLWidget::setUseVBOs(bool enable)
+  {
+    m_useVBOs = enable;
+    d->painter->setUseVBOs(enable);
+    invalidateDLs();
+    updateGL();
+  }
+
   int GLWidget::fogLevel() const
   {
     return d->fogLevel;
+  }
+
+  bool GLWidget::useVBOs() const
+  {
+    return m_useVBOs;
   }
 
   void GLWidget::setRenderAxes(bool renderAxes)
@@ -2693,6 +2708,7 @@ namespace Avogadro {
     settings.setValue("background", d->background);
     settings.setValue("quality", d->painter->quality());
     settings.setValue("fogLevel", d->fogLevel);
+    settings.setValue("useVBOs", m_useVBOs);
     settings.setValue("renderAxes", d->renderAxes);
     settings.setValue("renderDebug", d->renderDebug);
     settings.setValue("renderModelViewDebug", d->renderModelViewDebug);
@@ -2716,6 +2732,7 @@ namespace Avogadro {
     // Make sure to provide some default values for any settings.value("", DEFAULT) call
     setQuality(settings.value("quality", 2).toInt());
     setFogLevel(settings.value("fogLevel", 0).toInt());
+    setUseVBOs(settings.value("useVBOs", m_useVBOs).toBool());
     d->background = settings.value("background", QColor(0,0,0,0)).value<QColor>();
     d->renderAxes = settings.value("renderAxes", 1).value<bool>();
     d->renderDebug = settings.value("renderDebug", 0).value<bool>();

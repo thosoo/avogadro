@@ -388,14 +388,26 @@ endif()
 
 # GLSL support is needed for OpenGL shaders
 option(ENABLE_GLSL "Enable GLSL support" OFF)
+find_package(GLEW)
+if(GLEW_FOUND)
+  include_directories(${GLEW_INCLUDE_DIR})
+  message(STATUS "GLEW found")
+else()
+  message(WARNING "GLEW not found, VBO support may be limited")
+endif()
 if(ENABLE_GLSL)
-  find_package(GLEW)
   if(GLEW_FOUND)
-    message(STATUS "GLEW found and GLSL support enabled")
-    add_definitions( -DENABLE_GLSL )
+    message(STATUS "GLSL support enabled")
+    add_definitions(-DENABLE_GLSL)
   else()
-    message(WARNING "GLEW not found, please install it if you require GLSL")
+    message(WARNING "GLSL requested but GLEW could not be found")
   endif()
+endif()
+
+# Optionally disable legacy OpenGL display lists
+option(AVOGADRO_NO_DISPLAY_LISTS "Use VBOs instead of display lists" OFF)
+if(AVOGADRO_NO_DISPLAY_LISTS)
+  add_definitions(-DAVO_NO_DISPLAY_LISTS)
 endif()
 
 # Multithreaded OpenGL. Seems mostly broken on Linux right now.

@@ -7,4 +7,5 @@ libqt5opengl5-dev
 libeigen3-dev
 zlib1g-dev
 libglu1-mesa-dev
+libglew-dev
 libqt5test5t64

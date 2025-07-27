@@ -2617,9 +2617,20 @@ protected:
     d->glWidget->update();
   }
 
+  void MainWindow::setUseVBOs(bool enable)
+  {
+    d->glWidget->setUseVBOs(enable);
+    d->glWidget->update();
+  }
+
   int MainWindow::fogLevel() const
   {
     return d->glWidget->fogLevel();
+  }
+
+  bool MainWindow::useVBOs() const
+  {
+    return d->glWidget->useVBOs();
   }
 
   void MainWindow::newView()

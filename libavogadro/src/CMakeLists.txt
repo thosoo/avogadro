@@ -247,6 +247,10 @@ install(FILES ${libavogadro_HDRS}
   DESTINATION "${INCLUDE_INSTALL_DIR}/avogadro")
 install(TARGETS avogadro DESTINATION ${LIB_INSTALL_DIR} EXPORT AvogadroTargets)
 
+if(GLEW_FOUND)
+  target_include_directories(avogadro PUBLIC ${GLEW_INCLUDE_DIR})
+endif()
+
 # Add the engiens, tools and extensions directories
 add_subdirectory(engines)
 add_subdirectory(tools)
