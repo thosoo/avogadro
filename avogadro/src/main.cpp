@@ -24,10 +24,12 @@
   02110-1301, USA.
  **********************************************************************/
 
+#include "config.h" // krazy:exclude=includes
+
 #include <avogadro/global.h>
 #include <openbabel/babelconfig.h>
 
-#ifdef ENABLE_GLSL
+#if defined(ENABLE_GLSL) || defined(AVO_NO_DISPLAY_LISTS)
   #include <GL/glew.h>
 #endif
 
@@ -112,11 +114,18 @@ int main(int argc, char *argv[])
 
 #ifdef WIN32
 #ifndef AVO_APP_BUNDLE
-  // Need to add an environment variable to the current process in order
-  // to load the forcefield parameters in OpenBabel.
-  QString babelDataDir = "BABEL_DATADIR=" + QCoreApplication::applicationDirPath();
-  qDebug() << babelDataDir;
-  _putenv(babelDataDir.toStdString().c_str());
+  // Point OpenBabel at the bundled data and plugin directories.
+  QString babelDataDir = QCoreApplication::applicationDirPath() +
+                        "/../share/openbabel/" + QLatin1String(BABEL_VERSION);
+  QString babelLibDir  = QCoreApplication::applicationDirPath() +
+                        "/../lib/openbabel/" + QLatin1String(BABEL_VERSION);
+#ifdef _MSC_VER
+  _putenv_s("BABEL_DATADIR", babelDataDir.toLocal8Bit().constData());
+  _putenv_s("BABEL_LIBDIR",  babelLibDir.toLocal8Bit().constData());
+#else
+  setenv("BABEL_DATADIR", babelDataDir.toLocal8Bit().constData(), 1);
+  setenv("BABEL_LIBDIR",  babelLibDir.toLocal8Bit().constData(), 1);
+#endif
 #endif
 #endif
 

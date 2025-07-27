@@ -29,6 +29,7 @@
 #include "config.h"
 
 #include "glpainter_p.h"
+#include <GL/glew.h>
 #include "glwidget.h"
 #include "camera.h"
 #include "sphere_p.h"
@@ -45,6 +46,10 @@
 #include <QDebug>
 #include <QColor>
 #include <QVarLengthArray>
+#include <QFile>
+#include <QByteArray>
+#include <vector>
+#include <array>
 #include <Eigen/Geometry>
 #define _USE_MATH_DEFINES
 #include <cmath>
@@ -109,6 +114,20 @@ namespace Avogadro
   = static_cast<double> ( PAINTER_MAX_DETAIL_LEVEL - 1 )
     / ( PAINTER_CYLINDERS_SQRT_LIMIT_MAX_LEVEL - PAINTER_CYLINDERS_SQRT_LIMIT_MIN_LEVEL );
 //  const double   PAINTER_FRUSTUM_CULL_TRESHOLD = -0.8;
+
+static bool g_useVbo = false;
+
+  struct VboMesh {
+    GLuint vao = 0;
+    GLuint vbo = 0;
+    GLuint ibo = 0;
+    GLsizei count = 0;
+  };
+  static std::array<VboMesh, PAINTER_DETAIL_LEVELS> sphereMeshes;
+  static std::array<VboMesh, PAINTER_DETAIL_LEVELS> cylinderMeshes;
+
+  static void generateSphereMesh(VboMesh &mesh, int detail);
+  static void generateCylinderMesh(VboMesh &mesh, int faces);
 
   class GLPainterPrivate
   {
@@ -216,8 +235,8 @@ namespace Avogadro
 
     // delete the cylinders. One has to be wary that more than one cylinder
     // pointer may have the same value. One wants to avoid deleting twice the same cylinder.
-    if (cylinders)
-    {
+  if (cylinders)
+  {
       lastLevel = -1;
       for (n = 0; n < PAINTER_DETAIL_LEVELS; ++n) {
         level = PAINTER_CYLINDERS_LEVELS_ARRAY[quality][n];
@@ -230,12 +249,32 @@ namespace Avogadro
         }
       }
       delete[] cylinders;
-      cylinders = 0;
+    cylinders = 0;
+  }
+
+  for (size_t i = 0; i < sphereMeshes.size(); ++i) {
+    if (sphereMeshes[i].vao) {
+      glDeleteVertexArrays(1, &sphereMeshes[i].vao);
+      glDeleteBuffers(1, &sphereMeshes[i].vbo);
+      glDeleteBuffers(1, &sphereMeshes[i].ibo);
+      sphereMeshes[i] = VboMesh();
     }
   }
+  for (size_t i = 0; i < cylinderMeshes.size(); ++i) {
+    if (cylinderMeshes[i].vao) {
+      glDeleteVertexArrays(1, &cylinderMeshes[i].vao);
+      glDeleteBuffers(1, &cylinderMeshes[i].vbo);
+      glDeleteBuffers(1, &cylinderMeshes[i].ibo);
+      cylinderMeshes[i] = VboMesh();
+    }
+  }
+}
 
   void GLPainterPrivate::createObjects()
   {
+    if (g_useVbo)
+      return;
+
     // create the spheres. More than one sphere detail level may have the same value.
     // in that case we want to reuse the corresponding sphere by just copying the pointer,
     // instead of creating redundant spheres.
@@ -282,15 +321,48 @@ namespace Avogadro
     m_dynamicScaling(true)
   {
     if (quality < 0 || quality >= PAINTER_MAX_DETAIL_LEVEL)
-      quality = DEFAULT_GLOBAL_QUALITY_SETTING;
+      d->quality = DEFAULT_GLOBAL_QUALITY_SETTING;
     else
       d->quality = quality;
+#ifdef AVO_NO_DISPLAY_LISTS
+    g_useVbo = true;
+#else
+    QFile rel("/proc/sys/kernel/osrelease");
+    if(rel.open(QIODevice::ReadOnly)) {
+      QByteArray r = rel.readAll();
+      if(r.contains("Microsoft")) {
+        qWarning("WSL detected: disabling OpenGL display lists");
+        g_useVbo = true;
+      }
+    }
+#endif
   }
 
-  GLPainter::~GLPainter()
-  {
-    delete d;
+GLPainter::~GLPainter()
+{
+  delete d;
+}
+
+void GLPainter::setVboEnabled(bool enable)
+{
+  if (g_useVbo == enable)
+    return;
+  g_useVbo = enable;
+  if (d) {
+    d->deleteObjects();
+    d->initialized = false;
   }
+}
+
+bool GLPainter::vboEnabled() const
+{
+  return g_useVbo;
+}
+
+bool GLPainter::globalVboEnabled()
+{
+  return g_useVbo;
+}
 
   void GLPainter::setQuality ( int quality )
   {
@@ -361,7 +433,10 @@ namespace Avogadro
 
     d->color.applyAsMaterials();
     pushName();
-    d->spheres[detailLevel]->draw (center, radius);
+    if (g_useVbo)
+      drawSphereVBO(center, radius, detailLevel);
+    else
+      d->spheres[detailLevel]->draw(center, radius);
     popName();
   }
 
@@ -388,7 +463,10 @@ namespace Avogadro
 
     d->color.applyAsMaterials();
     pushName();
-    d->cylinders[detailLevel]->draw ( end1, end2, radius );
+    if (g_useVbo)
+      drawCylinderVBO(end1, end2, radius, detailLevel);
+    else
+      d->cylinders[detailLevel]->draw(end1, end2, radius);
     popName();
   }
 
@@ -415,8 +493,30 @@ namespace Avogadro
 
     d->color.applyAsMaterials();
     pushName();
-    d->cylinders[detailLevel]->drawMulti ( end1, end2, radius, order,
-                                           shift, d->widget->normalVector() );
+    if (g_useVbo) {
+      if (order == 1) {
+        drawCylinderVBO(end1, end2, radius, detailLevel);
+      } else {
+        double angleOffset = (order == 3 ? 90.0 : 22.5);
+        Eigen::Vector3d axis = (end2 - end1).normalized();
+        Eigen::Vector3d ortho1Dir = axis.cross(d->widget->normalVector());
+        if (ortho1Dir.norm() < 1e-3)
+          ortho1Dir = axis.unitOrthogonal();
+        else
+          ortho1Dir.normalize();
+        Eigen::Vector3d ortho2Dir = axis.cross(ortho1Dir);
+        Eigen::Vector3d ortho1 = ortho1Dir * shift;
+        Eigen::Vector3d ortho2 = ortho2Dir * shift;
+        for (int i = 0; i < order; ++i) {
+          double angle = (angleOffset + 360.0 * i / order) * M_PI/180.0;
+          Eigen::Vector3d disp = cos(angle)*ortho1 + sin(angle)*ortho2;
+          drawCylinderVBO(end1 + disp, end2 + disp, radius, detailLevel);
+        }
+      }
+    } else {
+      d->cylinders[detailLevel]->drawMulti(end1, end2, radius, order,
+                                           shift, d->widget->normalVector());
+    }
     popName();
   }
 
@@ -1341,6 +1441,165 @@ namespace Avogadro
   void GLPainter::setDynamicScaling(bool scaling)
   {
     m_dynamicScaling = scaling;
+  }
+
+  void GLPainter::drawSphereVBO(const Eigen::Vector3d &center, double radius, int detail)
+  {
+    if (detail < 0)
+      detail = 0;
+    if (detail >= PAINTER_DETAIL_LEVELS)
+      detail = PAINTER_DETAIL_LEVELS - 1;
+    int lod = PAINTER_SPHERES_LEVELS_ARRAY[d->quality][detail];
+    generateSphereMesh(sphereMeshes[detail], lod);
+    const VboMesh &m = sphereMeshes[detail];
+    glPushMatrix();
+    glTranslated(center.x(), center.y(), center.z());
+    glScaled(radius, radius, radius);
+    if (d->id != -1)
+      glLoadName(d->id);
+    glBindVertexArray(m.vao);
+    glDrawElements(GL_TRIANGLES, m.count, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
+    glPopMatrix();
+  }
+
+  void GLPainter::drawCylinderVBO(const Eigen::Vector3d &end1, const Eigen::Vector3d &end2,
+                                  double radius, int detail)
+  {
+    if (detail < 0)
+      detail = 0;
+    if (detail >= PAINTER_DETAIL_LEVELS)
+      detail = PAINTER_DETAIL_LEVELS - 1;
+    int faces = PAINTER_CYLINDERS_LEVELS_ARRAY[d->quality][detail];
+    generateCylinderMesh(cylinderMeshes[detail], faces);
+    const VboMesh &m = cylinderMeshes[detail];
+    Eigen::Matrix4d matrix;
+    matrix.row(3) << 0,0,0,1;
+    matrix.block<3,1>(0,2) = end2 - end1;
+    Eigen::Vector3d axis = matrix.block<3,1>(0,2).normalized();
+    matrix.block<3,1>(0,0) = axis.unitOrthogonal() * radius;
+    matrix.block<3,1>(0,1) = axis.cross(matrix.block<3,1>(0,0));
+    matrix.block<3,1>(0,3) = end1;
+    glPushMatrix();
+    glMultMatrixd(matrix.data());
+    if (d->id != -1)
+      glLoadName(d->id);
+    glBindVertexArray(m.vao);
+    glDrawElements(GL_TRIANGLES, m.count, GL_UNSIGNED_INT, 0);
+    glBindVertexArray(0);
+    glPopMatrix();
+  }
+  static void generateSphereMesh(VboMesh &mesh, int detail)
+  {
+    if (mesh.vao)
+      return;
+    int stacks = detail + 3;
+    int slices = stacks * 2;
+    std::vector<float> verts;
+    std::vector<unsigned int> indices;
+    verts.reserve((stacks + 1) * (slices + 1) * 6);
+    indices.reserve(stacks * slices * 6);
+
+    for (int i = 0; i <= stacks; ++i) {
+      float phi = M_PI * i / stacks;
+      float sp = sinf(phi);
+      float cp = cosf(phi);
+      for (int j = 0; j <= slices; ++j) {
+        float theta = 2.f * M_PI * j / slices;
+        float st = sinf(theta);
+        float ct = cosf(theta);
+        float x = sp * ct;
+        float y = sp * st;
+        float z = cp;
+        verts.push_back(x);
+        verts.push_back(y);
+        verts.push_back(z);
+        verts.push_back(x);
+        verts.push_back(y);
+        verts.push_back(z);
+      }
+    }
+    for (int i = 0; i < stacks; ++i) {
+      for (int j = 0; j < slices; ++j) {
+        unsigned int first = i * (slices + 1) + j;
+        unsigned int second = first + slices + 1;
+        indices.push_back(first);
+        indices.push_back(second);
+        indices.push_back(first + 1);
+        indices.push_back(second);
+        indices.push_back(second + 1);
+        indices.push_back(first + 1);
+      }
+    }
+    glGenVertexArrays(1, &mesh.vao);
+    glGenBuffers(1, &mesh.vbo);
+    glGenBuffers(1, &mesh.ibo);
+    glBindVertexArray(mesh.vao);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
+    glBufferData(GL_ARRAY_BUFFER, verts.size() * sizeof(float), verts.data(), GL_STATIC_DRAW);
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_NORMAL_ARRAY);
+    glVertexPointer(3, GL_FLOAT, 6 * sizeof(float), 0);
+    glNormalPointer(GL_FLOAT, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ibo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+    mesh.count = static_cast<GLsizei>(indices.size());
+    glBindVertexArray(0);
+  }
+
+  static void generateCylinderMesh(VboMesh &mesh, int faces)
+  {
+    if (mesh.vao)
+      return;
+    if (faces < 3)
+      faces = 3;
+    std::vector<float> verts;
+    std::vector<unsigned int> indices;
+    verts.reserve((faces + 1) * 2 * 6);
+    indices.reserve(faces * 6);
+    for (int i = 0; i <= faces; ++i) {
+      float a = 2.f * M_PI * i / faces;
+      float c = cosf(a);
+      float s = sinf(a);
+      verts.push_back(c);
+      verts.push_back(s);
+      verts.push_back(1.f);
+      verts.push_back(c);
+      verts.push_back(s);
+      verts.push_back(0.f);
+      verts.push_back(c);
+      verts.push_back(s);
+      verts.push_back(0.f);
+      verts.push_back(c);
+      verts.push_back(s);
+      verts.push_back(0.f);
+    }
+    for (int i = 0; i < faces; ++i) {
+      unsigned int i0 = i * 2;
+      unsigned int i1 = i0 + 1;
+      unsigned int i2 = i0 + 2;
+      unsigned int i3 = i0 + 3;
+      indices.push_back(i0);
+      indices.push_back(i1);
+      indices.push_back(i2);
+      indices.push_back(i1);
+      indices.push_back(i3);
+      indices.push_back(i2);
+    }
+    glGenVertexArrays(1, &mesh.vao);
+    glGenBuffers(1, &mesh.vbo);
+    glGenBuffers(1, &mesh.ibo);
+    glBindVertexArray(mesh.vao);
+    glBindBuffer(GL_ARRAY_BUFFER, mesh.vbo);
+    glBufferData(GL_ARRAY_BUFFER, verts.size() * sizeof(float), verts.data(), GL_STATIC_DRAW);
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_NORMAL_ARRAY);
+    glVertexPointer(3, GL_FLOAT, 6 * sizeof(float), 0);
+    glNormalPointer(GL_FLOAT, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, mesh.ibo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+    mesh.count = static_cast<GLsizei>(indices.size());
+    glBindVertexArray(0);
   }
 
 } // end namespace Avogadro

@@ -71,6 +71,7 @@
 #include <QtCore/QPointer>
 #include <QtCore/QReadWriteLock>
 #include <QtCore/QTime>
+#include <QtCore/QElapsedTimer>
 #include <QtCore/QMutex>
 
 #ifdef ENABLE_THREADED_GL
@@ -80,9 +81,6 @@
 
 #include <Eigen/Geometry>
 
-#ifdef ENABLE_GLSL
-  #include <GL/glew.h>
-#endif
 
 #include <cstdio>
 #include <vector>
@@ -492,8 +490,8 @@ namespace Avogadro {
       abort();
     }
 
-    // Try to initialise GLEW if GLSL was enabled, test for OpenGL 2.0 support
-    #ifdef ENABLE_GLSL
+    // Try to initialise GLEW if GLSL or VBO support was enabled
+#if defined(ENABLE_GLSL) || defined(AVO_NO_DISPLAY_LISTS)
     GLenum err = glewInit();
     if (err != GLEW_OK) {
       qDebug() << "GLSL support enabled but GLEW could not initialise!";
@@ -511,7 +509,7 @@ namespace Avogadro {
       qDebug() << "GLSL support disabled, OpenGL 2.0 support not present.";
       m_glslEnabled = false;
     }
-    #endif
+#endif
 
     qglClearColor( d->background );
 
@@ -554,6 +552,9 @@ namespace Avogadro {
 
   void GLWidget::paintGL()
   {
+    QElapsedTimer avoBench;
+    if (qEnvironmentVariableIsSet("AVO_BENCHMARK"))
+      avoBench.start();
     resizeGL(width(), height()); // fix for bug #1797069. don't remove!
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
@@ -568,6 +569,9 @@ namespace Avogadro {
     d->camera->applyModelview();
 
     render();
+
+    if (avoBench.isValid())
+      qDebug() << "paintGL" << avoBench.elapsed() << "ms";
   }
 
   void GLWidget::paintGL2()
@@ -2697,6 +2701,7 @@ namespace Avogadro {
     settings.setValue("renderDebug", d->renderDebug);
     settings.setValue("renderModelViewDebug", d->renderModelViewDebug);
     settings.setValue("allowQuickRender", d->allowQuickRender);
+    settings.setValue("useVbo", d->painter->vboEnabled());
     settings.setValue("renderUnitCellAxes", d->renderUnitCellAxes);
     settings.setValue("projection", d->projection);
 
@@ -2722,6 +2727,7 @@ namespace Avogadro {
     d->renderModelViewDebug =
         settings.value("renderModelViewDebug", 0).value<bool>();
     d->allowQuickRender = settings.value("allowQuickRender", 1).value<bool>();
+    d->painter->setVboEnabled(settings.value("useVbo", d->painter->vboEnabled()).value<bool>());
     d->renderUnitCellAxes = settings.value("renderUnitCellAxes", 1).value<bool>();
     int pr = settings.value("projection", GLWidget::Perspective).toInt();
     // Makes the compiler happy about the type conversion.
@@ -2830,6 +2836,17 @@ namespace Avogadro {
   bool GLWidget::quickRender() const
   {
     return d->allowQuickRender;
+  }
+
+  void GLWidget::setVboEnabled(bool enable)
+  {
+    if (d->painter)
+      d->painter->setVboEnabled(enable);
+  }
+
+  bool GLWidget::vboEnabled() const
+  {
+    return d->painter ? d->painter->vboEnabled() : false;
   }
 
   void GLWidget::setRenderUnitCellAxes(bool enabled)

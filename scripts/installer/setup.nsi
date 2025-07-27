@@ -35,8 +35,8 @@ Name "Avogadro"
 ; Executable is installed in the 'bin' directory.
 ; Pointing shortcuts here ensures the bundled avogadro.dll is loaded,
 ; avoiding the "Prozedureinsprungspunkt" runtime error.
-!define PRODUCT_EXE "$INSTDIR\bin\Avogadro.exe"
-!define PRODUCT_EXE2 "Avogadro.exe"
+!define PRODUCT_EXE "$INSTDIR\bin\Avogadro-ob.bat"
+!define PRODUCT_EXE2 "Avogadro-ob.bat"
 !define PRODUCT_REGNAME "Avogadro.Document"
 !define PRODUCT_EXT ".cml"
 !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\$(^Name)"
@@ -259,6 +259,9 @@ Section "-Installation actions" SecInstallation
   # register Avogadro
   WriteRegStr SHCTX "${REGKEY}" Path $INSTDIR
   WriteUninstaller $INSTDIR\uninstall.exe
+  WriteRegStr HKCU "Environment" "BABEL_DATADIR" "$INSTDIR\share\openbabel\${OB_VERSION}"
+  WriteRegStr HKCU "Environment" "BABEL_LIBDIR"  "$INSTDIR\lib\openbabel\${OB_VERSION}"
+  System::Call 'Kernel32::SendMessageW(i 0xFFFF, i ${WM_SETTINGCHANGE}, i 0, w "Environment")'
   
   # create shortcuts to startmenu
   # ensure the working directory is the binary path so avogadro.dll resolves
@@ -290,7 +293,7 @@ Section "-Installation actions" SecInstallation
     # write informations about file type
     WriteRegStr SHCTX "Software\Classes\${PRODUCT_REGNAME}" "" "${PRODUCT_NAME} Document"
     WriteRegStr SHCTX "Software\Classes\${PRODUCT_REGNAME}\DefaultIcon" "" "${PRODUCT_EXE},0"
-    WriteRegStr SHCTX "Software\Classes\${PRODUCT_REGNAME}\Shell\open\command" "" '"${PRODUCT_EXE}" "%1"' 
+    WriteRegStr SHCTX "Software\Classes\${PRODUCT_REGNAME}\Shell\open\command" "" '"${PRODUCT_EXE}" "%1"'
     # write informations about file extensions
     WriteRegStr SHCTX "Software\Classes\${PRODUCT_EXT}" "" "${PRODUCT_REGNAME}"
     # refresh shell

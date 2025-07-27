@@ -33,7 +33,8 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_VERBOSE_MAKEFILE=ON \
             -DENABLE_TESTS=ON \
-            -DENABLE_XTB_OPTTOOL=${{ matrix.xtb }}
+            -DENABLE_XTB_OPTTOOL=${{ matrix.xtb }} \
+            -DAVOGADRO_NO_DISPLAY_LISTS=ON
       - name: Build
         run: |
           cmake --build build -- -j1 VERBOSE=1
