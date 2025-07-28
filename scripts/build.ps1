@@ -57,10 +57,16 @@ cmake -G "NMake Makefiles" .. `
   "-DGLEW_INCLUDE_DIR=${env:LIBS_HOME}/glew-2.2.0/install/include" `
   "-DGLEW_LIBRARY=${env:LIBS_HOME}/glew-2.2.0/install/lib/glew32.lib" `
   "-DCMAKE_PREFIX_PATH=$thirdPartyPrefixes" `
-  "-DENABLE_GLSL=ON"
+  "-DENABLE_GLSL=ON" `
+  "-DENABLE_TESTS=ON"
 
 # ───────────────────────────────────────────────────────────────
 # 4.  Build + install
 # ───────────────────────────────────────────────────────────────
+
+# Build and install
 cmake --build . --config Release --target install
+
+# Run tests
+ctest -C Release --output-on-failure
 
