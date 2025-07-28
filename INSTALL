@@ -1,18 +1,86 @@
+
+Windows System Dependencies
+==========================
+To build Avogadro on Windows, you must install the following system dependencies:
+
+Quick Install with Chocolatey
+----------------------------
+If you have Chocolatey installed, you can install all required dependencies with the following commands in an administrative PowerShell:
+
+```powershell
+choco install -y visualstudio2022buildtools cmake --version=3.28.6 git python strawberryperl
+```
+
+Notes:
+- For Visual Studio Build Tools, you may need to run the Visual Studio Installer after installation to select the "Desktop development with C++" workload if not automatically included.
+- If you need a specific version of CMake, use the `--version` flag as shown above. Otherwise, omit it for the latest version.
+- After installation, restart your shell to ensure all tools are available in your PATH.
+
+
+1. **Chocolatey** (Windows package manager)
+   - Open an administrative PowerShell and run:
+     ```powershell
+     Set-ExecutionPolicy Bypass -Scope Process -Force;
+     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
+     iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+     ```
+   - See: https://chocolatey.org/install
+
+2. **Microsoft Visual Studio 2022 Community (MSVC) Build Tools**
+   - Download and run the installer from:
+     https://visualstudio.microsoft.com/visual-cpp-build-tools/
+   - During installation, select the "Desktop development with C++" workload.
+
+3. **CMake 3.28.6**
+   - Download the Windows installer from:
+     https://cmake.org/download/
+   - (For older versions, see https://cmake.org/files/)
+
+4. **Git**
+   - Download the Windows installer from:
+     https://git-scm.com/download/win
+
+5. **Python 3**
+   - Download the latest Windows installer from:
+     https://www.python.org/downloads/windows/
+   - During installation, check "Add Python to PATH".
+
+6. **Strawberry Perl**
+   - Download the latest release from:
+     https://strawberryperl.com/
+
+After installing these dependencies, you can proceed with the build instructions below.
+
 Requirements
 ============
- -- CMake 2.8.9 or later (3.0 or later recommended)
- -- Qt 5.0 or later
- -- OpenBabel 3.1 or later (downloaded automatically from
-  https://github.com/thosoo/openbabel if not found)
- -- Eigen 3.x
 
+The following are required to build Avogadro:
+
+**Cross-platform:**
+ - CMake 3.28 or later
+ - Qt 5 (with components: Widgets, Gui, OpenGL, Network, LinguistTools, Core, Concurrent, Test)
+ - OpenGL
+ - ZLIB
+ - Eigen 3.x
+ - OpenBabel 3.1 or later (downloaded automatically from https://github.com/thosoo/openbabel if not found)
+
+**Optional (cross-platform):**
+ - Python 3 (for Python scripting support, enabled by default; can be disabled with `-DENABLE_PYTHON=OFF`)
+ - GLEW (for GLSL shader support, enable with `-DENABLE_GLSL=ON`)
+ - wxWidgets (for some advanced features)
+ - X11 (Linux only)
+
+**Windows-specific:**
+ - Visual Studio 2022 Build Tools (MSVC)
+ - Git
+ - Strawberry Perl
+
+On Windows, most requirements can be installed easily using Chocolatey. See the "Quick Install with Chocolatey" section above for details.
 
 Basic Installation
 ==================
-These instructions give a very basic overview of how to configure, compile and
-install Avogadro on most systems.  If you are using unique install locations
-and/or libraries are not automatically detected please consult the 'Advanced'
-section.
+
+These instructions give a very basic overview of how to configure, compile and install Avogadro on most systems. If you are using unique install locations and/or libraries are not automatically detected, please consult the 'Advanced' section and the CMake options above.
 
 1. Create a 'build' directory in the package source directory.
 
@@ -34,44 +102,67 @@ section.
 
 Advanced
 ========
-The build system (CMake) provides mechanisms for specifying non-standard
-installation locations.
 
-   -DCMAKE_INSTALL_PREFIX : specify the installation prefix
-                            (default /usr/local)
+The build system (CMake) provides mechanisms for specifying non-standard installation locations and overriding dependency locations. See the CMake options and advanced variables listed above.
 
-   -DLIB_INSTALL_DIR : specify the install location for libraries
-                       (default ${CMAKE_INSTALL_PREFIX}/lib)
+**CMake Options:**
+ - `-DENABLE_PYTHON=ON|OFF` (default ON): Enable or disable Python scripting support
+ - `-DENABLE_TESTS=ON|OFF` (default OFF): Enable or disable unit tests
+ - `-DENABLE_GLSL=ON|OFF` (default OFF): Enable or disable GLSL shader support (requires GLEW)
+ - `-DENABLE_AVO_PACKAGE=ON|OFF`: Enable creation of a self-contained package
+ - `-DENABLE_VERSIONED_PLUGIN_DIR=ON|OFF` (default ON): Use versioned plugin directory
+ - `-DENABLE_RPATH=ON|OFF` (default ON, Linux/Mac): Enable rpath support
 
-   OpenBabel will be downloaded and built automatically unless these variables
-   or `OpenBabel3_DIR` are set to use an existing installation.
+**Advanced CMake Options and Variables:**
 
-   -DOPENBABEL2_LIBRARIES : specify the OpenBabel2 libraries (optional)
+The following advanced options and variables can be set to customize the build. All can be passed to CMake with `-D<VAR>=<value>`. Defaults are shown in parentheses where applicable.
 
-   -DOPENBABEL2_INCLUDE_DIR : specify the OpenBabel2 include directory (optional)
+**Install and Directory Options:**
+ - `CMAKE_INSTALL_PREFIX` (default `/usr/local`): Installation prefix for all files
+ - `LIB_INSTALL_DIR` (default `${CMAKE_INSTALL_PREFIX}/lib` on Unix, `${CMAKE_INSTALL_PREFIX}/bin` on Windows): Install location for libraries
+ - `BIN_INSTALL_DIR` (default `bin`): Install location for binaries
+ - `INCLUDE_INSTALL_DIR` (default `include`): Install location for headers
+ - `SHARE_INSTALL_PREFIX` (default `share`): Base directory for shared data
+ - `I18N_INSTALL_DIR` (default `${SHARE_INSTALL_PREFIX}/avogadro/i18n`): Install location for translations
+ - `XDG_APPS_INSTALL_DIR` (default `${SHARE_INSTALL_PREFIX}/applications`): Install location for application files
+ - `XDG_ICON_INSTALL_DIR` (default `${SHARE_INSTALL_PREFIX}/pixmaps`): Install location for icons
+ - `LIB_SUFFIX` (default empty): Suffix for library directory (e.g., `64` for `lib64`)
 
-   -DEIGEN3_INCLUDE_DIR : specify the Eigen include directory (also forwarded
-                          to the bundled Open Babel build)
+**Dependency and Override Options:**
+ - `OPENBABEL3_DIR`: Use an existing OpenBabel3 installation
+ - `EIGEN3_INCLUDE_DIR`: Specify the Eigen include directory
+ - `OPENBABEL2_LIBRARIES`, `OPENBABEL2_INCLUDE_DIR`: Specify OpenBabel2 locations (optional)
+ - `INCHI_INCLUDE_DIR`, `INCHI_LIBRARY`: Override InChI locations
+ - `CAIRO_INCLUDE_DIRS`, `CAIRO_LIBRARIES`: Override Cairo locations
+ - `RAPIDJSON_INCLUDE_DIRS`: Override RapidJSON location
+ - `MAEPARSER_DIR`, `maeparser_INCLUDE_DIRS`, `maeparser_LIBRARIES`: Override Maeparser locations
+ - `coordgen_DIR`, `coordgen_INCLUDE_DIRS`, `coordgen_LIBRARIES`: Override Coordgen locations
+ - `LIBXML2_INCLUDE_DIR`, `LIBXML2_LIBRARIES`: Override LibXML2 locations
+ - `ZLIB_INCLUDE_DIR`, `ZLIB_LIBRARY`: Override ZLIB locations
+ - `wxWidgets_LIB_DIR`: Override wxWidgets library directory
 
-   The following variables are also passed to the bundled Open Babel build when
-   defined. They allow overriding dependency locations:
-     INCHI_INCLUDE_DIR / INCHI_LIBRARY
-     CAIRO_INCLUDE_DIRS / CAIRO_LIBRARIES
-     RAPIDJSON_INCLUDE_DIRS
-     MAEPARSER_DIR (with maeparser_INCLUDE_DIRS/maeparser_LIBRARIES)
-     coordgen_DIR (with coordgen_INCLUDE_DIRS/coordgen_LIBRARIES)
-    LIBXML2_INCLUDE_DIR / LIBXML2_LIBRARIES
-    ZLIB_INCLUDE_DIR / ZLIB_LIBRARY
-    wxWidgets_LIB_DIR
-    LIB_INSTALL_DIR
+**Build Feature Options:**
+ - `ENABLE_PYTHON` (default ON): Enable Python scripting support
+ - `ENABLE_TESTS` (default OFF): Enable unit tests
+ - `ENABLE_GLSL` (default OFF): Enable GLSL shader support (requires GLEW)
+ - `ENABLE_AVO_PACKAGE` (default OFF): Enable creation of a self-contained package
+ - `ENABLE_VERSIONED_PLUGIN_DIR` (default ON): Use versioned plugin directory
+ - `ENABLE_RPATH` (default ON, Linux/Mac): Enable rpath support
+ - `ENABLE_THREADEDGL` (default OFF): Enable threaded OpenGL rendering (experimental)
+ - `EXTRA_WARNINGS` (default OFF): Enable extra compiler warnings (GCC/Intel only)
+ - `WITH_SSE2` (default OFF): Enable SSE2 instruction set (GCC/Intel only)
+ - `I18N_LANGUAGE` (default empty): Build i18n only for selected language
+ - `INSTALL_QMAKE_PRF` (default ON): Install QMake integration files to Qt prefix
 
-   -DENABLE_PYTHON : specify whether to build Boost.Python interpreter
-                    (default = TRUE)
+**Other Useful Options:**
+ - `-DENABLE_UPDATE_CHECKER=ON|OFF`: Enable checking for new Avogadro versions over the network (Linux distributions may want to disable)
 
-   -DENABLE_UPDATE_CHECKER : Enable checking for new Avogadro versions over the
-                             network - Linux distributions may want to disable.
+For more information, consult the CMake documentation and the top-level CMakeLists.txt.
 
-For more information please consult the CMake documentation.
+Other useful options:
+ - `-DENABLE_UPDATE_CHECKER=ON|OFF`: Enable checking for new Avogadro versions over the network (Linux distributions may want to disable)
+
+For more information, please consult the CMake documentation and the top-level CMakeLists.txt.
 
 Avogadro uses a few environment variables to find things at runtime. If Avogadro
 is installed to the location specified at compile time none of these variables
