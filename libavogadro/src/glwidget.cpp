@@ -100,9 +100,14 @@ namespace Avogadro {
 void GLWidget::showEvent(QShowEvent *event)
 {
   QOpenGLWidget::showEvent(event);
-  // After the widget is shown the correct devicePixelRatio is known.
-  // Trigger a resize to ensure the viewport uses the proper scale
-  // before the first paint on high-DPI screens.
+  // Schedule a viewport update once the event loop returns so the
+  // correct device pixel ratio is applied on the first paint.
+  QMetaObject::invokeMethod(this, "updateViewport",
+                           Qt::QueuedConnection);
+}
+
+void GLWidget::updateViewport()
+{
   resizeGL(width(), height());
   update();
 }

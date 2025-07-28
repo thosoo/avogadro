@@ -793,6 +793,11 @@ namespace Avogadro {
       void toolsDestroyed();
 
       /**
+       * Force a viewport update to account for device pixel ratio changes.
+       */
+      void updateViewport();
+
+      /**
        * Adds the QLabel @a label to the list of text drawn in the
        * text overlay.
        *
