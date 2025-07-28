@@ -40,6 +40,7 @@
 #include <QOpenGLWidget>
 
 class QOpenGLContext;
+class QShowEvent;
 class QLabel;
 class QMouseEvent;
 class QSettings;

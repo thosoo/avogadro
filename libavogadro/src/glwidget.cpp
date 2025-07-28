@@ -100,6 +100,10 @@ namespace Avogadro {
 void GLWidget::showEvent(QShowEvent *event)
 {
   QOpenGLWidget::showEvent(event);
+  // After the widget is shown the correct devicePixelRatio is known.
+  // Trigger a resize to ensure the viewport uses the proper scale
+  // before the first paint on high-DPI screens.
+  resizeGL(width(), height());
   update();
 }
 
@@ -1658,10 +1662,9 @@ namespace Avogadro {
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
     glLoadIdentity();
-    // Ensure the axes are of the same length
-    // Use devicePixelRatioF for HiDPI support
-    qreal dpr = devicePixelRatioF();
-    double aspectRatio = static_cast<double>(d->pd->width() * dpr)/static_cast<double>(d->pd->height() * dpr);
+    // Ensure the axes are of the same length using the logical widget size
+    double aspectRatio = static_cast<double>(d->pd->width()) /
+                         static_cast<double>(d->pd->height());
     glOrtho(0, aspectRatio, 0, 1, 0, 1);
     glMatrixMode(GL_MODELVIEW);
     glPushMatrix();
@@ -3055,12 +3058,11 @@ static inline GLint gluProject(GLdouble objx, GLdouble objy, GLdouble objz,
     }
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    // Use devicePixelRatioF for HiDPI support
-    qreal dpr = devicePixelRatioF();
-    int physWidth = static_cast<int>(width * dpr);
-    int physHeight = static_cast<int>(height * dpr);
-    glViewport(0, 0, physWidth, physHeight);
-    glOrtho(0, physWidth, physHeight, 0, 0, 1);
+    // Use the logical widget size. QOpenGLWidget ensures the underlying
+    // framebuffer matches the device pixel ratio so no additional scaling is
+    // required here.
+    glViewport(0, 0, width, height);
+    glOrtho(0, width, height, 0, 0, 1);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glAlphaFunc(GL_GREATER, 0.0);
