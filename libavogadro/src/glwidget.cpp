@@ -635,13 +635,14 @@ GLWidget::GLWidget( Molecule *molecule,
       glClearColor(d->background.redF(), d->background.greenF(),
                    d->background.blueF(), d->background.alphaF());
       paintGL();
-      context()->swapBuffers(context()->surface());
 #endif
     }
   }
 
   void GLWidget::resizeEvent( QResizeEvent *event )
   {
+    // Allow base class to recreate the framebuffer object as needed
+    QOpenGLWidget::resizeEvent(event);
 #ifdef ENABLE_THREADED_GL
     d->thread->resize( event->size().width(), event->size().height() );
 #else
