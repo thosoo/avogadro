@@ -1,0 +1,12 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"label": "Test install-avo-deps.ps1 for aqtinstall.log location",
+			"command": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/install-avo-deps.ps1",
+			"group": "test",
+			"isBackground": false
+		}
+	]
+}

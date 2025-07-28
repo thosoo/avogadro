@@ -1,0 +1,15 @@
+{
+    // Automatically load the MSVC Developer Command Prompt for new terminals
+    "terminal.integrated.profiles.windows": {
+        "MSVC DevShell (Community) - pwsh": {
+            "path": "pwsh.exe",
+            "args": [
+                "-NoExit",
+                "-Command",
+                "& 'C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\Common7\\Tools\\Launch-VsDevShell.ps1' -Arch amd64 -HostArch amd64"
+            ],
+            "icon": "terminal-powershell"
+        }
+    },
+    "terminal.integrated.defaultProfile.windows": "MSVC DevShell (Community) - pwsh"
+}

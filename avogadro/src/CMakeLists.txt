@@ -12,24 +12,30 @@ configure_file(
 
 link_directories(${OPENBABEL2_LIBRARY_DIRS})
 
-# Ensure the Avogadro include directory is always first
-get_directory_property(tmp_include_dirs INCLUDE_DIRECTORIES)
-set_directory_properties(PROPERTIES INCLUDE_DIRECTORIES
-  "${libavogadro_BINARY_DIR}/include;${tmp_include_dirs}")
+
+# Ensure Qt5 is found and include its directories
+if(NOT Qt5Widgets_FOUND)
+  message(FATAL_ERROR "Qt5Widgets not found. Please install Qt5 and set CMAKE_PREFIX_PATH appropriately.")
+endif()
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${OPENBABEL2_INCLUDE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
+  ${Qt5Widgets_INCLUDE_DIRS}
+  ${Qt5Gui_INCLUDE_DIRS}
+  ${Qt5Core_INCLUDE_DIRS}
+  ${Qt5OpenGL_INCLUDE_DIRS}
+  ${Qt5Network_INCLUDE_DIRS}
 )
 
 if(EIGEN3_FOUND)
-	include_directories(
-		${EIGEN3_INCLUDE_DIR}
-	)
+  include_directories(
+    ${EIGEN3_INCLUDE_DIR}
+  )
 elseif(EIGEN2_FOUND)
-	include_directories(
-		${EIGEN2_INCLUDE_DIR}
-	)
+  include_directories(
+    ${EIGEN2_INCLUDE_DIR}
+  )
 endif(EIGEN3_FOUND)
 
 if(GLEW_FOUND)
@@ -68,12 +74,16 @@ endif()
 
 file(GLOB avogadro_RCS "*.qrc")
 
-file(GLOB avogadro_UIS "*.ui")
 
-# designer has some flaws.
-qt4_automoc(${avogadro_SRCS})
-qt4_add_resources(avogadro_RC_SRCS ${avogadro_RCS})
-qt4_wrap_ui(avogadro_UIS_H ${avogadro_UIS})
+
+# Enable AUTOMOC, AUTORCC, and AUTOUIC for Qt5
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
+
+file(GLOB avogadro_UIS "*.ui")
+# Add .qrc and .ui files directly to the sources
+set(avogadro_SRCS ${avogadro_SRCS} ${avogadro_RCS} ${avogadro_UIS})
 
 if(NOT WIN32)
   if(Linguist_FOUND)
@@ -82,7 +92,7 @@ if(NOT WIN32)
       string(REGEX REPLACE "(.*)/([^.]+)\\.po" "\\1/avogadro-\\2.po" po ${po})
       list(APPEND avogadro_PO ${po})
     endforeach()
-    QT4_WRAP_PO(avogadro_QM ${avogadro_PO})
+    qt5_create_translation(avogadro_QM ${CMAKE_SOURCE_DIR} ${avogadro_PO})
   endif()
 else()
   # don't attempt to create QM files on windows -- copy them from a linux build!
@@ -109,7 +119,11 @@ set_source_files_properties(${avogadro_SRCS}
   PROPERTIES LABELS avogadro)
 
 target_link_libraries(avogadro-app
-  ${QT_LIBRARIES}
+  Qt5::Widgets
+  Qt5::Gui
+  Qt5::Core
+  Qt5::OpenGL
+  Qt5::Network
   ${OPENBABEL2_LIBRARIES}
   avogadro)
 if(QtTesting)

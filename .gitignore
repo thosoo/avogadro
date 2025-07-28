@@ -1,3 +1,6 @@
+# Ignore build and libs directories in the Avogadro source root
+/build/
+/libs/
 CMakeFiles
 build
 *.[ao]

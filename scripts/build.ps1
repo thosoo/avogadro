@@ -1,12 +1,16 @@
 # --- create (or clean) the out‑of‑tree build directory ---
-New-Item -ItemType Directory -Force -Path "$HOME\build" | Out-Null
-Set-Location "$HOME\build"
+# Determine Avogadro source root as parent of script directory
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$AvoRoot = Resolve-Path (Join-Path $ScriptDir '..')
+$BuildDir = Join-Path $AvoRoot 'build'
+New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
+Set-Location $BuildDir
 
 # ───────────────────────────────────────────────────────────────
 # 1.  Ensure LIBS_HOME is defined for this session
 # ───────────────────────────────────────────────────────────────
 if (-not $env:LIBS_HOME -or [string]::IsNullOrWhiteSpace($env:LIBS_HOME)) {
-    $env:LIBS_HOME = "$HOME\libs"   # installer’s default
+    $env:LIBS_HOME = Join-Path $AvoRoot 'libs'
 }
 
 # ───────────────────────────────────────────────────────────────
@@ -36,21 +40,20 @@ if (-not (Test-Path "$eigenDir/Eigen")) {
 
 $libxml2Prefix   = "${env:LIBS_HOME}/libxml2-2.12.10/install"
 
-# 2‑C · Build master prefix list for CMake
-$thirdPartyPrefixes = @( $qtRoot, $qtCMakeDir, "$qtCMakeDir\Qt5",
-                         $libxml2Prefix ) -join ';'
+# 2-C · Build master prefix list for CMake (Qt5 and libxml2)
+$thirdPartyPrefixes = @( $qtRoot, $qtCMakeDir, $libxml2Prefix ) -join ';'
 $env:CMAKE_PREFIX_PATH = "$thirdPartyPrefixes;${env:CMAKE_PREFIX_PATH}"
 
 # ───────────────────────────────────────────────────────────────
 # 3.  Configure Avogadro
 # ───────────────────────────────────────────────────────────────
-cmake -G "NMake Makefiles" ../avogadro `
+cmake -G "NMake Makefiles" .. `
   "-DCMAKE_BUILD_TYPE=Release" `
   "-DCMAKE_INSTALL_PREFIX=${HOME}/build/install" `
   "-DZLIB_ROOT=${env:LIBS_HOME}/zlib-1.3.1/install" `
   "-DEIGEN3_INCLUDE_DIR=${env:LIBS_HOME}/eigen-3.4.0" `
   "-DLIBXML2_INCLUDE_DIR=${env:LIBS_HOME}/libxml2-2.12.10/install/include" `
-  "-DLIBXML2_LIBRARIES=${env:LIBS_HOME}/libxml2-2.12.10/install/lib" `
+  "-DLIBXML2_LIBRARIES=${env:LIBS_HOME}/libxml2-2.12.10/install/lib/libxml2.lib" `
   "-DGLEW_INCLUDE_DIR=${env:LIBS_HOME}/glew-2.2.0/install/include" `
   "-DGLEW_LIBRARY=${env:LIBS_HOME}/glew-2.2.0/install/lib/glew32.lib" `
   "-DCMAKE_PREFIX_PATH=$thirdPartyPrefixes" `

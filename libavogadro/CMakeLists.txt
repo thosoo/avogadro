@@ -55,7 +55,7 @@ function(avogadro_plugin_nogl plugin_name src_list)
   endforeach()
   if(NOT "${ui_plugin_files}" STREQUAL "")
     # Process the UI file for this plugin
-    qt4_wrap_ui(plugin_UIS_H ${ui_plugin_files})
+    qt5_wrap_ui(plugin_UIS_H ${ui_plugin_files})
   endif()
 
   # Check if the plugin should be compiled static or not
@@ -71,7 +71,7 @@ function(avogadro_plugin_nogl plugin_name src_list)
 
   if(NOT "${qrc_plugin_files}" STREQUAL "")
     # Process the RC file and add it to the plugin
-    qt4_add_resources(plugin_RC_SRCS ${qrc_plugin_files})
+    qt5_add_resources(plugin_RC_SRCS ${qrc_plugin_files})
     if("${_plugin_type}" STREQUAL "STATIC")
       set(plugins_rcc_static ${plugins_rcc_static} ${plugin_name}
         CACHE INTERNAL "Static resources for Avogadro plugins")

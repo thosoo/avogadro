@@ -11,7 +11,7 @@ include_directories(
 # use all cpp files in this directory
 file(GLOB wrapper_SRCS "*.cpp")
 
-qt4_automoc(moleculelist.cpp)
+set(CMAKE_AUTOMOC ON)
 
 add_library(python-module MODULE ${wrapper_SRCS})
 set_target_properties(python-module PROPERTIES OUTPUT_NAME Avogadro)

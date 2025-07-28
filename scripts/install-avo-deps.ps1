@@ -15,7 +15,10 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference    = 'SilentlyContinue'
 
 # ── Globals ────────────────────────────────────────────────────────────────
-$LIBS_HOME = Join-Path $HOME 'libs'
+# Determine Avogadro source root as parent of script directory
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$AvoRoot = Resolve-Path (Join-Path $ScriptDir '..')
+$LIBS_HOME = Join-Path $AvoRoot 'libs'
 [Environment]::SetEnvironmentVariable('LIBS_HOME', $LIBS_HOME, 'User')
 New-Item -ItemType Directory -Path $LIBS_HOME -Force | Out-Null
 
@@ -30,23 +33,44 @@ function Get-Archive {
     else                       { tar -xf $tmp -C $LIBS_HOME }
 }
 
-function Build-CMake {
-    param([string]$Src,[string]$Bld,[string]$Prefix,[string[]]$Args)
-    if (Test-Path "$Bld/CMakeCache.txt") {
-        if ((Get-Content "$Bld/CMakeCache.txt" -Raw) -match '\$env:LIBS_HOME') { Remove-Item -Recurse -Force $Bld }
-    }
-    if ($Force -and (Test-Path $Bld)) { Remove-Item -Recurse -Force $Bld }
-    cmake -S $Src -B $Bld -G "NMake Makefiles" "-DCMAKE_INSTALL_PREFIX=${Prefix}" @Args
-    cmake --build $Bld --target install --config Release
-}
 
 # ── zlib 1.3.1 ─────────────────────────────────────────────────────────────
+
+
+
+
+# Download and build zlib Release only
 Get-Archive "https://zlib.net/zlib131.zip" "$LIBS_HOME/zlib-1.3.1"
-$zlibPrefix   = "$LIBS_HOME/zlib-1.3.1/install"
-$zlibInclude  = "$zlibPrefix/include"
-$zlibLibDir   = "$zlibPrefix/lib"
-Build-CMake "$LIBS_HOME/zlib-1.3.1" "$LIBS_HOME/zlib-build" $zlibPrefix `
-           -Args "-DBUILD_SHARED_LIBS=OFF","-DCMAKE_BUILD_TYPE=Release"
+$zlibPrefixRelease = "$LIBS_HOME/zlib-1.3.1/install-release"
+$zlibInclude       = "$LIBS_HOME/zlib-1.3.1/install/include"  # Common include dir for downstream
+$zlibLibDir        = "$LIBS_HOME/zlib-1.3.1/install/lib"      # Common lib dir for downstream
+
+# Build zlib Release
+$zlibBuildRelease = "$LIBS_HOME/zlib-build-release"
+if (Test-Path $zlibBuildRelease) { Remove-Item -Recurse -Force $zlibBuildRelease }
+if (Test-Path $zlibPrefixRelease) { Remove-Item -Recurse -Force $zlibPrefixRelease }
+Write-Host "→ Configuring $zlibBuildRelease for Release build..."
+cmake -S "$LIBS_HOME/zlib-1.3.1" -B $zlibBuildRelease -G "NMake Makefiles" -DCMAKE_INSTALL_PREFIX="$zlibPrefixRelease" -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release
+cmake --build $zlibBuildRelease --target install --config Release
+# Copy Release artifacts to common location
+$zlibStaticLibRelease = Join-Path $zlibPrefixRelease 'lib/zlibstatic.lib'
+$zlibLibRelease = Join-Path $zlibLibDir 'zlib.lib'
+if (Test-Path $zlibStaticLibRelease) {
+    New-Item -ItemType Directory -Path $zlibLibDir -Force | Out-Null
+    Copy-Item $zlibStaticLibRelease $zlibLibRelease -Force
+    Write-Host "✓ Copied Release zlibstatic.lib to common zlib.lib for downstream consumers."
+} else {
+    Write-Warning "zlibstatic.lib not found after Release build; libxml2 may fail to link."
+}
+# Copy include files from Release install
+$zlibIncludeRelease = Join-Path $zlibPrefixRelease 'include'
+if (Test-Path $zlibIncludeRelease) {
+    New-Item -ItemType Directory -Path $zlibInclude -Force | Out-Null
+    Copy-Item "$zlibIncludeRelease\*" $zlibInclude -Recurse -Force
+    Write-Host "✓ Copied zlib include files to common include dir."
+} else {
+    Write-Warning "zlib include directory not found after Release build."
+}
 
 # ── Eigen 3.4.0 (header‑only) ──────────────────────────────────────────────
 Get-Archive "https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip" "$LIBS_HOME/eigen-3.4.0"
@@ -54,7 +78,8 @@ Get-Archive "https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.zip" 
 # ── libxml2 2.12.10 (MSVC Makefile) ───────────────────────────────────────
 $libxmlVer = '2.12.10'
 $libxmlSrc = "$LIBS_HOME/libxml2-$libxmlVer"
-if ($Force -or -not (Test-Path "$libxmlSrc/install/lib/libxml2.lib")) {
+$libxmlLib = "$libxmlSrc/install/lib/libxml2.lib"
+if ($Force -or -not (Test-Path $libxmlLib)) {
     # fresh download because GitHub zip keeps unix permissions intact
     Get-Archive "https://github.com/GNOME/libxml2/archive/refs/tags/v$libxmlVer.zip" $libxmlSrc "libxml2-$libxmlVer.zip"
     $installDir = Join-Path $libxmlSrc 'install'
@@ -64,7 +89,12 @@ if ($Force -or -not (Test-Path "$libxmlSrc/install/lib/libxml2.lib")) {
     # provide zlib paths explicitly
     $env:ZLIB_INCLUDE_DIR = $zlibInclude
     $env:ZLIB_LIBRARY_DIR = $zlibLibDir
-    cscript configure.js compiler=msvc prefix=$installDir iconv=no zlib=yes include=$env:ZLIB_INCLUDE_DIR lib=$env:ZLIB_LIBRARY_DIR
+    Write-Host "→ Configuring libxml2 with zlib include=$env:ZLIB_INCLUDE_DIR lib=$env:ZLIB_LIBRARY_DIR"
+    $confResult = cscript configure.js compiler=msvc prefix=$installDir iconv=no zlib=yes include=$env:ZLIB_INCLUDE_DIR lib=$env:ZLIB_LIBRARY_DIR 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "libxml2 configure.js failed: $confResult"
+        exit 1
+    }
 
     # tweak Makefile: remove /OPT:NOWIN98 and link against zlib.lib
     (Get-Content Makefile.msvc) -replace '/OPT:NOWIN98','' -replace 'zdll.lib','zlib.lib' | Set-Content Makefile.msvc
@@ -75,24 +105,67 @@ if ($Force -or -not (Test-Path "$libxmlSrc/install/lib/libxml2.lib")) {
         (Get-Content $conf) -replace '^#define snprintf.*','// removed snprintf define' -replace '^#define vsnprintf.*','// removed vsnprintf define' | Set-Content $conf
     }
 
+    Write-Host "→ Diagnostic: Current directory: $(Get-Location)"
+    Write-Host "→ Diagnostic: ZLIB_INCLUDE_DIR=$env:ZLIB_INCLUDE_DIR"
+    Write-Host "→ Diagnostic: ZLIB_LIBRARY_DIR=$env:ZLIB_LIBRARY_DIR"
+    Write-Host '→ Diagnostic: First 20 lines of Makefile.msvc:'
+    Get-Content Makefile.msvc -TotalCount 20 | ForEach-Object { Write-Host $_ }
+    Write-Host '→ Diagnostic: Last 20 lines of Makefile.msvc:'
+    Get-Content Makefile.msvc | Select-Object -Last 20 | ForEach-Object { Write-Host $_ }
+    if (Test-Path $conf) {
+        Write-Host '→ Diagnostic: First 20 lines of config.h:'
+        Get-Content $conf -TotalCount 20 | ForEach-Object { Write-Host $_ }
+        Write-Host '→ Diagnostic: Last 20 lines of config.h:'
+        Get-Content $conf | Select-Object -Last 20 | ForEach-Object { Write-Host $_ }
+    }
+    Write-Host "→ Building libxml2..."
     nmake /f Makefile.msvc
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "libxml2 build failed. See output above."
+        exit 1
+    }
+    Write-Host "→ Installing libxml2..."
     nmake /f Makefile.msvc install
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "libxml2 install failed. See output above."
+        exit 1
+    }
     Pop-Location
+    if (-not (Test-Path $libxmlLib)) {
+        Write-Error "libxml2 install did not produce $libxmlLib. Check build logs above."
+        exit 1
+    } else {
+        Write-Host "✓ libxml2 built and installed: $libxmlLib"
+    }
 } else {
     Write-Host "✓ libxml2 already built – skip"
 }
 
+
 # ── GLEW 2.2.0 ─────────────────────────────────────────────────────────────
 Get-Archive "https://github.com/nigels-com/glew/releases/download/glew-2.2.0/glew-2.2.0.zip" "$LIBS_HOME/glew-2.2.0"
 $glewPrefix = "$LIBS_HOME/glew-2.2.0/install"
-Build-CMake "$LIBS_HOME/glew-2.2.0/build/cmake" "$LIBS_HOME/glew-build" $glewPrefix `
-           -Args "-DBUILD_SHARED_LIBS=ON","-DBUILD_UTILS=OFF","-DCMAKE_BUILD_TYPE=Release"
+$glewBuild = "$LIBS_HOME/glew-build"
+if (Test-Path $glewBuild) { Remove-Item -Recurse -Force $glewBuild }
+if (Test-Path $glewPrefix) { Remove-Item -Recurse -Force $glewPrefix }
+Write-Host "→ Configuring $glewBuild for Release build..."
+cmake -S "$LIBS_HOME/glew-2.2.0/build/cmake" -B $glewBuild -G "NMake Makefiles" -DCMAKE_INSTALL_PREFIX="$glewPrefix" -DBUILD_SHARED_LIBS=ON -DBUILD_UTILS=OFF -DCMAKE_BUILD_TYPE=Release
+cmake --build $glewBuild --target install --config Release
+
 
 # ── Qt 5.15.2 via aqtinstall ──────────────────────────────────────────────
 if (-not (Get-Command aqt -ErrorAction SilentlyContinue)) { python -m pip install --upgrade aqtinstall }
-$qtPrefix = "$LIBS_HOME/Qt/5.15.2/msvc2019_64"
+$qtPrefix = Join-Path $LIBS_HOME 'Qt/5.15.2/msvc2019_64'
+[Environment]::SetEnvironmentVariable('LIBS_QT_ROOT', $qtPrefix, 'User')
 if ($Force -or -not (Test-Path $qtPrefix)) {
-    python -m aqt install-qt windows desktop 5.15.2 win64_msvc2019_64 -O "$LIBS_HOME/Qt" -m qtcharts qtscript
+    $origDir = Get-Location
+    Set-Location $LIBS_HOME
+    try {
+        # Ensure aqtinstall.log is created in $LIBS_HOME
+        python -m aqt install-qt windows desktop 5.15.2 win64_msvc2019_64 -O "$LIBS_HOME/Qt" -m qtcharts qtscript
+    } finally {
+        Set-Location $origDir
+    }
 } else { Write-Host "✓ Qt already present – skip" }
 
 Write-Host "`n🎉  All libraries are now (re)built under $LIBS_HOME"

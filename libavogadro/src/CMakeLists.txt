@@ -13,13 +13,13 @@ include_directories(
 )
 
 if(EIGEN3_FOUND)
-	include_directories(
-		${EIGEN3_INCLUDE_DIR}
-	)
+  include_directories(
+    ${EIGEN3_INCLUDE_DIR}
+  )
 elseif(EIGEN2_FOUND)
-	include_directories(
-		${EIGEN2_INCLUDE_DIR}
-	)
+  include_directories(
+    ${EIGEN2_INCLUDE_DIR}
+  )
 endif(EIGEN3_FOUND)
 
 # I think this is necessary now in order to tell the linker where openbabel is
@@ -177,7 +177,7 @@ if(NOT WIN32)
       string(REGEX REPLACE "(.*)/([^.]+)\\.po" "\\1/libavogadro-\\2.po" po ${po})
       list(APPEND libavogadro_PO ${po})
     endforeach()
-    QT4_WRAP_PO(libavogadro_QM ${libavogadro_PO})
+    qt5_create_translation(libavogadro_QM ${CMAKE_SOURCE_DIR} ${libavogadro_PO})
   endif()
 else()
   # don't attempt to create QM files on windows -- copy them from a linux build!
@@ -191,7 +191,7 @@ if(ENABLE_PYTHON AND ALL_PYTHON_FOUND)
   include_directories(
     ${Boost_INCLUDE_DIRS}
     ${PYTHON_INCLUDE_PATH})
-  qt4_add_resources(pythontool_RC_SRCS pythontool.qrc)
+  qt5_add_resources(pythontool_RC_SRCS pythontool.qrc)
   list(APPEND AVO_LINK_LIBRARIES ${PYTHON_LIBRARIES} ${Boost_LIBRARIES})
   list(APPEND libavogadro_HDRS
     pythoninterpreter.h
