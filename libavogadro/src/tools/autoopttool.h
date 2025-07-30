@@ -54,7 +54,10 @@ namespace Avogadro {
                  int algorithm, /* int convergence, */ int steps);
 
       void run();
+
+    public Q_SLOTS:
       void update();
+      void stop();
 
     Q_SIGNALS:
       void finished(bool calculated);
@@ -62,8 +65,6 @@ namespace Avogadro {
       void setupFailed();
       void setupSucces();
 
-    public Q_SLOTS:
-      void stop();
 
     private:
       Molecule *m_molecule;
