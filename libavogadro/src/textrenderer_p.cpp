@@ -482,7 +482,10 @@ namespace Avogadro {
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
     glLoadIdentity();
-    glOrtho( 0, d->glwidget->width(), 0, d->glwidget->height(), 0, 1 );
+    // Account for HiDPI displays by using the physical surface size
+    qreal dpr = d->glwidget->devicePixelRatioF();
+    glOrtho( 0, d->glwidget->width() * dpr,
+             0, d->glwidget->height() * dpr, 0, 1 );
     glMatrixMode( GL_MODELVIEW );
   }
 
@@ -557,7 +560,8 @@ namespace Avogadro {
     if( string.isEmpty() ) return 0;
     glPushMatrix();
     glLoadIdentity();
-    glTranslatef( x, d->glwidget->height() - y, 0 );
+    qreal dpr = d->glwidget->devicePixelRatioF();
+    glTranslatef( x * dpr, d->glwidget->height() * dpr - y * dpr, 0 );
     d->do_draw(string);
     glPopMatrix();
     const QFontMetrics fontMetrics ( d->font );
@@ -570,16 +574,17 @@ namespace Avogadro {
     if( string.isEmpty() ) return 0;
 
     const QFontMetrics fontMetrics ( d->font );
-    int w = fontMetrics.width(string);
-    int h = fontMetrics.height();
+    qreal dpr = d->glwidget->devicePixelRatioF();
+    int w = static_cast<int>(fontMetrics.width(string) * dpr);
+    int h = static_cast<int>(fontMetrics.height() * dpr);
 
     Eigen::Vector3d wincoords = d->glwidget->camera()->project(pos);
 
-    // project is in QT window coordinates
-    wincoords.y() = d->glwidget->height() - wincoords.y();
+    // project is in device pixel coordinates
+    wincoords.y() = d->glwidget->height() * dpr - wincoords.y();
 
-    wincoords.x() -= w/2;
-    wincoords.y() += h/2;
+    wincoords.x() -= w / 2;
+    wincoords.y() += h / 2;
 
     glPushMatrix();
     glLoadIdentity();

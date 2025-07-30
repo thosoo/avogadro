@@ -3026,6 +3026,7 @@ static inline GLint gluProject(GLdouble objx, GLdouble objy, GLdouble objz,
 
     int width = d->pd->width();
     int height = d->pd->height();
+    qreal dpr = devicePixelRatioF();
     GLdouble model[4][4], proj[4][4];
     GLint view[4];
     glGetDoublev(GL_MODELVIEW_MATRIX, &model[0][0]);
@@ -3034,7 +3035,7 @@ static inline GLint gluProject(GLdouble objx, GLdouble objy, GLdouble objz,
     GLdouble win_x = 0, win_y = 0, win_z = 0;
     gluProject(x, y, z, &model[0][0], &proj[0][0], &view[0],
                 &win_x, &win_y, &win_z);
-    win_y = height - win_y; // y is inverted
+    win_y = height * dpr - win_y; // y is inverted in device pixels
 
     //QPaintEngine::Type oldEngineType = qgl_engine_selector()->preferredPaintEngine();
     //QPaintEngine::Type oldEngineType = QGL::preferredPaintEngine();
@@ -3064,11 +3065,11 @@ static inline GLint gluProject(GLdouble objx, GLdouble objy, GLdouble objz,
     }
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    // Use the logical widget size. QOpenGLWidget ensures the underlying
-    // framebuffer matches the device pixel ratio so no additional scaling is
-    // required here.
-    glViewport(0, 0, width, height);
-    glOrtho(0, width, height, 0, 0, 1);
+    // Match the viewport to the framebuffer's physical dimensions
+    int physWidth = static_cast<int>(width * dpr);
+    int physHeight = static_cast<int>(height * dpr);
+    glViewport(0, 0, physWidth, physHeight);
+    glOrtho(0, physWidth, physHeight, 0, 0, 1);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glAlphaFunc(GL_GREATER, 0.0);
