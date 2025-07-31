@@ -470,6 +470,8 @@ namespace Avogadro {
     assert(!d->glwidget);
 
     d->glwidget = widget;
+    // Use the widget's current font so Qt automatically scales it on HiDPI
+    d->font = d->glwidget->font();
     d->textmode = true;
     //   glPushAttrib(GL_ENABLE_BIT | GL_DEPTH_BUFFER_BIT);
     glPushAttrib(GL_ALL_ATTRIB_BITS);
