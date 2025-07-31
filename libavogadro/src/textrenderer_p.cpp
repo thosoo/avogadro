@@ -31,6 +31,7 @@
 #include <QPainter>
 #include <QHash>
 #include <QDebug>
+#include <QtAlgorithms>
 
 #define OUTLINE_WIDTH     3
 const int OUTLINE_BRUSH[2*OUTLINE_WIDTH+1][2*OUTLINE_WIDTH+1]
@@ -470,8 +471,19 @@ namespace Avogadro {
     assert(!d->glwidget);
 
     d->glwidget = widget;
-    // Use the widget's current font so Qt automatically scales it on HiDPI
-    d->font = d->glwidget->font();
+    // Use the widget's current font and scale by the device pixel ratio so text
+    // is readable on HiDPI displays
+    QFont f = d->glwidget->font();
+    qreal scale = d->glwidget->devicePixelRatioF();
+    if (f.pixelSize() > 0)
+      f.setPixelSize(static_cast<int>(f.pixelSize() * scale));
+    else
+      f.setPointSizeF(f.pointSizeF() * scale);
+    if (f != d->font) {
+      qDeleteAll(d->charTable);
+      d->charTable.clear();
+      d->font = f;
+    }
     d->textmode = true;
     //   glPushAttrib(GL_ENABLE_BIT | GL_DEPTH_BUFFER_BIT);
     glPushAttrib(GL_ALL_ATTRIB_BITS);
