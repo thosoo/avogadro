@@ -1841,6 +1841,7 @@ namespace Avogadro {
       event->screenPos() * devicePixelRatioF(),
       event->button(), event->buttons(), event->modifiers()
     );
+    scaledEvent.ignore();
     if ( d->tool ) {
       QUndoCommand *command = 0;
       command = d->tool->mousePressEvent( this, &scaledEvent );
@@ -1871,6 +1872,7 @@ namespace Avogadro {
       event->screenPos() * devicePixelRatioF(),
       event->button(), event->buttons(), event->modifiers()
     );
+    scaledEvent.ignore();
     if ( d->tool ) {
       QUndoCommand *command;
       command = d->tool->mouseReleaseEvent( this, &scaledEvent );
@@ -1917,6 +1919,7 @@ namespace Avogadro {
       event->screenPos() * devicePixelRatioF(),
       event->button(), event->buttons(), event->modifiers()
     );
+    scaledEvent.ignore();
     if ( d->tool ) {
       QUndoCommand *command;
       command = d->tool->mouseMoveEvent( this, &scaledEvent );
