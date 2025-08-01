@@ -38,6 +38,7 @@
 #include <QtGui/QPen>
 #include <QtGui/QPainter>
 #include <QtGui/QPaintEngine>
+#include <QOpenGLContext>
 #include <QtWidgets/QUndoStack>
 #include <QtWidgets/QLabel>
 
@@ -98,7 +99,16 @@ using namespace Eigen;
 namespace Avogadro {
 void GLWidget::showEvent(QShowEvent *event)
 {
-  QGLWidget::showEvent(event);
+  QOpenGLWidget::showEvent(event);
+  // Schedule a viewport update once the event loop returns so the
+  // correct device pixel ratio is applied on the first paint.
+  QMetaObject::invokeMethod(this, "updateViewport",
+                           Qt::QueuedConnection);
+}
+
+void GLWidget::updateViewport()
+{
+  resizeGL(width(), height());
   update();
 }
 
@@ -320,7 +330,7 @@ void GLWidget::showEvent(QShowEvent *event)
 
   private:
     GLWidget *m_widget;
-    QGLContext *m_context;
+    QOpenGLContext *m_context;
     bool m_running;
     bool m_resize;
     bool m_initialized;
@@ -361,9 +371,10 @@ void GLWidget::showEvent(QShowEvent *event)
       }
 
       d->background.setAlphaF(0.0);
-      m_widget->qglClearColor(d->background);
+      const QColor &c = d->background;
+      glClearColor(c.redF(), c.greenF(), c.blueF(), c.alphaF());
       m_widget->paintGL();
-      m_widget->swapBuffers();
+      m_widget->context()->swapBuffers(m_widget->context()->surface());
       m_widget->doneCurrent();
       d->renderMutex.unlock();
     }
@@ -382,24 +393,26 @@ void GLWidget::showEvent(QShowEvent *event)
   }
 #endif
 
-  GLWidget::GLWidget( QWidget *parent )
-    : QGLWidget( parent ), d( new GLWidgetPrivate )
+GLWidget::GLWidget( QWidget *parent )
+  : QOpenGLWidget( parent ), d( new GLWidgetPrivate )
   {
     constructor();
   }
 
-  GLWidget::GLWidget( const QGLFormat &format, QWidget *parent,
-                      const GLWidget *shareWidget )
-    : QGLWidget( format, parent, shareWidget ), d( new GLWidgetPrivate )
-  {
-    constructor(shareWidget);
-  }
+GLWidget::GLWidget( const QSurfaceFormat &format, QWidget *parent,
+                    const GLWidget *shareWidget )
+  : QOpenGLWidget( parent ), d( new GLWidgetPrivate )
+{
+  setFormat(format);
+  constructor(shareWidget);
+}
 
-  GLWidget::GLWidget( Molecule *molecule,
-                      const QGLFormat &format, QWidget *parent,
-                      const GLWidget *shareWidget )
-    : QGLWidget( format, parent, shareWidget ), d( new GLWidgetPrivate )
+GLWidget::GLWidget( Molecule *molecule,
+                    const QSurfaceFormat &format, QWidget *parent,
+                    const GLWidget *shareWidget )
+  : QOpenGLWidget( parent ), d( new GLWidgetPrivate )
   {
+    setFormat(format);
     constructor(shareWidget);
     setMolecule( molecule );
   }
@@ -438,12 +451,10 @@ void GLWidget::showEvent(QShowEvent *event)
 
     // New PainterDevice
     d->pd = new GLPainterDevice(this);
-    if(shareWidget && isSharing()) {
-      // we are sharing contexts
+    if (shareWidget) {
+      // share painter with the supplied widget
       d->painter = static_cast<GLPainter *>(shareWidget->painter());
-    }
-    else
-    {
+    } else {
       d->painter = new GLPainter();
     }
     d->painter->incrementShare();
@@ -451,7 +462,6 @@ void GLWidget::showEvent(QShowEvent *event)
     setAutoFillBackground( false );
     setSizePolicy( QSizePolicy::MinimumExpanding,QSizePolicy::MinimumExpanding );
     d->camera->setParent( this );
-    setAutoBufferSwap( false );
     m_glslEnabled = false;
     m_navigateTool = 0;
 
@@ -518,7 +528,8 @@ void GLWidget::showEvent(QShowEvent *event)
     }
     #endif
 
-    qglClearColor( d->background );
+    glClearColor(d->background.redF(), d->background.greenF(),
+                 d->background.blueF(), d->background.alphaF());
 
     glShadeModel( GL_SMOOTH );
     glEnable( GL_DEPTH_TEST );
@@ -621,15 +632,17 @@ void GLWidget::showEvent(QShowEvent *event)
         d->initialized = true;
         initializeGL();
       }
-      qglClearColor(d->background);
+      glClearColor(d->background.redF(), d->background.greenF(),
+                   d->background.blueF(), d->background.alphaF());
       paintGL();
-      swapBuffers();
 #endif
     }
   }
 
   void GLWidget::resizeEvent( QResizeEvent *event )
   {
+    // Allow base class to recreate the framebuffer object as needed
+    QOpenGLWidget::resizeEvent(event);
 #ifdef ENABLE_THREADED_GL
     d->thread->resize( event->size().width(), event->size().height() );
 #else
@@ -651,11 +664,7 @@ void GLWidget::showEvent(QShowEvent *event)
   void GLWidget::resizeGL( int width, int height )
   {
   // Use devicePixelRatioF for HiDPI support
-#if QT_VERSION >= QT_VERSION_CHECK(5, 6, 0)
   qreal dpr = devicePixelRatioF();
-#else
-  qreal dpr = devicePixelRatio();
-#endif
   glViewport(0, 0, static_cast<GLint>(width * dpr), static_cast<GLint>(height * dpr));
   }
 
@@ -1659,10 +1668,9 @@ namespace Avogadro {
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
     glLoadIdentity();
-    // Ensure the axes are of the same length
-    // Use devicePixelRatioF for HiDPI support
-    qreal dpr = devicePixelRatioF();
-    double aspectRatio = static_cast<double>(d->pd->width() * dpr)/static_cast<double>(d->pd->height() * dpr);
+    // Ensure the axes are of the same length using the logical widget size
+    double aspectRatio = static_cast<double>(d->pd->width()) /
+                         static_cast<double>(d->pd->height());
     glOrtho(0, aspectRatio, 0, 1, 0, 1);
     glMatrixMode(GL_MODELVIEW);
     glPushMatrix();
@@ -1817,7 +1825,7 @@ namespace Avogadro {
         GLWidget::setCurrent(this);
       }
 
-    return QGLWidget::event(event);
+    return QOpenGLWidget::event(event);
   }
 
   void GLWidget::mousePressEvent( QMouseEvent * event )
@@ -1833,6 +1841,7 @@ namespace Avogadro {
       event->screenPos() * devicePixelRatioF(),
       event->button(), event->buttons(), event->modifiers()
     );
+    scaledEvent.ignore();
     if ( d->tool ) {
       QUndoCommand *command = 0;
       command = d->tool->mousePressEvent( this, &scaledEvent );
@@ -1863,6 +1872,7 @@ namespace Avogadro {
       event->screenPos() * devicePixelRatioF(),
       event->button(), event->buttons(), event->modifiers()
     );
+    scaledEvent.ignore();
     if ( d->tool ) {
       QUndoCommand *command;
       command = d->tool->mouseReleaseEvent( this, &scaledEvent );
@@ -1909,6 +1919,7 @@ namespace Avogadro {
       event->screenPos() * devicePixelRatioF(),
       event->button(), event->buttons(), event->modifiers()
     );
+    scaledEvent.ignore();
     if ( d->tool ) {
       QUndoCommand *command;
       command = d->tool->mouseMoveEvent( this, &scaledEvent );
@@ -3009,16 +3020,16 @@ static inline GLint gluProject(GLdouble objx, GLdouble objy, GLdouble objz,
   // Based on Qt code
   void GLWidget::renderText(double x, double y, double z, const QString &str, const QFont &font, int)
   {
-    //QGLWidget::renderText(x,y,z,str,font, i);
+    //QOpenGLWidget::renderText(x,y,z,str,font, i);
 
 #ifndef QT_OPENGL_ES
     if (str.isEmpty() || !isValid())
         return;
 
-    bool auto_swap = autoBufferSwap();
 
     int width = d->pd->width();
     int height = d->pd->height();
+    qreal dpr = devicePixelRatioF();
     GLdouble model[4][4], proj[4][4];
     GLint view[4];
     glGetDoublev(GL_MODELVIEW_MATRIX, &model[0][0]);
@@ -3027,7 +3038,7 @@ static inline GLint gluProject(GLdouble objx, GLdouble objy, GLdouble objz,
     GLdouble win_x = 0, win_y = 0, win_z = 0;
     gluProject(x, y, z, &model[0][0], &proj[0][0], &view[0],
                 &win_x, &win_y, &win_z);
-    win_y = height - win_y; // y is inverted
+    win_y = height * dpr - win_y; // y is inverted in device pixels
 
     //QPaintEngine::Type oldEngineType = qgl_engine_selector()->preferredPaintEngine();
     //QPaintEngine::Type oldEngineType = QGL::preferredPaintEngine();
@@ -3043,7 +3054,6 @@ static inline GLint gluProject(GLdouble objx, GLdouble objy, GLdouble objz,
         p = engine->painter();
         save_gl_state();
     } else {
-        setAutoBufferSwap(false);
         // disable glClear() as a result of QPainter::begin()
         //d->disable_clear_on_painter_begin = true;
         p = new QPainter(this);
@@ -3058,8 +3068,7 @@ static inline GLint gluProject(GLdouble objx, GLdouble objy, GLdouble objz,
     }
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    // Use devicePixelRatioF for HiDPI support
-    qreal dpr = devicePixelRatioF();
+    // Match the viewport to the framebuffer's physical dimensions
     int physWidth = static_cast<int>(width * dpr);
     int physHeight = static_cast<int>(height * dpr);
     glViewport(0, 0, physWidth, physHeight);
@@ -3079,7 +3088,6 @@ static inline GLint gluProject(GLdouble objx, GLdouble objy, GLdouble objz,
     } else {
         p->end();
         delete p;
-        setAutoBufferSwap(auto_swap);
       //  d->disable_clear_on_painter_begin = false;
     }
     //qgl_engine_selector()->setPreferredPaintEngine(oldEngineType);
@@ -3089,7 +3097,7 @@ static inline GLint gluProject(GLdouble objx, GLdouble objy, GLdouble objz,
     Q_UNUSED(z);
     Q_UNUSED(str);
     Q_UNUSED(font);
-    qWarning("QGLWidget::renderText is not supported under OpenGL/ES");
+    qWarning("QOpenGLWidget::renderText is not supported under OpenGL/ES");
 #endif
   }
 }

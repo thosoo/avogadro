@@ -277,11 +277,7 @@ namespace Avogadro
   Eigen::Vector3d Camera::unProject(const Eigen::Vector3d & v) const
   {
     // Use devicePixelRatioF for HiDPI support - viewport must match what was set in resizeGL
-#if QT_VERSION >= QT_VERSION_CHECK(5, 6, 0)
     qreal dpr = parent()->devicePixelRatioF();
-#else
-    qreal dpr = parent()->devicePixelRatio();
-#endif
     GLint viewport[4] = {0, 0, static_cast<GLint>(parent()->width() * dpr), static_cast<GLint>(parent()->height() * dpr)};
     Eigen::Vector3d pos;
     gluUnProject(v.x(), static_cast<GLint>(parent()->height() * dpr) - v.y(), v.z(),
@@ -302,11 +298,7 @@ namespace Avogadro
   Eigen::Vector3d Camera::project(const Eigen::Vector3d & v) const
   {
     // Use devicePixelRatioF for HiDPI support - viewport must match what was set in resizeGL
-#if QT_VERSION >= QT_VERSION_CHECK(5, 6, 0)
     qreal dpr = parent()->devicePixelRatioF();
-#else
-    qreal dpr = parent()->devicePixelRatio();
-#endif
     GLint viewport[4] = {0, 0, static_cast<GLint>(parent()->width() * dpr), static_cast<GLint>(parent()->height() * dpr)};
     Eigen::Vector3d pos;
     gluProject(v.x(), v.y(), v.z(),

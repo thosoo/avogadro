@@ -35,7 +35,9 @@
 #include <QApplication>
 #include <QMessageBox>
 #include <QTranslator>
-#include <QGLFormat>
+#include <QSurfaceFormat>
+#include <QGuiApplication>
+#include <QOpenGLContext>
 #include <QDebug>
 #include <QLibraryInfo>
 #include <QProcess>
@@ -98,6 +100,8 @@ int main(int argc, char *argv[])
   if (!disableHiDpi) {
     QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(
+        Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
   }
 
   // set up groups for QSettings
@@ -248,29 +252,24 @@ int main(int argc, char *argv[])
     return 0;
   }
 
-  if (!QGLFormat::hasOpenGL()) {
-  //  QMessageBox::information(0, QCoreApplication::translate("main.cpp", "Avogadro"),
-  //      QCoreApplication::translate("main.cpp", "This system does not support OpenGL."));
-      QMessageBox::information(0, "Avogadro", "This system does not support OpenGL.");
+  QOpenGLContext testContext;
+  if (!testContext.create()) {
+    QMessageBox::information(0, "Avogadro", "This system does not support OpenGL.");
     return -1;
   }
-  qDebug() << /*QCoreApplication::translate("main.cpp", */"System has OpenGL support."/*)*/;
 
-  // Extra debug messages to check out where some init segfaults are happening
-  qDebug() << /*QCoreApplication::translate("main.cpp", */"About to test OpenGL capabilities."/*)*/;
-  // use multi-sample (anti-aliased) OpenGL if available
-  QGLFormat defFormat = QGLFormat::defaultFormat();
-  defFormat.setSampleBuffers(true);
-  QGLFormat::setDefaultFormat(defFormat);
+  QSurfaceFormat defFormat = QSurfaceFormat::defaultFormat();
+  defFormat.setSamples(4);
+  QSurfaceFormat::setDefaultFormat(defFormat);
 
   // Test what capabilities we have
   //qDebug() << /*QCoreApplication::translate("main.cpp", */"OpenGL capabilities found: "/*)*/;
   std::cout << "OpenGL capabilities found: " << std::endl;
-  if (defFormat.doubleBuffer())
+  if (defFormat.swapBehavior() != QSurfaceFormat::SingleBuffer)
     std::cout << "\t" << "Double Buffering." << std::endl;
-  if (defFormat.directRendering())
+  if (defFormat.renderableType() == QSurfaceFormat::OpenGL)
     std::cout << "\t" << "Direct Rendering." << std::endl;
-  if (defFormat.sampleBuffers())
+  if (defFormat.samples() > 0)
     std::cout << "\t" << "Antialiasing." << std::endl;
 
   // Now load any files supplied on the command-line or via launching a file.

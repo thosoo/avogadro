@@ -31,6 +31,7 @@
 #include <QPainter>
 #include <QHash>
 #include <QDebug>
+#include <QtAlgorithms>
 
 #define OUTLINE_WIDTH     3
 const int OUTLINE_BRUSH[2*OUTLINE_WIDTH+1][2*OUTLINE_WIDTH+1]
@@ -470,6 +471,19 @@ namespace Avogadro {
     assert(!d->glwidget);
 
     d->glwidget = widget;
+    // Use the widget's current font and scale by the device pixel ratio so text
+    // is readable on HiDPI displays
+    QFont f = d->glwidget->font();
+    qreal scale = d->glwidget->devicePixelRatioF();
+    if (f.pixelSize() > 0)
+      f.setPixelSize(static_cast<int>(f.pixelSize() * scale));
+    else
+      f.setPointSizeF(f.pointSizeF() * scale);
+    if (f != d->font) {
+      qDeleteAll(d->charTable);
+      d->charTable.clear();
+      d->font = f;
+    }
     d->textmode = true;
     //   glPushAttrib(GL_ENABLE_BIT | GL_DEPTH_BUFFER_BIT);
     glPushAttrib(GL_ALL_ATTRIB_BITS);
@@ -482,7 +496,10 @@ namespace Avogadro {
     glMatrixMode(GL_PROJECTION);
     glPushMatrix();
     glLoadIdentity();
-    glOrtho( 0, d->glwidget->width(), 0, d->glwidget->height(), 0, 1 );
+    // Account for HiDPI displays by using the physical surface size
+    qreal dpr = d->glwidget->devicePixelRatioF();
+    glOrtho( 0, d->glwidget->width() * dpr,
+             0, d->glwidget->height() * dpr, 0, 1 );
     glMatrixMode( GL_MODELVIEW );
   }
 
@@ -557,7 +574,8 @@ namespace Avogadro {
     if( string.isEmpty() ) return 0;
     glPushMatrix();
     glLoadIdentity();
-    glTranslatef( x, d->glwidget->height() - y, 0 );
+    qreal dpr = d->glwidget->devicePixelRatioF();
+    glTranslatef( x * dpr, d->glwidget->height() * dpr - y * dpr, 0 );
     d->do_draw(string);
     glPopMatrix();
     const QFontMetrics fontMetrics ( d->font );
@@ -570,16 +588,17 @@ namespace Avogadro {
     if( string.isEmpty() ) return 0;
 
     const QFontMetrics fontMetrics ( d->font );
-    int w = fontMetrics.width(string);
-    int h = fontMetrics.height();
+    qreal dpr = d->glwidget->devicePixelRatioF();
+    int w = static_cast<int>(fontMetrics.width(string) * dpr);
+    int h = static_cast<int>(fontMetrics.height() * dpr);
 
     Eigen::Vector3d wincoords = d->glwidget->camera()->project(pos);
 
-    // project is in QT window coordinates
-    wincoords.y() = d->glwidget->height() - wincoords.y();
+    // project is in device pixel coordinates
+    wincoords.y() = d->glwidget->height() * dpr - wincoords.y();
 
-    wincoords.x() -= w/2;
-    wincoords.y() += h/2;
+    wincoords.x() -= w / 2;
+    wincoords.y() += h / 2;
 
     glPushMatrix();
     glLoadIdentity();

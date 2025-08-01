@@ -33,7 +33,7 @@
 #include <avogadro/bond.h>
 #include <avogadro/molecule.h>
 
-#include <QGLWidget> // for OpenGL bits
+#include <QOpenGLWidget> // for OpenGL bits
 #include <QDebug>
 
 #include <openbabel/mol.h>
