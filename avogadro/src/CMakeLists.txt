@@ -21,6 +21,7 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${OPENBABEL2_INCLUDE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
+  ${CMAKE_BINARY_DIR}/libavogadro/include
   ${Qt5Widgets_INCLUDE_DIRS}
   ${Qt5Gui_INCLUDE_DIRS}
   ${Qt5Core_INCLUDE_DIRS}
