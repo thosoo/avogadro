@@ -53,7 +53,6 @@ namespace Avogadro {
   void GLGraphicsView::constructor()
   {
     setViewport(m_glwidget);
-    m_glwidget->setAutoBufferSwap(true);
     setFrameStyle(QFrame::NoFrame);
   }
 

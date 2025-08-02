@@ -105,7 +105,8 @@ namespace Avogadro {
   void AutoOptTool::translate(GLWidget *widget, const Eigen::Vector3d &what,
                               const QPoint &from, const QPoint &to) const
   {
-    // Translate the selected atoms in the x and y sense of the view
+    // Both from and to coordinates are already in device pixels
+    // GLWidget scales mouse events, and camera()->project() returns device pixels
     Vector3d fromPos = widget->camera()->unProject(from, what);
     Vector3d toPos = widget->camera()->unProject(to, what);
 
@@ -201,11 +202,12 @@ namespace Avogadro {
     if (m_clickedAtom && m_running) {
       if (m_leftButtonPressed) {
         event->accept();
-        // translate the molecule following mouse movement
+        // translate the molecule following mouse movement  
         Vector3d begin = widget->camera()->project(*m_clickedAtom->pos());
-        QPoint point = QPoint(begin.x(), begin.y());
+        // Both camera()->project() and event->pos() are in device pixels (GLWidget scales mouse events)
+        QPoint beginPos(static_cast<int>(begin.x()), static_cast<int>(begin.y()));
         translate(widget, *m_clickedAtom->pos(),
-                  point/*m_lastDraggingPosition*/, event->pos());
+                  beginPos, event->pos());
       }
     }
 
@@ -422,7 +424,8 @@ namespace Avogadro {
     m_thread->setup(m_glwidget->molecule(), m_forceField,
                     m_comboAlgorithm->currentIndex(),
                     m_stepsSpinBox->value());
-    m_thread->update();
+    QMetaObject::invokeMethod(m_thread, "update",
+                              Qt::QueuedConnection);
   }
 
   void AutoOptTool::finished(bool calculated)
@@ -454,8 +457,10 @@ namespace Avogadro {
 
       if(m_clickedAtom && m_leftButtonPressed) {
         Vector3d begin = m_glwidget->camera()->project(*m_clickedAtom->pos());
-        QPoint point = QPoint(begin.x(), begin.y());
-        translate(m_glwidget, *m_clickedAtom->pos(), point,
+        // Both camera()->project() and m_lastDraggingPosition are in device pixels
+        QPoint beginPos(static_cast<int>(begin.x()), static_cast<int>(begin.y()));
+        translate(m_glwidget, *m_clickedAtom->pos(), 
+                  beginPos,
                   m_lastDraggingPosition);
       }
     }
@@ -505,6 +510,8 @@ namespace Avogadro {
 
   void AutoOptThread::run()
   {
+    // Process queued update() calls in this thread
+    moveToThread(this);
     exec();
   }
 

@@ -30,7 +30,7 @@
   #include <GL/glew.h>
 #endif
 
-#include <QGLWidget>
+#include <QOpenGLWidget>
 
 #include <Eigen/Geometry>
 

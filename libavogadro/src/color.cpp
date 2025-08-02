@@ -30,7 +30,7 @@
   #include <GL/glew.h>
 #endif
 
-#include <QGLWidget>
+#include <QOpenGLWidget>
 
 
 namespace Avogadro {
@@ -97,7 +97,7 @@ namespace Avogadro {
     m_channels[0] = 0.3;
     m_channels[1] = 0.6;
     m_channels[2] = 1.0;
-    m_channels[3] = 0.7;
+    m_channels[3] = 1.0; // fully opaque selection sphere
   }
 
   void Color::setFromQColor(const QColor &color)

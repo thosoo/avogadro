@@ -33,7 +33,7 @@
 
 #include <Eigen/Core>
 
-#include <QGLWidget>
+#include <QOpenGLWidget>
 #include <QObject>
 
 #include <QVarLengthArray>

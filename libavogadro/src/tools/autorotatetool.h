@@ -28,7 +28,7 @@
 #include <avogadro/glwidget.h>
 #include <avogadro/tool.h>
 
-#include <QGLWidget>
+#include <QOpenGLWidget>
 #include <QObject>
 
 #include <QWidget>

@@ -53,12 +53,12 @@ void export_GLWidget()
   class_<Avogadro::GLWidget, boost::noncopyable, std::auto_ptr<Avogadro::GLWidget> >("GLWidget")
     // constructors
     .def(init<QWidget*>())
-    .def(init<const QGLFormat&>())
-    .def(init<const QGLFormat&, QWidget*>())
-    .def(init<const QGLFormat&, QWidget*, const GLWidget*>())
-    .def(init<Molecule*, const QGLFormat&>())
-    .def(init<Molecule*, const QGLFormat&, QWidget*>())
-    .def(init<Molecule*, const QGLFormat&, QWidget*, const GLWidget*>())
+    .def(init<const QSurfaceFormat&>())
+    .def(init<const QSurfaceFormat&, QWidget*>())
+    .def(init<const QSurfaceFormat&, QWidget*, const GLWidget*>())
+    .def(init<Molecule*, const QSurfaceFormat&>())
+    .def(init<Molecule*, const QSurfaceFormat&, QWidget*>())
+    .def(init<Molecule*, const QSurfaceFormat&, QWidget*, const GLWidget*>())
     //
     // read/write properties
     //

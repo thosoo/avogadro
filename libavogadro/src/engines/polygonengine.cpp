@@ -30,7 +30,7 @@
 #include <avogadro/molecule.h>
 #include <avogadro/atom.h>
 
-#include <QGLWidget>
+#include <QOpenGLWidget>
 #include <QDebug>
 
 using Eigen::Vector3d;

@@ -40,7 +40,7 @@
 
 #include <avogadro/molecule.h>
 
-#include <QGLWidget>
+#include <QOpenGLWidget>
 #include <QImage>
 #include <QAction>
 #include <QUndoCommand>
