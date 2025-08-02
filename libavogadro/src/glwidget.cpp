@@ -173,7 +173,7 @@ void GLWidget::updateViewport()
   class GLWidgetPrivate
   {
   public:
-    GLWidgetPrivate() : background( 0,0,0,0 ),
+    GLWidgetPrivate() : background( 0,0,0,255 ),
                         aCells( 1 ), bCells( 1 ), cCells( 1 ),
                         onlyRenderOriginalUnitCell(false),
                         cellColor( 255,255,255 ),
@@ -370,9 +370,9 @@ void GLWidget::updateViewport()
         m_resize=false;
       }
 
-      d->background.setAlphaF(0.0);
+      // Always clear with opaque alpha to ensure solid background on Wayland
       const QColor &c = d->background;
-      glClearColor(c.redF(), c.greenF(), c.blueF(), c.alphaF());
+      glClearColor(c.redF(), c.greenF(), c.blueF(), 1.0f);
       m_widget->paintGL();
       m_widget->context()->swapBuffers(m_widget->context()->surface());
       m_widget->doneCurrent();
@@ -632,8 +632,9 @@ GLWidget::GLWidget( Molecule *molecule,
         d->initialized = true;
         initializeGL();
       }
+      // Always clear with opaque alpha to ensure solid background on Wayland
       glClearColor(d->background.redF(), d->background.greenF(),
-                   d->background.blueF(), d->background.alphaF());
+                   d->background.blueF(), 1.0f);
       paintGL();
 #endif
     }
@@ -674,7 +675,7 @@ GLWidget::GLWidget( Molecule *molecule,
     d->renderMutex.lock();
 #endif
     d->background = background;
-        d->background.setAlphaF(0.0);
+    d->background.setAlphaF(1.0);
 #ifdef ENABLE_THREADED_GL
     d->renderMutex.unlock();
 #endif
