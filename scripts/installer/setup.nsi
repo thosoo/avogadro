@@ -26,6 +26,9 @@ ManifestDPIAware true
 !ifndef VERSION
 !define VERSION "1.1.0"
 !endif
+!ifndef OB_VERSION
+!define OB_VERSION "2"
+!endif
 VIProductVersion "${VI_VERSION}" # file version for the installer in the scheme "x.x.x.x"
 Name "Avogadro"
 !define REGKEY "SOFTWARE\Avogadro"
@@ -46,6 +49,8 @@ Name "Avogadro"
 # registry preparations
 !define SHCNE_ASSOCCHANGED 0x08000000
 !define SHCNF_IDLIST 0
+!define HWND_BROADCAST 0xFFFF
+!define WM_SETTINGCHANGE 0x001A
 
 
 # Variables
@@ -259,6 +264,13 @@ Section "-Installation actions" SecInstallation
   # register Avogadro
   WriteRegStr SHCTX "${REGKEY}" Path $INSTDIR
   WriteUninstaller $INSTDIR\uninstall.exe
+
+  # Set Open Babel environment variables
+  WriteRegExpandStr SHCTX "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment" "BABEL_DATADIR" "$INSTDIR\\share\\openbabel\\${OB_VERSION}"
+  WriteRegExpandStr SHCTX "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment" "BABEL_LIBDIR" "$INSTDIR\\bin"
+  System::Call 'Kernel32::SetEnvironmentVariableW(w "BABEL_DATADIR", w "$INSTDIR\\share\\openbabel\\${OB_VERSION}")'
+  System::Call 'Kernel32::SetEnvironmentVariableW(w "BABEL_LIBDIR", w "$INSTDIR\\bin")'
+  System::Call 'Kernel32::SendMessageTimeoutW(i ${HWND_BROADCAST}, i ${WM_SETTINGCHANGE}, i 0, w "Environment", i 0, i 5000, *i .r0)'
   
   # create shortcuts to startmenu
   # ensure the working directory is the binary path so avogadro.dll resolves

@@ -151,6 +151,11 @@ jobs:
         run: |
           $env:PATH = "$PWD\build\openbabel-install\bin;$env:PATH"
           ctest --test-dir build -C Release --output-on-failure
+      - name: Verify Open Babel CIF support
+        if: matrix.target == 'tests'
+        shell: pwsh
+        run: |
+          & "$PWD\build\openbabel-install\bin\obabel.exe" crystals/other/C10H10Fe-Ferrocene.cif -oinchi > $null
       - name: Upload installer
         if: matrix.target == 'installer'
         uses: actions/upload-artifact@v4

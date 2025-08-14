@@ -37,6 +37,7 @@ def main():
     ob_bindir = os.environ.get("OPENBABEL_BINDIR")
     if ob_bindir and ob_dir is None:
         ob_dir = Path(ob_bindir).parent
+    ob_version = None
     if ob_dir:
         ob = ob_dir
 
@@ -90,22 +91,11 @@ def main():
 
         share = ob / "share" / "openbabel" / ob_version
         alt_share = ob / "bin" / "data"
-        if not share.exists() and alt_share.exists():
-            share = alt_share
-        if share.exists():
+        src_share = share if share.exists() else alt_share if alt_share.exists() else None
+        if src_share:
             dest = dist / "share" / "openbabel" / ob_version
-            log(f"Copying OpenBabel data from {share} to {dest}")
-            shutil.copytree(share, dest, dirs_exist_ok=True)
-            patterns = ["*.txt", "*.par", "*.prm", "*.ff", "*.dat"]
-            for pat in patterns:
-                for f in share.glob(pat):
-                    if f.is_file():
-                        copy(f, dist / "bin")
-        if alt_share.exists():
-            for pat in ["*.txt", "*.par", "*.prm", "*.ff", "*.dat"]:
-                for f in alt_share.glob(pat):
-                    if f.is_file():
-                        copy(f, dist / "bin")
+            log(f"Copying OpenBabel data from {src_share} to {dest}")
+            shutil.copytree(src_share, dest, dirs_exist_ok=True)
 
     libxml = os.environ.get("LIBXML2_LIBRARY")
     if libxml:
@@ -154,6 +144,8 @@ def main():
         args.append(f"/DVERSION={version}")
     if vi_version:
         args.append(f"/DVI_VERSION={vi_version}")
+    if ob_version:
+        args.append(f"/DOB_VERSION={ob_version}")
     args.append(str(root / "setup.nsi"))
     log("Running makensis")
     subprocess.check_call(args)
