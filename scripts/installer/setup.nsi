@@ -49,9 +49,6 @@ Name "Avogadro"
 # registry preparations
 !define SHCNE_ASSOCCHANGED 0x08000000
 !define SHCNF_IDLIST 0
-!define HWND_BROADCAST 0xFFFF
-!define WM_SETTINGCHANGE 0x001A
-
 
 # Variables
 Var StartmenuFolder
