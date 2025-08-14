@@ -27,7 +27,7 @@ ManifestDPIAware true
 !define VERSION "1.1.0"
 !endif
 !ifndef OB_VERSION
-!define OB_VERSION "2"
+!define OB_VERSION "3.1.1"
 !endif
 VIProductVersion "${VI_VERSION}" # file version for the installer in the scheme "x.x.x.x"
 Name "Avogadro"

@@ -70,7 +70,7 @@ def main():
                 except Exception:
                     pass
         if not ob_version:
-            ob_version = "2"
+            ob_version = "3.1.1"
 
         for f in ob.glob("bin/*"):
             if f.suffix.lower() in (".dll", ".exe", ".obf"):
