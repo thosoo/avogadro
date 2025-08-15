@@ -163,8 +163,11 @@ jobs:
           $env:BABEL_DATADIR = ($dataCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1)
           $env:BABEL_LIBDIR  = ($libCandidates  | Where-Object { Test-Path $_ } | Select-Object -First 1)
           $env:PATH = "$obBase\bin;$env:PATH"
+          Write-Host "BABEL_LIBDIR=$env:BABEL_LIBDIR"
+          Write-Host "BABEL_DATADIR=$env:BABEL_DATADIR"
+          & "$obBase\bin\obabel.exe" -L formats | findstr /I "cif inchi"
           & "$obBase\bin\obabel.exe" -V
-          & "$obBase\bin\obabel.exe" crystals/other/C10H10Fe-Ferrocene.cif -oinchi > $null
+          & "$obBase\bin\obabel.exe" crystals/other/C10H10Fe-Ferrocene.cif -oinchi
       - name: Test
         if: matrix.target == 'tests'
         shell: pwsh
@@ -189,8 +192,11 @@ jobs:
           $env:BABEL_DATADIR = ($dataCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1)
           $env:BABEL_LIBDIR  = ($libCandidates  | Where-Object { Test-Path $_ } | Select-Object -First 1)
           $env:PATH = "$obBase\bin;$env:PATH"
+          Write-Host "BABEL_LIBDIR=$env:BABEL_LIBDIR"
+          Write-Host "BABEL_DATADIR=$env:BABEL_DATADIR"
+          & "$obBase\bin\obabel.exe" -L formats | findstr /I "cif inchi"
           & "$obBase\bin\obabel.exe" -V
-          & "$obBase\bin\obabel.exe" crystals/other/C10H10Fe-Ferrocene.cif -oinchi > $null
+          & "$obBase\bin\obabel.exe" crystals/other/C10H10Fe-Ferrocene.cif -oinchi
       - name: Upload installer
         if: matrix.target == 'installer'
         uses: actions/upload-artifact@v4

@@ -76,18 +76,13 @@ def main():
             if f.suffix.lower() in (".dll", ".exe", ".obf"):
                 copy(f, dist / "bin")
 
-        dest_plugins = dist / "lib" / "openbabel" / ob_version
-        dest_plugins.mkdir(parents=True, exist_ok=True)
-
-        for plugins in [ob / "lib" / "openbabel", ob / "bin" / "openbabel"]:
-            if plugins.exists():
-                log(f"Copying plugins from {plugins} to {dest_plugins}")
-                shutil.copytree(plugins, dest_plugins, dirs_exist_ok=True)
-
-        for dll in ob.glob("bin/plugin_*.dll"):
-            copy(dll, dest_plugins)
-        for obf in ob.glob("bin/plugin_*.obf"):
-            copy(obf, dest_plugins)
+        plugins_src = ob / "bin" / "plugins" / "openbabel" / ob_version
+        if not plugins_src.exists():
+            plugins_src = ob / "lib" / "openbabel" / ob_version
+        if plugins_src.exists():
+            dest_plugins = dist / "bin" / "plugins" / "openbabel" / ob_version
+            log(f"Copying OpenBabel plugins from {plugins_src} to {dest_plugins}")
+            shutil.copytree(plugins_src, dest_plugins, dirs_exist_ok=True)
 
         share = ob / "share" / "openbabel" / ob_version
         alt_share = ob / "bin" / "data"
