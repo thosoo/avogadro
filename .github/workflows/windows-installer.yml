@@ -150,9 +150,20 @@ jobs:
         shell: pwsh
         run: |
           $obBase = "$PWD\scripts\installer\dist"
-          $obVersion = (Get-ChildItem "$obBase\share\openbabel" | Where-Object { $_.PsIsContainer } | Select-Object -First 1).Name
-          $env:BABEL_DATADIR = "$obBase\share\openbabel\$obVersion"
-          $env:BABEL_LIBDIR = "$obBase\lib\openbabel\$obVersion"
+          $verDir = Get-ChildItem "$obBase\share\openbabel" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
+          $obVersion = if ($verDir) { $verDir.Name } else { "3.1.1" }
+          $dataCandidates = @(
+            "$obBase\share\openbabel\$obVersion",
+            "$obBase\bin\data"
+          )
+          $libCandidates = @(
+            "$obBase\lib\openbabel\$obVersion",
+            "$obBase\bin\plugins\openbabel\$obVersion"
+          )
+          $env:BABEL_DATADIR = ($dataCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1)
+          $env:BABEL_LIBDIR  = ($libCandidates  | Where-Object { Test-Path $_ } | Select-Object -First 1)
+          $env:PATH = "$obBase\bin;$env:PATH"
+          & "$obBase\bin\obabel.exe" -V
           & "$obBase\bin\obabel.exe" crystals/other/C10H10Fe-Ferrocene.cif -oinchi > $null
       - name: Test
         if: matrix.target == 'tests'
@@ -165,9 +176,20 @@ jobs:
         shell: pwsh
         run: |
           $obBase = "$PWD\build\openbabel-install"
-          $obVersion = (Get-ChildItem "$obBase\share\openbabel" | Where-Object { $_.PsIsContainer } | Select-Object -First 1).Name
-          $env:BABEL_DATADIR = "$obBase\share\openbabel\$obVersion"
-          $env:BABEL_LIBDIR = "$obBase\lib\openbabel\$obVersion"
+          $verDir = Get-ChildItem "$obBase\share\openbabel" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
+          $obVersion = if ($verDir) { $verDir.Name } else { "3.1.1" }
+          $dataCandidates = @(
+            "$obBase\share\openbabel\$obVersion",
+            "$obBase\bin\data"
+          )
+          $libCandidates = @(
+            "$obBase\lib\openbabel\$obVersion",
+            "$obBase\bin\plugins\openbabel\$obVersion"
+          )
+          $env:BABEL_DATADIR = ($dataCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1)
+          $env:BABEL_LIBDIR  = ($libCandidates  | Where-Object { Test-Path $_ } | Select-Object -First 1)
+          $env:PATH = "$obBase\bin;$env:PATH"
+          & "$obBase\bin\obabel.exe" -V
           & "$obBase\bin\obabel.exe" crystals/other/C10H10Fe-Ferrocene.cif -oinchi > $null
       - name: Upload installer
         if: matrix.target == 'installer'
