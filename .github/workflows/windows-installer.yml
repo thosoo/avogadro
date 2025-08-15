@@ -153,15 +153,15 @@ jobs:
           $verDir = Get-ChildItem "$obBase\share\openbabel" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
           $obVersion = if ($verDir) { $verDir.Name } else { "3.1.1" }
           $dataCandidates = @(
-            "$obBase\share\openbabel\$obVersion",
-            "$obBase\bin\data"
+            "$obBase\bin\data",
+            "$obBase\share\openbabel\$obVersion"
           )
           $libCandidates = @(
-            "$obBase\lib\openbabel\$obVersion",
-            "$obBase\bin\plugins\openbabel\$obVersion"
+            "$obBase\bin\plugins\openbabel\$obVersion",
+            "$obBase\lib\openbabel\$obVersion"
           )
-          $env:BABEL_DATADIR = ($dataCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1)
-          $env:BABEL_LIBDIR  = ($libCandidates  | Where-Object { Test-Path $_ } | Select-Object -First 1)
+          $env:BABEL_DATADIR = ($dataCandidates | Where-Object { Test-Path $_ })[0]
+          $env:BABEL_LIBDIR  = ($libCandidates  | Where-Object { Test-Path $_ })[0]
           $env:PATH = "$obBase\bin;$env:PATH"
           Write-Host "BABEL_LIBDIR=$env:BABEL_LIBDIR"
           Write-Host "BABEL_DATADIR=$env:BABEL_DATADIR"
@@ -182,15 +182,15 @@ jobs:
           $verDir = Get-ChildItem "$obBase\share\openbabel" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
           $obVersion = if ($verDir) { $verDir.Name } else { "3.1.1" }
           $dataCandidates = @(
-            "$obBase\share\openbabel\$obVersion",
-            "$obBase\bin\data"
+            "$obBase\bin\data",
+            "$obBase\share\openbabel\$obVersion"
           )
           $libCandidates = @(
-            "$obBase\lib\openbabel\$obVersion",
-            "$obBase\bin\plugins\openbabel\$obVersion"
+            "$obBase\bin\plugins\openbabel\$obVersion",
+            "$obBase\lib\openbabel\$obVersion"
           )
-          $env:BABEL_DATADIR = ($dataCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1)
-          $env:BABEL_LIBDIR  = ($libCandidates  | Where-Object { Test-Path $_ } | Select-Object -First 1)
+          $env:BABEL_DATADIR = ($dataCandidates | Where-Object { Test-Path $_ })[0]
+          $env:BABEL_LIBDIR  = ($libCandidates  | Where-Object { Test-Path $_ })[0]
           $env:PATH = "$obBase\bin;$env:PATH"
           Write-Host "BABEL_LIBDIR=$env:BABEL_LIBDIR"
           Write-Host "BABEL_DATADIR=$env:BABEL_DATADIR"

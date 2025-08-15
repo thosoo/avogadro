@@ -88,9 +88,15 @@ def main():
         alt_share = ob / "bin" / "data"
         src_share = share if share.exists() else alt_share if alt_share.exists() else None
         if src_share:
+            # Copy to the versioned share directory
             dest = dist / "share" / "openbabel" / ob_version
             log(f"Copying OpenBabel data from {src_share} to {dest}")
             shutil.copytree(src_share, dest, dirs_exist_ok=True)
+
+            # Also place data in bin/data for Windows builds so default paths work
+            dest_data = dist / "bin" / "data"
+            log(f"Copying OpenBabel data from {src_share} to {dest_data}")
+            shutil.copytree(src_share, dest_data, dirs_exist_ok=True)
 
     libxml = os.environ.get("LIBXML2_LIBRARY")
     if libxml:
