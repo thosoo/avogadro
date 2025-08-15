@@ -264,9 +264,9 @@ Section "-Installation actions" SecInstallation
 
   # Set Open Babel environment variables
   WriteRegExpandStr SHCTX "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment" "BABEL_DATADIR" "$INSTDIR\\share\\openbabel\\${OB_VERSION}"
-  WriteRegExpandStr SHCTX "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment" "BABEL_LIBDIR" "$INSTDIR\\bin"
+  WriteRegExpandStr SHCTX "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment" "BABEL_LIBDIR" "$INSTDIR\\lib\\openbabel\\${OB_VERSION}"
   System::Call 'Kernel32::SetEnvironmentVariableW(w "BABEL_DATADIR", w "$INSTDIR\\share\\openbabel\\${OB_VERSION}")'
-  System::Call 'Kernel32::SetEnvironmentVariableW(w "BABEL_LIBDIR", w "$INSTDIR\\bin")'
+  System::Call 'Kernel32::SetEnvironmentVariableW(w "BABEL_LIBDIR", w "$INSTDIR\\lib\\openbabel\\${OB_VERSION}")'
   System::Call 'Kernel32::SendMessageTimeoutW(i ${HWND_BROADCAST}, i ${WM_SETTINGCHANGE}, i 0, w "Environment", i 0, i 5000, *i .r0)'
   
   # create shortcuts to startmenu
