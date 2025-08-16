@@ -160,8 +160,8 @@ jobs:
             "$obBase\bin\plugins\openbabel\$obVersion",
             "$obBase\lib\openbabel\$obVersion"
           )
-          $env:BABEL_DATADIR = ($dataCandidates | Where-Object { Test-Path $_ })[0]
-          $env:BABEL_LIBDIR  = ($libCandidates  | Where-Object { Test-Path $_ })[0]
+          $env:BABEL_DATADIR = ($dataCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1)
+          $env:BABEL_LIBDIR  = ($libCandidates  | Where-Object { Test-Path $_ } | Select-Object -First 1)
           $env:PATH = "$obBase\bin;$env:PATH"
           Write-Host "BABEL_LIBDIR=$env:BABEL_LIBDIR"
           Write-Host "BABEL_DATADIR=$env:BABEL_DATADIR"
@@ -189,8 +189,8 @@ jobs:
             "$obBase\bin\plugins\openbabel\$obVersion",
             "$obBase\lib\openbabel\$obVersion"
           )
-          $env:BABEL_DATADIR = ($dataCandidates | Where-Object { Test-Path $_ })[0]
-          $env:BABEL_LIBDIR  = ($libCandidates  | Where-Object { Test-Path $_ })[0]
+          $env:BABEL_DATADIR = ($dataCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1)
+          $env:BABEL_LIBDIR  = ($libCandidates  | Where-Object { Test-Path $_ } | Select-Object -First 1)
           $env:PATH = "$obBase\bin;$env:PATH"
           Write-Host "BABEL_LIBDIR=$env:BABEL_LIBDIR"
           Write-Host "BABEL_DATADIR=$env:BABEL_DATADIR"
