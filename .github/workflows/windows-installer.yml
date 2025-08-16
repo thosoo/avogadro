@@ -145,12 +145,64 @@ jobs:
         shell: pwsh
         run: |
           python scripts/installer/create_installer.py
+      - name: Verify Open Babel CIF support
+        if: matrix.target == 'installer'
+        shell: pwsh
+        run: |
+          $obBase = "$PWD\scripts\installer\dist"
+          $plugin = Get-ChildItem "$obBase\bin\plugins\openbabel" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $plugin) {
+            $plugin = Get-ChildItem "$obBase\lib\openbabel" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
+          }
+          if ($plugin) {
+            $env:BABEL_LIBDIR = $plugin.FullName
+            $obVersion = $plugin.Name
+          } else {
+            $obVersion = "3.1.1"
+          }
+          if (Test-Path "$obBase\bin\data") {
+            $env:BABEL_DATADIR = "$obBase\bin\data"
+          } else {
+            $env:BABEL_DATADIR = "$obBase\share\openbabel\$obVersion"
+          }
+          $env:PATH = "$obBase\bin;$env:PATH"
+          Write-Host "BABEL_LIBDIR=$env:BABEL_LIBDIR"
+          Write-Host "BABEL_DATADIR=$env:BABEL_DATADIR"
+          & "$obBase\bin\obabel.exe" -L formats | findstr /I "cif inchi"
+          & "$obBase\bin\obabel.exe" -V
+          & "$obBase\bin\obabel.exe" crystals/other/C10H10Fe-Ferrocene.cif -oinchi
       - name: Test
         if: matrix.target == 'tests'
         shell: pwsh
         run: |
           $env:PATH = "$PWD\build\openbabel-install\bin;$env:PATH"
           ctest --test-dir build -C Release --output-on-failure
+      - name: Verify Open Babel CIF support
+        if: matrix.target == 'tests'
+        shell: pwsh
+        run: |
+          $obBase = "$PWD\build\openbabel-install"
+          $plugin = Get-ChildItem "$obBase\bin\plugins\openbabel" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $plugin) {
+            $plugin = Get-ChildItem "$obBase\lib\openbabel" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
+          }
+          if ($plugin) {
+            $env:BABEL_LIBDIR = $plugin.FullName
+            $obVersion = $plugin.Name
+          } else {
+            $obVersion = "3.1.1"
+          }
+          if (Test-Path "$obBase\bin\data") {
+            $env:BABEL_DATADIR = "$obBase\bin\data"
+          } else {
+            $env:BABEL_DATADIR = "$obBase\share\openbabel\$obVersion"
+          }
+          $env:PATH = "$obBase\bin;$env:PATH"
+          Write-Host "BABEL_LIBDIR=$env:BABEL_LIBDIR"
+          Write-Host "BABEL_DATADIR=$env:BABEL_DATADIR"
+          & "$obBase\bin\obabel.exe" -L formats | findstr /I "cif inchi"
+          & "$obBase\bin\obabel.exe" -V
+          & "$obBase\bin\obabel.exe" crystals/other/C10H10Fe-Ferrocene.cif -oinchi
       - name: Upload installer
         if: matrix.target == 'installer'
         uses: actions/upload-artifact@v4

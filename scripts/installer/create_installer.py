@@ -37,6 +37,7 @@ def main():
     ob_bindir = os.environ.get("OPENBABEL_BINDIR")
     if ob_bindir and ob_dir is None:
         ob_dir = Path(ob_bindir).parent
+    ob_version = None
     if ob_dir:
         ob = ob_dir
 
@@ -69,43 +70,43 @@ def main():
                 except Exception:
                     pass
         if not ob_version:
-            ob_version = "2"
+            ob_version = "3.1.1"
 
         for f in ob.glob("bin/*"):
             if f.suffix.lower() in (".dll", ".exe", ".obf"):
                 copy(f, dist / "bin")
 
-        dest_plugins = dist / "lib" / "openbabel" / ob_version
-        dest_plugins.mkdir(parents=True, exist_ok=True)
-
-        for plugins in [ob / "lib" / "openbabel", ob / "bin" / "openbabel"]:
-            if plugins.exists():
-                log(f"Copying plugins from {plugins} to {dest_plugins}")
-                shutil.copytree(plugins, dest_plugins, dirs_exist_ok=True)
-
-        for dll in ob.glob("bin/plugin_*.dll"):
-            copy(dll, dest_plugins)
-        for obf in ob.glob("bin/plugin_*.obf"):
-            copy(obf, dest_plugins)
+        plugins_src = None
+        for base in (ob / "bin" / "plugins" / "openbabel", ob / "lib" / "openbabel"):
+            if base.exists():
+                subdirs = [d for d in base.iterdir() if d.is_dir()]
+                if subdirs:
+                    plugins_src = subdirs[0]
+                    if not ob_version:
+                        ob_version = plugins_src.name
+                else:
+                    plugins_src = base
+                break
+        if plugins_src:
+            dest_plugins = dist / "bin" / "plugins" / "openbabel"
+            if ob_version:
+                dest_plugins /= ob_version
+            log(f"Copying OpenBabel plugins from {plugins_src} to {dest_plugins}")
+            shutil.copytree(plugins_src, dest_plugins, dirs_exist_ok=True)
 
         share = ob / "share" / "openbabel" / ob_version
         alt_share = ob / "bin" / "data"
-        if not share.exists() and alt_share.exists():
-            share = alt_share
-        if share.exists():
+        src_share = share if share.exists() else alt_share if alt_share.exists() else None
+        if src_share:
+            # Copy to the versioned share directory
             dest = dist / "share" / "openbabel" / ob_version
-            log(f"Copying OpenBabel data from {share} to {dest}")
-            shutil.copytree(share, dest, dirs_exist_ok=True)
-            patterns = ["*.txt", "*.par", "*.prm", "*.ff", "*.dat"]
-            for pat in patterns:
-                for f in share.glob(pat):
-                    if f.is_file():
-                        copy(f, dist / "bin")
-        if alt_share.exists():
-            for pat in ["*.txt", "*.par", "*.prm", "*.ff", "*.dat"]:
-                for f in alt_share.glob(pat):
-                    if f.is_file():
-                        copy(f, dist / "bin")
+            log(f"Copying OpenBabel data from {src_share} to {dest}")
+            shutil.copytree(src_share, dest, dirs_exist_ok=True)
+
+            # Also place data in bin/data for Windows builds so default paths work
+            dest_data = dist / "bin" / "data"
+            log(f"Copying OpenBabel data from {src_share} to {dest_data}")
+            shutil.copytree(src_share, dest_data, dirs_exist_ok=True)
 
     libxml = os.environ.get("LIBXML2_LIBRARY")
     if libxml:
@@ -154,6 +155,8 @@ def main():
         args.append(f"/DVERSION={version}")
     if vi_version:
         args.append(f"/DVI_VERSION={vi_version}")
+    if ob_version:
+        args.append(f"/DOB_VERSION={ob_version}")
     args.append(str(root / "setup.nsi"))
     log("Running makensis")
     subprocess.check_call(args)
