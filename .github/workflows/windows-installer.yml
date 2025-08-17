@@ -160,9 +160,8 @@ jobs:
           } else {
             $obVersion = "3.1.1"
           }
-          if (Test-Path "$obBase\bin\data") {
-            $env:BABEL_DATADIR = "$obBase\bin\data"
-          } else {
+          $env:BABEL_DATADIR = "$obBase\bin\data"
+          if (-not (Test-Path $env:BABEL_DATADIR)) {
             $env:BABEL_DATADIR = "$obBase\share\openbabel\$obVersion"
           }
           $env:PATH = "$obBase\bin;$env:PATH"
@@ -192,9 +191,8 @@ jobs:
           } else {
             $obVersion = "3.1.1"
           }
-          if (Test-Path "$obBase\bin\data") {
-            $env:BABEL_DATADIR = "$obBase\bin\data"
-          } else {
+          $env:BABEL_DATADIR = "$obBase\bin\data"
+          if (-not (Test-Path $env:BABEL_DATADIR)) {
             $env:BABEL_DATADIR = "$obBase\share\openbabel\$obVersion"
           }
           $env:PATH = "$obBase\bin;$env:PATH"
