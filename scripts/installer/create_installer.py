@@ -94,12 +94,24 @@ def main():
             log(f"Copying OpenBabel plugins from {plugins_src} to {dest_plugins}")
             shutil.copytree(plugins_src, dest_plugins, dirs_exist_ok=True)
 
-        share = ob / "share" / "openbabel" / ob_version
-        alt_share = ob / "bin" / "data"
-        src_share = share if share.exists() else alt_share if alt_share.exists() else None
+        # Locate Open Babel's data directory, trying common installation layouts
+        data_candidates = [
+            ob / "share" / "openbabel" / ob_version,
+            ob / "share" / "openbabel",
+            ob / "bin" / "data",
+            ob / "data",
+        ]
+        src_share = next((c for c in data_candidates if c.exists()), None)
+        if not src_share:
+            # Fallback: search for a known data file such as space-groups.txt
+            sg = next(ob.rglob("space-groups.txt"), None)
+            if sg:
+                src_share = sg.parent
         if src_share:
             # Copy to the versioned share directory
-            dest = dist / "share" / "openbabel" / ob_version
+            dest = dist / "share" / "openbabel"
+            if ob_version:
+                dest /= ob_version
             log(f"Copying OpenBabel data from {src_share} to {dest}")
             shutil.copytree(src_share, dest, dirs_exist_ok=True)
 
@@ -107,6 +119,8 @@ def main():
             dest_data = dist / "bin" / "data"
             log(f"Copying OpenBabel data from {src_share} to {dest_data}")
             shutil.copytree(src_share, dest_data, dirs_exist_ok=True)
+        else:
+            log("Warning: OpenBabel data directory not found")
 
     libxml = os.environ.get("LIBXML2_LIBRARY")
     if libxml:

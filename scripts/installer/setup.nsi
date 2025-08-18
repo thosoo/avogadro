@@ -269,6 +269,9 @@ Section "-Installation actions" SecInstallation
     ${ElseIf} ${FileExists} "$INSTDIR\\lib\\openbabel\\${OB_VERSION}\\*.*"
       WriteRegExpandStr SHCTX "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment" "BABEL_LIBDIR" "$INSTDIR\\lib\\openbabel\\${OB_VERSION}"
       System::Call 'Kernel32::SetEnvironmentVariableW(w "BABEL_LIBDIR", w "$INSTDIR\\lib\\openbabel\\${OB_VERSION}")'
+    ${Else}
+      WriteRegExpandStr SHCTX "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment" "BABEL_LIBDIR" "$INSTDIR\\bin"
+      System::Call 'Kernel32::SetEnvironmentVariableW(w "BABEL_LIBDIR", w "$INSTDIR\\bin")'
     ${EndIf}
     WriteRegExpandStr SHCTX "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment" "BABEL_DATADIR" "$INSTDIR\\bin\\data"
     System::Call 'Kernel32::SetEnvironmentVariableW(w "BABEL_DATADIR", w "$INSTDIR\\bin\\data")'
