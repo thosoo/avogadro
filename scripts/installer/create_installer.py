@@ -37,6 +37,7 @@ def main():
     ob_bindir = os.environ.get("OPENBABEL_BINDIR")
     if ob_bindir and ob_dir is None:
         ob_dir = Path(ob_bindir).parent
+    dest_plugins = None
     if ob_dir:
         ob = ob_dir
 
@@ -112,6 +113,8 @@ def main():
         dll = Path(libxml).with_suffix('.dll')
         if dll.exists():
             copy(dll, dist / "bin")
+            if dest_plugins:
+                copy(dll, dest_plugins)
 
     zlib_lib = os.environ.get("ZLIB_LIBRARY")
     zlib_dir = os.environ.get("ZLIB_LIBRARY_DIR")
@@ -124,6 +127,8 @@ def main():
     for dll in candidates:
         if dll.exists():
             copy(dll, dist / 'bin')
+            if dest_plugins:
+                copy(dll, dest_plugins)
             break
 
     glew_bin = os.environ.get("GLEW_BIN_DIR")
