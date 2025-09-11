@@ -424,8 +424,7 @@ namespace Avogadro {
     m_thread->setup(m_glwidget->molecule(), m_forceField,
                     m_comboAlgorithm->currentIndex(),
                     m_stepsSpinBox->value());
-    QMetaObject::invokeMethod(m_thread, "update",
-                              Qt::QueuedConnection);
+    m_thread->update();
   }
 
   void AutoOptTool::finished(bool calculated)
@@ -510,8 +509,6 @@ namespace Avogadro {
 
   void AutoOptThread::run()
   {
-    // Process queued update() calls in this thread
-    moveToThread(this);
     exec();
   }
 
