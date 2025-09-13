@@ -79,7 +79,8 @@ def main():
         dest_plugins = dist / "lib" / "openbabel" / ob_version
         dest_plugins.mkdir(parents=True, exist_ok=True)
 
-        for plugins in [ob / "lib" / "openbabel", ob / "bin" / "openbabel"]:
+        for plugins in [ob / "lib" / "openbabel" / ob_version,
+                        ob / "bin" / "openbabel" / ob_version]:
             if plugins.exists():
                 log(f"Copying plugins from {plugins} to {dest_plugins}")
                 shutil.copytree(plugins, dest_plugins, dirs_exist_ok=True)

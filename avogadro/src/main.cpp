@@ -42,6 +42,7 @@
 #include <QLibraryInfo>
 #include <QProcess>
 #include <QFont>
+#include <QDir>
 
 #include <iostream>
 
@@ -131,12 +132,12 @@ int main(int argc, char *argv[])
 #ifdef WIN32
 #ifndef AVO_APP_BUNDLE
   // Set up the OpenBabel data and plugin directories for the Windows installer
-  QByteArray babelDataDir(
-      (QCoreApplication::applicationDirPath() + "/../share/openbabel/" +
-       QString(BABEL_VERSION)).toLatin1());
-  QByteArray babelLibDir(
-      (QCoreApplication::applicationDirPath() + "/../lib/openbabel/" +
-       QString(BABEL_VERSION)).toLatin1());
+  QByteArray babelDataDir = QDir::toNativeSeparators(
+      QCoreApplication::applicationDirPath() + "/../share/openbabel/" +
+      QString(BABEL_VERSION)).toLocal8Bit();
+  QByteArray babelLibDir = QDir::toNativeSeparators(
+      QCoreApplication::applicationDirPath() + "/../lib/openbabel/" +
+      QString(BABEL_VERSION)).toLocal8Bit();
 
 #ifdef _MSC_VER
   _putenv_s("BABEL_DATADIR", babelDataDir.data());
