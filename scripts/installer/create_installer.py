@@ -23,6 +23,14 @@ def main():
         log(f"Copying {src} -> {dst}")
         shutil.copy(src, dst)
 
+    def copy_dll_candidates(candidates):
+        for dll in candidates:
+            if dll.exists():
+                copy(dll, dist / "bin")
+                if dest_plugins:
+                    copy(dll, dest_plugins)
+                break
+
     log(f"Installing build from {build_dir} into {dist}")
     subprocess.check_call(["cmake", "--install", str(build_dir), "--prefix", str(dist)])
 
@@ -118,12 +126,29 @@ def main():
             libxml_path.parent.parent / 'bin' / 'libxml2.dll',
             libxml_path.parent.parent / 'bin' / 'libxml2-2.dll',
         ]
-        for dll in dll_candidates:
-            if dll.exists():
-                copy(dll, dist / "bin")
-                if dest_plugins:
-                    copy(dll, dest_plugins)
-                break
+        copy_dll_candidates(dll_candidates)
+
+        iconv_candidates = [
+            libxml_path.parent / 'libiconv-2.dll',
+            libxml_path.parent.parent / 'bin' / 'libiconv-2.dll',
+            libxml_path.parent / 'iconv.dll',
+            libxml_path.parent.parent / 'bin' / 'iconv.dll',
+        ]
+        copy_dll_candidates(iconv_candidates)
+
+        lzma_candidates = [
+            libxml_path.parent / 'liblzma-5.dll',
+            libxml_path.parent.parent / 'bin' / 'liblzma-5.dll',
+            libxml_path.parent / 'lzma.dll',
+            libxml_path.parent.parent / 'bin' / 'lzma.dll',
+        ]
+        copy_dll_candidates(lzma_candidates)
+
+        intl_candidates = [
+            libxml_path.parent / 'libintl-8.dll',
+            libxml_path.parent.parent / 'bin' / 'libintl-8.dll',
+        ]
+        copy_dll_candidates(intl_candidates)
 
     zlib_lib = os.environ.get("ZLIB_LIBRARY")
     zlib_dir = os.environ.get("ZLIB_LIBRARY_DIR")
@@ -133,12 +158,7 @@ def main():
     if zlib_dir:
         candidates.append(Path(zlib_dir) / 'zlib1.dll')
         candidates.append(Path(zlib_dir) / 'zlib.dll')
-    for dll in candidates:
-        if dll.exists():
-            copy(dll, dist / 'bin')
-            if dest_plugins:
-                copy(dll, dest_plugins)
-            break
+    copy_dll_candidates(candidates)
 
     glew_bin = os.environ.get("GLEW_BIN_DIR")
     if glew_bin:
