@@ -111,11 +111,19 @@ def main():
 
     libxml = os.environ.get("LIBXML2_LIBRARY")
     if libxml:
-        dll = Path(libxml).with_suffix('.dll')
-        if dll.exists():
-            copy(dll, dist / "bin")
-            if dest_plugins:
-                copy(dll, dest_plugins)
+        libxml_path = Path(libxml)
+        dll_candidates = [
+            libxml_path.with_suffix('.dll'),
+            libxml_path.parent / 'libxml2.dll',
+            libxml_path.parent.parent / 'bin' / 'libxml2.dll',
+            libxml_path.parent.parent / 'bin' / 'libxml2-2.dll',
+        ]
+        for dll in dll_candidates:
+            if dll.exists():
+                copy(dll, dist / "bin")
+                if dest_plugins:
+                    copy(dll, dest_plugins)
+                break
 
     zlib_lib = os.environ.get("ZLIB_LIBRARY")
     zlib_dir = os.environ.get("ZLIB_LIBRARY_DIR")
