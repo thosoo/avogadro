@@ -243,6 +243,10 @@ macro(pass_ob_arg var)
     list(APPEND OB_OVERRIDE_ARGS -D${var}=${${var}})
   endif()
 endmacro()
+find_package(LibXml2 REQUIRED)
+find_package(ZLIB REQUIRED)
+
+# Forward dependency paths to the Open Babel build
 pass_ob_arg(EIGEN3_INCLUDE_DIR)
 pass_ob_arg(INCHI_INCLUDE_DIR)
 pass_ob_arg(INCHI_LIBRARY)
@@ -303,8 +307,6 @@ if(NOT Linguist_FOUND)
 endif()
 
 find_package(Eigen3 REQUIRED) # find and setup Eigen3 if available
-
-find_package(ZLIB REQUIRED)
 find_package(OpenBabel3 QUIET) # find and setup OpenBabel
 if(NOT OPENBABEL3_FOUND)
   add_library(OpenBabel3::openbabel SHARED IMPORTED)
