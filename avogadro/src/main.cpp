@@ -26,6 +26,7 @@
 
 #include <avogadro/global.h>
 #include <openbabel/babelconfig.h>
+#include <openbabel/obconversion.h>
 
 #ifdef ENABLE_GLSL
   #include <GL/glew.h>
@@ -132,22 +133,70 @@ int main(int argc, char *argv[])
 #ifdef WIN32
 #ifndef AVO_APP_BUNDLE
   // Set up the OpenBabel data and plugin directories for the Windows installer
-  QByteArray babelDataDir = QDir::toNativeSeparators(
-      QCoreApplication::applicationDirPath() + "/../share/openbabel/" +
-      QString(BABEL_VERSION)).toLocal8Bit();
-  QByteArray babelLibDir = QDir::toNativeSeparators(
-      QCoreApplication::applicationDirPath() + "/../lib/openbabel/" +
-      QString(BABEL_VERSION)).toLocal8Bit();
-
+  auto setEnvVar = [](const char* name, const QByteArray& value) {
 #ifdef _MSC_VER
-  _putenv_s("BABEL_DATADIR", babelDataDir.data());
-  _putenv_s("BABEL_LIBDIR", babelLibDir.data());
+    _putenv_s(name, value.constData());
 #else
-  setenv("BABEL_DATADIR", babelDataDir.data(), 1);
-  setenv("BABEL_LIBDIR", babelLibDir.data(), 1);
+    setenv(name, value.constData(), 1);
 #endif
+  };
 
-  qDebug() << "BABEL_LIBDIR" << babelLibDir.data();
+  auto appendIfDirExists = [](QStringList& list, const QString& candidate) {
+    if (candidate.isEmpty())
+      return;
+    QDir dir(candidate);
+    if (!dir.exists())
+      return;
+    const QString normalized =
+        QDir::toNativeSeparators(dir.absolutePath());
+    if (!list.contains(normalized))
+      list.push_back(normalized);
+  };
+
+  const QString appDirPath = QCoreApplication::applicationDirPath();
+  const QString babelVersion = QString(BABEL_VERSION);
+
+  QStringList dataDirs;
+  appendIfDirExists(dataDirs,
+                    appDirPath + "/../share/openbabel/" + babelVersion);
+  appendIfDirExists(dataDirs, appDirPath + "/../share/openbabel");
+  appendIfDirExists(dataDirs, appDirPath + "/data");
+  appendIfDirExists(dataDirs, appDirPath + "/../bin/data");
+
+  if (!dataDirs.isEmpty()) {
+    const QByteArray joined = dataDirs.join(QLatin1Char(';')).toLocal8Bit();
+    setEnvVar("BABEL_DATADIR", joined);
+    qDebug() << "BABEL_DATADIR" << joined;
+  } else {
+    qWarning() << "No OpenBabel data directory found near" << appDirPath;
+  }
+
+  QStringList pluginDirs;
+  appendIfDirExists(pluginDirs,
+                    appDirPath + "/../lib/openbabel/" + babelVersion);
+  appendIfDirExists(pluginDirs, appDirPath + "/../lib/openbabel");
+  appendIfDirExists(pluginDirs,
+                    appDirPath + "/../bin/openbabel/" + babelVersion);
+  appendIfDirExists(pluginDirs, appDirPath + "/../bin/openbabel");
+  appendIfDirExists(pluginDirs, appDirPath + "/openbabel/" + babelVersion);
+  appendIfDirExists(pluginDirs, appDirPath + "/openbabel");
+
+  if (!pluginDirs.isEmpty()) {
+    const QByteArray joined = pluginDirs.join(QLatin1Char(';')).toLocal8Bit();
+    setEnvVar("BABEL_LIBDIR", joined);
+    qDebug() << "BABEL_LIBDIR" << joined;
+  } else {
+    qWarning() << "No OpenBabel plugin directory found near" << appDirPath;
+  }
+
+  OpenBabel::OBConversion cmlCheck;
+  if (!cmlCheck.SetInFormat("cml")) {
+    qWarning() << "OpenBabel CML plugin unavailable. Searched:" << pluginDirs;
+  }
+  OpenBabel::OBConversion cifCheck;
+  if (!cifCheck.SetInFormat("cif")) {
+    qWarning() << "OpenBabel CIF plugin unavailable. Searched:" << pluginDirs;
+  }
 #endif
 #endif
 

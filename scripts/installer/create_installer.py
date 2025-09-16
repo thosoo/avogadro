@@ -27,8 +27,8 @@ def main():
         for dll in candidates:
             if dll.exists():
                 copy(dll, dist / "bin")
-                if dest_plugins:
-                    copy(dll, dest_plugins)
+                for dest in dest_plugin_dirs:
+                    copy(dll, dest)
                 break
 
     log(f"Installing build from {build_dir} into {dist}")
@@ -45,7 +45,7 @@ def main():
     ob_bindir = os.environ.get("OPENBABEL_BINDIR")
     if ob_bindir and ob_dir is None:
         ob_dir = Path(ob_bindir).parent
-    dest_plugins = None
+    dest_plugin_dirs = []
     if ob_dir:
         ob = ob_dir
 
@@ -84,19 +84,29 @@ def main():
             if f.suffix.lower() in (".dll", ".exe", ".obf"):
                 copy(f, dist / "bin")
 
-        dest_plugins = dist / "lib" / "openbabel" / ob_version
-        dest_plugins.mkdir(parents=True, exist_ok=True)
+        plugin_targets = [
+            dist / "lib" / "openbabel" / ob_version,
+            dist / "bin" / "openbabel" / ob_version,
+        ]
+        dest_plugin_dirs = []
+        for target in plugin_targets:
+            if target not in dest_plugin_dirs:
+                target.mkdir(parents=True, exist_ok=True)
+                dest_plugin_dirs.append(target)
 
         for plugins in [ob / "lib" / "openbabel" / ob_version,
                         ob / "bin" / "openbabel" / ob_version]:
             if plugins.exists():
-                log(f"Copying plugins from {plugins} to {dest_plugins}")
-                shutil.copytree(plugins, dest_plugins, dirs_exist_ok=True)
+                for dest in dest_plugin_dirs:
+                    log(f"Copying plugins from {plugins} to {dest}")
+                    shutil.copytree(plugins, dest, dirs_exist_ok=True)
 
         for dll in ob.glob("bin/plugin_*.dll"):
-            copy(dll, dest_plugins)
+            for dest in dest_plugin_dirs:
+                copy(dll, dest)
         for obf in ob.glob("bin/plugin_*.obf"):
-            copy(obf, dest_plugins)
+            for dest in dest_plugin_dirs:
+                copy(obf, dest)
 
         share = ob / "share" / "openbabel" / ob_version
         alt_share = ob / "bin" / "data"
@@ -106,6 +116,9 @@ def main():
             dest = dist / "share" / "openbabel" / ob_version
             log(f"Copying OpenBabel data from {share} to {dest}")
             shutil.copytree(share, dest, dirs_exist_ok=True)
+            bin_data = dist / "bin" / "data"
+            log(f"Copying OpenBabel data from {share} to {bin_data}")
+            shutil.copytree(share, bin_data, dirs_exist_ok=True)
             patterns = ["*.txt", "*.par", "*.prm", "*.ff", "*.dat"]
             for pat in patterns:
                 for f in share.glob(pat):
@@ -116,6 +129,24 @@ def main():
                 for f in alt_share.glob(pat):
                     if f.is_file():
                         copy(f, dist / "bin")
+
+        if dest_plugin_dirs:
+            required_sets = {
+                "formats_xml": ["formats_xml"],
+                "cif": ["cifformat", "formats_misc"],
+            }
+            missing = []
+            for label, names in required_sets.items():
+                if not any(
+                    (dest / f"{name}.obf").exists()
+                    for name in names
+                    for dest in dest_plugin_dirs
+                ):
+                    missing.append(label)
+            if missing:
+                raise FileNotFoundError(
+                    "Missing OpenBabel plugins: " + ", ".join(sorted(set(missing)))
+                )
 
     libxml = os.environ.get("LIBXML2_LIBRARY")
     if libxml:
