@@ -33,16 +33,169 @@
 #include <QThread>
 #include <QDebug>
 #include <QPointer>
+#include <QTextStream>
+#include <QRegularExpression>
 
 #include <openbabel/mol.h>
 #include <openbabel/atom.h>
 #include <openbabel/obconversion.h>
 #include <openbabel/chains.h>
+#include <openbabel/elements.h>
 
 // Included in obconversion.h
 //#include <iostream>
 
 namespace Avogadro {
+
+  namespace {
+    std::vector<Eigen::Vector3d> *collectCoordinates(const OpenBabel::OBMol &mol)
+    {
+      std::vector<Eigen::Vector3d> *coords = new std::vector<Eigen::Vector3d>;
+      coords->reserve(mol.NumAtoms());
+
+      OpenBabel::OBAtomIterator ai;
+      for (OpenBabel::OBAtom *atom = mol.BeginAtom(ai); atom;
+           atom = mol.NextAtom(ai)) {
+        coords->push_back(Eigen::Vector3d(atom->GetVector().AsArray()));
+      }
+
+      return coords;
+    }
+  }
+
+  bool MoleculeFile::parseXyzFallback(const QString &fileName, OpenBabel::OBMol &outMol,
+                                      QStringList &titles,
+                                      std::vector<std::vector<Eigen::Vector3d> *> &conformers,
+                                      QString *error)
+  {
+      QFile file(fileName);
+      if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        if (error)
+          error->append(QObject::tr("File %1 cannot be opened for reading.")
+                            .arg(fileName));
+        return false;
+      }
+
+      QTextStream in(&file);
+      unsigned int frame = 0;
+      auto clearConformers = [&conformers]() {
+        for (auto *coords : conformers)
+          delete coords;
+        conformers.clear();
+      };
+
+      while (!in.atEnd()) {
+        QString countLine = in.readLine();
+        while (countLine.trimmed().isEmpty() && !in.atEnd())
+          countLine = in.readLine();
+
+        if (countLine.trimmed().isEmpty())
+          break;
+
+        bool ok = false;
+        unsigned int atomCount = countLine.trimmed().toUInt(&ok);
+        if (!ok || !atomCount) {
+          if (error)
+            error->append(QObject::tr("XYZ frame %1 does not start with an atom count.")
+                              .arg(frame + 1));
+          clearConformers();
+          return false;
+        }
+
+        if (in.atEnd()) {
+          if (error)
+            error->append(QObject::tr("XYZ frame %1 is missing the comment line.")
+                              .arg(frame + 1));
+          clearConformers();
+          return false;
+        }
+
+        QString title = in.readLine();
+        if (title.isEmpty())
+          title = QObject::tr("Molecule %1").arg(frame + 1);
+
+        OpenBabel::OBMol current;
+        current.BeginModify();
+        for (unsigned int i = 0; i < atomCount; ++i) {
+          if (in.atEnd()) {
+            if (error)
+              error->append(QObject::tr("XYZ frame %1 ended before %2 atoms were read.")
+                                .arg(frame + 1)
+                                .arg(atomCount));
+            clearConformers();
+            return false;
+          }
+
+          QString atomLine = in.readLine();
+          QStringList parts = atomLine.split(QRegularExpression("\\s+"),
+                                            QString::SkipEmptyParts);
+          if (parts.size() < 4) {
+            if (error)
+              error->append(QObject::tr("XYZ frame %1 has an invalid atom line: %2")
+                                .arg(frame + 1, atomLine));
+            clearConformers();
+            return false;
+          }
+
+          int atomicNum = OpenBabel::OBElements::GetAtomicNum(parts[0].toStdString());
+          if (!atomicNum) {
+            if (error)
+              error->append(QObject::tr("Unrecognized element '%1' in XYZ frame %2.")
+                                .arg(parts[0])
+                                .arg(frame + 1));
+            clearConformers();
+            return false;
+          }
+
+          bool xOk = false, yOk = false, zOk = false;
+          double x = parts[1].toDouble(&xOk);
+          double y = parts[2].toDouble(&yOk);
+          double z = parts[3].toDouble(&zOk);
+          if (!xOk || !yOk || !zOk) {
+            if (error)
+              error->append(QObject::tr("XYZ coordinates on frame %1 are not numeric: %2")
+                                .arg(frame + 1, atomLine));
+            clearConformers();
+            return false;
+          }
+
+          OpenBabel::OBAtom *atom = current.NewAtom();
+          atom->SetAtomicNum(atomicNum);
+          atom->SetVector(x, y, z);
+        }
+        current.EndModify();
+
+        if (frame == 0) {
+          outMol = current;
+        } else {
+          if (current.NumAtoms() != outMol.NumAtoms()) {
+            if (error)
+              error->append(QObject::tr("XYZ frame %1 does not match atom count of the first frame.")
+                                .arg(frame + 1));
+            clearConformers();
+            return false;
+          }
+        }
+
+        conformers.push_back(collectCoordinates(current));
+        titles.push_back(title);
+        ++frame;
+      }
+
+      if (!frame) {
+        if (error)
+          error->append(QObject::tr("The XYZ file '%1' did not contain any atoms.")
+                            .arg(fileName));
+        clearConformers();
+        return false;
+      }
+
+      if (frame == 1)
+        clearConformers();
+
+      return true;
+    }
+  }
 
   using OpenBabel::OBConversion;
   using OpenBabel::OBFormat;
@@ -397,17 +550,36 @@ namespace Avogadro {
       mol->setOBMol(&obMol);
       mol->setFileName(fileName);
       return mol;
-    } else {
-      if (error) {
-        QString detailedError = QString::fromStdString(conv.GetLastError());
-        if (detailedError.isEmpty())
-          detailedError = QObject::tr("An unknown error occurred while reading the file.");
+    }
 
-        error->append(QObject::tr("Reading a molecule from file '%1' failed: %2")
-                      .arg(fileName, detailedError));
+    if (fileName.endsWith(QLatin1String("xyz"), Qt::CaseInsensitive)) {
+      QStringList titles;
+      std::vector<std::vector<Eigen::Vector3d> *> conformers;
+      QString fallbackError;
+      if (parseXyzFallback(fileName, obMol, titles, conformers, &fallbackError)) {
+        Molecule *mol = new Molecule;
+        mol->setOBMol(&obMol);
+        mol->setFileName(fileName);
+        if (conformers.size() > 1)
+          mol->setAllConformers(conformers);
+        return mol;
       }
+
+      if (error)
+        error->append(QObject::tr("Reading XYZ file '%1' failed: %2")
+                          .arg(fileName, fallbackError.trimmed()));
       return 0;
     }
+
+    if (error) {
+      QString detailedError = QString::fromStdString(conv.GetLastError());
+      if (detailedError.isEmpty())
+        detailedError = QObject::tr("An unknown error occurred while reading the file.");
+
+      error->append(QObject::tr("Reading a molecule from file '%1' failed: %2")
+                    .arg(fileName, detailedError));
+    }
+    return 0;
   }
 
   bool MoleculeFile::writeMolecule(const Molecule *molecule,

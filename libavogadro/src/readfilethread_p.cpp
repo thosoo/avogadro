@@ -178,6 +178,28 @@ void ReadFileThread::run()
   m_moleculeFile->streamposRef().pop_back();
 
   if (!c) {
+    if (m_moleculeFile->m_fileName.endsWith(QLatin1String("xyz"),
+                                            Qt::CaseInsensitive)) {
+      OpenBabel::OBMol parsedMol;
+      QStringList titles;
+      std::vector<std::vector<Eigen::Vector3d> *> conformers;
+      QString fallbackError;
+      if (MoleculeFile::parseXyzFallback(m_moleculeFile->m_fileName, parsedMol,
+                                         titles, conformers, &fallbackError)) {
+        m_moleculeFile->d->specialCaseOBMol = new OpenBabel::OBMol(parsedMol);
+        m_moleculeFile->titlesRef() = titles;
+        m_moleculeFile->conformersRef() = conformers;
+        if (conformers.size() > 1)
+          m_moleculeFile->setConformerFile(true);
+        return;
+      }
+
+      m_moleculeFile->m_error.append(
+          QObject::tr("Reading XYZ file '%1' failed: %2")
+              .arg(m_moleculeFile->m_fileName, fallbackError.trimmed()));
+      return;
+    }
+
     QString detailedError = QString::fromStdString(conv.GetLastError());
     if (detailedError.isEmpty())
       detailedError = tr("No molecules were read from the file.");
