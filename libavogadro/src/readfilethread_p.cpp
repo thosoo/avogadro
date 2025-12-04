@@ -177,6 +177,17 @@ void ReadFileThread::run()
   }
   m_moleculeFile->streamposRef().pop_back();
 
+  if (!c) {
+    QString detailedError = QString::fromStdString(conv.GetLastError());
+    if (detailedError.isEmpty())
+      detailedError = tr("No molecules were read from the file.");
+
+    m_moleculeFile->m_error.append(
+        QObject::tr("Reading a molecule from file '%1' failed: %2")
+            .arg(m_moleculeFile->m_fileName, detailedError));
+    return;
+  }
+
   // single molecule files are not conformer files
   if (c == 1) {
     m_moleculeFile->setConformerFile(false);

@@ -398,8 +398,14 @@ namespace Avogadro {
       mol->setFileName(fileName);
       return mol;
     } else {
-      if (error)
-        error->append(QObject::tr("Reading a molecule from file '%1' failed.").arg(fileName));
+      if (error) {
+        QString detailedError = QString::fromStdString(conv.GetLastError());
+        if (detailedError.isEmpty())
+          detailedError = QObject::tr("An unknown error occurred while reading the file.");
+
+        error->append(QObject::tr("Reading a molecule from file '%1' failed: %2")
+                      .arg(fileName, detailedError));
+      }
       return 0;
     }
   }
