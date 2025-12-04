@@ -128,6 +128,9 @@ void ReadFileThread::run()
     m_moleculeFile->m_error.append(
           QObject::tr("File type '%1' is not supported for reading.")
           .arg(m_moleculeFile->m_fileType));
+    QString diagnostics = MoleculeFile::openBabelDiagnostics();
+    if (!diagnostics.isEmpty())
+      m_moleculeFile->m_error.append(QObject::tr("\nOpenBabel diagnostics: %1").arg(diagnostics));
     return;
   }
   else {
@@ -137,6 +140,9 @@ void ReadFileThread::run()
       m_moleculeFile->m_error
           .append(QObject::tr("File type for file '%1' is not supported for reading.")
                   .arg(m_moleculeFile->m_fileName));
+      QString diagnostics = MoleculeFile::openBabelDiagnostics();
+      if (!diagnostics.isEmpty())
+        m_moleculeFile->m_error.append(QObject::tr("\nOpenBabel diagnostics: %1").arg(diagnostics));
       return;
     }
   }
@@ -185,6 +191,9 @@ void ReadFileThread::run()
     m_moleculeFile->m_error.append(
         QObject::tr("Reading a molecule from file '%1' failed: %2")
             .arg(m_moleculeFile->m_fileName, detailedError));
+    QString diagnostics = MoleculeFile::openBabelDiagnostics();
+    if (!diagnostics.isEmpty())
+      m_moleculeFile->m_error.append(QObject::tr("\nOpenBabel diagnostics: %1").arg(diagnostics));
     return;
   }
 
