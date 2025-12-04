@@ -119,9 +119,9 @@ int main(int argc, char *argv[])
   QByteArray pathEnv = qgetenv("PATH");
   QString binDir = QCoreApplication::applicationDirPath();
   QString newPath = binDir + QLatin1Char(';') + QString::fromLocal8Bit(pathEnv);
-  QString babelLibDir = binDir + "/../lib/openbabel/" + QString(BABEL_VERSION);
-  if (QFileInfo::exists(babelLibDir)) {
-    newPath = babelLibDir + QLatin1Char(';') + newPath;
+  QString babelPluginDir = binDir + "/../lib/openbabel/" + QString(BABEL_VERSION);
+  if (QFileInfo::exists(babelPluginDir)) {
+    newPath = babelPluginDir + QLatin1Char(';') + newPath;
   }
   _putenv_s("PATH", newPath.toLocal8Bit().constData());
 
@@ -145,14 +145,12 @@ int main(int argc, char *argv[])
   QString babelLibDir = QCoreApplication::applicationDirPath() +
                         "/../lib/openbabel/" + QString(BABEL_VERSION);
 
-  QString babelDataEnv = "BABEL_DATADIR=" + babelDataDir;
-  qDebug() << babelDataEnv;
-  _putenv(babelDataEnv.toStdString().c_str());
+  qDebug() << "BABEL_DATADIR" << babelDataDir;
+  _putenv_s("BABEL_DATADIR", babelDataDir.toLocal8Bit().constData());
 
   if (QFileInfo::exists(babelLibDir)) {
-    QString babelLibEnv = "BABEL_LIBDIR=" + babelLibDir;
-    qDebug() << babelLibEnv;
-    _putenv(babelLibEnv.toStdString().c_str());
+    qDebug() << "BABEL_LIBDIR" << babelLibDir;
+    _putenv_s("BABEL_LIBDIR", babelLibDir.toLocal8Bit().constData());
   }
 #endif
 #endif
@@ -161,8 +159,6 @@ int main(int argc, char *argv[])
   // Set up the babel data and plugin directories for Mac - relocatable
   // This also works for the Windows package, but BABEL_LIBDIR is ignored
 
-  // Make sure to enclose the environment variable in quotes, or spaces will cause problems
-  QString escapedAppPath = QCoreApplication::applicationDirPath().replace(' ', "\ ");
   // Point BABEL_DATADIR and BABEL_LIBDIR at the OpenBabel directories
   // including the OpenBabel version.
   QByteArray babelDataDir(
