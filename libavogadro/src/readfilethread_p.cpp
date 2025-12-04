@@ -36,6 +36,7 @@
 namespace Avogadro {
 
 using OpenBabel::OBConversion;
+using OpenBabel::OBAtomConstIterator;
 using std::ifstream;
 
 ReadFileThread::ReadFileThread(MoleculeFile *moleculeFile)
@@ -49,8 +50,11 @@ void ReadFileThread::addConformer(const OpenBabel::OBMol &conformer)
   std::vector<Eigen::Vector3d> *coords = new std::vector<Eigen::Vector3d>;
   coords->reserve(numAtoms); // pre-allocate room for all atoms.
 
-  for (unsigned int i = 0; i < numAtoms; ++i)
-    coords->push_back(Eigen::Vector3d(conformer.GetAtom(i+1)->GetVector().AsArray()));
+  OpenBabel::OBAtomConstIterator iter;
+  for (const OpenBabel::OBAtom *atom = conformer.BeginAtom(iter); atom;
+       atom = conformer.NextAtom(iter)) {
+    coords->push_back(Eigen::Vector3d(atom->GetVector().AsArray()));
+  }
 
   m_moleculeFile->m_conformers.push_back(coords);
 }
@@ -98,14 +102,19 @@ void ReadFileThread::detectConformers(unsigned int c,
     return;
   }
 
-  for (unsigned int i = 0; i < first.NumAtoms(); ++i) {
-    OpenBabel::OBAtom *firstAtom = first.GetAtom(i+1);
-    OpenBabel::OBAtom *currentAtom = current.GetAtom(i+1);
+  OpenBabel::OBAtomConstIterator firstIter;
+  OpenBabel::OBAtomConstIterator currentIter;
+  const OpenBabel::OBAtom *firstAtom = first.BeginAtom(firstIter);
+  const OpenBabel::OBAtom *currentAtom = current.BeginAtom(currentIter);
+  while (firstAtom && currentAtom) {
     if (firstAtom->GetAtomicNum() != currentAtom->GetAtomicNum()) {
       m_moleculeFile->setConformerFile(false);
       m_moleculeFile->m_conformers.clear();
       return;
     }
+
+    firstAtom = first.NextAtom(firstIter);
+    currentAtom = current.NextAtom(currentIter);
   }
 }
 
