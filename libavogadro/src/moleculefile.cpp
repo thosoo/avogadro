@@ -38,6 +38,7 @@
 #include <openbabel/atom.h>
 #include <openbabel/obconversion.h>
 #include <openbabel/chains.h>
+#include <openbabel/elements.h>
 
 // Included in obconversion.h
 //#include <iostream>
@@ -392,16 +393,22 @@ namespace Avogadro {
     if (!ifs) // Should not happen, already checked file could be opened
       return 0;
     OpenBabel::OBMol obMol;
-    if (conv.Read(&obMol, &ifs)) {
-      Molecule *mol = new Molecule;
-      mol->setOBMol(&obMol);
-      mol->setFileName(fileName);
-      return mol;
-    } else {
-      if (error)
-        error->append(QObject::tr("Reading a molecule from file '%1' failed.").arg(fileName));
+    if (!conv.Read(&obMol, &ifs)) {
+      if (error) {
+        QString detailedError = QString::fromStdString(conv.GetLastError());
+        if (detailedError.isEmpty())
+          detailedError = QObject::tr("An unknown error occurred while reading the file.");
+
+        error->append(QObject::tr("Reading a molecule from file '%1' failed: %2")
+                      .arg(fileName, detailedError));
+      }
       return 0;
     }
+
+    Molecule *mol = new Molecule;
+    mol->setOBMol(&obMol);
+    mol->setFileName(fileName);
+    return mol;
   }
 
   bool MoleculeFile::writeMolecule(const Molecule *molecule,

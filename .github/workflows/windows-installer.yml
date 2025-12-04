@@ -21,6 +21,16 @@ jobs:
           --no-progress `
           --installargs '"ADD_CMAKE_TO_PATH=System"' `
           --allow-downgrade   # harmless if no newer CMake is present
+      - name: Install NSIS
+        run: choco install -y nsis --no-progress
+      - name: Add NSIS to PATH
+        shell: pwsh
+        run: |
+          $nsis = "${env:ProgramFiles(x86)}\NSIS"
+          if (-not (Test-Path $nsis)) {
+            Write-Error "NSIS not found at $nsis after installation"
+          }
+          $nsis | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Build zlib
         shell: pwsh
         run: |

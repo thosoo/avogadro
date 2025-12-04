@@ -43,10 +43,14 @@ def main():
         ob_version = os.environ.get("OPENBABEL_VERSION")
         if not ob_version:
             header = ob / "include" / "openbabel3" / "openbabel" / "babelconfig.h"
-            if header.exists():
-                m = re.search(r"BABEL_VERSION\s+\"([^\"]+)\"", header.read_text())
-                if m:
-                    ob_version = m.group(1)
+            if not header.exists():
+                raise FileNotFoundError(
+                    f"OpenBabel headers not found at {header}; set OPENBABEL_INSTALL_DIR"
+                )
+
+            m = re.search(r"BABEL_VERSION\s+\"([^\"]+)\"", header.read_text())
+            if m:
+                ob_version = m.group(1)
         if not ob_version:
             share_dir = ob / "share" / "openbabel"
             if share_dir.exists():
@@ -69,7 +73,20 @@ def main():
                 except Exception:
                     pass
         if not ob_version:
-            ob_version = "2"
+            raise RuntimeError("Could not determine OpenBabel version to bundle")
+
+        plugin_roots = []
+        for plugins in [ob / "lib" / "openbabel" / ob_version,
+                        ob / "lib" / "openbabel",
+                        ob / "bin" / "openbabel" / ob_version,
+                        ob / "bin" / "openbabel"]:
+            if plugins.exists():
+                plugin_roots.append(plugins)
+
+        if not plugin_roots:
+            raise FileNotFoundError(
+                f"OpenBabel plugin directory not found in {ob}; set OPENBABEL_INSTALL_DIR"
+            )
 
         for f in ob.glob("bin/*"):
             if f.suffix.lower() in (".dll", ".exe", ".obf"):
@@ -78,10 +95,9 @@ def main():
         dest_plugins = dist / "lib" / "openbabel" / ob_version
         dest_plugins.mkdir(parents=True, exist_ok=True)
 
-        for plugins in [ob / "lib" / "openbabel", ob / "bin" / "openbabel"]:
-            if plugins.exists():
-                log(f"Copying plugins from {plugins} to {dest_plugins}")
-                shutil.copytree(plugins, dest_plugins, dirs_exist_ok=True)
+        for plugins in plugin_roots:
+            log(f"Copying plugins from {plugins} to {dest_plugins}")
+            shutil.copytree(plugins, dest_plugins, dirs_exist_ok=True)
 
         for dll in ob.glob("bin/plugin_*.dll"):
             copy(dll, dest_plugins)
@@ -92,16 +108,20 @@ def main():
         alt_share = ob / "bin" / "data"
         if not share.exists() and alt_share.exists():
             share = alt_share
-        if share.exists():
-            dest = dist / "share" / "openbabel" / ob_version
-            log(f"Copying OpenBabel data from {share} to {dest}")
-            shutil.copytree(share, dest, dirs_exist_ok=True)
-            patterns = ["*.txt", "*.par", "*.prm", "*.ff", "*.dat"]
-            for pat in patterns:
-                for f in share.glob(pat):
-                    if f.is_file():
-                        copy(f, dist / "bin")
-        if alt_share.exists():
+        if not share.exists():
+            raise FileNotFoundError(
+                f"OpenBabel data directory not found in {ob}; set OPENBABEL_INSTALL_DIR"
+            )
+
+        dest = dist / "share" / "openbabel" / ob_version
+        log(f"Copying OpenBabel data from {share} to {dest}")
+        shutil.copytree(share, dest, dirs_exist_ok=True)
+        patterns = ["*.txt", "*.par", "*.prm", "*.ff", "*.dat"]
+        for pat in patterns:
+            for f in share.glob(pat):
+                if f.is_file():
+                    copy(f, dist / "bin")
+        if alt_share.exists() and alt_share != share:
             for pat in ["*.txt", "*.par", "*.prm", "*.ff", "*.dat"]:
                 for f in alt_share.glob(pat):
                     if f.is_file():

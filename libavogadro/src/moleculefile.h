@@ -283,10 +283,11 @@ namespace Avogadro {
     void setReady(bool value);
     void setFirstReady(bool value); // used by ReadFileThread
 
-    MoleculeFilePrivate * const d; 
+    MoleculeFilePrivate * const d;
     QString m_fileName, m_fileType, m_fileOptions;
     QString m_error;
     std::vector<std::vector<Eigen::Vector3d>*> m_conformers;
+
   };
 
 } // End namespace Avogadro
