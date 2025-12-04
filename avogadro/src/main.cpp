@@ -42,6 +42,7 @@
 #include <QLibraryInfo>
 #include <QProcess>
 #include <QFont>
+#include <QFileInfo>
 
 #include <iostream>
 
@@ -118,6 +119,10 @@ int main(int argc, char *argv[])
   QByteArray pathEnv = qgetenv("PATH");
   QString binDir = QCoreApplication::applicationDirPath();
   QString newPath = binDir + QLatin1Char(';') + QString::fromLocal8Bit(pathEnv);
+  QString babelLibDir = binDir + "/../lib/openbabel/" + QString(BABEL_VERSION);
+  if (QFileInfo::exists(babelLibDir)) {
+    newPath = babelLibDir + QLatin1Char(';') + newPath;
+  }
   _putenv_s("PATH", newPath.toLocal8Bit().constData());
 
 #endif
@@ -130,11 +135,25 @@ int main(int argc, char *argv[])
 
 #ifdef WIN32
 #ifndef AVO_APP_BUNDLE
-  // Need to add an environment variable to the current process in order
-  // to load the forcefield parameters in OpenBabel.
-  QString babelDataDir = "BABEL_DATADIR=" + QCoreApplication::applicationDirPath();
-  qDebug() << babelDataDir;
-  _putenv(babelDataDir.toStdString().c_str());
+  // Point OpenBabel at the bundled data/plugins installed by the
+  // Windows installer so file formats and forcefields are available.
+  QString babelDataDir = QCoreApplication::applicationDirPath();
+  QString babelShareDir = babelDataDir + "/../share/openbabel/" + QString(BABEL_VERSION);
+  if (QFileInfo::exists(babelShareDir))
+    babelDataDir = babelShareDir;
+
+  QString babelLibDir = QCoreApplication::applicationDirPath() +
+                        "/../lib/openbabel/" + QString(BABEL_VERSION);
+
+  QString babelDataEnv = "BABEL_DATADIR=" + babelDataDir;
+  qDebug() << babelDataEnv;
+  _putenv(babelDataEnv.toStdString().c_str());
+
+  if (QFileInfo::exists(babelLibDir)) {
+    QString babelLibEnv = "BABEL_LIBDIR=" + babelLibDir;
+    qDebug() << babelLibEnv;
+    _putenv(babelLibEnv.toStdString().c_str());
+  }
 #endif
 #endif
 
