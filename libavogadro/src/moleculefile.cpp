@@ -40,6 +40,7 @@
 #include <openbabel/obconversion.h>
 #include <openbabel/chains.h>
 #include <openbabel/elements.h>
+#include <openbabel/oberror.h>
 
 // Included in obconversion.h
 //#include <iostream>
@@ -155,7 +156,7 @@ namespace Avogadro {
     // set any options
     if (!m_fileOptions.isEmpty()) {
       foreach(const QString &option,
-          m_fileOptions.split('\n', QString::SkipEmptyParts)) {
+          m_fileOptions.split('\n', Qt::SkipEmptyParts)) {
         conv.AddOption(option.toLatin1().data(), OBConversion::INOPTIONS);
       }
     }
@@ -438,7 +439,7 @@ namespace Avogadro {
     // set any options
     if (!fileOptions.isEmpty()) {
       foreach(const QString &option,
-              fileOptions.split('\n', QString::SkipEmptyParts)) {
+              fileOptions.split('\n', Qt::SkipEmptyParts)) {
         conv.AddOption(option.toLatin1().data(), OBConversion::INOPTIONS);
       }
     }
@@ -451,7 +452,16 @@ namespace Avogadro {
     OpenBabel::OBMol obMol;
     if (!conv.Read(&obMol, &ifs)) {
       if (error) {
-        QString detailedError = QString::fromStdString(conv.GetLastError());
+        QString detailedError;
+        const std::vector<std::string> obErrors =
+            OpenBabel::obErrorLog.GetMessagesOfLevel(OpenBabel::obError);
+        if (!obErrors.empty()) {
+          QStringList errorList;
+          for (const std::string &msg : obErrors)
+            errorList << QString::fromStdString(msg);
+          detailedError = errorList.join(QStringLiteral("; "));
+        }
+
         if (detailedError.isEmpty())
           detailedError = QObject::tr("An unknown error occurred while reading the file.");
 
@@ -527,7 +537,7 @@ namespace Avogadro {
     // set any options
     if (!fileOptions.isEmpty()) {
       foreach(const QString &option,
-              fileOptions.split('\n', QString::SkipEmptyParts)) {
+              fileOptions.split('\n', Qt::SkipEmptyParts)) {
         conv.AddOption(option.toLatin1().data(), OBConversion::OUTOPTIONS);
       }
     }
