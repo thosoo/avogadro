@@ -29,6 +29,7 @@
 
 #include <QFile>
 #include <QFileInfo>
+#include <QDir>
 #include <QStringList>
 #include <QThread>
 #include <QDebug>
@@ -38,6 +39,8 @@
 #include <openbabel/atom.h>
 #include <openbabel/obconversion.h>
 #include <openbabel/chains.h>
+#include <openbabel/elements.h>
+#include <openbabel/oberror.h>
 
 // Included in obconversion.h
 //#include <iostream>
@@ -153,7 +156,7 @@ namespace Avogadro {
     // set any options
     if (!m_fileOptions.isEmpty()) {
       foreach(const QString &option,
-          m_fileOptions.split('\n', QString::SkipEmptyParts)) {
+          m_fileOptions.split('\n', Qt::SkipEmptyParts)) {
         conv.AddOption(option.toLatin1().data(), OBConversion::INOPTIONS);
       }
     }
@@ -173,6 +176,9 @@ namespace Avogadro {
     OpenBabel::OBMol *obmol = new OpenBabel::OBMol;
     if (!conv.Read(obmol, &ifs) || !obmol->NumAtoms()) {
       m_error.append(tr("Reading molecule with index %1 from file '%2' failed.").arg(i).arg(m_fileName));
+      QString diagnostics = MoleculeFile::openBabelDiagnostics();
+      if (!diagnostics.isEmpty())
+        m_error.append(tr("\nOpenBabel diagnostics: %1").arg(diagnostics));
       return 0;
     }
 
@@ -350,6 +356,52 @@ namespace Avogadro {
     return true;
   }
 
+  QString MoleculeFile::openBabelDiagnostics()
+  {
+    QStringList details;
+
+    auto describeEnvDir = [&details](const char *envName,
+                                     const QStringList &patterns) {
+      QByteArray value = qgetenv(envName);
+      QString envLabel = QString::fromLatin1(envName);
+      if (value.isEmpty()) {
+        details << QObject::tr("%1 is not set.").arg(envLabel);
+        return;
+      }
+
+      QString path = QString::fromLocal8Bit(value);
+      QDir dir(path);
+      if (!dir.exists()) {
+        details << QObject::tr("%1=%2 (missing)").arg(envLabel, path);
+        return;
+      }
+
+      QString message = QObject::tr("%1=%2").arg(envLabel, dir.absolutePath());
+      if (!patterns.isEmpty()) {
+        const QStringList files = dir.entryList(patterns, QDir::Files | QDir::NoSymLinks);
+        if (!files.isEmpty())
+          message += QObject::tr(" (%n plugin(s) found)", "", files.count());
+        else
+          message += QObject::tr(" (no matching plugins found)");
+      }
+
+      details << message;
+    };
+
+    describeEnvDir("BABEL_LIBDIR", QStringList() << "*.obf" << "*.dll" << "*.so" << "*.dylib");
+    describeEnvDir("BABEL_DATADIR", QStringList());
+
+    QByteArray pathEnv = qgetenv("PATH");
+    if (!pathEnv.isEmpty()) {
+      QStringList paths = QString::fromLocal8Bit(pathEnv)
+                             .split(QDir::listSeparator(), Qt::SkipEmptyParts);
+      if (!paths.isEmpty())
+        details << QObject::tr("PATH begins with %1").arg(paths.first());
+    }
+
+    return details.join(QStringLiteral("; "));
+  }
+
   Molecule * MoleculeFile::readMolecule(const QString &fileName,
       const QString &fileType, const QString &fileOptions, QString *error)
   {
@@ -367,6 +419,9 @@ namespace Avogadro {
       // Input format not supported
       if (error)
         error->append(QObject::tr("File type '%1' is not supported for reading.").arg(fileType));
+      QString diagnostics = MoleculeFile::openBabelDiagnostics();
+      if (error && !diagnostics.isEmpty())
+        error->append(QObject::tr("\nOpenBabel diagnostics: %1").arg(diagnostics));
       return 0;
     } else {
       inFormat = conv.FormatFromExt(fileName.toLatin1().data());
@@ -374,6 +429,9 @@ namespace Avogadro {
         // Input format not supported
         if (error)
           error->append(QObject::tr("File type for file '%1' is not supported for reading.").arg(fileName));
+        QString diagnostics = MoleculeFile::openBabelDiagnostics();
+        if (error && !diagnostics.isEmpty())
+          error->append(QObject::tr("\nOpenBabel diagnostics: %1").arg(diagnostics));
         return 0;
       }
     }
@@ -381,7 +439,7 @@ namespace Avogadro {
     // set any options
     if (!fileOptions.isEmpty()) {
       foreach(const QString &option,
-              fileOptions.split('\n', QString::SkipEmptyParts)) {
+              fileOptions.split('\n', Qt::SkipEmptyParts)) {
         conv.AddOption(option.toLatin1().data(), OBConversion::INOPTIONS);
       }
     }
@@ -392,16 +450,34 @@ namespace Avogadro {
     if (!ifs) // Should not happen, already checked file could be opened
       return 0;
     OpenBabel::OBMol obMol;
-    if (conv.Read(&obMol, &ifs)) {
-      Molecule *mol = new Molecule;
-      mol->setOBMol(&obMol);
-      mol->setFileName(fileName);
-      return mol;
-    } else {
-      if (error)
-        error->append(QObject::tr("Reading a molecule from file '%1' failed.").arg(fileName));
+    if (!conv.Read(&obMol, &ifs)) {
+      if (error) {
+        QString detailedError;
+        const std::vector<std::string> obErrors =
+            OpenBabel::obErrorLog.GetMessagesOfLevel(OpenBabel::obError);
+        if (!obErrors.empty()) {
+          QStringList errorList;
+          for (const std::string &msg : obErrors)
+            errorList << QString::fromStdString(msg);
+          detailedError = errorList.join(QStringLiteral("; "));
+        }
+
+        if (detailedError.isEmpty())
+          detailedError = QObject::tr("An unknown error occurred while reading the file.");
+
+        error->append(QObject::tr("Reading a molecule from file '%1' failed: %2")
+                      .arg(fileName, detailedError));
+        QString diagnostics = MoleculeFile::openBabelDiagnostics();
+        if (!diagnostics.isEmpty())
+          error->append(QObject::tr("\nOpenBabel diagnostics: %1").arg(diagnostics));
+      }
       return 0;
     }
+
+    Molecule *mol = new Molecule;
+    mol->setOBMol(&obMol);
+    mol->setFileName(fileName);
+    return mol;
   }
 
   bool MoleculeFile::writeMolecule(const Molecule *molecule,
@@ -461,7 +537,7 @@ namespace Avogadro {
     // set any options
     if (!fileOptions.isEmpty()) {
       foreach(const QString &option,
-              fileOptions.split('\n', QString::SkipEmptyParts)) {
+              fileOptions.split('\n', Qt::SkipEmptyParts)) {
         conv.AddOption(option.toLatin1().data(), OBConversion::OUTOPTIONS);
       }
     }
@@ -618,6 +694,9 @@ namespace Avogadro {
         // Input format not supported
         moleculeFile->m_error.append(
             QObject::tr("File type '%1' is not supported for reading.").arg(qfile.baseName()));
+        QString diagnostics = MoleculeFile::openBabelDiagnostics();
+        if (!diagnostics.isEmpty())
+          moleculeFile->m_error.append(QObject::tr("\nOpenBabel diagnostics: %1").arg(diagnostics));
         moleculeFile->setReady(true);
         moleculeFile->threadFinished(); // set & emit ready
       }
@@ -633,6 +712,9 @@ namespace Avogadro {
 
         moleculeFile->m_error.append(
             QObject::tr("Reading a molecule from file '%1' failed.").arg(fileName));
+        QString diagnostics = MoleculeFile::openBabelDiagnostics();
+        if (!diagnostics.isEmpty())
+          moleculeFile->m_error.append(QObject::tr("\nOpenBabel diagnostics: %1").arg(diagnostics));
       }
 
       moleculeFile->threadFinished(); // set & emit ready

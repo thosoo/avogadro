@@ -30,12 +30,14 @@
 #include <openbabel/mol.h>
 #include <openbabel/atom.h>
 #include <openbabel/obconversion.h>
+#include <openbabel/oberror.h>
 
 #include <fstream>
 
 namespace Avogadro {
 
 using OpenBabel::OBConversion;
+using OpenBabel::OBAtomConstIterator;
 using std::ifstream;
 
 ReadFileThread::ReadFileThread(MoleculeFile *moleculeFile)
@@ -49,8 +51,11 @@ void ReadFileThread::addConformer(const OpenBabel::OBMol &conformer)
   std::vector<Eigen::Vector3d> *coords = new std::vector<Eigen::Vector3d>;
   coords->reserve(numAtoms); // pre-allocate room for all atoms.
 
-  for (unsigned int i = 0; i < numAtoms; ++i)
-    coords->push_back(Eigen::Vector3d(conformer.GetAtom(i+1)->GetVector().AsArray()));
+  OpenBabel::OBAtomConstIterator iter;
+  for (const OpenBabel::OBAtom *atom = conformer.BeginAtom(iter); atom;
+       atom = conformer.NextAtom(iter)) {
+    coords->push_back(Eigen::Vector3d(atom->GetVector().AsArray()));
+  }
 
   m_moleculeFile->m_conformers.push_back(coords);
 }
@@ -98,14 +103,19 @@ void ReadFileThread::detectConformers(unsigned int c,
     return;
   }
 
-  for (unsigned int i = 0; i < first.NumAtoms(); ++i) {
-    OpenBabel::OBAtom *firstAtom = first.GetAtom(i+1);
-    OpenBabel::OBAtom *currentAtom = current.GetAtom(i+1);
+  OpenBabel::OBAtomConstIterator firstIter;
+  OpenBabel::OBAtomConstIterator currentIter;
+  const OpenBabel::OBAtom *firstAtom = first.BeginAtom(firstIter);
+  const OpenBabel::OBAtom *currentAtom = current.BeginAtom(currentIter);
+  while (firstAtom && currentAtom) {
     if (firstAtom->GetAtomicNum() != currentAtom->GetAtomicNum()) {
       m_moleculeFile->setConformerFile(false);
       m_moleculeFile->m_conformers.clear();
       return;
     }
+
+    firstAtom = first.NextAtom(firstIter);
+    currentAtom = current.NextAtom(currentIter);
   }
 }
 
@@ -128,6 +138,9 @@ void ReadFileThread::run()
     m_moleculeFile->m_error.append(
           QObject::tr("File type '%1' is not supported for reading.")
           .arg(m_moleculeFile->m_fileType));
+    QString diagnostics = MoleculeFile::openBabelDiagnostics();
+    if (!diagnostics.isEmpty())
+      m_moleculeFile->m_error.append(QObject::tr("\nOpenBabel diagnostics: %1").arg(diagnostics));
     return;
   }
   else {
@@ -137,6 +150,9 @@ void ReadFileThread::run()
       m_moleculeFile->m_error
           .append(QObject::tr("File type for file '%1' is not supported for reading.")
                   .arg(m_moleculeFile->m_fileName));
+      QString diagnostics = MoleculeFile::openBabelDiagnostics();
+      if (!diagnostics.isEmpty())
+        m_moleculeFile->m_error.append(QObject::tr("\nOpenBabel diagnostics: %1").arg(diagnostics));
       return;
     }
   }
@@ -144,7 +160,7 @@ void ReadFileThread::run()
   // set any options
   if (!m_moleculeFile->m_fileOptions.isEmpty()) {
     foreach(const QString &option, m_moleculeFile
-            ->m_fileOptions.split('\n', QString::SkipEmptyParts)) {
+            ->m_fileOptions.split('\n', Qt::SkipEmptyParts)) {
       conv.AddOption(option.toLatin1().data(), OBConversion::INOPTIONS);
     }
   }
@@ -176,6 +192,28 @@ void ReadFileThread::run()
     ++c;
   }
   m_moleculeFile->streamposRef().pop_back();
+
+  if (!c) {
+    QString detailedError;
+    const std::vector<std::string> obErrors =
+        OpenBabel::obErrorLog.GetMessagesOfLevel(OpenBabel::obError);
+    if (!obErrors.empty()) {
+      QStringList errorList;
+      for (const std::string &msg : obErrors)
+        errorList << QString::fromStdString(msg);
+      detailedError = errorList.join(QStringLiteral("; "));
+    }
+    if (detailedError.isEmpty())
+      detailedError = tr("No molecules were read from the file.");
+
+    m_moleculeFile->m_error.append(
+        QObject::tr("Reading a molecule from file '%1' failed: %2")
+            .arg(m_moleculeFile->m_fileName, detailedError));
+    QString diagnostics = MoleculeFile::openBabelDiagnostics();
+    if (!diagnostics.isEmpty())
+      m_moleculeFile->m_error.append(QObject::tr("\nOpenBabel diagnostics: %1").arg(diagnostics));
+    return;
+  }
 
   // single molecule files are not conformer files
   if (c == 1) {

@@ -162,7 +162,7 @@ namespace Avogadro {
 
     //! @name Static methods
     //@{
-    /** 
+    /**
      * Static function to check if a file can be opened in the specified @p mode.
      * 
      * @param fileName The full path to the file to be opened.
@@ -171,6 +171,12 @@ namespace Avogadro {
      * @return True if the file can be opened in the specified @p mode.
      */
     static bool canOpen(const QString &fileName, QIODevice::OpenMode mode);
+
+    /**
+     * Provide runtime diagnostics for OpenBabel, including environment
+     * variables, plugin/data paths, and quick summaries of what is found.
+     */
+    static QString openBabelDiagnostics();
       
     /**
      * Static function to load a file and return a Molecule pointer. You are
@@ -283,10 +289,11 @@ namespace Avogadro {
     void setReady(bool value);
     void setFirstReady(bool value); // used by ReadFileThread
 
-    MoleculeFilePrivate * const d; 
+    MoleculeFilePrivate * const d;
     QString m_fileName, m_fileType, m_fileOptions;
     QString m_error;
     std::vector<std::vector<Eigen::Vector3d>*> m_conformers;
+
   };
 
 } // End namespace Avogadro

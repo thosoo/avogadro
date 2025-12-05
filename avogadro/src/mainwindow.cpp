@@ -1103,15 +1103,20 @@ protected:
     QString completeSuffix = info.completeSuffix();
     if (completeSuffix.contains("cml", Qt::CaseInsensitive) ||
         formatType.contains("cml", Qt::CaseInsensitive)) {
-      Molecule *mol = MoleculeFile::readMolecule(fileName, formatType.trimmed());
+      QString errorMessage;
+      Molecule *mol = MoleculeFile::readMolecule(fileName, formatType.trimmed(), QString(),
+                                                 &errorMessage);
       QApplication::restoreOverrideCursor();
       if (mol) {
         setFileName(fileName);
         setMolecule(mol);
       }
       else {
-        QMessageBox::warning(this, tr("Avogadro"),
-                             tr("Reading molecular file failed, file %1.").arg(fileName));
+        QString warningText = tr("Reading molecular file failed, file %1.").arg(fileName);
+        if (!errorMessage.trimmed().isEmpty())
+          warningText += "\n\n" + tr("Details: %1").arg(errorMessage.trimmed());
+
+        QMessageBox::warning(this, tr("Avogadro"), warningText);
       return false;
       }
       ui.actionAllMolecules->setEnabled(false);
@@ -1347,8 +1352,12 @@ protected:
     else { // errors
       // @TODO: show errors in Messages Tab
       QApplication::restoreOverrideCursor();
-      QMessageBox::warning(this, tr("Avogadro"),
-                           tr("Reading molecular file failed, file %1.").arg(d->moleculeFile->fileName()));
+      QString warningText = tr("Reading molecular file failed, file %1.")
+                                .arg(d->moleculeFile->fileName());
+      if (!errors.trimmed().isEmpty())
+        warningText += "\n\n" + tr("Details: %1").arg(errors.trimmed());
+
+      QMessageBox::warning(this, tr("Avogadro"), warningText);
       return;
     }
 
