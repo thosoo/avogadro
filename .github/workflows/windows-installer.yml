@@ -149,11 +149,13 @@ jobs:
       - name: Build
         shell: pwsh
         run: |
+          cmake --build build --config Release --target openbabel_ext
           cmake --build build --config Release --target install
       - name: Create installer
         if: matrix.target == 'installer'
         shell: pwsh
         run: |
+          $env:OPENBABEL_INSTALL_DIR = "$PWD\build\openbabel-install"
           python scripts/installer/create_installer.py
       - name: Test
         if: matrix.target == 'tests'
