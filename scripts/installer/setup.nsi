@@ -17,7 +17,6 @@ SetCompressor lzma
 # set execution level for Windows Vista
 RequestExecutionLevel admin
 ManifestDPIAware true
-SetRegView 64
 
 # general definitions
 # you only need to change this section for new releases
@@ -342,13 +341,16 @@ SectionEnd
 # Installer functions
 Function .onInit
 
+  # Use 64-bit registry view and install paths
+  SetRegView 64
+
   # check if the same Avogadro version is already installed
   ReadRegStr $0 SHCTX "${PRODUCT_UNINST_KEY}" "Publisher"
   ${if} $0 != ""
     MessageBox MB_OK|MB_ICONSTOP "$(StillInstalled)"
     Abort
   ${endif}
-  
+
   InitPluginsDir
   # Always install system-wide; RequestExecutionLevel guarantees admin rights
   SetShellVarContext all
@@ -359,9 +361,12 @@ FunctionEnd
 # Uninstaller functions
 Function un.onInit
 
+  # Use 64-bit registry view and install paths
+  SetRegView 64
+
   # Installer always runs with admin privileges
   SetShellVarContext all
-  
+
   # ask if it should really be removed
   MessageBox MB_ICONQUESTION|MB_YESNO|MB_DEFBUTTON2 "$(UnReallyRemoveLabel)" IDYES +2
   Abort
