@@ -76,16 +76,34 @@ def main():
             raise RuntimeError("Could not determine OpenBabel version to bundle")
 
         plugin_roots = []
-        for plugins in [ob / "lib" / "openbabel" / ob_version,
-                        ob / "lib" / "openbabel",
-                        ob / "bin" / "openbabel" / ob_version,
-                        ob / "bin" / "openbabel"]:
+        for plugins in [
+            ob / "lib" / "openbabel" / ob_version,
+            ob / "lib" / "openbabel",
+            ob / "bin" / "openbabel" / ob_version,
+            ob / "bin" / "openbabel",
+            ob / "plugins",
+            ob / "bin" / "plugins",
+        ]:
             if plugins.exists():
                 plugin_roots.append(plugins)
 
         if not plugin_roots:
+            # Look for any directory that already contains OpenBabel plugins
+            # (plugin_*.dll) or compiled format bundles (*.obf) and copy from
+            # there. This covers layouts produced by different Windows installs
+            # as well as CMake package builds where plugins end up in a
+            # top-level "plugins" directory.
+            plugin_matches = set()
+            for pattern in ("plugin_*.dll", "*.obf"):
+                for plugin_file in ob.rglob(pattern):
+                    plugin_matches.add(plugin_file.parent)
+            plugin_roots.extend(sorted(plugin_matches))
+
+        if not plugin_roots:
+            all_dirs = "\n".join(str(p) for p in sorted(ob.iterdir())) if ob.exists() else "<missing>"
             raise FileNotFoundError(
-                f"OpenBabel plugin directory not found in {ob}; set OPENBABEL_INSTALL_DIR"
+                f"OpenBabel plugin directory not found in {ob}; set OPENBABEL_INSTALL_DIR."
+                f" Contents inspected:\n{all_dirs}"
             )
 
         for f in ob.glob("bin/*"):
