@@ -17,6 +17,7 @@ SetCompressor lzma
 # set execution level for Windows Vista
 RequestExecutionLevel admin
 ManifestDPIAware true
+SetRegView 64
 
 # general definitions
 # you only need to change this section for new releases
@@ -57,6 +58,7 @@ Var CreateDesktopIcon
 # Included files
 !include "MUI.nsh"
 !include "LogicLib.nsh"
+!include "x64.nsh"
 
 
 # This macro is used to check if we are administrator or user
@@ -209,8 +211,8 @@ ${Index_RemoveFilesAndSubDirs}-done:
 
 
 # Installer attributes
-OutFile "avogadro-win32-${VERSION}.exe"
-InstallDir "$PROGRAMFILES\Avogadro"
+OutFile "avogadro-win64-${VERSION}.exe"
+InstallDir "$PROGRAMFILES64\Avogadro"
 BrandingText "$(^Name) Installer" # appear at the bottom of the installer windows
 XPStyle on # use XP style for installer windows
 LicenseData "$(AvogadroLicenseData)"

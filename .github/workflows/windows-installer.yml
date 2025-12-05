@@ -169,5 +169,5 @@ jobs:
         with:
           name: avogadro-windows-installer
           path: |
-            scripts/installer/avogadro-win32-*.exe
+            scripts/installer/avogadro-win64-*.exe
           if-no-files-found: error
