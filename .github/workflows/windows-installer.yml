@@ -149,7 +149,7 @@ jobs:
       - name: Build
         shell: pwsh
         run: |
-          cmake --build build --config Release --target openbabel_ext
+          cmake --build build --config Release --target openbabel_ext-install
           cmake --build build --config Release --target install
       - name: Create installer
         if: matrix.target == 'installer'
