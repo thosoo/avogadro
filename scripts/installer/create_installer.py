@@ -148,21 +148,45 @@ def main():
     libxml = os.environ.get("LIBXML2_LIBRARY")
     if libxml:
         libxml_path = Path(libxml)
-        candidates = [
-            libxml_path.with_suffix(".dll"),
-            libxml_path.parent / "libxml2.dll",
-            libxml_path.parent.parent / "bin" / "libxml2.dll",
-            libxml_path.parent.parent / "bin" / "libxml2-2.dll",
-        ]
 
-        seen = set()
-        for dll in candidates:
-            if dll in seen:
+        def add_candidate(path, candidates, seen):
+            if path not in seen:
+                candidates.append(path)
+                seen.add(path)
+
+        candidates = []
+        seen_candidates = set()
+
+        add_candidate(libxml_path.with_suffix(".dll"), candidates, seen_candidates)
+        add_candidate(libxml_path.parent / "libxml2.dll", candidates, seen_candidates)
+        add_candidate(libxml_path.parent / "libxml2-2.dll", candidates, seen_candidates)
+        add_candidate(libxml_path.parent.parent / "bin" / "libxml2.dll", candidates, seen_candidates)
+        add_candidate(libxml_path.parent.parent / "bin" / "libxml2-2.dll", candidates, seen_candidates)
+
+        search_roots = {
+            libxml_path.parent,
+            libxml_path.parent.parent,
+            libxml_path.parent.parent / "bin",
+            libxml_path.parent.parent / "lib",
+        }
+
+        for root in search_roots:
+            if not root.exists():
                 continue
-            seen.add(dll)
+            for pattern in ("libxml2*.dll", "xml2*.dll"):
+                for dll in root.rglob(pattern):
+                    if dll.is_file():
+                        add_candidate(dll, candidates, seen_candidates)
+
+        for dll in candidates:
             if dll.exists():
                 copy(dll, dist / "bin")
                 break
+        else:
+            print(
+                "Warning: LIBXML2_LIBRARY set but libxml2 DLL not found near",
+                libxml_path,
+            )
 
     zlib_lib = os.environ.get("ZLIB_LIBRARY")
     zlib_dir = os.environ.get("ZLIB_LIBRARY_DIR")
