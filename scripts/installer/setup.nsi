@@ -57,6 +57,7 @@ Var CreateDesktopIcon
 # Included files
 !include "MUI.nsh"
 !include "LogicLib.nsh"
+!include "x64.nsh"
 
 
 # This macro is used to check if we are administrator or user
@@ -209,8 +210,8 @@ ${Index_RemoveFilesAndSubDirs}-done:
 
 
 # Installer attributes
-OutFile "avogadro-win32-${VERSION}.exe"
-InstallDir "$PROGRAMFILES\Avogadro"
+OutFile "avogadro-win64-${VERSION}.exe"
+InstallDir "$PROGRAMFILES64\Avogadro"
 BrandingText "$(^Name) Installer" # appear at the bottom of the installer windows
 XPStyle on # use XP style for installer windows
 LicenseData "$(AvogadroLicenseData)"
@@ -340,13 +341,16 @@ SectionEnd
 # Installer functions
 Function .onInit
 
+  # Use 64-bit registry view and install paths
+  SetRegView 64
+
   # check if the same Avogadro version is already installed
   ReadRegStr $0 SHCTX "${PRODUCT_UNINST_KEY}" "Publisher"
   ${if} $0 != ""
     MessageBox MB_OK|MB_ICONSTOP "$(StillInstalled)"
     Abort
   ${endif}
-  
+
   InitPluginsDir
   # Always install system-wide; RequestExecutionLevel guarantees admin rights
   SetShellVarContext all
@@ -357,9 +361,12 @@ FunctionEnd
 # Uninstaller functions
 Function un.onInit
 
+  # Use 64-bit registry view and install paths
+  SetRegView 64
+
   # Installer always runs with admin privileges
   SetShellVarContext all
-  
+
   # ask if it should really be removed
   MessageBox MB_ICONQUESTION|MB_YESNO|MB_DEFBUTTON2 "$(UnReallyRemoveLabel)" IDYES +2
   Abort
