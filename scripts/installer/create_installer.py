@@ -150,12 +150,16 @@ def main():
         libxml_path = Path(libxml)
         candidates = [
             libxml_path.with_suffix(".dll"),
-            libxml_path.with_name(f"{libxml_path.stem}2.dll"),
+            libxml_path.parent / "libxml2.dll",
             libxml_path.parent.parent / "bin" / "libxml2.dll",
             libxml_path.parent.parent / "bin" / "libxml2-2.dll",
         ]
 
+        seen = set()
         for dll in candidates:
+            if dll in seen:
+                continue
+            seen.add(dll)
             if dll.exists():
                 copy(dll, dist / "bin")
                 break
