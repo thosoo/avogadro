@@ -147,9 +147,18 @@ def main():
 
     libxml = os.environ.get("LIBXML2_LIBRARY")
     if libxml:
-        dll = Path(libxml).with_suffix('.dll')
-        if dll.exists():
-            copy(dll, dist / "bin")
+        libxml_path = Path(libxml)
+        candidates = [
+            libxml_path.with_suffix(".dll"),
+            libxml_path.with_name(f"{libxml_path.stem}2.dll"),
+            libxml_path.parent.parent / "bin" / "libxml2.dll",
+            libxml_path.parent.parent / "bin" / "libxml2-2.dll",
+        ]
+
+        for dll in candidates:
+            if dll.exists():
+                copy(dll, dist / "bin")
+                break
 
     zlib_lib = os.environ.get("ZLIB_LIBRARY")
     zlib_dir = os.environ.get("ZLIB_LIBRARY_DIR")
