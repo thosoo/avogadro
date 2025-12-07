@@ -14,6 +14,7 @@ set(spectraextension_SRCS
   spectraextension.cpp
   spectradialog.cpp
   spectratype.cpp
+  broadening.cpp
   abstract_ir.cpp
   ir.cpp
   nmr.cpp
