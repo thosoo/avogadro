@@ -216,7 +216,29 @@ def main():
     version = os.environ.get("AVOGADRO_VERSION")
     vi_version = None
     if not version:
-        cmake_lists = root.parent.parent / "CMakeLists.txt"
+        cmake_candidates = []
+
+        def add_cmake_candidate(path):
+            if path not in cmake_candidates:
+                cmake_candidates.append(path)
+
+        add_cmake_candidate(root.parent.parent / "CMakeLists.txt")
+        add_cmake_candidate(Path.cwd() / "CMakeLists.txt")
+        add_cmake_candidate(build_dir.parent / "CMakeLists.txt")
+
+        cmake_lists = None
+        for path in cmake_candidates:
+            if path.exists():
+                cmake_lists = path
+                break
+
+        if not cmake_lists:
+            searched = "\n".join(str(p) for p in cmake_candidates)
+            raise FileNotFoundError(
+                "Could not locate CMakeLists.txt to determine version. Searched:\n"
+                f"{searched}"
+            )
+
         text = cmake_lists.read_text()
         maj = re.search(r"Avogadro_VERSION_MAJOR\s+(\d+)", text)
         min_ = re.search(r"Avogadro_VERSION_MINOR\s+(\d+)", text)
