@@ -278,7 +278,7 @@ def main():
         args.append(f"/DVI_VERSION={vi_version}")
     args.append(str(setup_script))
     log(f"Running makensis with script {setup_script}")
-    subprocess.check_call(args)
+    subprocess.check_call(args, cwd=root)
 
 
 if __name__ == "__main__":
