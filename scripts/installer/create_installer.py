@@ -246,13 +246,38 @@ def main():
         if maj and min_ and patch:
             version = f"{maj.group(1)}.{min_.group(1)}.{patch.group(1)}"
             vi_version = version + ".0"
+    setup_candidates = []
+
+    def add_setup_candidate(path):
+        if path not in setup_candidates:
+            setup_candidates.append(path)
+
+    add_setup_candidate(root / "setup.nsi")
+    add_setup_candidate(Path.cwd() / "setup.nsi")
+    add_setup_candidate(Path.cwd() / "scripts" / "installer" / "setup.nsi")
+    add_setup_candidate(root.parent / "setup.nsi")
+    add_setup_candidate(root.parent / "installer" / "setup.nsi")
+    add_setup_candidate(root.parent.parent / "scripts" / "installer" / "setup.nsi")
+
+    setup_script = None
+    for cand in setup_candidates:
+        if cand.exists():
+            setup_script = cand
+            break
+
+    if not setup_script:
+        searched = "\n".join(str(p) for p in setup_candidates)
+        raise FileNotFoundError(
+            "Could not locate setup.nsi for NSIS packaging. Searched:\n" f"{searched}"
+        )
+
     args = ["makensis"]
     if version:
         args.append(f"/DVERSION={version}")
     if vi_version:
         args.append(f"/DVI_VERSION={vi_version}")
-    args.append(str(root / "setup.nsi"))
-    log("Running makensis")
+    args.append(str(setup_script))
+    log(f"Running makensis with script {setup_script}")
     subprocess.check_call(args)
 
 
