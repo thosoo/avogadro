@@ -40,7 +40,9 @@ Name "Avogadro"
 !define PRODUCT_REGNAME "Avogadro.Document"
 !define PRODUCT_EXT ".cml"
 !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\$(^Name)"
+!ifndef PRODUCT_LICENSE_FILE
 !define PRODUCT_LICENSE_FILE "dist\gpl.txt"
+!endif
 
 
 # registry preparations
