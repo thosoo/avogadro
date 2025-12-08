@@ -207,11 +207,14 @@ def main():
         if dll.exists():
             copy(dll, dist / 'bin')
 
-    # Copy the GPLv2 license expected by NSIS
-    license_src = root.parent.parent / 'COPYING'
-    license_dest = dist / 'gpl.txt'
-    if license_src.exists():
-        copy(license_src, license_dest)
+    # Copy the GPLv2 license expected by NSIS and ensure it exists for packaging
+    license_src = root.parent.parent / "COPYING"
+    license_dest = dist / "gpl.txt"
+    if not license_src.exists():
+        raise FileNotFoundError(f"License file not found at {license_src}")
+    copy(license_src, license_dest)
+    if not license_dest.exists():
+        raise FileNotFoundError(f"Failed to place license file at {license_dest}")
 
     version = os.environ.get("AVOGADRO_VERSION")
     vi_version = None
@@ -271,7 +274,7 @@ def main():
             "Could not locate setup.nsi for NSIS packaging. Searched:\n" f"{searched}"
         )
 
-    args = ["makensis"]
+    args = ["makensis", f"/DPRODUCT_LICENSE_FILE={license_dest}"]
     if version:
         args.append(f"/DVERSION={version}")
     if vi_version:
