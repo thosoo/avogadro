@@ -208,10 +208,49 @@ def main():
             copy(dll, dist / 'bin')
 
     # Copy the GPLv2 license expected by NSIS and ensure it exists for packaging
-    license_src = root.parent.parent / "COPYING"
     license_dest = dist / "gpl.txt"
-    if not license_src.exists():
-        raise FileNotFoundError(f"License file not found at {license_src}")
+
+    def add_license_candidate(path, candidates, seen):
+        if path not in seen:
+            candidates.append(path)
+            seen.add(path)
+
+    license_candidates = []
+    seen_license_candidates = set()
+
+    for base in [
+        root.parent.parent,
+        root.parent,
+        root,
+        Path.cwd(),
+        build_dir,
+        build_dir.parent,
+    ]:
+        add_license_candidate(base / "COPYING", license_candidates, seen_license_candidates)
+        add_license_candidate(base / "COPYING.txt", license_candidates, seen_license_candidates)
+        add_license_candidate(base / "LICENSE", license_candidates, seen_license_candidates)
+        add_license_candidate(base / "LICENSE.txt", license_candidates, seen_license_candidates)
+
+    for ancestor in Path(__file__).resolve().parents:
+        add_license_candidate(ancestor / "COPYING", license_candidates, seen_license_candidates)
+        add_license_candidate(ancestor / "LICENSE", license_candidates, seen_license_candidates)
+
+    for ancestor in Path.cwd().parents:
+        add_license_candidate(ancestor / "COPYING", license_candidates, seen_license_candidates)
+        add_license_candidate(ancestor / "LICENSE", license_candidates, seen_license_candidates)
+
+    license_src = None
+    for candidate in license_candidates:
+        if candidate.exists():
+            license_src = candidate
+            break
+
+    if not license_src:
+        searched = "\n".join(str(p) for p in license_candidates)
+        raise FileNotFoundError(
+            "License file not found. Looked for a COPYING or LICENSE file at:\n" f"{searched}"
+        )
+
     copy(license_src, license_dest)
     if not license_dest.exists():
         raise FileNotFoundError(f"Failed to place license file at {license_dest}")
