@@ -23,6 +23,18 @@ def main():
         log(f"Copying {src} -> {dst}")
         shutil.copy(src, dst)
 
+    def copy_first_existing(candidates, dst, description):
+        seen = set()
+        for cand in candidates:
+            if cand in seen:
+                continue
+            seen.add(cand)
+            if cand.exists():
+                copy(cand, dst)
+                return cand
+        log(f"No {description} found among: {[str(c) for c in candidates]}")
+        return None
+
     log(f"Installing build from {build_dir} into {dist}")
     subprocess.check_call(["cmake", "--install", str(build_dir), "--prefix", str(dist)])
 
@@ -178,14 +190,37 @@ def main():
                     if dll.is_file():
                         add_candidate(dll, candidates, seen_candidates)
 
-        for dll in candidates:
-            if dll.exists():
-                copy(dll, dist / "bin")
-                break
-        else:
+        libxml_dll = copy_first_existing(
+            candidates, dist / "bin", "libxml2 DLL"
+        )
+        if not libxml_dll:
             print(
                 "Warning: LIBXML2_LIBRARY set but libxml2 DLL not found near",
                 libxml_path,
+            )
+        else:
+            dep_search_roots = search_roots | {libxml_dll.parent}
+
+            iconv_candidates = []
+            for root in dep_search_roots:
+                iconv_candidates.append(root / "libiconv-2.dll")
+                iconv_candidates.append(root / "iconv.dll")
+                for dll in root.glob("*iconv*.dll"):
+                    iconv_candidates.append(dll)
+
+            copy_first_existing(
+                iconv_candidates, dist / "bin", "libiconv dependency"
+            )
+
+            lzma_candidates = []
+            for root in dep_search_roots:
+                lzma_candidates.append(root / "liblzma.dll")
+                lzma_candidates.append(root / "lzma.dll")
+                for dll in root.glob("*lzma*.dll"):
+                    lzma_candidates.append(dll)
+
+            copy_first_existing(
+                lzma_candidates, dist / "bin", "liblzma dependency"
             )
 
     zlib_lib = os.environ.get("ZLIB_LIBRARY")
