@@ -27,6 +27,7 @@ namespace Avogadro {
 namespace {
 static const double boltzmannConstant = 1.380649e-23; // J K^-1
 static const double speedOfLight = 2.99792458e10;     // cm s^-1
+static const double pi = 3.14159265358979323846;
 
 } // namespace
 
@@ -86,10 +87,10 @@ double pseudoVoigtValue(double x, double center, double sigma, double gammaL)
   const double dx = x - center;
   const double gaussian =
     sigma > 0.0 ? std::exp(-(dx * dx) / (2.0 * sigma * sigma)) /
-                    (sigma * std::sqrt(2.0 * M_PI))
+                    (sigma * std::sqrt(2.0 * pi))
                 : 0.0;
   const double lorentzian =
-    gammaL > 0.0 ? gammaL / (M_PI * (dx * dx + gammaL * gammaL)) : 0.0;
+    gammaL > 0.0 ? gammaL / (pi * (dx * dx + gammaL * gammaL)) : 0.0;
   const double eta = pseudoVoigtEta(sigma, gammaL);
   return eta * lorentzian + (1.0 - eta) * gaussian;
 }
