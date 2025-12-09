@@ -157,6 +157,9 @@ def main():
                     if f.is_file():
                         copy(f, dist / "bin")
 
+    zlib_lib = os.environ.get("ZLIB_LIBRARY")
+    zlib_dir = os.environ.get("ZLIB_LIBRARY_DIR")
+
     libxml = os.environ.get("LIBXML2_LIBRARY")
     if libxml:
         libxml_path = Path(libxml)
@@ -246,8 +249,6 @@ def main():
                     zlib_candidates, dist / "bin", "zlib dependency"
                 )
 
-    zlib_lib = os.environ.get("ZLIB_LIBRARY")
-    zlib_dir = os.environ.get("ZLIB_LIBRARY_DIR")
     candidates = []
     if zlib_lib:
         candidates.append(Path(zlib_lib).with_suffix('.dll'))
