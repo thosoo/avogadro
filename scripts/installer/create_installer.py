@@ -23,15 +23,20 @@ def main():
         log(f"Copying {src} -> {dst}")
         shutil.copy(src, dst)
 
-    def copy_first_existing(candidates, dst, description):
+    def copy_existing(candidates, dst, description, first_only=False):
         seen = set()
+        copied = []
         for cand in candidates:
             if cand in seen:
                 continue
             seen.add(cand)
             if cand.exists():
                 copy(cand, dst)
-                return cand
+                copied.append(cand)
+                if first_only:
+                    return cand
+        if copied:
+            return copied if not first_only else copied[0]
         log(f"No {description} found among: {[str(c) for c in candidates]}")
         return None
 
@@ -195,8 +200,13 @@ def main():
                     if dll.is_file():
                         add_candidate(dll, candidates, seen_candidates)
 
-        libxml_dll = copy_first_existing(
-            candidates, dist / "bin", "libxml2 DLL"
+        libxml_dll = copy_existing(
+            candidates, dist / "bin", "libxml2 DLL", first_only=True
+        )
+        copy_existing(
+            [dll for dll in candidates if dll.exists()],
+            dist / "bin",
+            "additional libxml2 DLLs",
         )
         if not libxml_dll:
             print(
@@ -204,10 +214,11 @@ def main():
                 libxml_path,
             )
         else:
+            libxml_dir = libxml_dll.parent
             dep_search_roots = []
             seen_dep_roots = set()
 
-            for root in [libxml_dll.parent, *search_roots]:
+            for root in [libxml_dir, *search_roots]:
                 if root not in seen_dep_roots:
                     dep_search_roots.append(root)
                     seen_dep_roots.add(root)
@@ -222,8 +233,8 @@ def main():
                 for dll in root.glob("*charset*.dll"):
                     iconv_candidates.append(dll)
 
-            copy_first_existing(
-                iconv_candidates, dist / "bin", "libiconv dependency"
+            copy_existing(
+                iconv_candidates, dist / "bin", "libiconv dependency", first_only=True
             )
 
             lzma_candidates = []
@@ -240,13 +251,13 @@ def main():
                 for dll in root.glob("*zlib*.dll"):
                     zlib_candidates.append(dll)
 
-            copy_first_existing(
-                lzma_candidates, dist / "bin", "liblzma dependency"
+            copy_existing(
+                lzma_candidates, dist / "bin", "liblzma dependency", first_only=True
             )
 
             if not zlib_lib:
-                copy_first_existing(
-                    zlib_candidates, dist / "bin", "zlib dependency"
+                copy_existing(
+                    zlib_candidates, dist / "bin", "zlib dependency", first_only=True
                 )
 
     candidates = []
