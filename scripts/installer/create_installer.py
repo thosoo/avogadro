@@ -169,18 +169,20 @@ def main():
         candidates = []
         seen_candidates = set()
 
+        # Prefer DLLs from bin/ first to match the architecture of the installed
+        # import library, then fall back to adjacent locations.
+        add_candidate(libxml_path.parent.parent / "bin" / "libxml2.dll", candidates, seen_candidates)
+        add_candidate(libxml_path.parent.parent / "bin" / "libxml2-2.dll", candidates, seen_candidates)
         add_candidate(libxml_path.with_suffix(".dll"), candidates, seen_candidates)
         add_candidate(libxml_path.parent / "libxml2.dll", candidates, seen_candidates)
         add_candidate(libxml_path.parent / "libxml2-2.dll", candidates, seen_candidates)
-        add_candidate(libxml_path.parent.parent / "bin" / "libxml2.dll", candidates, seen_candidates)
-        add_candidate(libxml_path.parent.parent / "bin" / "libxml2-2.dll", candidates, seen_candidates)
 
-        search_roots = {
-            libxml_path.parent,
-            libxml_path.parent.parent,
+        search_roots = [
             libxml_path.parent.parent / "bin",
             libxml_path.parent.parent / "lib",
-        }
+            libxml_path.parent,
+            libxml_path.parent.parent,
+        ]
 
         for root in search_roots:
             if not root.exists():
@@ -199,13 +201,22 @@ def main():
                 libxml_path,
             )
         else:
-            dep_search_roots = search_roots | {libxml_dll.parent}
+            dep_search_roots = []
+            seen_dep_roots = set()
+
+            for root in [libxml_dll.parent, *search_roots]:
+                if root not in seen_dep_roots:
+                    dep_search_roots.append(root)
+                    seen_dep_roots.add(root)
 
             iconv_candidates = []
             for root in dep_search_roots:
                 iconv_candidates.append(root / "libiconv-2.dll")
+                iconv_candidates.append(root / "libcharset-1.dll")
                 iconv_candidates.append(root / "iconv.dll")
                 for dll in root.glob("*iconv*.dll"):
+                    iconv_candidates.append(dll)
+                for dll in root.glob("*charset*.dll"):
                     iconv_candidates.append(dll)
 
             copy_first_existing(
@@ -219,9 +230,21 @@ def main():
                 for dll in root.glob("*lzma*.dll"):
                     lzma_candidates.append(dll)
 
+            zlib_candidates = []
+            for root in dep_search_roots:
+                zlib_candidates.append(root / "zlib1.dll")
+                zlib_candidates.append(root / "zlib.dll")
+                for dll in root.glob("*zlib*.dll"):
+                    zlib_candidates.append(dll)
+
             copy_first_existing(
                 lzma_candidates, dist / "bin", "liblzma dependency"
             )
+
+            if not zlib_lib:
+                copy_first_existing(
+                    zlib_candidates, dist / "bin", "zlib dependency"
+                )
 
     zlib_lib = os.environ.get("ZLIB_LIBRARY")
     zlib_dir = os.environ.get("ZLIB_LIBRARY_DIR")
