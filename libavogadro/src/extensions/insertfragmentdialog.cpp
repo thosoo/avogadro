@@ -38,12 +38,14 @@
 #include <openbabel/mol.h>
 #include <openbabel/builder.h>
 
+#include <QCoreApplication>
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QDir>
 #include <QDebug>
 #include <QSortFilterProxyModel>
 #include <QFileSystemModel>
+#include <QStandardPaths>
 
 using namespace OpenBabel;
 namespace Avogadro {
@@ -83,21 +85,44 @@ namespace Avogadro {
 
     //@todo: it would be great to allow multiple directories, but that needs our own directory model
     QString m_directory;
-#ifdef Q_WS_X11
-    m_directory = QString( INSTALL_PREFIX ) + "/share/avogadro/";
-#else
-    // Mac and Windows use relative path from application location
-    m_directory = QCoreApplication::applicationDirPath() + "/../share/avogadro/";
-#endif
-    m_directory += directory; // fragments or crystals or whatever
+
+    QStringList candidateDirectories;
+
+    // Installation prefix path
+    candidateDirectories << QString(INSTALL_PREFIX) + "/share/avogadro/" + directory;
+
+    // Relative to the application binary (e.g., installed bundle)
+    candidateDirectories << QCoreApplication::applicationDirPath() + "/../share/avogadro/" + directory;
+
+    // Development builds (two directories up from bin/)
+    QDir buildDir(QCoreApplication::applicationDirPath());
+    if (buildDir.cdUp() && buildDir.cdUp())
+      candidateDirectories << buildDir.absolutePath() + "/" + directory;
+
+    // Standard application data locations (e.g., AppImages/Flatpak)
+    const QString dataDir = QStandardPaths::locate(QStandardPaths::AppDataLocation,
+                                                   directory,
+                                                   QStandardPaths::LocateDirectory);
+    if (!dataDir.isEmpty())
+      candidateDirectories << dataDir;
+
+    foreach (const QString &candidate, candidateDirectories) {
+      QDir candidateDir(candidate);
+      if (candidateDir.exists() && candidateDir.isReadable()) {
+        m_directory = candidateDir.absolutePath();
+        break;
+      }
+    }
+
     if ( directory.contains(QLatin1String("crystals")) )
       d->crystalFiles = true;
     else
       d->crystalFiles = false;
 
     QDir dir(m_directory);
-    if (!dir.exists() || !dir.isReadable() ) {
-      qWarning() << "Cannot find the directory: " << m_directory;
+    if (m_directory.isEmpty() || !dir.exists() || !dir.isReadable() ) {
+      qWarning() << "Cannot find the directory for fragments: " << m_directory;
+      qWarning() << "Checked paths:" << candidateDirectories;
 
       // Can't really do anything!
       ui.directoryTreeView->setEnabled(false);
