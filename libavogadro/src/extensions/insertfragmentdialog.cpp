@@ -88,25 +88,33 @@ namespace Avogadro {
 
     QStringList candidateDirectories;
 
+    auto addCandidateDirectory = [&candidateDirectories](const QString &path) {
+      QDir dir(path);
+      const QString normalized = QDir::cleanPath(dir.absolutePath());
+      if (!normalized.isEmpty() && !candidateDirectories.contains(normalized))
+        candidateDirectories << normalized;
+    };
+
     // Installation prefix path
-    candidateDirectories << QString(INSTALL_PREFIX) + "/share/avogadro/" + directory;
+    addCandidateDirectory(QString(INSTALL_PREFIX) + "/share/avogadro/" + directory);
 
     // Relative to the application binary (e.g., installed bundle)
-    candidateDirectories << QCoreApplication::applicationDirPath() + "/../share/avogadro/" + directory;
+    addCandidateDirectory(QCoreApplication::applicationDirPath()
+                          + "/../share/avogadro/" + directory);
 
     // Development builds (two directories up from bin/)
     QDir buildDir(QCoreApplication::applicationDirPath());
     if (buildDir.cdUp() && buildDir.cdUp())
-      candidateDirectories << buildDir.absolutePath() + "/" + directory;
+      addCandidateDirectory(buildDir.absolutePath() + "/" + directory);
 
     // Standard application data locations (e.g., AppImages/Flatpak)
     const QString dataDir = QStandardPaths::locate(QStandardPaths::AppDataLocation,
                                                    directory,
                                                    QStandardPaths::LocateDirectory);
     if (!dataDir.isEmpty())
-      candidateDirectories << dataDir;
+      addCandidateDirectory(dataDir);
 
-    foreach (const QString &candidate, candidateDirectories) {
+    for (const QString &candidate : candidateDirectories) {
       QDir candidateDir(candidate);
       if (candidateDir.exists() && candidateDir.isReadable()) {
         m_directory = candidateDir.absolutePath();
@@ -119,9 +127,8 @@ namespace Avogadro {
     else
       d->crystalFiles = false;
 
-    QDir dir(m_directory);
-    if (m_directory.isEmpty() || !dir.exists() || !dir.isReadable() ) {
-      qWarning() << "Cannot find the directory for fragments: " << m_directory;
+    if (m_directory.isEmpty()) {
+      qWarning() << "Cannot find the required directory: " << m_directory;
       qWarning() << "Checked paths:" << candidateDirectories;
 
       // Can't really do anything!
