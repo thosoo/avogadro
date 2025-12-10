@@ -306,7 +306,7 @@ namespace Avogadro {
   void InsertFragmentExtension::insertCrystal()
   {
     InsertFragmentDialog *dialog = qobject_cast<InsertFragmentDialog *>(this->sender());
-    if (!dialog)
+    if (!dialog || !m_molecule)
       return;
 
     // Prevent "double insert"
@@ -333,7 +333,7 @@ namespace Avogadro {
   void InsertFragmentExtension::insertFragment()
   {
     InsertFragmentDialog *dialog = qobject_cast<InsertFragmentDialog *>(this->sender());
-    if (!dialog)
+    if (!dialog || !m_molecule)
       return;
 
     // Prevent "double insert"
@@ -350,7 +350,10 @@ namespace Avogadro {
       return;
 
     // Check to see if we're going to connect to an existing atom using OBBuilder::Connect()
-    QList<Primitive *> selectedAtoms = m_widget->selectedPrimitives().subList(Primitive::AtomType);
+    GLWidget *widget = m_widget;
+    QList<Primitive *> selectedAtoms;
+    if (widget)
+      selectedAtoms = widget->selectedPrimitives().subList(Primitive::AtomType);
     QList<int> selectedIds;
     if (!selectedAtoms.empty()) {
       // Loop through the selection and add the ids
@@ -362,7 +365,7 @@ namespace Avogadro {
     }
 
     foreach(int id, selectedIds) {
-      emit performCommand(new InsertFragmentCommand(m_molecule, fragment, m_widget, tr("Insert Fragment"), id));
+      emit performCommand(new InsertFragmentCommand(m_molecule, fragment, widget, tr("Insert Fragment"), id));
     }
     m_justFinished = true;
   }
