@@ -144,7 +144,15 @@ void ReadFileThread::run()
     return;
   }
   else {
-    inFormat = conv.FormatFromExt(m_moleculeFile->m_fileName.toLatin1().data());
+    // ORCA trajectory files use an XYZ layout but are often saved with a .trj
+    // extension. Treat these as XYZ to ensure multiple frames are detected.
+    if (m_moleculeFile->m_fileName.endsWith(QLatin1String(".trj"),
+                                            Qt::CaseInsensitive)) {
+      inFormat = conv.FindFormat("XYZ");
+    }
+    else {
+      inFormat = conv.FormatFromExt(m_moleculeFile->m_fileName.toLatin1().data());
+    }
     if (!inFormat || !conv.SetInFormat(inFormat)) {
       // Input format not supported
       m_moleculeFile->m_error
