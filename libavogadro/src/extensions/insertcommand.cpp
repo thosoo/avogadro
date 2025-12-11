@@ -96,9 +96,12 @@ namespace Avogadro {
     // OK, now get the first atom of the newly placed fragment
     // We need to do this before removing hydrogens
     // (when all the indices will change)
+    int endAtomId = d->endAtom;
+
     if (d->endAtom == -1) {
       // We'll connect to the first atom of the fragment
       d->endAtom = initialAtoms + 1;
+      endAtomId = d->endAtom;
       endAtom = d->molecule->atom(initialAtoms + 1);
     } else {
       endAtom = d->molecule->atomById(d->endAtom);
@@ -115,6 +118,7 @@ namespace Avogadro {
     if (d->startAtom != -1 && !emptyMol) {
       // OK, first, we should see if this atom is a hydrogen
       startAtom = d->molecule->atomById(d->startAtom);
+      int startAtomId = d->startAtom;
       if (!startAtom) {
         qWarning() << "InsertFragmentCommand: unable to resolve start atom id"
                    << d->startAtom << "for fragment insertion";
@@ -127,6 +131,7 @@ namespace Avogadro {
         Atom *hydrogen = startAtom;
         if (hydrogen->neighbors().size()) {
           startAtom = d->molecule->atomById(hydrogen->neighbors()[0]); // the first bonded atom to this "H"
+          startAtomId = startAtom ? startAtom->id() : startAtomId;
           if (!startAtom) {
             qWarning() << "InsertFragmentCommand: start atom neighbor not found for hydrogen"
                        << hydrogen->id();
@@ -145,6 +150,15 @@ namespace Avogadro {
         d->molecule->removeHydrogens(startAtom);
       }
 
+      startAtom = d->molecule->atomById(startAtomId);
+
+      if (!startAtom) {
+        qWarning() << "InsertFragmentCommand: start atom lost after hydrogen removal"
+                   << startAtomId;
+        d->molecule->update();
+        return;
+      }
+
       // same procedure as the start atom -- check if endAtom is an H
       if (!endAtom) {
         qWarning() << "InsertFragmentCommand: missing end atom during fragment connection";
@@ -157,6 +171,7 @@ namespace Avogadro {
         Atom *hydrogen = endAtom;
         if (hydrogen->neighbors().size()) {
           endAtom = d->molecule->atomById(hydrogen->neighbors()[0]); // the first bonded atom to this "H"
+          endAtomId = endAtom ? endAtom->id() : endAtomId;
           if (!endAtom) {
             qWarning() << "InsertFragmentCommand: end atom neighbor not found for hydrogen"
                        << hydrogen->id();
@@ -173,6 +188,15 @@ namespace Avogadro {
         }
       } else { // heavy atom -- remove attached hydrogens
         d->molecule->removeHydrogens(endAtom);
+      }
+
+      endAtom = d->molecule->atomById(endAtomId);
+
+      if (!endAtom) {
+        qWarning() << "InsertFragmentCommand: end atom lost after hydrogen removal"
+                   << endAtomId;
+        d->molecule->update();
+        return;
       }
 
       if (!startAtom || !endAtom) {
