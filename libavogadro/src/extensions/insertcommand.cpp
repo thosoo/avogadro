@@ -86,7 +86,8 @@ namespace Avogadro {
   {
     unsigned int initialAtoms = d->molecule->numAtoms() - 1;
     bool emptyMol = (d->molecule->numAtoms() == 0);
-    Atom *endAtom, *startAtom;
+    Atom *endAtom = 0;
+    Atom *startAtom = 0;
 
     if (emptyMol)
       initialAtoms = 0;
@@ -103,31 +104,81 @@ namespace Avogadro {
       endAtom = d->molecule->atomById(d->endAtom);
     }
 
+    if (!endAtom) {
+      qWarning() << "InsertFragmentCommand: unable to resolve end atom id"
+                 << d->endAtom << "for fragment insertion";
+      d->molecule->update();
+      return;
+    }
+
     // Do we need to connect the fragment to the original molecule?
     if (d->startAtom != -1 && !emptyMol) {
       // OK, first, we should see if this atom is a hydrogen
       startAtom = d->molecule->atomById(d->startAtom);
+      if (!startAtom) {
+        qWarning() << "InsertFragmentCommand: unable to resolve start atom id"
+                   << d->startAtom << "for fragment insertion";
+        d->molecule->update();
+        return;
+      }
+
       if (startAtom->isHydrogen()) {
         // get the bonded non-hydrogen and remove this atom
         Atom *hydrogen = startAtom;
         if (hydrogen->neighbors().size()) {
           startAtom = d->molecule->atomById(hydrogen->neighbors()[0]); // the first bonded atom to this "H"
+          if (!startAtom) {
+            qWarning() << "InsertFragmentCommand: start atom neighbor not found for hydrogen"
+                       << hydrogen->id();
+            d->molecule->update();
+            return;
+          }
           d->molecule->removeAtom(hydrogen);
+        }
+        else {
+          qWarning() << "InsertFragmentCommand: hydrogen start atom has no neighbors"
+                     << hydrogen->id();
+          d->molecule->update();
+          return;
         }
       } else { // heavy atom -- remove attached hydrogens
         d->molecule->removeHydrogens(startAtom);
       }
 
       // same procedure as the start atom -- check if endAtom is an H
+      if (!endAtom) {
+        qWarning() << "InsertFragmentCommand: missing end atom during fragment connection";
+        d->molecule->update();
+        return;
+      }
+
       if (endAtom->isHydrogen()) {
         // get the bonded non-hydrogen and remove this atom
         Atom *hydrogen = endAtom;
         if (hydrogen->neighbors().size()) {
           endAtom = d->molecule->atomById(hydrogen->neighbors()[0]); // the first bonded atom to this "H"
+          if (!endAtom) {
+            qWarning() << "InsertFragmentCommand: end atom neighbor not found for hydrogen"
+                       << hydrogen->id();
+            d->molecule->update();
+            return;
+          }
           d->molecule->removeAtom(hydrogen);
+        }
+        else {
+          qWarning() << "InsertFragmentCommand: hydrogen end atom has no neighbors"
+                     << hydrogen->id();
+          d->molecule->update();
+          return;
         }
       } else { // heavy atom -- remove attached hydrogens
         d->molecule->removeHydrogens(endAtom);
+      }
+
+      if (!startAtom || !endAtom) {
+        qWarning() << "InsertFragmentCommand: start or end atom missing after validation";
+        d->molecule->update();
+        return;
       }
 
       OpenBabel::OBMol mol = d->molecule->OBMol();

@@ -191,31 +191,59 @@ namespace Avogadro {
           noConnection = true;
         }
 
-        if(conv.SetInFormat("smi")
-           && conv.ReadString(&obfragment, SmilesString))
-          {
-            builder.Build(obfragment);
+        if (!conv.SetInFormat("smi")) {
+          qWarning() << "InsertFragmentExtension: unable to set SMILES format for conversion";
+          return NULL;
+        }
 
-            // Let's do a quick cleanup
-            OBForceField* pFF =  OBForceField::FindForceField("MMFF94");
-            if (pFF && pFF->Setup(obfragment)) {
-              pFF->ConjugateGradients(250, 1.0e-4);
-              pFF->UpdateCoordinates(obfragment);
-            } // Note tricky assignment used as logic below
-            else if ((pFF = OBForceField::FindForceField("UFF")) && pFF->Setup(obfragment)) {
-              pFF->ConjugateGradients(250, 1.0e-4);
-              pFF->UpdateCoordinates(obfragment);
-            }
+        if (!conv.ReadString(&obfragment, SmilesString)) {
+          qWarning() << "InsertFragmentExtension: failed to parse SMILES" << smiles;
+          return NULL;
+        }
 
-            fragment.setOBMol(&obfragment);
-            if (noConnection) { // if we're not connecting to a specific atom, add Hs, center
-              fragment.addHydrogens(); // hydrogen addition is done by InsertCommand when bonding
-              fragment.center();
-            }
-          }
+        if (!builder.Build(obfragment)) {
+          qWarning() << "InsertFragmentExtension: failed to build SMILES fragment" << smiles;
+          return NULL;
+        }
+
+        // Let's do a quick cleanup
+        OBForceField* pFF =  OBForceField::FindForceField("MMFF94");
+        if (pFF && pFF->Setup(obfragment)) {
+          pFF->ConjugateGradients(250, 1.0e-4);
+          pFF->UpdateCoordinates(obfragment);
+        } // Note tricky assignment used as logic below
+        else if ((pFF = OBForceField::FindForceField("UFF")) && pFF->Setup(obfragment)) {
+          pFF->ConjugateGradients(250, 1.0e-4);
+          pFF->UpdateCoordinates(obfragment);
+        }
+
+        fragment.setOBMol(&obfragment);
+        if (fragment.numAtoms() == 0) {
+          qWarning() << "InsertFragmentExtension: built SMILES fragment is empty" << smiles;
+          return NULL;
+        }
+
+        if (noConnection) { // if we're not connecting to a specific atom, add Hs, center
+          fragment.addHydrogens(); // hydrogen addition is done by InsertCommand when bonding
+          fragment.center();
+        }
       }
 
+      QList<int> validIds;
       foreach(int id, selectedIds) {
+        if (id == -1 || m_molecule->atomById(id)) {
+          validIds.append(id);
+        } else {
+          qWarning() << "InsertFragmentExtension: skipping invalid selected atom id" << id;
+        }
+      }
+
+      if (validIds.isEmpty()) {
+        qWarning() << "InsertFragmentExtension: no valid atom ids to attach SMILES fragment";
+        return NULL;
+      }
+
+      foreach(int id, validIds) {
         emit performCommand(new InsertFragmentCommand(m_molecule, fragment, widget, tr("Insert SMILES"), id));
       }
     } else if (action->data() == FragmentFromFileIndex) { // molecular fragments
@@ -272,12 +300,22 @@ namespace Avogadro {
 
     foreach(const Primitive *primitive, selectedAtomList) {
       const Atom *atom = static_cast<const Atom*>(primitive); // we know it's an atom, since AtomType was requested
+      if (!atom) {
+        qWarning() << "InsertFragmentExtension: null atom selected for insertion";
+        continue;
+      }
+
       if (!atom->isHydrogen()) {
         // Only append if it doesn't have a selected hydrogen attached
         bool noSelectedHatoms = true;
         foreach (unsigned long int neighborId, atom->neighbors())
           {
             Atom *neighbor = m_molecule->atomById(neighborId);
+            if (!neighbor) {
+              qWarning() << "InsertFragmentExtension: missing neighbor" << neighborId
+                         << "for atom" << atom->id();
+              continue;
+            }
             if (neighbor->isHydrogen()) { // check if it's selected
               if (selectedAtomList.contains(neighbor)) {
                 noSelectedHatoms = false;
@@ -293,6 +331,11 @@ namespace Avogadro {
         const Atom *hydrogen = atom;
         if (!hydrogen->neighbors().empty()) { // it's bonded to something
           atom = m_molecule->atomById(hydrogen->neighbors()[0]); // the first bonded atom to this "H"
+          if (!atom) {
+            qWarning() << "InsertFragmentExtension: unable to resolve heavy atom for hydrogen"
+                       << hydrogen->id();
+            continue;
+          }
         }
         if (!selectedIds.contains(atom->id())) {
           selectedIds.append(atom->id());
