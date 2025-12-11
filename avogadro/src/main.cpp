@@ -43,6 +43,7 @@
 #include <QProcess>
 #include <QFont>
 #include <QFileInfo>
+#include <cstdlib>
 
 #include <iostream>
 
@@ -119,8 +120,22 @@ int main(int argc, char *argv[])
   QByteArray pathEnv = qgetenv("PATH");
   QString binDir = QCoreApplication::applicationDirPath();
   QString newPath = binDir + QLatin1Char(';') + QString::fromLocal8Bit(pathEnv);
-  QString babelPluginDir = binDir + "/../lib/openbabel/" + QString(BABEL_VERSION);
-  if (QFileInfo::exists(babelPluginDir)) {
+  const QString babelVersion = QString(BABEL_VERSION);
+
+  QStringList babelPluginDirs;
+  babelPluginDirs << binDir + "/../lib/openbabel/" + babelVersion
+                  << binDir + "/../bin/openbabel/" + babelVersion
+                  << binDir + "/openbabel/" + babelVersion;
+
+  QString babelPluginDir;
+  for (const QString &candidate : babelPluginDirs) {
+    if (QFileInfo::exists(candidate)) {
+      babelPluginDir = candidate;
+      break;
+    }
+  }
+
+  if (!babelPluginDir.isEmpty()) {
     newPath = babelPluginDir + QLatin1Char(';') + newPath;
   }
   _putenv_s("PATH", newPath.toLocal8Bit().constData());
@@ -137,21 +152,63 @@ int main(int argc, char *argv[])
 #ifndef AVO_APP_BUNDLE
   // Point OpenBabel at the bundled data/plugins installed by the
   // Windows installer so file formats and forcefields are available.
-  QString babelDataDir = QCoreApplication::applicationDirPath();
-  QString babelShareDir = babelDataDir + "/../share/openbabel/" + QString(BABEL_VERSION);
-  if (QFileInfo::exists(babelShareDir))
-    babelDataDir = babelShareDir;
+  const QStringList babelDataCandidates = {binDir + "/../share/openbabel/" + babelVersion,
+                                           binDir + "/../bin/data",
+                                           binDir + "/data"};
 
-  QString babelLibDir = QCoreApplication::applicationDirPath() +
-                        "/../lib/openbabel/" + QString(BABEL_VERSION);
+  QString babelDataDir;
+  for (const QString &candidate : babelDataCandidates) {
+    if (QFileInfo::exists(candidate)) {
+      babelDataDir = candidate;
+      break;
+    }
+  }
+  if (babelDataDir.isEmpty())
+    babelDataDir = babelDataCandidates.constFirst();
 
   qDebug() << "BABEL_DATADIR" << babelDataDir;
   _putenv_s("BABEL_DATADIR", babelDataDir.toLocal8Bit().constData());
 
-  if (QFileInfo::exists(babelLibDir)) {
-    qDebug() << "BABEL_LIBDIR" << babelLibDir;
-    _putenv_s("BABEL_LIBDIR", babelLibDir.toLocal8Bit().constData());
+  if (babelPluginDir.isEmpty())
+    babelPluginDir = binDir + "/../lib/openbabel/" + babelVersion;
+
+  if (QFileInfo::exists(babelPluginDir)) {
+    qDebug() << "BABEL_LIBDIR" << babelPluginDir;
+    _putenv_s("BABEL_LIBDIR", babelPluginDir.toLocal8Bit().constData());
   }
+#endif
+#else
+#ifndef AVO_APP_BUNDLE
+  // For non-bundled Unix builds, ensure OpenBabel can find its plugins and
+  // data files relative to the executable location (useful for AppImages or
+  // when running from the build tree).
+  auto setEnvIfMissing = [](const char *name, const QByteArray &value) {
+    if (!qgetenv(name).isEmpty())
+      return;
+
+#ifdef _MSC_VER
+    _putenv_s(name, value.constData());
+#else
+    setenv(name, value.constData(), 1);
+#endif
+  };
+
+  const QString babelVersion = QString(BABEL_VERSION);
+  const QString appDir = QCoreApplication::applicationDirPath();
+
+  QString babelDataDir = appDir + "/../share/openbabel/" + babelVersion;
+  if (!QFileInfo::exists(babelDataDir))
+    babelDataDir = QString(INSTALL_PREFIX) + "/share/openbabel/" + babelVersion;
+
+  QString babelLibDir = appDir + "/../lib/openbabel/" + babelVersion;
+  if (!QFileInfo::exists(babelLibDir))
+    babelLibDir = QString(INSTALL_PREFIX) + "/lib/openbabel/" + babelVersion;
+
+  setEnvIfMissing("BABEL_DATADIR", babelDataDir.toLatin1());
+  setEnvIfMissing("BABEL_LIBDIR", babelLibDir.toLatin1());
+
+  qDebug() << "BABEL_DATADIR" << babelDataDir;
+  qDebug() << "BABEL_LIBDIR" << babelLibDir;
 #endif
 #endif
 
