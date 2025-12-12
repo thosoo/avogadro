@@ -263,8 +263,8 @@ pass_ob_arg(wxWidgets_LIB_DIR)
 pass_ob_arg(LIB_INSTALL_DIR)
 pass_ob_arg(ENABLE_OPENMP)
 ExternalProject_Add(openbabel_ext
-  URL https://github.com/thosoo/openbabel/archive/6d5c7ee7d51e9f409fe3373b8d119f7afb8281e5.zip
-  URL_HASH SHA256=474db92f0bed37b67160a304cfda70f67512d2f288529ee2579a7e487022b021
+  URL https://github.com/thosoo/openbabel/archive/0e905ce15e5be059382452b42d00d2ab80e10bc2.zip
+  URL_HASH SHA256=0174cae189cb0fba26aa6dc982feb82d8d67ac0fe77f1eda39c5199599347060
   BUILD_BYPRODUCTS
     $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.lib>
     $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.dll>
