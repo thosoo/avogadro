@@ -206,8 +206,24 @@ namespace Avogadro {
       }
 
       OpenBabel::OBMol mol = d->molecule->OBMol();
+      const int startIndex = startAtom->index() + 1;
+      const int endIndex = endAtom->index() + 1;
+
+      if (startIndex <= 0 || endIndex <= 0 ||
+          startIndex > mol.NumAtoms() || endIndex > mol.NumAtoms()) {
+        qWarning() << "InsertFragmentCommand: invalid atom indices for connection"
+                   << "startIndex" << startIndex << "endIndex" << endIndex
+                   << "numAtoms" << mol.NumAtoms();
+        d->molecule->update();
+        return;
+      }
+
+      qWarning() << "InsertFragmentCommand: connecting fragment atoms"
+                 << "startId" << startAtom->id() << "endId" << endAtom->id()
+                 << "startIndex" << startIndex << "endIndex" << endIndex
+                 << "molAtoms" << mol.NumAtoms();
       // Open Babel indexes atoms from 1, not 0
-      OpenBabel::OBBuilder::Connect(mol, startAtom->index() + 1, endAtom->index() + 1);
+      OpenBabel::OBBuilder::Connect(mol, startIndex, endIndex);
       d->molecule->setOBMol(&mol);
       d->molecule->addHydrogens();
     }
