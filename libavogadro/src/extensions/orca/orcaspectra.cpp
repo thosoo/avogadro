@@ -26,6 +26,7 @@
 #include <avogadro/plotobject.h>
 #include <QMessageBox>
 
+#include <cmath>
 #include <vector>
 using namespace Eigen;
 using namespace  std;
@@ -54,12 +55,20 @@ void OrcaSpectra::plotSpectra(OrcaVibrations* vibData)
         PlotObject *data = new PlotObject (Qt::red, PlotObject::Bars, 0.1);
         double minIntens, maxIntens, curIntens;
         double minFreq, maxFreq, curFreq;
-        minIntens = maxIntens = m_vibration->intensities().at(0);
-        minFreq = maxFreq = m_vibration->frequencies().at(0);
+        bool hasData = false;
+        minIntens = maxIntens = 0.0;
+        minFreq = maxFreq = 0.0;
 
         for (uint i = 0; i < m_vibration->intensities().size(); i++) {
             curIntens = m_vibration->intensities().at(i);
             curFreq = m_vibration->frequencies().at(i);
+            if (!std::isfinite(curIntens) || !std::isfinite(curFreq))
+                continue;
+            if (!hasData) {
+                minIntens = maxIntens = curIntens;
+                minFreq = maxFreq = curFreq;
+                hasData = true;
+            }
             minIntens = min (curIntens, minIntens);
             minFreq = min(curFreq, minFreq);
 
@@ -67,6 +76,14 @@ void OrcaSpectra::plotSpectra(OrcaVibrations* vibData)
             maxFreq = max(curFreq, maxFreq);
 
             data->addPoint(curFreq, curIntens, QString::number(vibData->modes().at(i)), 0.1);
+        }
+        if (!hasData) {
+            QMessageBox msgBox;
+
+            msgBox.setWindowTitle(tr("OrcaExtension"));
+            msgBox.setText(tr(" OrcaSpectra::No finite vibration data found!"));
+            msgBox.exec();
+            return;
         }
         double spreadX = maxFreq - minFreq;
         double extX = spreadX * 0.05;
@@ -110,4 +127,3 @@ void OrcaSpectra::freqChangedIdx(double x, double y)
 
 }
 } // end namespace
-

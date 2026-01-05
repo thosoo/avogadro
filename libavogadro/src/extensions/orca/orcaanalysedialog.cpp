@@ -47,6 +47,7 @@
 
 #include <Eigen/Geometry>
 
+#include <cmath>
 #include <vector>
 
 #include <QtGui>
@@ -651,7 +652,7 @@ QString OrcaAnalyseDialog::readOutputFile()
                 int i = 0;
                 while (!outputText.isEmpty()) {
                     infoText = outputText.split(" ", QString::SkipEmptyParts);
-                    if (infoText.size() !=4) {
+                    if (infoText.size() < 4) {
                         return (tr("Somethings wrong in the file structure"));
                     }
                     ret << infoText.at(1).toDouble() << " " << infoText.at(2).toDouble() << " " << infoText.at(3).toDouble() << "\n";
@@ -689,7 +690,7 @@ QString OrcaAnalyseDialog::readOutputFile()
                 int i = 0;
                 while (!outputText.isEmpty()) {
                     infoText = outputText.split(" ", QString::SkipEmptyParts);
-                    if (infoText.size() !=4) {
+                    if (infoText.size() < 4) {
                         return (tr("Somethings wrong in the file structure"));
                     }
                     ret << infoText.at(1).toDouble() << " " << infoText.at(2).toDouble() << " " << infoText.at(3).toDouble() << "\n";
@@ -706,6 +707,36 @@ QString OrcaAnalyseDialog::readOutputFile()
                     if (nAtoms != geo.size()){
                         return (tr("Somethings wrong in the file structure"));
                     }
+                }
+
+            } else if (outputText.trimmed() == "Coordinates in Angstroem") {
+                atomText.clear();
+                geo.resize(0);
+                ret << "Orca VPT2 geometry \n";
+                QString skip = in.readLine(); // skip ---------------------
+                skip = in.readLine(); // skip header line
+                skip = in.readLine(); // skip ---------------------
+                outputText = in.readLine();
+                int i = 0;
+                while (!outputText.isEmpty() && !outputText.contains("------------------")) {
+                    infoText = outputText.split(" ", QString::SkipEmptyParts);
+                    if (infoText.size() < 4) {
+                        return (tr("Somethings wrong in the file structure"));
+                    }
+                    ret << infoText.at(1).toDouble() << " " << infoText.at(2).toDouble() << " " << infoText.at(3).toDouble() << "\n";
+                    atomText += infoText.at(0);
+                    Eigen::Vector3d tmpCoord;
+                    tmpCoord = Eigen::Vector3d(infoText.at(1).toDouble(), infoText.at(2).toDouble(), infoText.at(3).toDouble());
+                    geo.push_back(tmpCoord);
+                    ret << geo.at(i).x() << "\n";
+                    outputText = in.readLine();
+                    i++;
+                }
+                nAtoms = i;
+                if (nAtoms != 0) {
+                    m_geoRead = true;
+                } else {
+                    return (tr("Somethings wrong in the file structure"));
                 }
 
             } else if (outputText.contains("UNIT CELL (ANGSTROEM)",Qt::CaseInsensitive)) {
@@ -860,9 +891,13 @@ QString OrcaAnalyseDialog::readOutputFile()
                     if (IRText.size() < 3) {
                         return (tr("Something is wrong in the IR output! "));
                     } else {
-                        mode.push_back(IRText.at(0).toInt());
-                        frequencies.push_back(IRText.at(1).toDouble());
-                        intensities.push_back(IRText.at(2).toDouble());
+                        double freq = IRText.at(1).toDouble();
+                        double intens = IRText.at(2).toDouble();
+                        if (std::isfinite(freq) && std::isfinite(intens)) {
+                            mode.push_back(IRText.at(0).toInt());
+                            frequencies.push_back(freq);
+                            intensities.push_back(intens);
+                        }
                     }
                     outputText = in.readLine();
                 }
@@ -1276,4 +1311,3 @@ void OrcaAnalyseDialog::writeSettings(QSettings& settings) const
 // missing vtables with gcc, check that you haven't forgotten one of
 // these:
 //#include "orcaanalysedialog.moc"
-
