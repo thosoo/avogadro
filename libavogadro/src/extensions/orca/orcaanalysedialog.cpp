@@ -46,8 +46,6 @@
 #include <openbabel/math/vector3.h>
 
 #include <Eigen/Geometry>
-
-#include <cmath>
 #include <vector>
 
 #include <QtGui>
@@ -61,6 +59,35 @@
 using namespace OpenBabel;
 using namespace Eigen;
 using namespace std;
+
+namespace {
+bool readGeometryBlock(QTextStream& in, QString& outputText, QStringList& atomText,
+                       std::vector<Eigen::Vector3d>& geo, QTextStream& ret,
+                       int& nAtoms, bool stopOnSeparator)
+{
+    QStringList infoText;
+    int i = 0;
+    while (!outputText.isEmpty() &&
+           (!stopOnSeparator || !outputText.contains("------------------"))) {
+        infoText = outputText.split(" ", QString::SkipEmptyParts);
+        if (infoText.size() < 4) {
+            return false;
+        }
+        ret << infoText.at(1).toDouble() << " " << infoText.at(2).toDouble() << " "
+            << infoText.at(3).toDouble() << "\n";
+        atomText += infoText.at(0);
+        Eigen::Vector3d tmpCoord;
+        tmpCoord = Eigen::Vector3d(infoText.at(1).toDouble(), infoText.at(2).toDouble(),
+                                   infoText.at(3).toDouble());
+
+        geo.push_back(tmpCoord);
+        outputText = in.readLine();
+        i++;
+    }
+    nAtoms = i;
+    return nAtoms != 0;
+}
+} // namespace
 
 namespace Avogadro {
 
@@ -649,27 +676,10 @@ QString OrcaAnalyseDialog::readOutputFile()
                 }
                 QString skip = in.readLine(); // skip ---------------------
                 outputText = in.readLine();
-                int i = 0;
-                while (!outputText.isEmpty()) {
-                    infoText = outputText.split(" ", QString::SkipEmptyParts);
-                    if (infoText.size() < 4) {
-                        return (tr("Somethings wrong in the file structure"));
-                    }
-                    ret << infoText.at(1).toDouble() << " " << infoText.at(2).toDouble() << " " << infoText.at(3).toDouble() << "\n";
-                    atomText += infoText.at(0);
-                    Eigen::Vector3d tmpCoord;
-                    tmpCoord = Eigen::Vector3d(infoText.at(1).toDouble(), infoText.at(2).toDouble(),infoText.at(3).toDouble());
-
-                    geo.push_back(tmpCoord);
-                    ret << geo.at(i).x() << "\n";
-                    outputText = in.readLine();
-                    i++;
-                }
-                nAtoms = i;
-                if (nAtoms != 0) {
+                if (readGeometryBlock(in, outputText, atomText, geo, ret, nAtoms, false)) {
                     m_geoRead = true;
                 } else {
-                    return (tr("Somethings wrong in the file structure"));
+                    return (tr("Something's wrong in the file structure"));
                 }
 
                 //            ---------------------------------
@@ -687,25 +697,12 @@ QString OrcaAnalyseDialog::readOutputFile()
                 ret << "orca optimized geometry.....";
                 QString skip = in.readLine(); // skip ---------------------
                 outputText = in.readLine();
-                int i = 0;
-                while (!outputText.isEmpty()) {
-                    infoText = outputText.split(" ", QString::SkipEmptyParts);
-                    if (infoText.size() < 4) {
-                        return (tr("Somethings wrong in the file structure"));
-                    }
-                    ret << infoText.at(1).toDouble() << " " << infoText.at(2).toDouble() << " " << infoText.at(3).toDouble() << "\n";
-                    atomText += infoText.at(0);
-                    Eigen::Vector3d tmpCoord;
-                    tmpCoord = Eigen::Vector3d(infoText.at(1).toDouble(), infoText.at(2).toDouble(),infoText.at(3).toDouble());
-
-                    geo.push_back(tmpCoord);
-                    ret << geo.at(i).x() << "\n";
-                    outputText = in.readLine();
-                    i++;
+                if (!readGeometryBlock(in, outputText, atomText, geo, ret, nAtoms, false)) {
+                    return (tr("Something's wrong in the file structure"));
                 }
                 if (m_geoRead) {
                     if (nAtoms != geo.size()){
-                        return (tr("Somethings wrong in the file structure"));
+                        return (tr("Something's wrong in the file structure"));
                     }
                 }
 
@@ -717,26 +714,10 @@ QString OrcaAnalyseDialog::readOutputFile()
                 skip = in.readLine(); // skip header line
                 skip = in.readLine(); // skip ---------------------
                 outputText = in.readLine();
-                int i = 0;
-                while (!outputText.isEmpty() && !outputText.contains("------------------")) {
-                    infoText = outputText.split(" ", QString::SkipEmptyParts);
-                    if (infoText.size() < 4) {
-                        return (tr("Somethings wrong in the file structure"));
-                    }
-                    ret << infoText.at(1).toDouble() << " " << infoText.at(2).toDouble() << " " << infoText.at(3).toDouble() << "\n";
-                    atomText += infoText.at(0);
-                    Eigen::Vector3d tmpCoord;
-                    tmpCoord = Eigen::Vector3d(infoText.at(1).toDouble(), infoText.at(2).toDouble(), infoText.at(3).toDouble());
-                    geo.push_back(tmpCoord);
-                    ret << geo.at(i).x() << "\n";
-                    outputText = in.readLine();
-                    i++;
-                }
-                nAtoms = i;
-                if (nAtoms != 0) {
+                if (readGeometryBlock(in, outputText, atomText, geo, ret, nAtoms, true)) {
                     m_geoRead = true;
                 } else {
-                    return (tr("Somethings wrong in the file structure"));
+                    return (tr("Something's wrong in the file structure"));
                 }
 
             } else if (outputText.contains("UNIT CELL (ANGSTROEM)",Qt::CaseInsensitive)) {
@@ -891,13 +872,9 @@ QString OrcaAnalyseDialog::readOutputFile()
                     if (IRText.size() < 3) {
                         return (tr("Something is wrong in the IR output! "));
                     } else {
-                        double freq = IRText.at(1).toDouble();
-                        double intens = IRText.at(2).toDouble();
-                        if (std::isfinite(freq) && std::isfinite(intens)) {
-                            mode.push_back(IRText.at(0).toInt());
-                            frequencies.push_back(freq);
-                            intensities.push_back(intens);
-                        }
+                        mode.push_back(IRText.at(0).toInt());
+                        frequencies.push_back(IRText.at(1).toDouble());
+                        intensities.push_back(IRText.at(2).toDouble());
                     }
                     outputText = in.readLine();
                 }

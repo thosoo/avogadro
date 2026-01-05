@@ -81,7 +81,7 @@ void OrcaSpectra::plotSpectra(OrcaVibrations* vibData)
             QMessageBox msgBox;
 
             msgBox.setWindowTitle(tr("OrcaExtension"));
-            msgBox.setText(tr(" OrcaSpectra::No finite vibration data found!"));
+            msgBox.setText(tr("No finite vibration data found!"));
             msgBox.exec();
             return;
         }
