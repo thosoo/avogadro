@@ -63,13 +63,13 @@ using namespace std;
 namespace {
 bool readGeometryBlock(QTextStream& in, QString& outputText, QStringList& atomText,
                        std::vector<Eigen::Vector3d>& geo, QTextStream& ret,
-                       int& nAtoms, bool stopOnSeparator)
+                       uint& nAtoms, bool stopOnSeparator)
 {
     QStringList infoText;
     int i = 0;
     while (!outputText.isEmpty() &&
            (!stopOnSeparator || !outputText.contains("------------------"))) {
-        infoText = outputText.split(" ", QString::SkipEmptyParts);
+        infoText = outputText.split(" ", Qt::SkipEmptyParts);
         if (infoText.size() < 4) {
             return false;
         }
