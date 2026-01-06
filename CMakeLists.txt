@@ -263,8 +263,8 @@ pass_ob_arg(wxWidgets_LIB_DIR)
 pass_ob_arg(LIB_INSTALL_DIR)
 pass_ob_arg(ENABLE_OPENMP)
 ExternalProject_Add(openbabel_ext
-  URL https://github.com/thosoo/openbabel/archive/6d5c7ee7d51e9f409fe3373b8d119f7afb8281e5.zip
-  URL_HASH SHA256=474db92f0bed37b67160a304cfda70f67512d2f288529ee2579a7e487022b021
+  URL https://github.com/thosoo/openbabel/archive/eb3d7b9e219a84f2da47187d719919fc1a13c22a.zip
+  URL_HASH SHA256=57ed2f668f7c91e33cf58931c690a84099b020c14c512da2aea7d9250a9c95bb
   BUILD_BYPRODUCTS
     $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.lib>
     $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.dll>
@@ -658,4 +658,3 @@ else()
     DESTINATION "${SHARE_INSTALL_PREFIX}/avogadro/qmake"
   )
 endif()
-
