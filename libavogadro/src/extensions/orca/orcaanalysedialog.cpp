@@ -708,6 +708,39 @@ QString OrcaAnalyseDialog::readOutputFile()
                     }
                 }
 
+            } else if (outputText.contains("Coordinates in Angstroem", Qt::CaseInsensitive)) {
+                geo.resize(0);
+                atomText.clear();
+                ret << "orca coordinates in angstroem\n";
+                outputText = in.readLine();
+                while (!in.atEnd() && (outputText.trimmed().isEmpty() ||
+                                       outputText.contains("-----") ||
+                                       outputText.contains("Atom"))) {
+                    outputText = in.readLine();
+                }
+                int i = 0;
+                while (!outputText.isEmpty() && !outputText.contains("-----") && !in.atEnd()) {
+                    infoText = outputText.split(" ", QString::SkipEmptyParts);
+                    if (infoText.size() < 4) {
+                        return (tr("Somethings wrong in the file structure"));
+                    }
+                    ret << infoText.at(1).toDouble() << " " << infoText.at(2).toDouble() << " " << infoText.at(3).toDouble() << "\n";
+                    atomText += infoText.at(0);
+                    Eigen::Vector3d tmpCoord;
+                    tmpCoord = Eigen::Vector3d(infoText.at(1).toDouble(), infoText.at(2).toDouble(),infoText.at(3).toDouble());
+
+                    geo.push_back(tmpCoord);
+                    ret << geo.at(i).x() << "\n";
+                    outputText = in.readLine();
+                    i++;
+                }
+                nAtoms = i;
+                if (nAtoms != 0) {
+                    m_geoRead = true;
+                } else {
+                    return (tr("Somethings wrong in the file structure"));
+                }
+
             } else if (outputText.contains("UNIT CELL (ANGSTROEM)",Qt::CaseInsensitive)) {
 
                 unitCellVectors.resize(0);
@@ -846,6 +879,40 @@ QString OrcaAnalyseDialog::readOutputFile()
                 //
                 // look for the intensities for the IR spectra
                 //
+            } else if (outputText.contains("IR Intensities", Qt::CaseInsensitive)) {
+                ret << "orca IR intensities \n";
+                while (!in.atEnd() && !outputText.contains("Mode") &&
+                       !outputText.contains("freq") && !outputText.contains("Int")) {
+                    outputText = in.readLine();
+                }
+                while (!in.atEnd() && !outputText.contains("-----")) {
+                    outputText = in.readLine();
+                }
+                outputText = in.readLine();
+                while (!outputText.isEmpty() && !outputText.contains("-----") && !in.atEnd()) {
+                    outputText.replace(":","");
+                    outputText.replace ("(","");
+                    IRText = outputText.split(" ", QString::SkipEmptyParts);
+                    if (IRText.size() >= 3) {
+                        bool modeOk = false;
+                        bool freqOk = false;
+                        bool intOk = false;
+                        int parsedMode = IRText.at(0).toInt(&modeOk);
+                        double parsedFreq = IRText.at(1).toDouble(&freqOk);
+                        double parsedInt = IRText.at(2).toDouble(&intOk);
+                        if (modeOk) {
+                            mode.push_back(parsedMode);
+                            frequencies.push_back(freqOk ? parsedFreq : 0.0);
+                            intensities.push_back(intOk ? parsedInt : 0.0);
+                        }
+                    } else {
+                        break;
+                    }
+                    outputText = in.readLine();
+                }
+                if (!frequencies.isEmpty()) {
+                    m_IRRead = true;
+                }
             } else if (outputText.trimmed() == "IR SPECTRUM"){
                 ret << "orca IR spectrum \n";
                 QString skip = in.readLine();         // skip ---------------------
@@ -1276,4 +1343,3 @@ void OrcaAnalyseDialog::writeSettings(QSettings& settings) const
 // missing vtables with gcc, check that you haven't forgotten one of
 // these:
 //#include "orcaanalysedialog.moc"
-
