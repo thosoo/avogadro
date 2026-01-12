@@ -910,7 +910,7 @@ QString OrcaAnalyseDialog::readOutputFile()
                     }
                     outputText = in.readLine();
                 }
-                if (!frequencies.isEmpty()) {
+                if (!frequencies.empty()) {
                     m_IRRead = true;
                 }
             } else if (outputText.trimmed() == "IR SPECTRUM"){
