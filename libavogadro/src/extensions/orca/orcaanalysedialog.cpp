@@ -52,6 +52,7 @@
 #include <QtGui>
 
 #include <QString>
+#include <QDebug>
 #include <QLabel>
 #include <QTextStream>
 #include <QFileDialog>
@@ -532,6 +533,7 @@ QString OrcaAnalyseDialog::readOutputFile()
     if (fileName == "") {
         return (tr("no file found"));
     }
+    qWarning() << "OrcaAnalyseDialog: reading output file" << fileName;
     m_saveFilter = selectedFilter;
     QFile file(fileName);
     QTextStream in(&file);
@@ -740,6 +742,8 @@ QString OrcaAnalyseDialog::readOutputFile()
                 } else {
                     return (tr("Somethings wrong in the file structure"));
                 }
+                qWarning() << "OrcaAnalyseDialog: parsed coordinates in angstroem,"
+                           << "atoms:" << nAtoms;
 
             } else if (outputText.contains("UNIT CELL (ANGSTROEM)",Qt::CaseInsensitive)) {
 
@@ -913,6 +917,10 @@ QString OrcaAnalyseDialog::readOutputFile()
                 if (!frequencies.empty()) {
                     m_IRRead = true;
                 }
+                qWarning() << "OrcaAnalyseDialog: parsed IR intensities,"
+                           << "modes:" << mode.size()
+                           << "frequencies:" << frequencies.size()
+                           << "intensities:" << intensities.size();
             } else if (outputText.trimmed() == "IR SPECTRUM"){
                 ret << "orca IR spectrum \n";
                 QString skip = in.readLine();         // skip ---------------------
@@ -1016,6 +1024,8 @@ QString OrcaAnalyseDialog::readOutputFile()
     }
 
     if (!m_geoRead) {
+        qWarning() << "OrcaAnalyseDialog: no geometry parsed from file"
+                   << fileName;
         return (tr("No geometry found in file!"));
     }
 
