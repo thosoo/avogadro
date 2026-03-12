@@ -264,6 +264,12 @@ void MoleculeFileTest::replaceMolecule()
   QCOMPARE( aniline->numAtoms(), static_cast<unsigned int>(9) );
   QCOMPARE( aniline->atom(6)->atomicNumber(), 7 );
   delete aniline;
+
+  phenyl = moleculeFile->molecule(0);
+  QVERIFY( phenyl );
+  QVERIFY( phenyl->numAtoms() > 0 );
+  delete phenyl;
+
   toluene = moleculeFile->molecule(2);
   QVERIFY( toluene );
   QCOMPARE( toluene->numAtoms(), static_cast<unsigned int>(7) );
@@ -281,6 +287,16 @@ void MoleculeFileTest::replaceMolecule()
   QVERIFY( phenyl );
   QCOMPARE( phenyl->numAtoms(), static_cast<unsigned int>(8) );
   delete phenyl;
+
+  aniline = moleculeFile->molecule(1);
+  QVERIFY( aniline );
+  QVERIFY( aniline->numAtoms() > 0 );
+  delete aniline;
+
+  toluene = moleculeFile->molecule(2);
+  QVERIFY( toluene );
+  QVERIFY( toluene->numAtoms() > 0 );
+  delete toluene;
  
 
   delete moleculeFile;

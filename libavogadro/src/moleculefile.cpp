@@ -35,6 +35,8 @@
 #include <QDebug>
 #include <QPointer>
 
+#include <algorithm>
+
 #include <openbabel/mol.h>
 #include <openbabel/atom.h>
 #include <openbabel/obconversion.h>
@@ -214,20 +216,42 @@ namespace Avogadro {
     // Now attempt to open the file.new for writing
     ofstream ofs;
     QString newFilename(m_fileName.toLocal8Bit() + QLatin1String(".new"));
-    ofs.open(newFilename.toLatin1().data()); // This handles utf8 file names etc
+    ofs.open(newFilename.toLatin1().data(), std::ios::out | std::ios::binary); // This handles utf8 file names etc
     if (!ofs) {
       m_error.append(tr("Could not open file '%1' for writing.").arg(m_fileName));
       return false;
     }
     // Copy molecules 0 to i-1 to .new file
     ifstream ifs;
-    ifs.open(m_fileName.toLocal8Bit()); // This handles utf8 file names etc
+    ifs.open(m_fileName.toLocal8Bit(), std::ios::in | std::ios::binary); // This handles utf8 file names etc
     if (!ifs) {
       m_error.append(tr("Could not open file '%1' for reading.").arg(m_fileName));
       return false;
     }
-    for (std::streampos pos = 0; pos < d->streampos.at(i); pos+=1)
-      ofs.put(ifs.get()); // FIXME using istream_iterator or something
+
+    ifs.seekg(0, std::ios::beg);
+    std::streamoff prefixBytes = d->streampos.at(i) - std::streampos(0);
+    if (prefixBytes < 0) {
+      m_error.append(tr("replaceMolecule: invalid cached stream position for index %1.").arg(i));
+      return false;
+    }
+
+    static const std::streamsize bufferSize = 8192;
+    char buffer[bufferSize];
+    while (prefixBytes > 0) {
+      std::streamsize chunkSize = static_cast<std::streamsize>(std::min<std::streamoff>(prefixBytes, bufferSize));
+      ifs.read(buffer, chunkSize);
+      if (ifs.gcount() != chunkSize) {
+        m_error.append(tr("Replacing molecule with index %1 in file '%2' failed while copying the prefix.").arg(i).arg(m_fileName));
+        return false;
+      }
+      ofs.write(buffer, chunkSize);
+      if (!ofs) {
+        m_error.append(tr("Replacing molecule with index %1 in file '%2' failed while writing the prefix.").arg(i).arg(m_fileName));
+        return false;
+      }
+      prefixBytes -= chunkSize;
+    }
 
     // write the molecule
     OpenBabel::OBMol obmol = molecule->OBMol();
@@ -236,14 +260,47 @@ namespace Avogadro {
       return false;
     }
 
-    std::streampos newSize = ofs.tellp() - d->streampos[i];
+    std::streampos newMolEnd = ofs.tellp();
+    if (newMolEnd == std::streampos(-1)) {
+      m_error.append(tr("Replacing molecule with index %1 in file '%2' failed while tracking output size.").arg(i).arg(m_fileName));
+      return false;
+    }
+    std::streamoff newSize = newMolEnd - d->streampos[i];
+    if (newSize < 0) {
+      m_error.append(tr("Replacing molecule with index %1 in file '%2' failed due to invalid output offsets.").arg(i).arg(m_fileName));
+      return false;
+    }
+
     if (i+1 < d->streampos.size()) {
       // copy remaining molecules
       ifs.seekg(0, std::ios::end);
       std::streampos endpos = ifs.tellg();
-      ifs.seekg(d->streampos.at(i+1));
-      while (ifs.tellg() < endpos)
-        ofs.put(ifs.get()); // FIXME using istream_iterator or something
+      if (endpos == std::streampos(-1)) {
+        m_error.append(tr("Replacing molecule with index %1 in file '%2' failed while determining input size.").arg(i).arg(m_fileName));
+        return false;
+      }
+      ifs.seekg(d->streampos.at(i+1), std::ios::beg);
+
+      std::streamoff trailingBytes = endpos - d->streampos.at(i+1);
+      if (trailingBytes < 0) {
+        m_error.append(tr("replaceMolecule: invalid cached stream position for index %1.").arg(i+1));
+        return false;
+      }
+
+      while (trailingBytes > 0) {
+        std::streamsize chunkSize = static_cast<std::streamsize>(std::min<std::streamoff>(trailingBytes, bufferSize));
+        ifs.read(buffer, chunkSize);
+        if (ifs.gcount() != chunkSize) {
+          m_error.append(tr("Replacing molecule with index %1 in file '%2' failed while copying the trailing molecules.").arg(i).arg(m_fileName));
+          return false;
+        }
+        ofs.write(buffer, chunkSize);
+        if (!ofs) {
+          m_error.append(tr("Replacing molecule with index %1 in file '%2' failed while writing the trailing molecules.").arg(i).arg(m_fileName));
+          return false;
+        }
+        trailingBytes -= chunkSize;
+      }
     }
     /*
     std::copy(std::istream_iterator<char>(ifs),
@@ -261,8 +318,8 @@ namespace Avogadro {
     // adjust the cached variables
     if (i+1 < d->streampos.size()) {
       // size of the molecule to be replaced (in chars)
-      std::streampos oldSize = d->streampos[i+1] - d->streampos[i];
-      std::streampos delta = newSize - oldSize;
+      std::streamoff oldSize = d->streampos[i+1] - d->streampos[i];
+      std::streamoff delta = newSize - oldSize;
 
       for (unsigned int j = i+1; j < d->streampos.size(); ++j) {
         d->streampos[j] += delta;
