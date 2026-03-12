@@ -5,6 +5,7 @@
 #include <QtTest>
 #include <QDir>
 #include <QFile>
+#include <QFileSystemModel>
 #include <QTreeView>
 #include <QSignalSpy>
 
