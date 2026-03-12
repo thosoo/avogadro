@@ -165,11 +165,7 @@ void MoleculeFileTest::readFile()
 
 
   MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
-  if (!moleculeFile)
-    dumpState("readFile returned null", moleculeFile);
   QVERIFY( moleculeFile );
-  if (!moleculeFile->errors().isEmpty())
-    dumpState("errors after readFile", moleculeFile);
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), true );
   QCOMPARE( moleculeFile->numMolecules(), static_cast<unsigned int>(1) );
