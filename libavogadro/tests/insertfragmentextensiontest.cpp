@@ -10,10 +10,9 @@
 
 #include <avogadro/molecule.h>
 
-#define private public
-#include "../src/extensions/insertfragmentextension.cpp"
-#undef private
+#include "../src/extensions/insertfragmentextension.h"
 
+using Avogadro::DockWidget;
 using Avogadro::InsertFragmentDialog;
 using Avogadro::InsertFragmentExtension;
 using Avogadro::Molecule;
@@ -41,10 +40,10 @@ private:
   }
 
 private Q_SLOTS:
-  void insertFragmentWithNullWidgetDoesNotCrash();
+  void insertFragmentWithoutActiveWidgetDoesNotCrash();
 };
 
-void InsertFragmentExtensionTest::insertFragmentWithNullWidgetDoesNotCrash()
+void InsertFragmentExtensionTest::insertFragmentWithoutActiveWidgetDoesNotCrash()
 {
   const QString fragmentDir = QCoreApplication::applicationDirPath() +
                               "/../share/avogadro/fragments";
@@ -61,9 +60,11 @@ void InsertFragmentExtensionTest::insertFragmentWithNullWidgetDoesNotCrash()
   InsertFragmentExtension extension;
   Molecule molecule;
   extension.setMolecule(&molecule);
-  extension.m_widget = 0;
 
-  InsertFragmentDialog *dialog = extension.m_fragmentDialog;
+  QList<DockWidget*> docks = extension.dockWidgets();
+  QVERIFY(!docks.isEmpty());
+
+  InsertFragmentDialog *dialog = qobject_cast<InsertFragmentDialog*>(docks.first()->widget());
   QVERIFY(dialog);
 
   QTreeView *tree = dialog->findChild<QTreeView*>("directoryTreeView");
