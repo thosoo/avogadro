@@ -26,6 +26,7 @@
 #include "config.h"
 
 #include <QtTest>
+#include <QFile>
 #include <avogadro/moleculefile.h>
 #include <avogadro/molecule.h>
 #include <avogadro/atom.h>
@@ -164,7 +165,11 @@ void MoleculeFileTest::readFile()
 
 
   MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
+  if (!moleculeFile)
+    dumpState("readFile returned null", moleculeFile);
   QVERIFY( moleculeFile );
+  if (!moleculeFile->errors().isEmpty())
+    dumpState("errors after readFile", moleculeFile);
   QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), true );
   QCOMPARE( moleculeFile->numMolecules(), static_cast<unsigned int>(1) );
@@ -220,6 +225,15 @@ void MoleculeFileTest::readWriteConformers()
 void MoleculeFileTest::replaceMolecule()
 {
   QString filename = "moleculefiletest_tmp.smi";
+
+  auto dumpState = [&](const QString &context, MoleculeFile *file) {
+    qWarning() << "replaceMolecule debug:" << context;
+    if (file)
+      qWarning() << "MoleculeFile errors:" << file->errors();
+    QFile f(filename);
+    if (f.open(QIODevice::ReadOnly))
+      qWarning() << "Current file contents:" << f.readAll();
+  };
   std::ofstream ofs(filename.toLatin1().data());
   ofs << "c1ccccc1  phenyl" << std::endl;
   ofs << "c1ccccc1N  aniline" << std::endl;
@@ -242,12 +256,16 @@ void MoleculeFileTest::replaceMolecule()
 
   // check 2nd molecule
   Molecule *aniline = moleculeFile->molecule(1);
+  if (!aniline)
+    dumpState("aniline read failed", moleculeFile);
   QVERIFY( aniline );
   QVERIFY( aniline->numAtoms() > 0 );
   delete aniline;
 
   // check 3th molecule
   Molecule *toluene = moleculeFile->molecule(2);
+  if (!toluene)
+    dumpState("toluene read failed", moleculeFile);
   QVERIFY( toluene );
   QVERIFY( toluene->numAtoms() > 0 );
   delete toluene;
@@ -257,7 +275,10 @@ void MoleculeFileTest::replaceMolecule()
   QVERIFY( aniline );
   aniline->addAtom();
   aniline->addAtom();
-  QVERIFY( moleculeFile->replaceMolecule(1, aniline, filename) );
+  const bool replaceSecond = moleculeFile->replaceMolecule(1, aniline, filename);
+  if (!replaceSecond)
+    dumpState("replaceMolecule(1) failed", moleculeFile);
+  QVERIFY( replaceSecond );
   delete aniline;
 
   // check again
@@ -281,7 +302,10 @@ void MoleculeFileTest::replaceMolecule()
   QVERIFY( phenyl );
   phenyl->addAtom();
   phenyl->addAtom();
-  QVERIFY( moleculeFile->replaceMolecule(0, phenyl, filename) );
+  const bool replaceFirst = moleculeFile->replaceMolecule(0, phenyl, filename);
+  if (!replaceFirst)
+    dumpState("replaceMolecule(0) failed", moleculeFile);
+  QVERIFY( replaceFirst );
   delete phenyl;
   // check again
   phenyl = moleculeFile->molecule(0);

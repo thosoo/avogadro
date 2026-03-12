@@ -216,7 +216,7 @@ namespace Avogadro {
     // Now attempt to open the file.new for writing
     ofstream ofs;
     QString newFilename(m_fileName.toLocal8Bit() + QLatin1String(".new"));
-    ofs.open(newFilename.toLatin1().data(), std::ios::out | std::ios::binary); // This handles utf8 file names etc
+    ofs.open(newFilename.toLatin1().data(), std::ios::out | std::ios::trunc | std::ios::binary); // This handles utf8 file names etc
     if (!ofs) {
       m_error.append(tr("Could not open file '%1' for writing.").arg(m_fileName));
       return false;
@@ -311,8 +311,14 @@ namespace Avogadro {
     ofs.close();
 
     QFile newFile(newFilename);
-    QFile(m_fileName).remove();
-    newFile.rename(m_fileName);
+    if (!QFile(m_fileName).remove()) {
+      m_error.append(tr("Replacing molecule with index %1 in file '%2' failed while removing the original file.").arg(i).arg(m_fileName));
+      return false;
+    }
+    if (!newFile.rename(m_fileName)) {
+      m_error.append(tr("Replacing molecule with index %1 in file '%2' failed while renaming the temporary file.").arg(i).arg(m_fileName));
+      return false;
+    }
 
 
     // adjust the cached variables
