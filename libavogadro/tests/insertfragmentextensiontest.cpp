@@ -90,4 +90,5 @@ void InsertFragmentExtensionTest::insertFragmentWithoutActiveWidgetDoesNotCrash(
 }
 
 QTEST_MAIN(InsertFragmentExtensionTest)
-#include "insertfragmentextensiontest.moc"
+
+#include "moc_insertfragmentextensiontest.cpp"
