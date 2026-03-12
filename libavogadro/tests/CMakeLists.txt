@@ -12,9 +12,12 @@ include_directories(
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
   ${libavogadro_BINARY_DIR}/src
+  ${libavogadro_BINARY_DIR}/src/extensions
   $<$<BOOL:${EIGEN3_FOUND}>:${EIGEN3_INCLUDE_DIR}>
   $<$<NOT:$<BOOL:${EIGEN3_FOUND}>>:${EIGEN2_INCLUDE_DIR}>
   ${OPENBABEL2_INCLUDE_DIR}
+  $<$<BOOL:${GLEW_INCLUDE_DIR}>:${GLEW_INCLUDE_DIR}>
+  $<$<BOOL:${GLEW_INCLUDE_DIRS}>:${GLEW_INCLUDE_DIRS}>
   ${BOOST_PYTHON_INCLUDES}
   ${PYTHON_INCLUDE_PATH}
 )
@@ -34,6 +37,7 @@ pkg_check_modules(XTB xtb)
 set(tests
   drawcommand
 #  hydrogenscommand
+  insertfragmentextension
   molecule
   moleculefile
   neighborlist
@@ -46,6 +50,13 @@ endif()
 foreach (test ${tests})
   message(STATUS "Test:  ${test}")
   set(test_SRCS ${test}test.cpp)
+  if (${test} STREQUAL "insertfragmentextension")
+    list(APPEND test_SRCS
+      ../src/extensions/insertfragmentextension.cpp
+      ../src/extensions/insertfragmentdialog.cpp
+      ../src/extensions/insertcommand.cpp
+      ../src/extensions/sortfiltertreeproxymodel.cpp)
+  endif()
   set(test_MOC_CPPS ${test}test.cpp)
   QT4_WRAP_CPP(test_MOC_SRCS ${test_MOC_CPPS})
   ADD_CUSTOM_TARGET(${test}testmoc ALL DEPENDS ${test_MOC_SRCS})

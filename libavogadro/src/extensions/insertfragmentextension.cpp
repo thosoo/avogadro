@@ -82,6 +82,7 @@ namespace Avogadro {
 
   InsertFragmentExtension::InsertFragmentExtension(QObject *parent) :
     Extension(parent),
+    m_widget(0),
     m_fragmentDock(0),
     m_fragmentDialog(0),
     m_crystalDialog(0),
@@ -350,7 +351,9 @@ namespace Avogadro {
       return;
 
     // Check to see if we're going to connect to an existing atom using OBBuilder::Connect()
-    QList<Primitive *> selectedAtoms = m_widget->selectedPrimitives().subList(Primitive::AtomType);
+    QList<Primitive *> selectedAtoms;
+    if (m_widget)
+      selectedAtoms = m_widget->selectedPrimitives().subList(Primitive::AtomType);
     QList<int> selectedIds;
     if (!selectedAtoms.empty()) {
       // Loop through the selection and add the ids
@@ -373,4 +376,3 @@ namespace Avogadro {
   }
 
 } // end namespace Avogadro
-
