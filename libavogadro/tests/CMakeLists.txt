@@ -48,6 +48,13 @@ endif()
 foreach (test ${tests})
   message(STATUS "Test:  ${test}")
   set(test_SRCS ${test}test.cpp)
+  if (${test} STREQUAL "insertfragmentextension")
+    list(APPEND test_SRCS
+      ../src/extensions/insertfragmentextension.cpp
+      ../src/extensions/insertfragmentdialog.cpp
+      ../src/extensions/insertcommand.cpp
+      ../src/extensions/sortfiltertreeproxymodel.cpp)
+  endif()
   set(test_MOC_CPPS ${test}test.cpp)
   QT4_WRAP_CPP(test_MOC_SRCS ${test_MOC_CPPS})
   ADD_CUSTOM_TARGET(${test}testmoc ALL DEPENDS ${test_MOC_SRCS})
