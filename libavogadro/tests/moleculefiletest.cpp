@@ -36,6 +36,8 @@
 
 #include <Eigen/Core>
 
+#include <iostream>
+
 using OpenBabel::OBMol;
 using OpenBabel::OBConversion;
 
@@ -223,12 +225,17 @@ void MoleculeFileTest::replaceMolecule()
   QString filename = "moleculefiletest_tmp.smi";
 
   auto dumpState = [&](const QString &context, MoleculeFile *file) {
-    qWarning() << "replaceMolecule debug:" << context;
-    if (file)
-      qWarning() << "MoleculeFile errors:" << file->errors();
+    std::cerr << "replaceMolecule debug: "
+              << context.toLocal8Bit().constData() << std::endl;
+    if (file) {
+      const QByteArray errors = file->errors().toLocal8Bit();
+      std::cerr << "MoleculeFile errors: " << errors.constData() << std::endl;
+    }
     QFile f(filename);
-    if (f.open(QIODevice::ReadOnly))
-      qWarning() << "Current file contents:" << f.readAll();
+    if (f.open(QIODevice::ReadOnly)) {
+      const QByteArray contents = f.readAll();
+      std::cerr << "Current file contents: " << contents.constData() << std::endl;
+    }
   };
   std::ofstream ofs(filename.toLatin1().data(), std::ios::out | std::ios::binary);
   ofs << "c1ccccc1  phenyl\n";
