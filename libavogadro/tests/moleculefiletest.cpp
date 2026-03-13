@@ -274,7 +274,7 @@ void MoleculeFileTest::replaceMolecule()
   const bool replaceSecond = moleculeFile->replaceMolecule(1, aniline, filename);
   if (!replaceSecond)
     dumpState("replaceMolecule(1) failed", moleculeFile);
-  QVERIFY( replaceSecond );
+  QVERIFY2( replaceSecond, moleculeFile->errors().toLatin1().constData() );
   delete aniline;
 
   // check again
@@ -301,7 +301,7 @@ void MoleculeFileTest::replaceMolecule()
   const bool replaceFirst = moleculeFile->replaceMolecule(0, phenyl, filename);
   if (!replaceFirst)
     dumpState("replaceMolecule(0) failed", moleculeFile);
-  QVERIFY( replaceFirst );
+  QVERIFY2( replaceFirst, moleculeFile->errors().toLatin1().constData() );
   delete phenyl;
   // check again
   phenyl = moleculeFile->molecule(0);
