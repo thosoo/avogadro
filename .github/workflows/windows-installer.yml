@@ -215,6 +215,29 @@ jobs:
           }
 
           ctest --test-dir build -C Release --output-on-failure
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "ctest failed; collecting detailed logs for moleculefileTest"
+
+            $lastTestLog = Join-Path $PWD 'build/Testing/Temporary/LastTest.log'
+            if (Test-Path $lastTestLog) {
+              Write-Host "===== LastTest.log ====="
+              Get-Content $lastTestLog
+            }
+
+            $moleculeTest = Join-Path $PWD 'build/bin/moleculefiletest.exe'
+            if (-not (Test-Path $moleculeTest)) {
+              $moleculeTest = Join-Path $PWD 'build/bin/Release/moleculefiletest.exe'
+            }
+
+            if (Test-Path $moleculeTest) {
+              Write-Host "===== Direct moleculefileTest output (-v2) ====="
+              & $moleculeTest -v2
+            } else {
+              Write-Host "moleculefiletest executable not found in build/bin or build/bin/Release"
+            }
+
+            exit 1
+          }
       - name: Upload installer
         if: matrix.target == 'installer'
         uses: actions/upload-artifact@v4
