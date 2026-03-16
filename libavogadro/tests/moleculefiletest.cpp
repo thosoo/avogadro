@@ -46,6 +46,31 @@ using Avogadro::Atom;
 
 using Eigen::Vector3d;
 
+
+namespace {
+unsigned int countAtomsWithAtomicNumber(Molecule *molecule, unsigned int atomicNumber)
+{
+  unsigned int count = 0;
+  foreach (Atom *atom, molecule->atoms()) {
+    if (atom->atomicNumber() == atomicNumber)
+      ++count;
+  }
+  return count;
+}
+
+QString moleculeAtomSummary(Molecule *molecule)
+{
+  if (!molecule)
+    return QStringLiteral("<null molecule>");
+
+  return QStringLiteral("numAtoms=%1 C=%2 N=%3 O=%4")
+      .arg(molecule->numAtoms())
+      .arg(countAtomsWithAtomicNumber(molecule, 6))
+      .arg(countAtomsWithAtomicNumber(molecule, 7))
+      .arg(countAtomsWithAtomicNumber(molecule, 8));
+}
+}
+
 class MoleculeFileTest : public QObject
 {
   Q_OBJECT
@@ -258,26 +283,30 @@ void MoleculeFileTest::replaceMolecule()
   ofs.close();
 
   MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
-  QVERIFY( moleculeFile );
-  QVERIFY( moleculeFile->errors().isEmpty() );
+  QVERIFY2(moleculeFile, "replaceMolecule(): readFile returned null");
+  QVERIFY2(moleculeFile->errors().isEmpty(), qPrintable(moleculeFile->errors()));
   QCOMPARE( moleculeFile->isConformerFile(), false );
   QCOMPARE( moleculeFile->numMolecules(), static_cast<unsigned int>(3) );
 
   // check 1st molecule
   Molecule *phenyl = moleculeFile->molecule(0);
+  QVERIFY2(phenyl, "replaceMolecule(): phenyl molecule is null");
   QCOMPARE( phenyl->numAtoms(), static_cast<unsigned int>(6) );
+  QCOMPARE( countAtomsWithAtomicNumber(phenyl, 6), static_cast<unsigned int>(6) );
   delete phenyl;
 
   // check 2nd molecule
   Molecule *aniline = moleculeFile->molecule(1);
+  QVERIFY2(aniline, "replaceMolecule(): aniline molecule is null");
   QCOMPARE( aniline->numAtoms(), static_cast<unsigned int>(7) );
-  QCOMPARE( aniline->atom(6)->atomicNumber(), 7 );
+  QCOMPARE( countAtomsWithAtomicNumber(aniline, 7), static_cast<unsigned int>(1) );
   delete aniline;
 
-  // check 3th molecule
+  // check 3rd molecule
   Molecule *toluene = moleculeFile->molecule(2);
+  QVERIFY2(toluene, "replaceMolecule(): toluene molecule is null");
   QCOMPARE( toluene->numAtoms(), static_cast<unsigned int>(7) );
-  QCOMPARE( toluene->atom(6)->atomicNumber(), 6 );
+  QCOMPARE( countAtomsWithAtomicNumber(toluene, 6), static_cast<unsigned int>(7) );
   delete toluene;
 
   // replace 2nd
@@ -289,14 +318,14 @@ void MoleculeFileTest::replaceMolecule()
 
   // check again
   aniline = moleculeFile->molecule(1);
-  QVERIFY( aniline );
+  QVERIFY2( aniline, "replaceMolecule(): aniline null after replace" );
   QCOMPARE( aniline->numAtoms(), static_cast<unsigned int>(9) );
-  QCOMPARE( aniline->atom(6)->atomicNumber(), 7 );
+  QCOMPARE( countAtomsWithAtomicNumber(aniline, 7), static_cast<unsigned int>(1) );
   delete aniline;
   toluene = moleculeFile->molecule(2);
-  QVERIFY( toluene );
+  QVERIFY2( toluene, "replaceMolecule(): toluene null after replace" );
   QCOMPARE( toluene->numAtoms(), static_cast<unsigned int>(7) );
-  QCOMPARE( toluene->atom(6)->atomicNumber(), 6 );
+  QCOMPARE( countAtomsWithAtomicNumber(toluene, 6), static_cast<unsigned int>(7) );
   delete toluene;
 
   // replace 1st
@@ -327,10 +356,17 @@ void MoleculeFileTest::appendMolecule()
   ofs.close();
 
   MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
-  QVERIFY( moleculeFile );
-  QVERIFY( moleculeFile->errors().isEmpty() );
+  QVERIFY2( moleculeFile, "appendMolecule(): readFile returned null" );
+  QVERIFY2( moleculeFile->errors().isEmpty(), qPrintable(moleculeFile->errors()) );
   QCOMPARE( moleculeFile->isConformerFile(), false );
   QCOMPARE( moleculeFile->numMolecules(), static_cast<unsigned int>(3) );
+
+  for (unsigned int i = 0; i < moleculeFile->numMolecules(); ++i) {
+    Molecule *molecule = moleculeFile->molecule(i);
+    QVERIFY2(molecule, qPrintable(QString("appendMolecule(): molecule %1 is null").arg(i)));
+    qDebug() << "appendMolecule() entry" << i << moleculeAtomSummary(molecule);
+    delete molecule;
+  }
 }
 
 QTEST_MAIN(MoleculeFileTest)
