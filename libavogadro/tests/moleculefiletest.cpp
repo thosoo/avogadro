@@ -26,6 +26,8 @@
 #include "config.h"
 
 #include <QtTest>
+#include <QDir>
+#include <QFileInfo>
 #include <avogadro/moleculefile.h>
 #include <avogadro/molecule.h>
 #include <avogadro/atom.h>
@@ -149,11 +151,33 @@ void MoleculeFileTest::readFile()
 {
   QString filename = "moleculefiletest_tmp.sdf";
 
+  auto readDebugContext = [&filename]() {
+    QFileInfo info(filename);
+    QStringList debug;
+    debug << QString("cwd=%1").arg(QDir::currentPath());
+    debug << QString("file=%1 exists=%2 size=%3")
+                 .arg(info.absoluteFilePath())
+                 .arg(info.exists())
+                 .arg(info.exists() ? QString::number(info.size()) : QString("n/a"));
+
+    const QString babelDataDir = QString::fromLocal8Bit(qgetenv("BABEL_DATADIR"));
+    const QString babelLibDir = QString::fromLocal8Bit(qgetenv("BABEL_LIBDIR"));
+    debug << QString("BABEL_DATADIR=%1").arg(babelDataDir.isEmpty() ? QString("<unset>") : babelDataDir);
+    debug << QString("BABEL_LIBDIR=%1").arg(babelLibDir.isEmpty() ? QString("<unset>") : babelLibDir);
+
+    const QStringList pathEntries = QString::fromLocal8Bit(qgetenv("PATH"))
+                                      .split(QDir::listSeparator(), Qt::SkipEmptyParts);
+    if (!pathEntries.isEmpty())
+      debug << QString("PATH[0]=%1").arg(pathEntries.first());
+
+    return debug.join(QStringLiteral("; "));
+  };
+
   OpenBabel::OBMol mol = m_molecule->OBMol();
   OBConversion conv;
   conv.SetOutFormat("sdf");
   std::ofstream ofs(filename.toLatin1().data());
-  QVERIFY( ofs );
+  QVERIFY2(ofs, qPrintable(QString("Failed to open output stream: %1").arg(readDebugContext())));
   // write the molecule 4 times...
   conv.Write(&mol, &ofs);
   conv.Write(&mol, &ofs);
@@ -161,19 +185,19 @@ void MoleculeFileTest::readFile()
   conv.Write(&mol, &ofs);
   ofs.close();
 
-
-
   MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
-  QVERIFY( moleculeFile );
-  QVERIFY( moleculeFile->errors().isEmpty() );
+  QVERIFY2(moleculeFile, qPrintable(QString("readFile returned null. %1").arg(readDebugContext())));
+  QVERIFY2(moleculeFile->errors().isEmpty(),
+           qPrintable(QString("Unexpected read errors: %1 | %2")
+                        .arg(moleculeFile->errors(), readDebugContext())));
   QCOMPARE( moleculeFile->isConformerFile(), true );
   QCOMPARE( moleculeFile->numMolecules(), static_cast<unsigned int>(1) );
-  QCOMPARE( moleculeFile->conformers().size(), 
+  QCOMPARE( moleculeFile->conformers().size(),
       static_cast<std::vector<int>::size_type>(4) );
 
 
   ofs.open(filename.toLatin1().data());
-  QVERIFY( ofs );
+  QVERIFY2(ofs, qPrintable(QString("Failed to reopen output stream: %1").arg(readDebugContext())));
   // write the molecule 4 times...
   conv.Write(&mol, &ofs);
   conv.Write(&mol, &ofs);
@@ -185,11 +209,13 @@ void MoleculeFileTest::readFile()
   ofs.close();
 
   moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
-  QVERIFY( moleculeFile );
-  QVERIFY( moleculeFile->errors().isEmpty() );
+  QVERIFY2(moleculeFile, qPrintable(QString("Second readFile returned null. %1").arg(readDebugContext())));
+  QVERIFY2(moleculeFile->errors().isEmpty(),
+           qPrintable(QString("Unexpected second-read errors: %1 | %2")
+                        .arg(moleculeFile->errors(), readDebugContext())));
   QCOMPARE( moleculeFile->isConformerFile(), false );
   QCOMPARE( moleculeFile->numMolecules(), static_cast<unsigned int>(4) );
-  QCOMPARE( moleculeFile->conformers().size(), 
+  QCOMPARE( moleculeFile->conformers().size(),
       static_cast<std::vector<int>::size_type>(0) );
 }
 
