@@ -181,6 +181,9 @@ void MoleculeFileTest::readFile()
   conv.Write(&mol, &ofs);
   conv.Write(&mol, &ofs);
 
+  // Close the stream before reopening the file on Windows.
+  ofs.close();
+
   moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
