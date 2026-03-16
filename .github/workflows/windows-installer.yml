@@ -180,7 +180,40 @@ jobs:
         if: matrix.target == 'tests'
         shell: pwsh
         run: |
-          $env:PATH = "$PWD\build\openbabel-install\bin;$env:PATH"
+          $obInstall = Join-Path $PWD 'build/openbabel-install'
+          $obBin = Join-Path $obInstall 'bin'
+          $obShareRoot = Join-Path $obInstall 'share/openbabel'
+          $obLibRoot = Join-Path $obInstall 'lib/openbabel'
+
+          $obDataDir = $obInstall
+          if (Test-Path $obShareRoot) {
+            $versionedShare = Get-ChildItem $obShareRoot -Directory | Select-Object -First 1
+            if ($versionedShare) {
+              $obDataDir = $versionedShare.FullName
+            }
+          }
+
+          $obPluginDir = $null
+          if (Test-Path $obLibRoot) {
+            $versionedPlugin = Get-ChildItem $obLibRoot -Directory | Select-Object -First 1
+            if ($versionedPlugin) {
+              $obPluginDir = $versionedPlugin.FullName
+            }
+          }
+
+          $env:BABEL_DATADIR = $obDataDir
+          if ($obPluginDir) {
+            $env:BABEL_LIBDIR = $obPluginDir
+            $env:PATH = "$obPluginDir;$obBin;$env:PATH"
+          } else {
+            $env:PATH = "$obBin;$env:PATH"
+          }
+
+          Write-Host "Using BABEL_DATADIR=$env:BABEL_DATADIR"
+          if ($env:BABEL_LIBDIR) {
+            Write-Host "Using BABEL_LIBDIR=$env:BABEL_LIBDIR"
+          }
+
           ctest --test-dir build -C Release --output-on-failure
       - name: Upload installer
         if: matrix.target == 'installer'
