@@ -201,18 +201,28 @@ jobs:
             }
           }
 
-          $env:BABEL_DATADIR = $obDataDir
-          if ($obPluginDir) {
-            $env:BABEL_LIBDIR = $obPluginDir
-            $env:PATH = "$obPluginDir;$obBin;$env:PATH"
-          } else {
-            $env:PATH = "$obBin;$env:PATH"
+          # Windows Open Babel installs may place plugins under bin instead of lib/openbabel/<version>.
+          if (-not $obPluginDir) {
+            $binPluginDir = Join-Path $obBin 'openbabel'
+            if (Test-Path $binPluginDir) {
+              $versionedBinPlugin = Get-ChildItem $binPluginDir -Directory | Select-Object -First 1
+              if ($versionedBinPlugin) {
+                $obPluginDir = $versionedBinPlugin.FullName
+              }
+            }
+          }
+          if (-not $obPluginDir) {
+            $obPluginDir = $obBin
           }
 
+          $env:BABEL_DATADIR = $obDataDir
+          $env:BABEL_LIBDIR = $obPluginDir
+          $env:PATH = "$obPluginDir;$obBin;$env:PATH"
+
           Write-Host "Using BABEL_DATADIR=$env:BABEL_DATADIR"
-          if ($env:BABEL_LIBDIR) {
-            Write-Host "Using BABEL_LIBDIR=$env:BABEL_LIBDIR"
-          }
+          Write-Host "Using BABEL_LIBDIR=$env:BABEL_LIBDIR"
+          Write-Host "Open Babel install tree (top-level):"
+          Get-ChildItem $obInstall | Select-Object Name, Mode
 
           ctest --test-dir build -C Release --output-on-failure
           if ($LASTEXITCODE -ne 0) {
