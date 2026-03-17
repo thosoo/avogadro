@@ -27,6 +27,7 @@
 
 #include <QtTest>
 #include <QDir>
+#include <QCoreApplication>
 #include <QFileInfo>
 #include <avogadro/moleculefile.h>
 #include <avogadro/molecule.h>
@@ -109,6 +110,39 @@ class MoleculeFileTest : public QObject
 
 void MoleculeFileTest::initTestCase()
 {
+#ifdef WIN32
+  const QString appDir = QCoreApplication::applicationDirPath();
+  const QString obInstallDir = QDir(appDir).absoluteFilePath("../openbabel-install");
+
+  QString babelDataDir = QDir(obInstallDir).absoluteFilePath("share/openbabel");
+  QDir dataRoot(babelDataDir);
+  const QStringList dataVersions = dataRoot.entryList(QDir::Dirs | QDir::NoDotAndDotDot,
+                                                      QDir::Name);
+  if (!dataVersions.isEmpty())
+    babelDataDir = dataRoot.absoluteFilePath(dataVersions.first());
+
+  QString babelLibDir;
+  QDir libRoot(QDir(obInstallDir).absoluteFilePath("lib/openbabel"));
+  const QStringList libVersions = libRoot.entryList(QDir::Dirs | QDir::NoDotAndDotDot,
+                                                    QDir::Name);
+  if (!libVersions.isEmpty()) {
+    babelLibDir = libRoot.absoluteFilePath(libVersions.first());
+  } else {
+    QDir binPluginRoot(QDir(obInstallDir).absoluteFilePath("bin/openbabel"));
+    const QStringList binVersions = binPluginRoot.entryList(QDir::Dirs | QDir::NoDotAndDotDot,
+                                                            QDir::Name);
+    if (!binVersions.isEmpty())
+      babelLibDir = binPluginRoot.absoluteFilePath(binVersions.first());
+    else
+      babelLibDir = QDir(obInstallDir).absoluteFilePath("bin");
+  }
+
+  qputenv("BABEL_DATADIR", QDir::toNativeSeparators(babelDataDir).toLocal8Bit());
+  qputenv("BABEL_LIBDIR", QDir::toNativeSeparators(babelLibDir).toLocal8Bit());
+
+  qDebug() << "moleculefiletest BABEL_DATADIR" << QDir::toNativeSeparators(babelDataDir);
+  qDebug() << "moleculefiletest BABEL_LIBDIR" << QDir::toNativeSeparators(babelLibDir);
+#endif
 }
 
 void MoleculeFileTest::cleanupTestCase()
