@@ -248,13 +248,26 @@ jobs:
             }
 
             if (Test-Path $moleculeTest) {
-              Write-Host "===== Direct moleculefileTest output (-v2) ====="
-              & $moleculeTest -v2 2>&1 | Out-String | Write-Host
-              Write-Host "moleculefiletest -v2 exit code: $LASTEXITCODE"
+              Write-Host "===== Direct moleculefileTest output (-o -,txt) ====="
+              & $moleculeTest -o -,txt 2>&1 | Out-String | Write-Host
+              Write-Host "moleculefiletest -o -,txt exit code: $LASTEXITCODE"
 
               Write-Host "===== Direct moleculefileTest test list (-functions) ====="
               & $moleculeTest -functions 2>&1 | Out-String | Write-Host
               Write-Host "moleculefiletest -functions exit code: $LASTEXITCODE"
+
+              $moleculeFunctions = @(
+                'readWriteMolecule',
+                'readFile',
+                'readWriteConformers',
+                'replaceMolecule',
+                'appendMolecule'
+              )
+              foreach ($fn in $moleculeFunctions) {
+                Write-Host "===== moleculefileTest function: $fn ====="
+                & $moleculeTest $fn -o -,txt 2>&1 | Out-String | Write-Host
+                Write-Host "moleculefiletest $fn exit code: $LASTEXITCODE"
+              }
 
               Write-Host "===== ctest verbose rerun for moleculefileTest ====="
               ctest --test-dir build -C Release -R moleculefileTest -V 2>&1 | Out-String | Write-Host
@@ -263,6 +276,27 @@ jobs:
               if ($dumpbin) {
                 Write-Host "===== moleculefiletest dependencies (dumpbin /DEPENDENTS) ====="
                 & dumpbin.exe /DEPENDENTS $moleculeTest 2>&1 | Out-String | Write-Host
+
+                $openbabelDll = Join-Path $obBin 'openbabel-3.dll'
+                if (Test-Path $openbabelDll) {
+                  Write-Host "===== openbabel-3.dll dependencies (dumpbin /DEPENDENTS) ====="
+                  & dumpbin.exe /DEPENDENTS $openbabelDll 2>&1 | Out-String | Write-Host
+                }
+
+                $pluginDll = Get-ChildItem $env:BABEL_LIBDIR -Filter 'plugin*.dll' -ErrorAction SilentlyContinue | Select-Object -First 1
+                if (-not $pluginDll) {
+                  $pluginDll = Get-ChildItem $env:BABEL_LIBDIR -Filter 'format*.dll' -ErrorAction SilentlyContinue | Select-Object -First 1
+                }
+                if ($pluginDll) {
+                  Write-Host "===== $($pluginDll.Name) dependencies (dumpbin /DEPENDENTS) ====="
+                  & dumpbin.exe /DEPENDENTS $pluginDll.FullName 2>&1 | Out-String | Write-Host
+                }
+              }
+
+              foreach ($dllName in @('openbabel-3.dll', 'libxml2.dll', 'zlib.dll', 'Qt5Core.dll')) {
+                Write-Host "===== where.exe $dllName ====="
+                & where.exe $dllName 2>&1 | Out-String | Write-Host
+                Write-Host "where.exe $dllName exit code: $LASTEXITCODE"
               }
             } else {
               Write-Host "moleculefiletest executable not found in build/bin or build/bin/Release"
@@ -270,7 +304,7 @@ jobs:
 
             Write-Host "===== Open Babel plugin dir listing ====="
             if (Test-Path $env:BABEL_LIBDIR) {
-              Get-ChildItem $env:BABEL_LIBDIR | Select-Object -First 40 Name, Length, Mode
+              Get-ChildItem $env:BABEL_LIBDIR | Select-Object -First 80 Name, Length, Mode
             } else {
               Write-Host "BABEL_LIBDIR path does not exist: $env:BABEL_LIBDIR"
             }
