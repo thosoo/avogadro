@@ -108,10 +108,13 @@ jobs:
           Write-Host "libxml2 library path after install:" $installDir
           $inc = Join-Path $installDir 'include'
           $lib = Join-Path $installDir 'lib' 'libxml2.lib'
+          $bin = Join-Path $installDir 'bin'
           "CMAKE_PREFIX_PATH=$installDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "LIBXML2_LIBRARY=$lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "LIBXML2_LIBRARIES=$lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "LIBXML2_INCLUDE_DIR=$inc" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "LIBXML2_BIN_DIR=$bin" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Install Qt
         shell: pwsh
         run: |
@@ -224,6 +227,11 @@ jobs:
           Write-Host "Open Babel install tree (top-level):"
           Get-ChildItem $obInstall | Select-Object Name, Mode
 
+          if ($env:LIBXML2_BIN_DIR) {
+            $xmlDll = Join-Path $env:LIBXML2_BIN_DIR 'libxml2.dll'
+            Write-Host "libxml2.dll exists=$((Test-Path $xmlDll)) at $xmlDll"
+          }
+
           ctest --test-dir build -C Release --output-on-failure
           if ($LASTEXITCODE -ne 0) {
             Write-Host "ctest failed; collecting detailed logs for moleculefileTest"
@@ -242,9 +250,20 @@ jobs:
             if (Test-Path $moleculeTest) {
               Write-Host "===== Direct moleculefileTest output (-v2) ====="
               & $moleculeTest -v2 2>&1 | Out-String | Write-Host
+              Write-Host "moleculefiletest -v2 exit code: $LASTEXITCODE"
+
+              Write-Host "===== Direct moleculefileTest test list (-functions) ====="
+              & $moleculeTest -functions 2>&1 | Out-String | Write-Host
+              Write-Host "moleculefiletest -functions exit code: $LASTEXITCODE"
 
               Write-Host "===== ctest verbose rerun for moleculefileTest ====="
               ctest --test-dir build -C Release -R moleculefileTest -V 2>&1 | Out-String | Write-Host
+
+              $dumpbin = Get-Command dumpbin.exe -ErrorAction SilentlyContinue
+              if ($dumpbin) {
+                Write-Host "===== moleculefiletest dependencies (dumpbin /DEPENDENTS) ====="
+                & dumpbin.exe /DEPENDENTS $moleculeTest 2>&1 | Out-String | Write-Host
+              }
             } else {
               Write-Host "moleculefiletest executable not found in build/bin or build/bin/Release"
             }
