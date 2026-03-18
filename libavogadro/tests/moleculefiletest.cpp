@@ -105,7 +105,8 @@ bool writeSmilesAsSdf(const QString &smiles, const QString &title, OBConversion 
   if (!smilesConv.Read(&mol, &input))
     return false;
 
-  mol.SetTitle(title.toStdString());
+  std::string titleString = title.toStdString();
+  mol.SetTitle(titleString);
   return conv.Write(&mol, &ofs);
 }
 }
