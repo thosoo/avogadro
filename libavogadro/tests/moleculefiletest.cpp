@@ -366,14 +366,14 @@ void MoleculeFileTest::replaceMolecule()
   // check 1st molecule
   Molecule *propane = moleculeFile->molecule(0);
   QVERIFY2(propane, qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): propane molecule is null", propane)));
-  QCOMPARE( propane->numAtoms(), static_cast<unsigned int>(3) );
+  QCOMPARE( propane->numAtoms(), static_cast<unsigned int>(11) );
   QCOMPARE( countAtomsWithAtomicNumber(propane, 6), static_cast<unsigned int>(3) );
   delete propane;
 
   // check 2nd molecule
   Molecule *aminoethanol = moleculeFile->molecule(1);
   QVERIFY2(aminoethanol, qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): 2-aminoethanol molecule is null", aminoethanol)));
-  QCOMPARE( aminoethanol->numAtoms(), static_cast<unsigned int>(4) );
+  QCOMPARE( aminoethanol->numAtoms(), static_cast<unsigned int>(11) );
   QCOMPARE( countAtomsWithAtomicNumber(aminoethanol, 6), static_cast<unsigned int>(2) );
   QCOMPARE( countAtomsWithAtomicNumber(aminoethanol, 7), static_cast<unsigned int>(1) );
   QCOMPARE( countAtomsWithAtomicNumber(aminoethanol, 8), static_cast<unsigned int>(1) );
@@ -382,7 +382,7 @@ void MoleculeFileTest::replaceMolecule()
   // check 3rd molecule
   Molecule *ethanol = moleculeFile->molecule(2);
   QVERIFY2(ethanol, qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): ethanol molecule is null", ethanol)));
-  QCOMPARE( ethanol->numAtoms(), static_cast<unsigned int>(3) );
+  QCOMPARE( ethanol->numAtoms(), static_cast<unsigned int>(9) );
   QCOMPARE( countAtomsWithAtomicNumber(ethanol, 6), static_cast<unsigned int>(2) );
   QCOMPARE( countAtomsWithAtomicNumber(ethanol, 8), static_cast<unsigned int>(1) );
   delete ethanol;
@@ -402,7 +402,7 @@ void MoleculeFileTest::replaceMolecule()
   aminoethanol = moleculeFile->molecule(1);
   QVERIFY2(aminoethanol,
            qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): 2-aminoethanol null after replace", aminoethanol)));
-  QVERIFY2(aminoethanol->numAtoms() == static_cast<unsigned int>(6),
+  QVERIFY2(aminoethanol->numAtoms() == static_cast<unsigned int>(13),
            qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): unexpected 2-aminoethanol atom count after replace", aminoethanol)));
   QVERIFY2(countAtomsWithAtomicNumber(aminoethanol, 7) == static_cast<unsigned int>(1),
            qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): unexpected 2-aminoethanol nitrogen count after replace", aminoethanol)));
@@ -410,7 +410,7 @@ void MoleculeFileTest::replaceMolecule()
            qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): unexpected 2-aminoethanol oxygen count after replace", aminoethanol)));
   QVERIFY2(countAtomsWithAtomicNumber(aminoethanol, 6) == static_cast<unsigned int>(4),
            qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): unexpected 2-aminoethanol carbon count after replace", aminoethanol)));
-  QCOMPARE( aminoethanol->numAtoms(), static_cast<unsigned int>(6) );
+  QCOMPARE( aminoethanol->numAtoms(), static_cast<unsigned int>(13) );
   QCOMPARE( countAtomsWithAtomicNumber(aminoethanol, 7), static_cast<unsigned int>(1) );
   QCOMPARE( countAtomsWithAtomicNumber(aminoethanol, 8), static_cast<unsigned int>(1) );
   QCOMPARE( countAtomsWithAtomicNumber(aminoethanol, 6), static_cast<unsigned int>(4) );
@@ -418,13 +418,13 @@ void MoleculeFileTest::replaceMolecule()
   ethanol = moleculeFile->molecule(2);
   QVERIFY2(ethanol,
            qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): ethanol null after 2-aminoethanol replace", ethanol)));
-  QVERIFY2(ethanol->numAtoms() == static_cast<unsigned int>(3),
+  QVERIFY2(ethanol->numAtoms() == static_cast<unsigned int>(9),
            qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): unexpected ethanol atom count after 2-aminoethanol replace", ethanol)));
   QVERIFY2(countAtomsWithAtomicNumber(ethanol, 6) == static_cast<unsigned int>(2),
            qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): unexpected ethanol carbon count after 2-aminoethanol replace", ethanol)));
   QVERIFY2(countAtomsWithAtomicNumber(ethanol, 8) == static_cast<unsigned int>(1),
            qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): unexpected ethanol oxygen count after 2-aminoethanol replace", ethanol)));
-  QCOMPARE( ethanol->numAtoms(), static_cast<unsigned int>(3) );
+  QCOMPARE( ethanol->numAtoms(), static_cast<unsigned int>(9) );
   QCOMPARE( countAtomsWithAtomicNumber(ethanol, 6), static_cast<unsigned int>(2) );
   QCOMPARE( countAtomsWithAtomicNumber(ethanol, 8), static_cast<unsigned int>(1) );
   delete ethanol;
@@ -443,11 +443,11 @@ void MoleculeFileTest::replaceMolecule()
   propane = moleculeFile->molecule(0);
   QVERIFY2(propane,
            qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): propane null after replace", propane)));
-  QVERIFY2(propane->numAtoms() == static_cast<unsigned int>(5),
+  QVERIFY2(propane->numAtoms() == static_cast<unsigned int>(13),
            qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): unexpected propane atom count after replace", propane)));
   QVERIFY2(countAtomsWithAtomicNumber(propane, 6) == static_cast<unsigned int>(5),
            qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): unexpected propane carbon count after replace", propane)));
-  QCOMPARE( propane->numAtoms(), static_cast<unsigned int>(5) );
+  QCOMPARE( propane->numAtoms(), static_cast<unsigned int>(13) );
   QCOMPARE( countAtomsWithAtomicNumber(propane, 6), static_cast<unsigned int>(5) );
   delete propane;
  
