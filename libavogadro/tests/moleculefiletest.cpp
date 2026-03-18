@@ -70,6 +70,13 @@ QString moleculeAtomSummary(Molecule *molecule)
       .arg(countAtomsWithAtomicNumber(molecule, 7))
       .arg(countAtomsWithAtomicNumber(molecule, 8));
 }
+
+Atom *addTypedAtom(Molecule *molecule, unsigned int atomicNumber)
+{
+  Atom *atom = molecule->addAtom();
+  atom->setAtomicNumber(atomicNumber);
+  return atom;
+}
 }
 
 class MoleculeFileTest : public QObject
@@ -345,9 +352,11 @@ void MoleculeFileTest::replaceMolecule()
 
   // replace 2nd
   aniline = moleculeFile->molecule(1);
-  aniline->addAtom();
-  aniline->addAtom();
-  QVERIFY( moleculeFile->replaceMolecule(1, aniline, filename) );
+  addTypedAtom(aniline, 6);
+  addTypedAtom(aniline, 1);
+  QVERIFY2(moleculeFile->replaceMolecule(1, aniline, filename),
+           qPrintable(QString("replaceMolecule(): replacing aniline failed: %1")
+                        .arg(moleculeFile->errors())));
   delete aniline;
 
   // check again
@@ -355,6 +364,8 @@ void MoleculeFileTest::replaceMolecule()
   QVERIFY2( aniline, "replaceMolecule(): aniline null after replace" );
   QCOMPARE( aniline->numAtoms(), static_cast<unsigned int>(9) );
   QCOMPARE( countAtomsWithAtomicNumber(aniline, 7), static_cast<unsigned int>(1) );
+  QCOMPARE( countAtomsWithAtomicNumber(aniline, 6), static_cast<unsigned int>(7) );
+  QCOMPARE( countAtomsWithAtomicNumber(aniline, 1), static_cast<unsigned int>(1) );
   delete aniline;
   toluene = moleculeFile->molecule(2);
   QVERIFY2( toluene, "replaceMolecule(): toluene null after replace" );
@@ -364,14 +375,18 @@ void MoleculeFileTest::replaceMolecule()
 
   // replace 1st
   phenyl = moleculeFile->molecule(0);
-  phenyl->addAtom();
-  phenyl->addAtom();
-  QVERIFY( moleculeFile->replaceMolecule(0, phenyl, filename) );
+  addTypedAtom(phenyl, 6);
+  addTypedAtom(phenyl, 1);
+  QVERIFY2(moleculeFile->replaceMolecule(0, phenyl, filename),
+           qPrintable(QString("replaceMolecule(): replacing phenyl failed: %1")
+                        .arg(moleculeFile->errors())));
   delete phenyl;
   // check again
   phenyl = moleculeFile->molecule(0);
   QVERIFY( phenyl );
   QCOMPARE( phenyl->numAtoms(), static_cast<unsigned int>(8) );
+  QCOMPARE( countAtomsWithAtomicNumber(phenyl, 6), static_cast<unsigned int>(7) );
+  QCOMPARE( countAtomsWithAtomicNumber(phenyl, 1), static_cast<unsigned int>(1) );
   delete phenyl;
  
 

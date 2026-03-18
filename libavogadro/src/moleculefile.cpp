@@ -254,8 +254,19 @@ namespace Avogadro {
     ofs.close();
 
     QFile newFile(newFilename);
-    QFile(m_fileName).remove();
-    newFile.rename(m_fileName);
+    QFile existingFile(m_fileName);
+    if (!existingFile.remove()) {
+      m_error.append(tr("Could not replace file '%1': failed to remove the original file.")
+                         .arg(m_fileName));
+      newFile.remove();
+      return false;
+    }
+    if (!newFile.rename(m_fileName)) {
+      m_error.append(tr("Could not replace file '%1': failed to rename the temporary file.")
+                         .arg(m_fileName));
+      newFile.remove();
+      return false;
+    }
 
 
     // adjust the cached variables
@@ -657,9 +668,24 @@ namespace Avogadro {
         ofs << std::endl;
     }
 
+    ofs.close();
+
     if (success) {
-      QFile(fileName).remove();
-      newFile.rename(fileName);
+      QFile existingFile(fileName);
+      if (existingFile.exists() && !existingFile.remove()) {
+        if (error)
+          error->append(QObject::tr("Writing conformers to file '%1' failed: could not remove the original file.")
+                            .arg(fileName));
+        newFile.remove();
+        return false;
+      }
+      if (!newFile.rename(fileName)) {
+        if (error)
+          error->append(QObject::tr("Writing conformers to file '%1' failed: could not rename the temporary file.")
+                            .arg(fileName));
+        newFile.remove();
+        return false;
+      }
       return true;
     }
 
