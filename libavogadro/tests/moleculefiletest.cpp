@@ -29,6 +29,7 @@
 #include <QDir>
 #include <QCoreApplication>
 #include <QFileInfo>
+#include <QStringList>
 #include <avogadro/moleculefile.h>
 #include <avogadro/molecule.h>
 #include <avogadro/atom.h>
@@ -37,6 +38,8 @@
 #include <openbabel/obconversion.h>
 
 #include <Eigen/Core>
+
+#include <sstream>
 
 using OpenBabel::OBMol;
 using OpenBabel::OBConversion;
@@ -71,12 +74,39 @@ QString moleculeAtomSummary(Molecule *molecule)
       .arg(countAtomsWithAtomicNumber(molecule, 8));
 }
 
+QString replaceDebugContext(MoleculeFile *moleculeFile, const char *label, Molecule *molecule)
+{
+  QStringList debug;
+  debug << QString::fromLatin1(label);
+  debug << moleculeAtomSummary(molecule);
+  if (moleculeFile && !moleculeFile->errors().isEmpty())
+    debug << QStringLiteral("errors=%1").arg(moleculeFile->errors());
+  return debug.join(QStringLiteral("; "));
+}
+
 Atom *addBondedTypedAtom(Molecule *molecule, Atom *anchor, unsigned int atomicNumber)
 {
   Atom *atom = molecule->addAtom();
   atom->setAtomicNumber(atomicNumber);
   molecule->addBond(anchor, atom, 1);
   return atom;
+}
+
+bool writeSmilesAsSdf(const QString &smiles, const QString &title, OBConversion &conv,
+                     std::ofstream &ofs)
+{
+  OBConversion smilesConv;
+  if (!smilesConv.SetInFormat("smi"))
+    return false;
+
+  OBMol mol;
+  std::stringstream input;
+  input << smiles.toStdString() << " " << title.toStdString();
+  if (!smilesConv.Read(&mol, &input))
+    return false;
+
+  mol.SetTitle(title.toStdString());
+  return conv.Write(&mol, &ofs);
 }
 }
 
@@ -315,13 +345,18 @@ void MoleculeFileTest::readWriteConformers()
 
 void MoleculeFileTest::replaceMolecule()
 {
-  QString filename = "moleculefiletest_tmp.smi";
+  QString filename = "moleculefiletest_tmp.sdf";
+  OBConversion sdfConv;
+  QVERIFY2(sdfConv.SetOutFormat("sdf"),
+           "replaceMolecule(): failed to configure SDF output format");
   std::ofstream ofs(filename.toLatin1().data());
-  ofs << "c1ccccc1  phenyl" << std::endl;
-  ofs << "c1ccccc1N  aniline" << std::endl;
-  // Use the more standard SMILES form with the methyl group first to avoid
-  // Open Babel's kekulization warnings.
-  ofs << "Cc1ccccc1  toluene" << std::endl;
+  QVERIFY2(ofs, "replaceMolecule(): failed to open temporary SDF file");
+  QVERIFY2(writeSmilesAsSdf("c1ccccc1", "phenyl", sdfConv, ofs),
+           "replaceMolecule(): failed to write phenyl SDF entry");
+  QVERIFY2(writeSmilesAsSdf("c1ccccc1N", "aniline", sdfConv, ofs),
+           "replaceMolecule(): failed to write aniline SDF entry");
+  QVERIFY2(writeSmilesAsSdf("Cc1ccccc1", "toluene", sdfConv, ofs),
+           "replaceMolecule(): failed to write toluene SDF entry");
   ofs.close();
 
   MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
@@ -332,21 +367,21 @@ void MoleculeFileTest::replaceMolecule()
 
   // check 1st molecule
   Molecule *phenyl = moleculeFile->molecule(0);
-  QVERIFY2(phenyl, "replaceMolecule(): phenyl molecule is null");
+  QVERIFY2(phenyl, qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): phenyl molecule is null", phenyl)));
   QCOMPARE( phenyl->numAtoms(), static_cast<unsigned int>(6) );
   QCOMPARE( countAtomsWithAtomicNumber(phenyl, 6), static_cast<unsigned int>(6) );
   delete phenyl;
 
   // check 2nd molecule
   Molecule *aniline = moleculeFile->molecule(1);
-  QVERIFY2(aniline, "replaceMolecule(): aniline molecule is null");
+  QVERIFY2(aniline, qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): aniline molecule is null", aniline)));
   QCOMPARE( aniline->numAtoms(), static_cast<unsigned int>(7) );
   QCOMPARE( countAtomsWithAtomicNumber(aniline, 7), static_cast<unsigned int>(1) );
   delete aniline;
 
   // check 3rd molecule
   Molecule *toluene = moleculeFile->molecule(2);
-  QVERIFY2(toluene, "replaceMolecule(): toluene molecule is null");
+  QVERIFY2(toluene, qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): toluene molecule is null", toluene)));
   QCOMPARE( toluene->numAtoms(), static_cast<unsigned int>(7) );
   QCOMPARE( countAtomsWithAtomicNumber(toluene, 6), static_cast<unsigned int>(7) );
   delete toluene;
@@ -364,13 +399,25 @@ void MoleculeFileTest::replaceMolecule()
 
   // check again
   aniline = moleculeFile->molecule(1);
-  QVERIFY2( aniline, "replaceMolecule(): aniline null after replace" );
+  QVERIFY2(aniline,
+           qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): aniline null after replace", aniline)));
+  QVERIFY2(aniline->numAtoms() == static_cast<unsigned int>(9),
+           qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): unexpected aniline atom count after replace", aniline)));
+  QVERIFY2(countAtomsWithAtomicNumber(aniline, 7) == static_cast<unsigned int>(1),
+           qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): unexpected aniline nitrogen count after replace", aniline)));
+  QVERIFY2(countAtomsWithAtomicNumber(aniline, 6) == static_cast<unsigned int>(8),
+           qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): unexpected aniline carbon count after replace", aniline)));
   QCOMPARE( aniline->numAtoms(), static_cast<unsigned int>(9) );
   QCOMPARE( countAtomsWithAtomicNumber(aniline, 7), static_cast<unsigned int>(1) );
   QCOMPARE( countAtomsWithAtomicNumber(aniline, 6), static_cast<unsigned int>(8) );
   delete aniline;
   toluene = moleculeFile->molecule(2);
-  QVERIFY2( toluene, "replaceMolecule(): toluene null after replace" );
+  QVERIFY2(toluene,
+           qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): toluene null after aniline replace", toluene)));
+  QVERIFY2(toluene->numAtoms() == static_cast<unsigned int>(7),
+           qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): unexpected toluene atom count after aniline replace", toluene)));
+  QVERIFY2(countAtomsWithAtomicNumber(toluene, 6) == static_cast<unsigned int>(7),
+           qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): unexpected toluene carbon count after aniline replace", toluene)));
   QCOMPARE( toluene->numAtoms(), static_cast<unsigned int>(7) );
   QCOMPARE( countAtomsWithAtomicNumber(toluene, 6), static_cast<unsigned int>(7) );
   delete toluene;
@@ -387,7 +434,12 @@ void MoleculeFileTest::replaceMolecule()
   delete phenyl;
   // check again
   phenyl = moleculeFile->molecule(0);
-  QVERIFY( phenyl );
+  QVERIFY2(phenyl,
+           qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): phenyl null after replace", phenyl)));
+  QVERIFY2(phenyl->numAtoms() == static_cast<unsigned int>(8),
+           qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): unexpected phenyl atom count after replace", phenyl)));
+  QVERIFY2(countAtomsWithAtomicNumber(phenyl, 6) == static_cast<unsigned int>(8),
+           qPrintable(replaceDebugContext(moleculeFile, "replaceMolecule(): unexpected phenyl carbon count after replace", phenyl)));
   QCOMPARE( phenyl->numAtoms(), static_cast<unsigned int>(8) );
   QCOMPARE( countAtomsWithAtomicNumber(phenyl, 6), static_cast<unsigned int>(8) );
   delete phenyl;

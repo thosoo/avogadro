@@ -271,7 +271,7 @@ jobs:
               foreach ($fn in $moleculeFunctions) {
                 Write-Host "===== moleculefileTest function: $fn ====="
                 $fnTxt = Join-Path $PWD ("build/moleculefiletest-{0}.txt" -f $fn)
-                & $moleculeTest $fn -o -,txt -o $fnTxt,txt 2>&1 | Out-String | Write-Host
+                & $moleculeTest -o -,txt -o $fnTxt,txt $fn 2>&1 | Out-String | Write-Host
                 Write-Host "moleculefiletest $fn exit code: $LASTEXITCODE"
                 if (Test-Path $fnTxt) {
                   Write-Host "===== moleculefileTest $fn txt file ====="
