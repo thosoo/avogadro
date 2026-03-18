@@ -249,8 +249,13 @@ jobs:
 
             if (Test-Path $moleculeTest) {
               Write-Host "===== Direct moleculefileTest output (-o -,txt) ====="
-              & $moleculeTest -o -,txt 2>&1 | Out-String | Write-Host
+              $directTxt = Join-Path $PWD 'build/moleculefiletest-direct.txt'
+              & $moleculeTest -o -,txt -o $directTxt,txt 2>&1 | Out-String | Write-Host
               Write-Host "moleculefiletest -o -,txt exit code: $LASTEXITCODE"
+              if (Test-Path $directTxt) {
+                Write-Host "===== moleculefileTest direct txt file ====="
+                Get-Content $directTxt
+              }
 
               Write-Host "===== Direct moleculefileTest test list (-functions) ====="
               & $moleculeTest -functions 2>&1 | Out-String | Write-Host
@@ -265,8 +270,13 @@ jobs:
               )
               foreach ($fn in $moleculeFunctions) {
                 Write-Host "===== moleculefileTest function: $fn ====="
-                & $moleculeTest $fn -o -,txt 2>&1 | Out-String | Write-Host
+                $fnTxt = Join-Path $PWD ("build/moleculefiletest-{0}.txt" -f $fn)
+                & $moleculeTest $fn -o -,txt -o $fnTxt,txt 2>&1 | Out-String | Write-Host
                 Write-Host "moleculefiletest $fn exit code: $LASTEXITCODE"
+                if (Test-Path $fnTxt) {
+                  Write-Host "===== moleculefileTest $fn txt file ====="
+                  Get-Content $fnTxt
+                }
               }
 
               Write-Host "===== ctest verbose rerun for moleculefileTest ====="
