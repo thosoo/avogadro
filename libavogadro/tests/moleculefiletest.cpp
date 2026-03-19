@@ -150,44 +150,51 @@ void MoleculeFileTest::readFile()
   QString filename = "moleculefiletest_tmp.sdf";
 
   OpenBabel::OBMol mol = m_molecule->OBMol();
-  OBConversion conv;
-  conv.SetOutFormat("sdf");
-  std::ofstream ofs(filename.toLatin1().data());
-  QVERIFY( ofs );
-  // write the molecule 4 times...
-  conv.Write(&mol, &ofs);
-  conv.Write(&mol, &ofs);
-  conv.Write(&mol, &ofs);
-  conv.Write(&mol, &ofs);
-  ofs.close();
 
+  {
+    OBConversion conv;
+    conv.SetOutFormat("sdf");
+    std::ofstream ofs(filename.toLatin1().data());
+    QVERIFY( ofs );
+    // write the molecule 4 times...
+    conv.Write(&mol, &ofs);
+    conv.Write(&mol, &ofs);
+    conv.Write(&mol, &ofs);
+    conv.Write(&mol, &ofs);
+    ofs.close();
+  }
 
+  {
+    MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
+    QVERIFY( moleculeFile );
+    QVERIFY( moleculeFile->errors().isEmpty() );
+    QCOMPARE( moleculeFile->isConformerFile(), true );
+    QCOMPARE( moleculeFile->numMolecules(), static_cast<unsigned int>(1) );
+    QCOMPARE( moleculeFile->conformers().size(),
+        static_cast<std::vector<int>::size_type>(4) );
+    delete moleculeFile;
+  }
+
+  {
+    OBConversion conv;
+    conv.SetOutFormat("sdf");
+    std::ofstream ofs(filename.toLatin1().data());
+    QVERIFY( ofs );
+    // write the molecule 4 times...
+    conv.Write(&mol, &ofs);
+    conv.Write(&mol, &ofs);
+    mol.NewAtom();
+    conv.Write(&mol, &ofs);
+    conv.Write(&mol, &ofs);
+    ofs.close();
+  }
 
   MoleculeFile* moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
   QVERIFY( moleculeFile );
   QVERIFY( moleculeFile->errors().isEmpty() );
-  QCOMPARE( moleculeFile->isConformerFile(), true );
-  QCOMPARE( moleculeFile->numMolecules(), static_cast<unsigned int>(1) );
-  QCOMPARE( moleculeFile->conformers().size(), 
-      static_cast<std::vector<int>::size_type>(4) );
-  delete moleculeFile;
-
-  ofs.open(filename.toLatin1().data());
-  QVERIFY( ofs );
-  // write the molecule 4 times...
-  conv.Write(&mol, &ofs);
-  conv.Write(&mol, &ofs);
-  mol.NewAtom();
-  conv.Write(&mol, &ofs);
-  conv.Write(&mol, &ofs);
-  ofs.close();
-
-  moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
-  QVERIFY( moleculeFile );
-  QVERIFY( moleculeFile->errors().isEmpty() );
   QCOMPARE( moleculeFile->isConformerFile(), false );
   QCOMPARE( moleculeFile->numMolecules(), static_cast<unsigned int>(4) );
-  QCOMPARE( moleculeFile->conformers().size(), 
+  QCOMPARE( moleculeFile->conformers().size(),
       static_cast<std::vector<int>::size_type>(0) );
   delete moleculeFile;
 }
