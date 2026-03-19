@@ -170,7 +170,7 @@ void MoleculeFileTest::readFile()
   QCOMPARE( moleculeFile->numMolecules(), static_cast<unsigned int>(1) );
   QCOMPARE( moleculeFile->conformers().size(), 
       static_cast<std::vector<int>::size_type>(4) );
-
+  delete moleculeFile;
 
   ofs.open(filename.toLatin1().data());
   QVERIFY( ofs );
@@ -189,6 +189,7 @@ void MoleculeFileTest::readFile()
   QCOMPARE( moleculeFile->numMolecules(), static_cast<unsigned int>(4) );
   QCOMPARE( moleculeFile->conformers().size(), 
       static_cast<std::vector<int>::size_type>(0) );
+  delete moleculeFile;
 }
 
 void MoleculeFileTest::readWriteConformers()
