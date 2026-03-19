@@ -180,6 +180,7 @@ void MoleculeFileTest::readFile()
   mol.NewAtom();
   conv.Write(&mol, &ofs);
   conv.Write(&mol, &ofs);
+  ofs.close();
 
   moleculeFile = MoleculeFile::readFile(filename.toLatin1().data());
   QVERIFY( moleculeFile );
