@@ -167,7 +167,7 @@ void ReadFileThread::run()
 
   // Now attempt to read the molecule in
   ifstream ifs;
-  ifs.open(m_moleculeFile->m_fileName.toLocal8Bit(), std::ios::in | std::ios::binary); // This handles utf8 file names etc
+  ifs.open(m_moleculeFile->m_fileName.toLocal8Bit()); // This handles utf8 file names etc
   if (!ifs) // Should not happen, already checked file could be opened
     return;
 
