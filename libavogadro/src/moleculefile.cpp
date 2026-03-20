@@ -163,7 +163,7 @@ namespace Avogadro {
 
     // Now attempt to read the molecule in
     ifstream ifs;
-    ifs.open(m_fileName.toLocal8Bit()); // This handles utf8 file names etc
+    ifs.open(m_fileName.toLocal8Bit(), std::ios::in | std::ios::binary); // This handles utf8 file names etc
     ifs.seekg(d->streampos.at(i));
 
     if (!ifs) // Should not happen, already checked file could be opened
@@ -214,14 +214,14 @@ namespace Avogadro {
     // Now attempt to open the file.new for writing
     ofstream ofs;
     QString newFilename(m_fileName.toLocal8Bit() + QLatin1String(".new"));
-    ofs.open(newFilename.toLatin1().data()); // This handles utf8 file names etc
+    ofs.open(newFilename.toLatin1().data(), std::ios::out | std::ios::binary); // This handles utf8 file names etc
     if (!ofs) {
       m_error.append(tr("Could not open file '%1' for writing.").arg(m_fileName));
       return false;
     }
     // Copy molecules 0 to i-1 to .new file
     ifstream ifs;
-    ifs.open(m_fileName.toLocal8Bit()); // This handles utf8 file names etc
+    ifs.open(m_fileName.toLocal8Bit(), std::ios::in | std::ios::binary); // This handles utf8 file names etc
     if (!ifs) {
       m_error.append(tr("Could not open file '%1' for reading.").arg(m_fileName));
       return false;
@@ -544,7 +544,7 @@ namespace Avogadro {
 
     // Now attempt to write the molecule in
     ofstream ofs;
-    ofs.open(newFileName.toLocal8Bit()); // This handles utf8 file names etc
+    ofs.open(newFileName.toLocal8Bit(), std::ios::out | std::ios::binary); // This handles utf8 file names etc
     if (!ofs) {// Should not happen, already checked file could be opened
       qDebug() << "ofs is bad";
       return false;
@@ -639,7 +639,7 @@ namespace Avogadro {
 
     // Now attempt to write the molecule in
     ofstream ofs;
-    ofs.open(newFileName.toLocal8Bit()); // This handles utf8 file names etc
+    ofs.open(newFileName.toLocal8Bit(), std::ios::out | std::ios::binary); // This handles utf8 file names etc
     if (!ofs) // Should not happen, already checked file could be opened
       return false;
 
