@@ -25,6 +25,7 @@ XtbOptTool::XtbOptTool(QObject *parent)
   : Tool(parent), m_glwidget(nullptr), m_thread(new XtbOptThread),
     m_settingsWidget(nullptr), m_running(false),
     m_setupFailed(false), m_threadsSpinBox(nullptr),
+    m_stepSizeSpinBox(nullptr),
     m_comboEngine(nullptr), m_comboLevel(nullptr), m_comboMethod(nullptr),
     m_progressBar(nullptr), m_lastEnergy(0.0), m_deltaEnergy(0.0)
 {
@@ -140,6 +141,14 @@ QWidget* XtbOptTool::settingsWidget()
     m_stepsSpinBox->setMaximum(50);
     m_stepsSpinBox->setValue(4);
 
+    QLabel *stepSizeLabel = new QLabel(tr("Step Size:"));
+    m_stepSizeSpinBox = new QDoubleSpinBox(m_settingsWidget);
+    m_stepSizeSpinBox->setDecimals(3);
+    m_stepSizeSpinBox->setSingleStep(0.01);
+    m_stepSizeSpinBox->setMinimum(0.001);
+    m_stepSizeSpinBox->setMaximum(1.0);
+    m_stepSizeSpinBox->setValue(0.1);
+
     QLabel *engineLabel = new QLabel(tr("Engine:"));
     m_comboEngine = new QComboBox(m_settingsWidget);
     m_comboEngine->addItem(tr("Gradient Descent"));
@@ -181,6 +190,8 @@ QWidget* XtbOptTool::settingsWidget()
     QVBoxLayout *layout = new QVBoxLayout;
     layout->addWidget(label);
     layout->addWidget(m_stepsSpinBox);
+    layout->addWidget(stepSizeLabel);
+    layout->addWidget(m_stepSizeSpinBox);
     layout->addWidget(threadsLabel);
     layout->addWidget(m_threadsSpinBox);
     layout->addWidget(engineLabel);
@@ -235,7 +246,8 @@ void XtbOptTool::enable()
   int engine = m_comboEngine ? m_comboEngine->currentIndex() : 2;
   int level = m_comboLevel ? m_comboLevel->currentIndex() : 4;
   if (!m_thread->setup(m_glwidget->molecule(), method, engine, level,
-                        m_stepsSpinBox->value())) {
+                        m_stepsSpinBox->value(),
+                        m_stepSizeSpinBox ? m_stepSizeSpinBox->value() : 0.1)) {
     m_setupFailed = true;
     emit message(tr("Failed to initialize xTB"));
     return;
@@ -343,7 +355,7 @@ void XtbOptTool::updateProgress(int step, int total, double energy)
 
 XtbOptThread::XtbOptThread(QObject *parent)
   : QThread(parent), m_molecule(nullptr), m_env(nullptr), m_xtbMol(nullptr),
-    m_calc(nullptr), m_results(nullptr), m_stop(false)
+    m_calc(nullptr), m_results(nullptr), m_stepSize(0.1), m_stop(false)
 {
 }
 
@@ -380,7 +392,7 @@ void XtbOptThread::cleanup()
 }
 
 bool XtbOptThread::setup(Molecule *mol, int method, int engine, int level,
-                         int steps)
+                         int steps, double stepSize)
 {
   m_method = method;
   m_engine = engine;
@@ -388,6 +400,7 @@ bool XtbOptThread::setup(Molecule *mol, int method, int engine, int level,
   m_mutex.lock();
   m_molecule = mol;
   m_steps = steps;
+  m_stepSize = stepSize;
   m_stop = false;
 
   m_env = xtb_newEnvironment();
@@ -495,7 +508,7 @@ void XtbOptThread::update()
       gradNorm += grad[i] * grad[i];
     gradNorm = std::sqrt(gradNorm);
 
-    double step = 0.1;
+    double step = m_stepSize;
     if (gradNorm > 1.0)
       step /= gradNorm;
     for (int i = 0; i < natoms * 3; ++i)
@@ -553,6 +566,8 @@ void XtbOptTool::writeSettings(QSettings &settings) const
   Tool::writeSettings(settings);
   if (m_stepsSpinBox)
     settings.setValue("steps", m_stepsSpinBox->value());
+  if (m_stepSizeSpinBox)
+    settings.setValue("stepSize", m_stepSizeSpinBox->value());
   if (m_threadsSpinBox)
     settings.setValue("threads", m_threadsSpinBox->value());
   if (m_comboEngine)
@@ -568,6 +583,8 @@ void XtbOptTool::readSettings(QSettings &settings)
   Tool::readSettings(settings);
   if (m_stepsSpinBox)
     m_stepsSpinBox->setValue(settings.value("steps", 4).toInt());
+  if (m_stepSizeSpinBox)
+    m_stepSizeSpinBox->setValue(settings.value("stepSize", 0.1).toDouble());
   if (m_threadsSpinBox)
     m_threadsSpinBox->setValue(settings.value("threads", 1).toInt());
   if (m_comboEngine)
