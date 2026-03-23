@@ -75,6 +75,7 @@ class MoleculeFileTest : public QObject
     void readWriteMolecule();
     void readFile();
     void readWriteConformers();
+    void readMultiFrameXyzTrajectory();
     void replaceMolecule();
     void appendMolecule();
 
@@ -215,6 +216,50 @@ void MoleculeFileTest::readWriteConformers()
   QCOMPARE( moleculeFile->numMolecules(), static_cast<unsigned int>(1) );
   QCOMPARE( moleculeFile->conformers().size(), 
       static_cast<std::vector<int>::size_type>(4) );
+}
+
+
+void MoleculeFileTest::readMultiFrameXyzTrajectory()
+{
+  QString filename = "moleculefiletest_traj.xyz";
+  std::ofstream ofs(filename.toLatin1().data());
+  QVERIFY(ofs);
+
+  ofs << "3\n"
+      << "frame 1\n"
+      << "C 0.0 0.0 0.0\n"
+      << "N 1.0 0.0 0.0\n"
+      << "O 2.0 0.0 0.0\n"
+      << "3\n"
+      << "frame 2\n"
+      << "C 0.1 0.0 0.0\n"
+      << "N 1.1 0.0 0.0\n"
+      << "O 2.1 0.0 0.0\n"
+      << "3\n"
+      << "frame 3\n"
+      << "C 0.2 0.0 0.0\n"
+      << "N 1.2 0.0 0.0\n"
+      << "O 2.2 0.0 0.0\n";
+  ofs.close();
+
+  MoleculeFile* moleculeFile = MoleculeFile::readFile(filename, "xyz");
+  QVERIFY(moleculeFile);
+  QVERIFY(moleculeFile->errors().isEmpty());
+  QCOMPARE(moleculeFile->isConformerFile(), true);
+  QCOMPARE(moleculeFile->numMolecules(), static_cast<unsigned int>(1));
+  QCOMPARE(moleculeFile->conformers().size(),
+           static_cast<std::vector<int>::size_type>(3));
+
+  QCOMPARE(moleculeFile->titles().size(), 3);
+  QCOMPARE(moleculeFile->titles()[0], QString("frame 1"));
+  QCOMPARE(moleculeFile->titles()[1], QString("frame 2"));
+  QCOMPARE(moleculeFile->titles()[2], QString("frame 3"));
+
+  const std::vector<Eigen::Vector3d> *thirdConformer = moleculeFile->conformers()[2];
+  QVERIFY(thirdConformer);
+  QCOMPARE((*thirdConformer)[0], Vector3d(0.2, 0.0, 0.0));
+  QCOMPARE((*thirdConformer)[1], Vector3d(1.2, 0.0, 0.0));
+  QCOMPARE((*thirdConformer)[2], Vector3d(2.2, 0.0, 0.0));
 }
 
 void MoleculeFileTest::replaceMolecule()
