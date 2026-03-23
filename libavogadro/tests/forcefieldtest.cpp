@@ -11,7 +11,6 @@
 #include <QDir>
 #include <QFileInfo>
 
-#include <openbabel/babelconfig.h>
 #include <openbabel/obconversion.h>
 #include <openbabel/forcefield.h>
 #include <openbabel/plugin.h>
@@ -32,11 +31,11 @@ private Q_SLOTS:
 void ForceFieldTest::initTestCase()
 {
   const QString appDir = QCoreApplication::applicationDirPath();
-  const QString babelVersion = QString::fromLatin1(BABEL_VERSION);
-
+  // OpenBabel appends BABEL_VERSION when BABEL_DATADIR is set, so point it
+  // at the parent openbabel data directory rather than the versioned child.
   const QStringList dataCandidates = QStringList()
-    << QDir(appDir).filePath("../openbabel-install/share/openbabel/" + babelVersion)
-    << QDir::current().filePath("openbabel-install/share/openbabel/" + babelVersion);
+    << QDir(appDir).filePath("../openbabel-install/share/openbabel")
+    << QDir::current().filePath("openbabel-install/share/openbabel");
 
   for (const QString &candidate : dataCandidates) {
     if (QFileInfo::exists(candidate)) {
