@@ -37,6 +37,7 @@ pkg_check_modules(XTB xtb)
 set(tests
   drawcommand
 #  hydrogenscommand
+  forcefield
   insertfragmentextension
   molecule
   moleculefile
