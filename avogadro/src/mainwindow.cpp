@@ -134,8 +134,45 @@
 
 namespace {
 
-  bool buildPastedTextMolecule(OpenBabel::OBMol &mol, const QByteArray &text,
-                               const char *formatId)
+  bool optimizePastedMolecule(OpenBabel::OBMol &mol, bool addHydrogens)
+  {
+    if (addHydrogens) {
+      OpenBabel::OBBuilder builder;
+      builder.Build(mol);
+      for (unsigned int i = 1; i <= mol.NumAtoms(); ++i)
+        OpenBabel::OBAtomAssignTypicalImplicitHydrogens(mol.GetAtom(i));
+      mol.AddHydrogens();
+    }
+
+    OpenBabel::OBForceField *pFF = 0;
+    OpenBabel::OBForceField *mmff94 = OpenBabel::OBForceField::FindForceField("MMFF94");
+    if (mmff94)
+      pFF = mmff94->MakeNewInstance();
+    if (pFF && !pFF->Setup(mol)) {
+      delete pFF;
+      pFF = 0;
+    }
+    if (!pFF) {
+      OpenBabel::OBForceField *uff = OpenBabel::OBForceField::FindForceField("UFF");
+      if (uff)
+        pFF = uff->MakeNewInstance();
+      if (!pFF || !pFF->Setup(mol)) {
+        delete pFF;
+        return true;
+      }
+    }
+
+    if (pFF) {
+      pFF->ConjugateGradients(250, 1.0e-4);
+      pFF->UpdateCoordinates(mol);
+      delete pFF;
+    }
+
+    return true;
+  }
+
+  bool readPastedTextMolecule(OpenBabel::OBMol &mol, const QByteArray &text,
+                              const char *formatId, bool addHydrogens = false)
   {
     OpenBabel::OBConversion conv;
     if (!conv.SetInFormat(formatId) || !conv.ReadString(&mol, text.constData())
@@ -143,43 +180,69 @@ namespace {
       return false;
     }
 
-    const QString format = QLatin1String(formatId);
-    if (format == QLatin1String("smi") || format == QLatin1String("inchi")
-        || format == QLatin1String("helm")) {
-      OpenBabel::OBBuilder builder;
-      builder.Build(mol);
+    return optimizePastedMolecule(mol, addHydrogens);
+  }
 
-      OpenBabel::OBForceField *pFF = OpenBabel::OBForceField::FindForceField("MMFF94");
-      if (pFF && pFF->Setup(mol)) {
-        pFF->ConjugateGradients(250, 1.0e-4);
-        pFF->UpdateCoordinates(mol);
-      }
-      else if ((pFF = OpenBabel::OBForceField::FindForceField("UFF")) && pFF->Setup(mol)) {
-        pFF->ConjugateGradients(250, 1.0e-4);
-        pFF->UpdateCoordinates(mol);
-      }
-    }
+  bool looksLikeMolfile(const QString &text)
+  {
+    return text.contains(QLatin1String("V2000"))
+        || text.contains(QLatin1String("V3000"))
+        || text.contains(QLatin1String("M  END"));
+  }
 
-    return true;
+  bool looksLikeInChI(const QString &text)
+  {
+    return text.startsWith(QLatin1String("InChI="), Qt::CaseInsensitive);
+  }
+
+  bool looksLikeHelm(const QString &text)
+  {
+    return text.startsWith(QLatin1String("CHEM"), Qt::CaseInsensitive)
+        && text.contains(QLatin1Char('{')) && text.contains(QLatin1Char('}'));
+  }
+
+  QString extractHelmChemicalString(const QString &text)
+  {
+    const int start = text.indexOf(QLatin1Char('{'));
+    const int end = text.lastIndexOf(QLatin1Char('}'));
+    if (start < 0 || end <= start)
+      return QString();
+
+    QString chemical = text.mid(start + 1, end - start - 1).trimmed();
+    const int annotation = chemical.indexOf(QLatin1String(" |$"));
+    if (annotation >= 0)
+      chemical = chemical.left(annotation).trimmed();
+
+    return chemical;
   }
 
   bool buildPastedTextMolecule(OpenBabel::OBMol &mol, const QByteArray &text)
   {
-    static const char * const formatIds[] = { "xyz", "mdl", "mol", "smi", "inchi", "helm" };
+    const QString pastedText = QString::fromLatin1(text).trimmed();
 
-    for (size_t i = 0; i < sizeof(formatIds) / sizeof(formatIds[0]); ++i) {
-      OpenBabel::OBMol candidate;
-      if (buildPastedTextMolecule(candidate, text, formatIds[i])) {
-        mol = candidate;
+    if (looksLikeHelm(pastedText)) {
+      const QString chemical = extractHelmChemicalString(pastedText);
+      if (!chemical.isEmpty()
+          && readPastedTextMolecule(mol, chemical.toLatin1(), "smi", true))
         return true;
-      }
     }
 
-    return false;
+    if (looksLikeMolfile(pastedText)) {
+      if (readPastedTextMolecule(mol, text, "mol")
+          || readPastedTextMolecule(mol, text, "mdl"))
+        return true;
+    }
+
+    if (looksLikeInChI(pastedText) && readPastedTextMolecule(mol, text, "inchi", true))
+      return true;
+
+    if (readPastedTextMolecule(mol, text, "xyz"))
+      return true;
+
+    return readPastedTextMolecule(mol, text, "smi", true);
   }
 
 }
-
 using namespace std;
 using namespace OpenBabel;
 using namespace Eigen;
