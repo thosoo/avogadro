@@ -176,7 +176,10 @@ void ReadFileThread::run()
   unsigned int c = 0;
   conv.SetInStream(&ifs);
   m_moleculeFile->streamposRef().push_back(ifs.tellg());
-  while (ifs.good() && conv.Read(&currentOBMol)) {
+  while (ifs.good()) {
+    currentOBMol.Clear();
+    if (!conv.Read(&currentOBMol))
+      break;
     if (!c)
       firstOBMol = currentOBMol;
 
