@@ -8,8 +8,10 @@
 #include <cmath>
 #include <memory>
 
+#include <QDir>
 #include <QFileInfo>
 
+#include <openbabel/babelconfig.h>
 #include <openbabel/obconversion.h>
 #include <openbabel/forcefield.h>
 #include <openbabel/plugin.h>
@@ -19,11 +21,30 @@ class ForceFieldTest : public QObject
   Q_OBJECT
 
 private Q_SLOTS:
+  void initTestCase();
   void forceFieldIsListed_data();
   void forceFieldIsListed();
   void forceFieldSetup_data();
   void forceFieldSetup();
 };
+
+
+void ForceFieldTest::initTestCase()
+{
+  const QString appDir = QCoreApplication::applicationDirPath();
+  const QString babelVersion = QString::fromLatin1(BABEL_VERSION);
+
+  const QStringList dataCandidates = QStringList()
+    << QDir(appDir).filePath("../openbabel-install/share/openbabel/" + babelVersion)
+    << QDir::current().filePath("openbabel-install/share/openbabel/" + babelVersion);
+
+  for (const QString &candidate : dataCandidates) {
+    if (QFileInfo::exists(candidate)) {
+      qputenv("BABEL_DATADIR", QDir(candidate).absolutePath().toLocal8Bit());
+      break;
+    }
+  }
+}
 
 void ForceFieldTest::forceFieldIsListed_data()
 {
