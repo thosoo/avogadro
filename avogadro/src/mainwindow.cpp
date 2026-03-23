@@ -132,6 +132,54 @@
 #include <QXmlStreamReader>
 #endif
 
+namespace {
+
+  bool buildPastedTextMolecule(OpenBabel::OBMol &mol, const QByteArray &text,
+                               const char *formatId)
+  {
+    OpenBabel::OBConversion conv;
+    if (!conv.SetInFormat(formatId) || !conv.ReadString(&mol, text.constData())
+        || mol.NumAtoms() == 0) {
+      return false;
+    }
+
+    const QString format = QLatin1String(formatId);
+    if (format == QLatin1String("smi") || format == QLatin1String("inchi")
+        || format == QLatin1String("helm")) {
+      OpenBabel::OBBuilder builder;
+      builder.Build(mol);
+
+      OpenBabel::OBForceField *pFF = OpenBabel::OBForceField::FindForceField("MMFF94");
+      if (pFF && pFF->Setup(mol)) {
+        pFF->ConjugateGradients(250, 1.0e-4);
+        pFF->UpdateCoordinates(mol);
+      }
+      else if ((pFF = OpenBabel::OBForceField::FindForceField("UFF")) && pFF->Setup(mol)) {
+        pFF->ConjugateGradients(250, 1.0e-4);
+        pFF->UpdateCoordinates(mol);
+      }
+    }
+
+    return true;
+  }
+
+  bool buildPastedTextMolecule(OpenBabel::OBMol &mol, const QByteArray &text)
+  {
+    static const char * const formatIds[] = { "xyz", "mdl", "mol", "smi", "inchi", "helm" };
+
+    for (size_t i = 0; i < sizeof(formatIds) / sizeof(formatIds[0]); ++i) {
+      OpenBabel::OBMol candidate;
+      if (buildPastedTextMolecule(candidate, text, formatIds[i])) {
+        mol = candidate;
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+}
+
 using namespace std;
 using namespace OpenBabel;
 using namespace Eigen;
@@ -1982,6 +2030,7 @@ protected:
     OBFormat *pasteFormat = NULL;
     QByteArray text;
     OBMol newMol;
+    bool plainTextPaste = false;
 
     if ( mimeData->hasFormat( "chemical/x-mdl-molfile" ) ) {
       pasteFormat = conv.FindFormat( "mdl" );
@@ -1991,31 +2040,35 @@ protected:
       pasteFormat = conv.FindFormat( "cdx" );
       text = mimeData->data( "chemical/x-cdx" );
     } else if ( mimeData->hasText() ) {
-      pasteFormat = conv.FindFormat( "xyz" );
-
-      text = mimeData->text().toLatin1();
+      plainTextPaste = true;
+      text = mimeData->text().trimmed().toLatin1();
     }
 
     if ( text.length() == 0 )
       return false;
 
-    if ( !pasteFormat || !conv.SetInFormat( pasteFormat ) ) {
+    bool validMol = false;
+    if ( plainTextPaste ) {
+      validMol = buildPastedTextMolecule(newMol, text);
+    } else if ( pasteFormat && conv.SetInFormat( pasteFormat ) ) {
+      if ( conv.ReadString( &newMol, text.constData() ) // Can we read with OB formats?
+           && newMol.NumAtoms() != 0 ) {
+        validMol = true;
+      }
+    } else {
       statusBar()->showMessage( tr( "Paste failed (format unavailable)." ), 5000 );
       return false;
     }
 
-    bool validMol = false;
-    if ( conv.ReadString( &newMol, text.constData() ) // Can we read with OB formats?
-         && newMol.NumAtoms() != 0 ) {
-      validMol = true;
-    }
-
-    if (!validMol) { // We failed as an authentic format, try annulen's heuristics
+    if (!validMol && plainTextPaste) { // We failed as authentic text formats, try annulen's heuristics
       validMol = parseText(&newMol, QString(text));
     }
 
     if (validMol && newMol.NumAtoms() == 0)
       return false;
+
+    if (validMol)
+      check3DCoords(&newMol);
 
     // We've got something we can paste
     /*
