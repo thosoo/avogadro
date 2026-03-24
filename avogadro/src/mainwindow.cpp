@@ -136,9 +136,13 @@ namespace {
 
   bool optimizePastedMolecule(OpenBabel::OBMol &mol, bool addHydrogens)
   {
-    if (addHydrogens) {
+    const bool build3d = (mol.GetDimension() != 3);
+    if (build3d) {
       OpenBabel::OBBuilder builder;
       builder.Build(mol);
+    }
+
+    if (addHydrogens || build3d) {
       for (unsigned int i = 1; i <= mol.NumAtoms(); ++i)
         OpenBabel::OBAtomAssignTypicalImplicitHydrogens(mol.GetAtom(i));
       mol.AddHydrogens();
@@ -175,7 +179,11 @@ namespace {
                               const char *formatId, bool addHydrogens = false)
   {
     OpenBabel::OBConversion conv;
-    if (!conv.SetInFormat(formatId) || !conv.ReadString(&mol, text.constData())
+    QByteArray normalizedText(text);
+    if (!normalizedText.endsWith("\n"))
+      normalizedText.append("\n");
+
+    if (!conv.SetInFormat(formatId) || !conv.ReadString(&mol, normalizedText.constData())
         || mol.NumAtoms() == 0) {
       return false;
     }
