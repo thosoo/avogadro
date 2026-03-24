@@ -139,7 +139,7 @@ void ForceFieldTest::forceFieldSetupAndEnergy()
 
   std::ostringstream log;
   forceField->SetLogFile(&log);
-  forceField->SetLogLevel(OpenBabel::OBFF_LOGLVL_HIGH);
+  forceField->SetLogLevel(OBFF_LOGLVL_HIGH);
 
   if (!forceField->Setup(mol)) {
     const std::string setupLog = log.str();
