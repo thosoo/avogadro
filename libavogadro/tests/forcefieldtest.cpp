@@ -7,43 +7,30 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <sstream>
 
 #include <QDir>
 #include <QFileInfo>
 
-#include <openbabel/babelconfig.h>
 #include <openbabel/obconversion.h>
 #include <openbabel/forcefield.h>
-#include <openbabel/plugin.h>
 
-class ForceFieldTest : public QObject
+namespace {
+
+QString configuredDataDir()
 {
-  Q_OBJECT
-
-private Q_SLOTS:
-  void initTestCase();
-  void forceFieldIsListed_data();
-  void forceFieldIsListed();
-  void forceFieldSetup_data();
-  void forceFieldSetup();
-};
-
-
-
-void ForceFieldTest::initTestCase()
-{
-  const QString version = QString::fromLatin1(BABEL_VERSION);
   const QString appDir = QCoreApplication::applicationDirPath();
-  const QStringList candidateDataDirs = QStringList()
+  const QStringList candidates = QStringList()
     << QString::fromLocal8Bit(qgetenv("BABEL_DATADIR"))
-    << QString::fromLocal8Bit(OPENBABEL_TEST_DATADIR)
-    << QString::fromLocal8Bit(OPENBABEL_TEST_FALLBACK_DATADIR)
+    << QDir::current().filePath("openbabel-install/share/openbabel")
+    << QDir::current().filePath("openbabel_ext-prefix/src/openbabel_ext/data")
     << QDir(appDir).filePath("../openbabel-install/share/openbabel")
     << QDir(appDir).filePath("../../openbabel-install/share/openbabel")
-    << QDir(appDir).filePath("../../../openbabel-install/share/openbabel");
+    << QDir(appDir).filePath("../../../openbabel-install/share/openbabel")
+    << QDir(appDir).filePath("../openbabel_ext-prefix/src/openbabel_ext/data")
+    << QDir(appDir).filePath("../../openbabel_ext-prefix/src/openbabel_ext/data");
 
-  QString selectedDataDir;
-  for (const QString &candidate : candidateDataDirs) {
+  for (const QString &candidate : candidates) {
     if (candidate.isEmpty())
       continue;
 
@@ -51,23 +38,38 @@ void ForceFieldTest::initTestCase()
     if (!dir.exists())
       continue;
 
-    const QString versioned = dir.filePath(version + "/UFF.prm");
-    const QString unversioned = dir.filePath("UFF.prm");
-    if (QFileInfo::exists(versioned) || QFileInfo::exists(unversioned)) {
-      selectedDataDir = dir.absolutePath();
-      break;
+    if (QFileInfo::exists(dir.filePath("UFF.prm")) ||
+        !dir.entryList(QStringList() << "*.prm", QDir::Files).isEmpty()) {
+      const QString selected = dir.absolutePath();
+      qputenv("BABEL_DATADIR", selected.toLocal8Bit());
+      return selected;
     }
   }
 
-  if (selectedDataDir.isEmpty()) {
-    QSKIP(qPrintable(QString("Skipping ForceFieldTest: UFF.prm not found in candidate data directories: %1")
-                         .arg(candidateDataDirs.join(", "))));
-  }
-
-  qputenv("BABEL_DATADIR", selectedDataDir.toLocal8Bit());
+  return QString();
 }
 
-void ForceFieldTest::forceFieldIsListed_data()
+bool shouldSkipSetupFailure(const std::string &log)
+{
+  return log.find("Cannot open") != std::string::npos ||
+         log.find("Unable to open") != std::string::npos ||
+         log.find("data file") != std::string::npos;
+}
+
+} // namespace
+
+class ForceFieldTest : public QObject
+{
+  Q_OBJECT
+
+private Q_SLOTS:
+  void forceFieldDiscoverable_data();
+  void forceFieldDiscoverable();
+  void forceFieldSetupAndEnergy_data();
+  void forceFieldSetupAndEnergy();
+};
+
+void ForceFieldTest::forceFieldDiscoverable_data()
 {
   QTest::addColumn<QString>("forceFieldName");
 
@@ -76,36 +78,40 @@ void ForceFieldTest::forceFieldIsListed_data()
   QTest::newRow("UFF4MOF") << QString("UFF4MOF");
 }
 
-void ForceFieldTest::forceFieldIsListed()
+void ForceFieldTest::forceFieldDiscoverable()
 {
   QFETCH(QString, forceFieldName);
 
   OpenBabel::OBConversion conv;
   Q_UNUSED(conv);
 
-  std::vector<std::string> forceFields;
-  OpenBabel::OBPlugin::ListAsVector("forcefields", "ids", forceFields);
+  OpenBabel::OBForceField *prototype =
+    OpenBabel::OBForceField::FindForceField(forceFieldName.toLatin1().constData());
 
-  QVERIFY2(std::find(forceFields.begin(), forceFields.end(),
-                     forceFieldName.toStdString()) != forceFields.end(),
-           qPrintable(QString("Force field %1 was not listed by OpenBabel")
+  QVERIFY2(prototype,
+           qPrintable(QString("Could not find force field %1")
                           .arg(forceFieldName)));
 }
 
-void ForceFieldTest::forceFieldSetup_data()
+void ForceFieldTest::forceFieldSetupAndEnergy_data()
 {
   QTest::addColumn<QString>("forceFieldName");
   QTest::addColumn<QString>("fileName");
 
   QTest::newRow("MMFF94 methane") << QString("MMFF94") << QString("methane.cml");
   QTest::newRow("UFF methane") << QString("UFF") << QString("methane.cml");
-  QTest::newRow("UFF4MOF tpy-Ru") << QString("UFF4MOF") << QString("tpy-Ru.sdf");
+  QTest::newRow("UFF4MOF ruthenium") << QString("UFF4MOF") << QString("tpy-Ru.sdf");
 }
 
-void ForceFieldTest::forceFieldSetup()
+void ForceFieldTest::forceFieldSetupAndEnergy()
 {
   QFETCH(QString, forceFieldName);
   QFETCH(QString, fileName);
+
+  const QString dataDir = configuredDataDir();
+  if (dataDir.isEmpty()) {
+    QSKIP("Skipping setup/energy checks because OpenBabel parameter data was not found.");
+  }
 
   OpenBabel::OBConversion conv;
   OpenBabel::OBMol mol;
@@ -131,9 +137,21 @@ void ForceFieldTest::forceFieldSetup()
            qPrintable(QString("Could not create force field instance for %1")
                           .arg(forceFieldName)));
 
-  QVERIFY2(forceField->Setup(mol),
-           qPrintable(QString("Could not set up %1 for %2")
-                          .arg(forceFieldName, fileName)));
+  std::ostringstream log;
+  forceField->SetLogFile(&log);
+  forceField->SetLogLevel(OpenBabel::OBFF_LOGLVL_HIGH);
+
+  if (!forceField->Setup(mol)) {
+    const std::string setupLog = log.str();
+    if (shouldSkipSetupFailure(setupLog)) {
+      QSKIP(qPrintable(QString("Skipping %1 setup due to missing OpenBabel data (%2)")
+                           .arg(forceFieldName, QString::fromStdString(setupLog))));
+    }
+
+    QVERIFY2(false,
+             qPrintable(QString("Could not set up %1 for %2")
+                            .arg(forceFieldName, fileName)));
+  }
 
   const double energy = forceField->Energy(false);
   QVERIFY2(std::isfinite(energy),

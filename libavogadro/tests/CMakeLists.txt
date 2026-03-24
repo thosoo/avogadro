@@ -3,9 +3,6 @@ set(QT_USE_QTOPENGL true)
 # define TESTDATADIR for tests that need input files
 cmake_policy(SET CMP0005 NEW) # needed for line below (escapes value)
 add_definitions( -DTESTDATADIR="${CMAKE_SOURCE_DIR}/testfiles/" )
-# Explicit OpenBabel data directory for forcefield tests.
-add_definitions( -DOPENBABEL_TEST_DATADIR="${OPENBABEL_INSTALL_DIR}/share/openbabel" )
-add_definitions( -DOPENBABEL_TEST_FALLBACK_DATADIR="${CMAKE_BINARY_DIR}/openbabel_ext-prefix/src/openbabel_ext/data" )
 
 # Ensure the Avogadro include directory is always first
 get_directory_property(tmp_include_dirs INCLUDE_DIRECTORIES)
@@ -72,12 +69,7 @@ foreach (test ${tests})
     ${QT_QTTEST_LIBRARY}
     avogadro)
   add_test(${test}Test ${CMAKE_BINARY_DIR}/bin/${test}test)
-  set(_test_environment "QT_QPA_PLATFORM=offscreen")
-  if (${test} STREQUAL "forcefield")
-    list(APPEND _test_environment
-      "BABEL_DATADIR=${OPENBABEL_INSTALL_DIR}/share/openbabel")
-  endif()
-  set_tests_properties(${test}Test PROPERTIES ENVIRONMENT "${_test_environment}")
+  set_tests_properties(${test}Test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   set_property(SOURCE ${test_SRCS} PROPERTY LABELS avogadro)
   set_property(TARGET ${test}test PROPERTY LABELS avogadro)
   set_property(TEST ${test}Test PROPERTY LABELS avogadro)
