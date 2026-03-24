@@ -3,6 +3,8 @@ set(QT_USE_QTOPENGL true)
 # define TESTDATADIR for tests that need input files
 cmake_policy(SET CMP0005 NEW) # needed for line below (escapes value)
 add_definitions( -DTESTDATADIR="${CMAKE_SOURCE_DIR}/testfiles/" )
+# Explicit OpenBabel data directory for forcefield tests.
+add_definitions( -DOPENBABEL_TEST_DATADIR="${OPENBABEL_INSTALL_DIR}/share/openbabel" )
 
 # Ensure the Avogadro include directory is always first
 get_directory_property(tmp_include_dirs INCLUDE_DIRECTORIES)
