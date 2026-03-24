@@ -106,6 +106,23 @@ QString runtimeDiagnostics()
   return details.join("; ");
 }
 
+bool hasParameterFile(const QString &dataDir, const QString &forceFieldName)
+{
+  const QString ff = forceFieldName.toLower();
+  const QStringList files = QDir(dataDir).entryList(QStringList() << "*.prm", QDir::Files);
+  QStringList lowerFiles;
+  for (const QString &file : files)
+    lowerFiles << file.toLower();
+
+  if (ff == "uff")
+    return lowerFiles.contains("uff.prm");
+
+  if (ff == "mmff94")
+    return lowerFiles.contains("mmff94.prm") || lowerFiles.contains("mmff94s.prm");
+
+  return true;
+}
+
 bool shouldSkipSetupFailure(const std::string &log)
 {
   std::string lowerLog = log;
@@ -212,6 +229,10 @@ void ForceFieldTest::forceFieldSetupAndEnergy()
   if (dataDir.isEmpty()) {
     QSKIP(qPrintable(QString("Skipping setup/energy checks because OpenBabel parameter data was not found. %1")
                          .arg(runtimeDiagnostics())));
+  }
+  if (required && !hasParameterFile(dataDir, forceFieldName)) {
+    QSKIP(qPrintable(QString("Skipping %1 setup because expected parameter files were not found in %2. %3")
+                         .arg(forceFieldName, dataDir, runtimeDiagnostics())));
   }
 
   OpenBabel::OBConversion conv;
