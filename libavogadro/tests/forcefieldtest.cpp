@@ -8,6 +8,7 @@
 #include <cmath>
 #include <memory>
 #include <sstream>
+#include <vector>
 
 #include <QDir>
 #include <QFileInfo>
@@ -15,6 +16,7 @@
 #include <openbabel/babelconfig.h>
 #include <openbabel/obconversion.h>
 #include <openbabel/forcefield.h>
+#include <openbabel/plugin.h>
 
 namespace {
 
@@ -83,6 +85,26 @@ QString configuredPluginDir()
   return QString();
 }
 
+
+QString runtimeDiagnostics()
+{
+  QStringList details;
+  const QString appDir = QCoreApplication::applicationDirPath();
+  details << QString("cwd=%1").arg(QDir::currentPath());
+  details << QString("appDir=%1").arg(appDir);
+  details << QString("BABEL_DATADIR=%1").arg(QString::fromLocal8Bit(qgetenv("BABEL_DATADIR")));
+  details << QString("BABEL_LIBDIR=%1").arg(QString::fromLocal8Bit(qgetenv("BABEL_LIBDIR")));
+
+  std::vector<std::string> forceFields;
+  OpenBabel::OBPlugin::ListAsVector("forcefields", "ids", forceFields);
+  QStringList ff;
+  for (size_t i = 0; i < forceFields.size(); ++i)
+    ff << QString::fromStdString(forceFields[i]);
+  details << QString("forcefields=[%1]").arg(ff.join(","));
+
+  return details.join("; ");
+}
+
 bool shouldSkipSetupFailure(const std::string &log)
 {
   return log.find("Cannot open") != std::string::npos ||
@@ -117,7 +139,8 @@ void ForceFieldTest::initTestCase()
   OpenBabel::OBForceField *uff = OpenBabel::OBForceField::FindForceField("UFF");
 
   if (!mmff && !uff)
-    QSKIP("Skipping ForceFieldTest: OpenBabel force field plugins are not available in this runtime environment.");
+    QSKIP(qPrintable(QString("Skipping ForceFieldTest: OpenBabel force field plugins are not available. %1")
+                         .arg(runtimeDiagnostics())));
 }
 
 void ForceFieldTest::forceFieldDiscoverable_data()
@@ -169,7 +192,8 @@ void ForceFieldTest::forceFieldSetupAndEnergy()
 
   const QString dataDir = configuredDataDir();
   if (dataDir.isEmpty()) {
-    QSKIP("Skipping setup/energy checks because OpenBabel parameter data was not found.");
+    QSKIP(qPrintable(QString("Skipping setup/energy checks because OpenBabel parameter data was not found. %1")
+                         .arg(runtimeDiagnostics())));
   }
 
   OpenBabel::OBConversion conv;
@@ -207,13 +231,13 @@ void ForceFieldTest::forceFieldSetupAndEnergy()
   if (!forceField->Setup(mol)) {
     const std::string setupLog = log.str();
     if (shouldSkipSetupFailure(setupLog)) {
-      QSKIP(qPrintable(QString("Skipping %1 setup due to missing OpenBabel data (%2)")
-                           .arg(forceFieldName, QString::fromStdString(setupLog))));
+      QSKIP(qPrintable(QString("Skipping %1 setup due to missing OpenBabel data (%2). %3")
+                           .arg(forceFieldName, QString::fromStdString(setupLog), runtimeDiagnostics())));
     }
 
     QVERIFY2(false,
-             qPrintable(QString("Could not set up %1 for %2")
-                            .arg(forceFieldName, fileName)));
+             qPrintable(QString("Could not set up %1 for %2. Log: %3. %4")
+                            .arg(forceFieldName, fileName, QString::fromStdString(setupLog), runtimeDiagnostics())));
   }
 
   const double energy = forceField->Energy(false);
