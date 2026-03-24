@@ -95,6 +95,10 @@ namespace Avogadro {
     action->setShortcut(Qt::Key_F8);
 
     m_forceField = OBForceField::FindForceField("MMFF94");
+    if (!m_forceField)
+      m_forceField = OBForceField::FindForceField("UFF4MOF");
+    if (!m_forceField)
+      m_forceField = OBForceField::FindForceField("UFF");
   }
 
   DrawTool::~DrawTool()
