@@ -203,6 +203,10 @@ namespace Avogadro {
               pFF->ConjugateGradients(250, 1.0e-4);
               pFF->UpdateCoordinates(obfragment);
             } // Note tricky assignment used as logic below
+            else if ((pFF = OBForceField::FindForceField("UFF4MOF")) && pFF->Setup(obfragment)) {
+              pFF->ConjugateGradients(250, 1.0e-4);
+              pFF->UpdateCoordinates(obfragment);
+            }
             else if ((pFF = OBForceField::FindForceField("UFF")) && pFF->Setup(obfragment)) {
               pFF->ConjugateGradients(250, 1.0e-4);
               pFF->UpdateCoordinates(obfragment);

@@ -1206,7 +1206,12 @@ protected:
 
         OBForceField* pFF =  OBForceField::FindForceField("MMFF94")->MakeNewInstance();
         if (pFF && !pFF->Setup(*obMolecule)) {
-          pFF = OBForceField::FindForceField("UFF")->MakeNewInstance();
+          delete pFF;
+          pFF = OBForceField::FindForceField("UFF4MOF")->MakeNewInstance();
+          if (pFF && !pFF->Setup(*obMolecule)) {
+            delete pFF;
+            pFF = OBForceField::FindForceField("UFF")->MakeNewInstance();
+          }
           if (!pFF || !pFF->Setup(*obMolecule)) return; // can't do anything more
         }
         if (pFF) {

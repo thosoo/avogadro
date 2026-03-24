@@ -190,8 +190,12 @@ namespace Avogadro
       mol = m_molecule->OBMol();
       if ( !m_forceField->Setup( mol, m_constraints->constraints() ) ) {
         QMessageBox::warning( widget, tr( "Avogadro" ),
-          tr( "Cannot set up the currently selected force field for this molecule. Switching to UFF." ));
-        m_forceField = OBForceField::FindForceField("UFF");
+          tr( "Cannot set up the currently selected force field for this molecule. Switching to UFF4MOF (or UFF if unavailable)." ));
+        m_forceField = OBForceField::FindForceField("UFF4MOF");
+        if (!m_forceField)
+          m_forceField = OBForceField::FindForceField("UFF");
+        if (!m_forceField)
+          break;
         m_forceField->SetLogFile( &buff );
         m_forceField->SetLogLevel( OBFF_LOGLVL_HIGH );
       }
@@ -215,8 +219,12 @@ namespace Avogadro
       mol = m_molecule->OBMol();
       if ( !m_forceField->Setup( mol, m_constraints->constraints() ) ) {
         QMessageBox::warning( widget, tr( "Avogadro" ),
-          tr( "Cannot set up the currently selected force field for this molecule. Switching to UFF." ));
-        m_forceField = OBForceField::FindForceField("UFF");
+          tr( "Cannot set up the currently selected force field for this molecule. Switching to UFF4MOF (or UFF if unavailable)." ));
+        m_forceField = OBForceField::FindForceField("UFF4MOF");
+        if (!m_forceField)
+          m_forceField = OBForceField::FindForceField("UFF");
+        if (!m_forceField)
+          break;
         m_forceField->SetLogFile( &buff );
         m_forceField->SetLogLevel( OBFF_LOGLVL_LOW );
       }
@@ -245,8 +253,12 @@ namespace Avogadro
       mol = m_molecule->OBMol();
       if ( !m_forceField->Setup( mol, m_constraints->constraints() ) ) {
         QMessageBox::warning( widget, tr( "Avogadro" ),
-          tr( "Cannot set up the currently selected force field for this molecule. Switching to UFF." ));
-        m_forceField = OBForceField::FindForceField("UFF");
+          tr( "Cannot set up the currently selected force field for this molecule. Switching to UFF4MOF (or UFF if unavailable)." ));
+        m_forceField = OBForceField::FindForceField("UFF4MOF");
+        if (!m_forceField)
+          m_forceField = OBForceField::FindForceField("UFF");
+        if (!m_forceField)
+          break;
         m_forceField->SetLogFile( &buff );
         m_forceField->SetLogLevel( OBFF_LOGLVL_LOW );
       }
