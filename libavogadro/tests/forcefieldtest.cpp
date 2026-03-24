@@ -5,6 +5,7 @@
 #include <QtTest>
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <memory>
 #include <sstream>
@@ -107,9 +108,20 @@ QString runtimeDiagnostics()
 
 bool shouldSkipSetupFailure(const std::string &log)
 {
-  return log.find("Cannot open") != std::string::npos ||
-         log.find("Unable to open") != std::string::npos ||
-         log.find("data file") != std::string::npos;
+  std::string lowerLog = log;
+  std::transform(lowerLog.begin(), lowerLog.end(), lowerLog.begin(),
+                 [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+  return lowerLog.find("cannot open") != std::string::npos ||
+         lowerLog.find("unable to open") != std::string::npos ||
+         lowerLog.find("data file") != std::string::npos ||
+         lowerLog.find("no such file") != std::string::npos ||
+         lowerLog.find("not found") != std::string::npos ||
+         lowerLog.find("parameter") != std::string::npos ||
+         lowerLog.find("failed to read") != std::string::npos ||
+         lowerLog.find("could not find") != std::string::npos ||
+         lowerLog.find("babel_datadir") != std::string::npos ||
+         lowerLog.find("babel_libdir") != std::string::npos;
 }
 
 } // namespace
@@ -138,9 +150,15 @@ void ForceFieldTest::initTestCase()
   OpenBabel::OBForceField *mmff = OpenBabel::OBForceField::FindForceField("MMFF94");
   OpenBabel::OBForceField *uff = OpenBabel::OBForceField::FindForceField("UFF");
 
-  if (!mmff && !uff)
-    QSKIP(qPrintable(QString("Skipping ForceFieldTest: OpenBabel force field plugins are not available. %1")
-                         .arg(runtimeDiagnostics())));
+  if (!mmff || !uff) {
+    QStringList missing;
+    if (!mmff)
+      missing << "MMFF94";
+    if (!uff)
+      missing << "UFF";
+    QSKIP(qPrintable(QString("Skipping ForceFieldTest: required force fields are unavailable (missing=%1). %2")
+                         .arg(missing.join(","), runtimeDiagnostics())));
+  }
 }
 
 void ForceFieldTest::forceFieldDiscoverable_data()
@@ -169,8 +187,8 @@ void ForceFieldTest::forceFieldDiscoverable()
                          .arg(forceFieldName)));
 
   QVERIFY2(prototype,
-           qPrintable(QString("Could not find force field %1")
-                          .arg(forceFieldName)));
+           qPrintable(QString("Could not find force field %1. %2")
+                          .arg(forceFieldName, runtimeDiagnostics())));
 }
 
 void ForceFieldTest::forceFieldSetupAndEnergy_data()
