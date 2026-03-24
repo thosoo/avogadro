@@ -23,6 +23,23 @@ namespace {
 
 QString configuredDataDir()
 {
+  auto findDataDir = [](const QDir &dir) -> QString {
+    if (QFileInfo::exists(dir.filePath("UFF.prm")) ||
+        !dir.entryList(QStringList() << "*.prm", QDir::Files).isEmpty()) {
+      return dir.absolutePath();
+    }
+
+    const QStringList childDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &child : childDirs) {
+      QDir childDir(dir.filePath(child));
+      if (QFileInfo::exists(childDir.filePath("UFF.prm")) ||
+          !childDir.entryList(QStringList() << "*.prm", QDir::Files).isEmpty()) {
+        return childDir.absolutePath();
+      }
+    }
+    return QString();
+  };
+
   const QString appDir = QCoreApplication::applicationDirPath();
   const QStringList candidates = QStringList()
     << QString::fromLocal8Bit(qgetenv("BABEL_DATADIR"))
@@ -42,9 +59,8 @@ QString configuredDataDir()
     if (!dir.exists())
       continue;
 
-    if (QFileInfo::exists(dir.filePath("UFF.prm")) ||
-        !dir.entryList(QStringList() << "*.prm", QDir::Files).isEmpty()) {
-      const QString selected = dir.absolutePath();
+    const QString selected = findDataDir(dir);
+    if (!selected.isEmpty()) {
       qputenv("BABEL_DATADIR", selected.toLocal8Bit());
       return selected;
     }
@@ -56,6 +72,23 @@ QString configuredDataDir()
 
 QString configuredPluginDir()
 {
+  auto findPluginDir = [](const QDir &dir) -> QString {
+    if (!dir.entryList(QStringList() << "*.obf" << "*.dll" << "*.so" << "*.dylib",
+                       QDir::Files).isEmpty()) {
+      return dir.absolutePath();
+    }
+
+    const QStringList childDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &child : childDirs) {
+      QDir childDir(dir.filePath(child));
+      if (!childDir.entryList(QStringList() << "*.obf" << "*.dll" << "*.so" << "*.dylib",
+                              QDir::Files).isEmpty()) {
+        return childDir.absolutePath();
+      }
+    }
+    return QString();
+  };
+
   const QString appDir = QCoreApplication::applicationDirPath();
   const QString version = QString::fromLatin1(BABEL_VERSION);
   const QStringList candidates = QStringList()
@@ -75,9 +108,8 @@ QString configuredPluginDir()
     if (!dir.exists())
       continue;
 
-    if (!dir.entryList(QStringList() << "*.obf" << "*.dll" << "*.so" << "*.dylib",
-                       QDir::Files).isEmpty()) {
-      const QString selected = dir.absolutePath();
+    const QString selected = findPluginDir(dir);
+    if (!selected.isEmpty()) {
       qputenv("BABEL_LIBDIR", selected.toLocal8Bit());
       return selected;
     }
