@@ -32,16 +32,30 @@ private Q_SLOTS:
 
 void ForceFieldTest::initTestCase()
 {
-  const QString dataDir = QString::fromLocal8Bit(OPENBABEL_TEST_DATADIR);
-  qputenv("BABEL_DATADIR", QDir(dataDir).absolutePath().toLocal8Bit());
-
   const QString version = QString::fromLatin1(BABEL_VERSION);
-  const QString versioned = QDir(dataDir).filePath(version + "/UFF.prm");
-  const QString unversioned = QDir(dataDir).filePath("UFF.prm");
+  const QStringList candidateDataDirs = QStringList()
+    << QString::fromLocal8Bit(OPENBABEL_TEST_DATADIR)
+    << QString::fromLocal8Bit(OPENBABEL_TEST_FALLBACK_DATADIR);
 
-  QVERIFY2(QFileInfo::exists(versioned) || QFileInfo::exists(unversioned),
-           qPrintable(QString("Could not find UFF.prm under %1")
-                          .arg(QDir(dataDir).absolutePath())));
+  QString selectedDataDir;
+  for (const QString &candidate : candidateDataDirs) {
+    QDir dir(candidate);
+    if (!dir.exists())
+      continue;
+
+    const QString versioned = dir.filePath(version + "/UFF.prm");
+    const QString unversioned = dir.filePath("UFF.prm");
+    if (QFileInfo::exists(versioned) || QFileInfo::exists(unversioned)) {
+      selectedDataDir = dir.absolutePath();
+      break;
+    }
+  }
+
+  QVERIFY2(!selectedDataDir.isEmpty(),
+           qPrintable(QString("Could not find UFF.prm in any candidate data directory: %1")
+                          .arg(candidateDataDirs.join(", "))));
+
+  qputenv("BABEL_DATADIR", selectedDataDir.toLocal8Bit());
 }
 
 void ForceFieldTest::forceFieldIsListed_data()
