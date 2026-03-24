@@ -72,21 +72,27 @@ private Q_SLOTS:
 void ForceFieldTest::forceFieldDiscoverable_data()
 {
   QTest::addColumn<QString>("forceFieldName");
+  QTest::addColumn<bool>("required");
 
-  QTest::newRow("MMFF94") << QString("MMFF94");
-  QTest::newRow("UFF") << QString("UFF");
-  QTest::newRow("UFF4MOF") << QString("UFF4MOF");
+  QTest::newRow("MMFF94") << QString("MMFF94") << true;
+  QTest::newRow("UFF") << QString("UFF") << true;
+  QTest::newRow("UFF4MOF") << QString("UFF4MOF") << false;
 }
 
 void ForceFieldTest::forceFieldDiscoverable()
 {
   QFETCH(QString, forceFieldName);
+  QFETCH(bool, required);
 
   OpenBabel::OBConversion conv;
   Q_UNUSED(conv);
 
   OpenBabel::OBForceField *prototype =
     OpenBabel::OBForceField::FindForceField(forceFieldName.toLatin1().constData());
+
+  if (!prototype && !required)
+    QSKIP(qPrintable(QString("Optional force field %1 is not available in this build")
+                         .arg(forceFieldName)));
 
   QVERIFY2(prototype,
            qPrintable(QString("Could not find force field %1")
@@ -97,16 +103,18 @@ void ForceFieldTest::forceFieldSetupAndEnergy_data()
 {
   QTest::addColumn<QString>("forceFieldName");
   QTest::addColumn<QString>("fileName");
+  QTest::addColumn<bool>("required");
 
-  QTest::newRow("MMFF94 methane") << QString("MMFF94") << QString("methane.cml");
-  QTest::newRow("UFF methane") << QString("UFF") << QString("methane.cml");
-  QTest::newRow("UFF4MOF ruthenium") << QString("UFF4MOF") << QString("tpy-Ru.sdf");
+  QTest::newRow("MMFF94 methane") << QString("MMFF94") << QString("methane.cml") << true;
+  QTest::newRow("UFF methane") << QString("UFF") << QString("methane.cml") << true;
+  QTest::newRow("UFF4MOF ruthenium") << QString("UFF4MOF") << QString("tpy-Ru.sdf") << false;
 }
 
 void ForceFieldTest::forceFieldSetupAndEnergy()
 {
   QFETCH(QString, forceFieldName);
   QFETCH(QString, fileName);
+  QFETCH(bool, required);
 
   const QString dataDir = configuredDataDir();
   if (dataDir.isEmpty()) {
@@ -128,6 +136,10 @@ void ForceFieldTest::forceFieldSetupAndEnergy()
 
   OpenBabel::OBForceField *prototype =
     OpenBabel::OBForceField::FindForceField(forceFieldName.toLatin1().constData());
+  if (!prototype && !required)
+    QSKIP(qPrintable(QString("Optional force field %1 is not available in this build")
+                         .arg(forceFieldName)));
+
   QVERIFY2(prototype,
            qPrintable(QString("Could not find force field %1")
                           .arg(forceFieldName)));
