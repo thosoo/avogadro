@@ -74,21 +74,7 @@ QString configuredPluginDir()
 {
   auto hasPluginBinaries = [](const QDir &dir) -> bool {
     const QStringList obfFiles = dir.entryList(QStringList() << "*.obf", QDir::Files);
-    if (!obfFiles.isEmpty())
-      return true;
-
-    const QStringList dllFiles = dir.entryList(QStringList() << "*.dll" << "*.so" << "*.dylib",
-                                               QDir::Files);
-    for (const QString &file : dllFiles) {
-      const QString lower = file.toLower();
-      if (lower == "openbabel-3.dll" || lower == "openbabel.dll" ||
-          lower == "libopenbabel.so" || lower == "libopenbabel.dylib") {
-        continue;
-      }
-      return true;
-    }
-
-    return false;
+    return !obfFiles.isEmpty();
   };
 
   auto findPluginDir = [&hasPluginBinaries](const QDir &dir) -> QString {
