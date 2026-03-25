@@ -173,6 +173,22 @@ bool shouldSkipSetupFailure(const std::string &log)
          lowerLog.find("babel_libdir") != std::string::npos;
 }
 
+void ensureOpenBabelRuntimeInitialized()
+{
+  static bool initialized = false;
+  if (initialized)
+    return;
+
+  configuredPluginDir();
+  configuredDataDir();
+
+  OpenBabel::OBPlugin::LoadAllPlugins();
+  OpenBabel::OBConversion conv;
+  Q_UNUSED(conv);
+
+  initialized = true;
+}
+
 } // namespace
 
 class ForceFieldTest : public QObject
@@ -190,11 +206,7 @@ private Q_SLOTS:
 
 void ForceFieldTest::initTestCase()
 {
-  configuredPluginDir();
-  configuredDataDir();
-
-  OpenBabel::OBConversion conv;
-  Q_UNUSED(conv);
+  ensureOpenBabelRuntimeInitialized();
 
   OpenBabel::OBForceField *mmff = OpenBabel::OBForceField::FindForceField("MMFF94");
   OpenBabel::OBForceField *uff = OpenBabel::OBForceField::FindForceField("UFF");
@@ -222,11 +234,10 @@ void ForceFieldTest::forceFieldDiscoverable_data()
 
 void ForceFieldTest::forceFieldDiscoverable()
 {
+  ensureOpenBabelRuntimeInitialized();
+
   QFETCH(QString, forceFieldName);
   QFETCH(bool, required);
-
-  OpenBabel::OBConversion conv;
-  Q_UNUSED(conv);
 
   OpenBabel::OBForceField *prototype =
     OpenBabel::OBForceField::FindForceField(forceFieldName.toLatin1().constData());
@@ -253,6 +264,8 @@ void ForceFieldTest::forceFieldSetupAndEnergy_data()
 
 void ForceFieldTest::forceFieldSetupAndEnergy()
 {
+  ensureOpenBabelRuntimeInitialized();
+
   QFETCH(QString, forceFieldName);
   QFETCH(QString, fileName);
   QFETCH(bool, required);
