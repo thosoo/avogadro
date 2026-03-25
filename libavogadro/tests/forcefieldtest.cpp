@@ -9,7 +9,6 @@
 #include <cmath>
 #include <memory>
 #include <sstream>
-#include <vector>
 
 #include <QDir>
 #include <QFileInfo>
@@ -17,7 +16,6 @@
 #include <openbabel/babelconfig.h>
 #include <openbabel/obconversion.h>
 #include <openbabel/forcefield.h>
-#include <openbabel/plugin.h>
 
 namespace {
 
@@ -130,13 +128,6 @@ QString runtimeDiagnostics()
   details << QString("appDir=%1").arg(appDir);
   details << QString("BABEL_DATADIR=%1").arg(QString::fromLocal8Bit(qgetenv("BABEL_DATADIR")));
   details << QString("BABEL_LIBDIR=%1").arg(QString::fromLocal8Bit(qgetenv("BABEL_LIBDIR")));
-
-  std::vector<std::string> forceFields;
-  OpenBabel::OBPlugin::ListAsVector("forcefields", "ids", forceFields);
-  QStringList ff;
-  for (size_t i = 0; i < forceFields.size(); ++i)
-    ff << QString::fromStdString(forceFields[i]);
-  details << QString("forcefields=[%1]").arg(ff.join(","));
 
   return details.join("; ");
 }
