@@ -69,7 +69,13 @@ foreach (test ${tests})
     ${QT_QTTEST_LIBRARY}
     avogadro)
   add_test(${test}Test ${CMAKE_BINARY_DIR}/bin/${test}test)
-  set_tests_properties(${test}Test PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  set(_test_env "QT_QPA_PLATFORM=offscreen")
+  if(${test} STREQUAL "forcefield")
+    list(APPEND _test_env
+      "BABEL_DATADIR=${CMAKE_BINARY_DIR}/openbabel-install/share"
+      "BABEL_LIBDIR=${CMAKE_BINARY_DIR}/openbabel-install/bin")
+  endif()
+  set_tests_properties(${test}Test PROPERTIES ENVIRONMENT "${_test_env}")
   set_property(SOURCE ${test_SRCS} PROPERTY LABELS avogadro)
   set_property(TARGET ${test}test PROPERTY LABELS avogadro)
   set_property(TEST ${test}Test PROPERTY LABELS avogadro)

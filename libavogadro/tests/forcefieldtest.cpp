@@ -72,20 +72,37 @@ QString configuredDataDir()
 
 QString configuredPluginDir()
 {
-  auto findPluginDir = [](const QDir &dir) -> QString {
-    if (!dir.entryList(QStringList() << "*.obf" << "*.dll" << "*.so" << "*.dylib",
-                       QDir::Files).isEmpty()) {
-      return dir.absolutePath();
+  auto hasPluginBinaries = [](const QDir &dir) -> bool {
+    const QStringList obfFiles = dir.entryList(QStringList() << "*.obf", QDir::Files);
+    if (!obfFiles.isEmpty())
+      return true;
+
+    const QStringList dllFiles = dir.entryList(QStringList() << "*.dll" << "*.so" << "*.dylib",
+                                               QDir::Files);
+    for (const QString &file : dllFiles) {
+      const QString lower = file.toLower();
+      if (lower == "openbabel-3.dll" || lower == "openbabel.dll" ||
+          lower == "libopenbabel.so" || lower == "libopenbabel.dylib") {
+        continue;
+      }
+      return true;
     }
 
+    return false;
+  };
+
+  auto findPluginDir = [&hasPluginBinaries](const QDir &dir) -> QString {
     const QStringList childDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
     for (const QString &child : childDirs) {
       QDir childDir(dir.filePath(child));
-      if (!childDir.entryList(QStringList() << "*.obf" << "*.dll" << "*.so" << "*.dylib",
-                              QDir::Files).isEmpty()) {
+      if (hasPluginBinaries(childDir)) {
         return childDir.absolutePath();
       }
     }
+
+    if (hasPluginBinaries(dir))
+      return dir.absolutePath();
+
     return QString();
   };
 
