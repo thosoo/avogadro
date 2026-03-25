@@ -185,7 +185,6 @@ void ensureOpenBabelRuntimeInitialized()
   configuredPluginDir();
   configuredDataDir();
 
-  OpenBabel::OBPlugin::LoadAllPlugins();
   OpenBabel::OBConversion conv;
   Q_UNUSED(conv);
 
