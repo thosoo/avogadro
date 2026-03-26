@@ -96,9 +96,9 @@ namespace Avogadro {
 
     m_forceField = OBForceField::FindForceField("MMFF94");
     if (!m_forceField)
-      m_forceField = OBForceField::FindForceField("UFF4MOF");
-    if (!m_forceField)
       m_forceField = OBForceField::FindForceField("UFF");
+    if (!m_forceField)
+      m_forceField = OBForceField::FindForceField("UFF4MOF");
   }
 
   DrawTool::~DrawTool()
@@ -959,4 +959,3 @@ namespace Avogadro {
       m_addHydrogensCheck->setCheckState(m_addHydrogens ? Qt::Checked : Qt::Unchecked);
   }
 }
-
