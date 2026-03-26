@@ -202,15 +202,16 @@ void ForceFieldTest::initTestCase()
   ensureOpenBabelRuntimeInitialized();
 
   OpenBabel::OBForceField *mmff = OpenBabel::OBForceField::FindForceField("MMFF94");
+  OpenBabel::OBForceField *uff4mof = OpenBabel::OBForceField::FindForceField("UFF4MOF");
   OpenBabel::OBForceField *uff = OpenBabel::OBForceField::FindForceField("UFF");
 
-  if (!mmff || !uff) {
+  if (!mmff || (!uff4mof && !uff)) {
     QStringList missing;
     if (!mmff)
       missing << "MMFF94";
-    if (!uff)
-      missing << "UFF";
-    QSKIP(qPrintable(QString("Skipping ForceFieldTest: required force fields are unavailable (missing=%1). %2")
+    if (!uff4mof && !uff)
+      missing << "UFF4MOF/UFF";
+    QSKIP(qPrintable(QString("Skipping ForceFieldTest: required force fields are unavailable or not initialized (missing=%1). %2")
                          .arg(missing.join(","), runtimeDiagnostics())));
   }
 }
@@ -221,7 +222,8 @@ void ForceFieldTest::forceFieldDiscoverable_data()
   QTest::addColumn<bool>("required");
 
   QTest::newRow("MMFF94") << QString("MMFF94") << true;
-  QTest::newRow("UFF") << QString("UFF") << true;
+  QTest::newRow("UFF4MOF or UFF") << QString("UFF4MOF_OR_UFF") << true;
+  QTest::newRow("UFF") << QString("UFF") << false;
   QTest::newRow("UFF4MOF") << QString("UFF4MOF") << false;
 }
 
@@ -232,8 +234,14 @@ void ForceFieldTest::forceFieldDiscoverable()
   QFETCH(QString, forceFieldName);
   QFETCH(bool, required);
 
-  OpenBabel::OBForceField *prototype =
-    OpenBabel::OBForceField::FindForceField(forceFieldName.toLatin1().constData());
+  OpenBabel::OBForceField *prototype = nullptr;
+  if (forceFieldName == "UFF4MOF_OR_UFF") {
+    prototype = OpenBabel::OBForceField::FindForceField("UFF4MOF");
+    if (!prototype)
+      prototype = OpenBabel::OBForceField::FindForceField("UFF");
+  } else {
+    prototype = OpenBabel::OBForceField::FindForceField(forceFieldName.toLatin1().constData());
+  }
 
   if (!prototype && !required)
     QSKIP(qPrintable(QString("Optional force field %1 is not available in this build")
@@ -252,7 +260,8 @@ void ForceFieldTest::forceFieldSetupAndEnergy_data()
   QTest::addColumn<bool>("required");
 
   QTest::newRow("MMFF94 methane") << QString("MMFF94") << QString("methane.cml") << true;
-  QTest::newRow("UFF methane") << QString("UFF") << QString("methane.cml") << true;
+  QTest::newRow("UFF4MOF/UFF methane") << QString("UFF4MOF_OR_UFF") << QString("methane.cml") << true;
+  QTest::newRow("UFF methane") << QString("UFF") << QString("methane.cml") << false;
   QTest::newRow("UFF4MOF ruthenium") << QString("UFF4MOF") << QString("tpy-Ru.sdf") << false;
 }
 
@@ -269,7 +278,8 @@ void ForceFieldTest::forceFieldSetupAndEnergy()
     QSKIP(qPrintable(QString("Skipping setup/energy checks because OpenBabel parameter data was not found. %1")
                          .arg(runtimeDiagnostics())));
   }
-  if (required && !hasParameterFile(dataDir, forceFieldName)) {
+  if (required && forceFieldName != "UFF4MOF_OR_UFF" &&
+      !hasParameterFile(dataDir, forceFieldName)) {
     QSKIP(qPrintable(QString("Skipping %1 setup because expected parameter files were not found in %2. %3")
                          .arg(forceFieldName, dataDir, runtimeDiagnostics())));
   }
@@ -287,8 +297,19 @@ void ForceFieldTest::forceFieldSetupAndEnergy()
            qPrintable(QString("Could not read molecule from %1")
                           .arg(filePath)));
 
-  OpenBabel::OBForceField *prototype =
-    OpenBabel::OBForceField::FindForceField(forceFieldName.toLatin1().constData());
+  OpenBabel::OBForceField *prototype = nullptr;
+  QString selectedForceFieldName = forceFieldName;
+  if (forceFieldName == "UFF4MOF_OR_UFF") {
+    prototype = OpenBabel::OBForceField::FindForceField("UFF4MOF");
+    if (prototype) {
+      selectedForceFieldName = "UFF4MOF";
+    } else {
+      prototype = OpenBabel::OBForceField::FindForceField("UFF");
+      selectedForceFieldName = "UFF";
+    }
+  } else {
+    prototype = OpenBabel::OBForceField::FindForceField(forceFieldName.toLatin1().constData());
+  }
   if (!prototype && !required)
     QSKIP(qPrintable(QString("Optional force field %1 is not available in this build")
                          .arg(forceFieldName)));
@@ -296,6 +317,11 @@ void ForceFieldTest::forceFieldSetupAndEnergy()
   if (!prototype) {
     QSKIP(qPrintable(QString("Skipping required force field %1 because it is not discoverable in this runtime. %2")
                          .arg(forceFieldName, runtimeDiagnostics())));
+  }
+
+  if (required && !hasParameterFile(dataDir, selectedForceFieldName)) {
+    QSKIP(qPrintable(QString("Skipping %1 setup because expected parameter files were not found in %2. %3")
+                         .arg(selectedForceFieldName, dataDir, runtimeDiagnostics())));
   }
 
   std::unique_ptr<OpenBabel::OBForceField> forceField(prototype->MakeNewInstance());
