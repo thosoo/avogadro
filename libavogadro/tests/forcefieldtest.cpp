@@ -341,61 +341,61 @@ void ForceFieldTest::forceFieldSetupAndEnergy()
 void ForceFieldTest::compareUffVsUff4mofOptimizedEnergy()
 {
   ensureOpenBabelRuntimeInitialized();
-  QSKIP("Skipping UFF/UFF4MOF direct energy comparison: known OpenBabel instability on CI for this path.");
 
   const QString dataDir = configuredDataDir();
-  if (dataDir.isEmpty()) {
-    QSKIP(qPrintable(QString("Skipping UFF/UFF4MOF comparison because OpenBabel parameter data was not found. %1")
-                         .arg(runtimeDiagnostics())));
-  }
+  QVERIFY2(!dataDir.isEmpty(),
+           qPrintable(QString("OpenBabel parameter data was not found for UFF/UFF4MOF comparison. %1")
+                          .arg(runtimeDiagnostics())));
 
   OpenBabel::OBConversion conv;
-  if (!conv.SetInFormat("sdf")) {
-    QSKIP(qPrintable(QString("Skipping UFF/UFF4MOF comparison because SDF format plugin is unavailable. %1")
-                         .arg(runtimeDiagnostics())));
-  }
+  const QString fileName = "ferrocene.cml";
+  const QByteArray formatName = QFileInfo(fileName).suffix().toLatin1();
+  QVERIFY2(conv.SetInFormat(formatName.constData()),
+           qPrintable(QString("OpenBabel input format plugin for '%1' is unavailable. %2")
+                          .arg(QString::fromLatin1(formatName), runtimeDiagnostics())));
 
   OpenBabel::OBMol inputMol;
-  const QString filePath = QString(TESTDATADIR) + "tpy-Ru.sdf";
-  if (!conv.ReadFile(&inputMol, filePath.toLocal8Bit().constData())) {
-    QSKIP(qPrintable(QString("Skipping UFF/UFF4MOF comparison because test molecule could not be read from %1. %2")
-                         .arg(filePath, runtimeDiagnostics())));
-  }
+  const QString filePath = QString(TESTDATADIR) + fileName;
+  QVERIFY2(conv.ReadFile(&inputMol, filePath.toLocal8Bit().constData()),
+           qPrintable(QString("Test molecule could not be read from %1. %2")
+                          .arg(filePath, runtimeDiagnostics())));
 
   OpenBabel::OBForceField *uffPrototype = OpenBabel::OBForceField::FindForceField("UFF");
   OpenBabel::OBForceField *uff4mofPrototype = OpenBabel::OBForceField::FindForceField("UFF4MOF");
-  if (!uffPrototype || !uff4mofPrototype) {
-    QSKIP(qPrintable(QString("Skipping UFF/UFF4MOF comparison because one or both force fields are unavailable. %1")
-                         .arg(runtimeDiagnostics())));
-  }
+  QVERIFY2(uffPrototype && uff4mofPrototype,
+           qPrintable(QString("One or both force fields are unavailable for comparison. %1")
+                          .arg(runtimeDiagnostics())));
 
   OpenBabel::OBMol uffMol = inputMol;
   OpenBabel::OBMol uff4mofMol = inputMol;
 
   std::unique_ptr<OpenBabel::OBForceField> uff(uffPrototype->MakeNewInstance());
   std::unique_ptr<OpenBabel::OBForceField> uff4mof(uff4mofPrototype->MakeNewInstance());
-  if (!uff.get() || !uff4mof.get()) {
-    QSKIP(qPrintable(QString("Skipping UFF/UFF4MOF comparison because force field instances could not be created. %1")
-                         .arg(runtimeDiagnostics())));
-  }
+  QVERIFY2(uff.get() && uff4mof.get(),
+           qPrintable(QString("Force field instances could not be created for comparison. %1")
+                          .arg(runtimeDiagnostics())));
 
-  if (!uff->Setup(uffMol) || !uff4mof->Setup(uff4mofMol)) {
-    QSKIP(qPrintable(QString("Skipping UFF/UFF4MOF comparison because setup failed for at least one force field. %1")
-                         .arg(runtimeDiagnostics())));
-  }
+  QVERIFY2(uff->Setup(uffMol),
+           qPrintable(QString("UFF setup failed for %1. %2")
+                          .arg(fileName, runtimeDiagnostics())));
+  QVERIFY2(uff4mof->Setup(uff4mofMol),
+           qPrintable(QString("UFF4MOF setup failed for %1. %2")
+                          .arg(fileName, runtimeDiagnostics())));
 
-  // NOTE: Full geometry optimization of heavy metal complexes can trigger
-  // force-field-specific instability in some OpenBabel builds. Compare
-  // energies on the same input geometry after successful setup instead.
+  uff->ConjugateGradients(150, 1.0e-4);
+  uff->UpdateCoordinates(uffMol);
   const double uffEnergy = uff->Energy(false);
 
+  uff4mof->ConjugateGradients(150, 1.0e-4);
+  uff4mof->UpdateCoordinates(uff4mofMol);
   const double uff4mofEnergy = uff4mof->Energy(false);
 
   QVERIFY2(std::isfinite(uffEnergy) && std::isfinite(uff4mofEnergy),
            qPrintable(QString("Expected finite energies for UFF/UFF4MOF comparison. UFF=%1 UFF4MOF=%2. %3")
                           .arg(uffEnergy).arg(uff4mofEnergy).arg(runtimeDiagnostics())));
   QVERIFY2(std::fabs(uffEnergy - uff4mofEnergy) > 1.0e-6,
-           qPrintable(QString("Expected UFF and UFF4MOF energies to differ for tpy-Ru.sdf, but got UFF=%1 and UFF4MOF=%2")
+           qPrintable(QString("Expected optimized UFF and UFF4MOF energies to differ for %1, but got UFF=%2 and UFF4MOF=%3")
+                          .arg(fileName)
                           .arg(uffEnergy).arg(uff4mofEnergy)));
 }
 
