@@ -173,9 +173,6 @@ void ensureOpenBabelRuntimeInitialized()
   if (initialized)
     return;
 
-  configuredPluginDir();
-  configuredDataDir();
-
   OpenBabel::OBConversion conv;
   Q_UNUSED(conv);
 
@@ -200,20 +197,6 @@ private Q_SLOTS:
 void ForceFieldTest::initTestCase()
 {
   ensureOpenBabelRuntimeInitialized();
-
-  OpenBabel::OBForceField *mmff = OpenBabel::OBForceField::FindForceField("MMFF94");
-  OpenBabel::OBForceField *uff4mof = OpenBabel::OBForceField::FindForceField("UFF4MOF");
-  OpenBabel::OBForceField *uff = OpenBabel::OBForceField::FindForceField("UFF");
-
-  if (!mmff || (!uff4mof && !uff)) {
-    QStringList missing;
-    if (!mmff)
-      missing << "MMFF94";
-    if (!uff4mof && !uff)
-      missing << "UFF4MOF/UFF";
-    QSKIP(qPrintable(QString("Skipping ForceFieldTest: required force fields are unavailable or not initialized (missing=%1). %2")
-                         .arg(missing.join(","), runtimeDiagnostics())));
-  }
 }
 
 void ForceFieldTest::forceFieldDiscoverable_data()
