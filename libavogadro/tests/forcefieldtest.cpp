@@ -191,6 +191,7 @@ private Q_SLOTS:
   void forceFieldDiscoverable();
   void forceFieldSetupAndEnergy_data();
   void forceFieldSetupAndEnergy();
+  void compareUffVsUff4mofOptimizedEnergy();
 };
 
 
@@ -335,6 +336,67 @@ void ForceFieldTest::forceFieldSetupAndEnergy()
     QSKIP(qPrintable(QString("Skipping %1 energy check for %2 because the energy was not finite. %3")
                          .arg(forceFieldName, fileName, runtimeDiagnostics())));
   }
+}
+
+void ForceFieldTest::compareUffVsUff4mofOptimizedEnergy()
+{
+  ensureOpenBabelRuntimeInitialized();
+
+  const QString dataDir = configuredDataDir();
+  if (dataDir.isEmpty()) {
+    QSKIP(qPrintable(QString("Skipping UFF/UFF4MOF comparison because OpenBabel parameter data was not found. %1")
+                         .arg(runtimeDiagnostics())));
+  }
+
+  OpenBabel::OBConversion conv;
+  if (!conv.SetInFormat("sdf")) {
+    QSKIP(qPrintable(QString("Skipping UFF/UFF4MOF comparison because SDF format plugin is unavailable. %1")
+                         .arg(runtimeDiagnostics())));
+  }
+
+  OpenBabel::OBMol inputMol;
+  const QString filePath = QString(TESTDATADIR) + "tpy-Ru.sdf";
+  if (!conv.ReadFile(&inputMol, filePath.toLocal8Bit().constData())) {
+    QSKIP(qPrintable(QString("Skipping UFF/UFF4MOF comparison because test molecule could not be read from %1. %2")
+                         .arg(filePath, runtimeDiagnostics())));
+  }
+
+  OpenBabel::OBForceField *uffPrototype = OpenBabel::OBForceField::FindForceField("UFF");
+  OpenBabel::OBForceField *uff4mofPrototype = OpenBabel::OBForceField::FindForceField("UFF4MOF");
+  if (!uffPrototype || !uff4mofPrototype) {
+    QSKIP(qPrintable(QString("Skipping UFF/UFF4MOF comparison because one or both force fields are unavailable. %1")
+                         .arg(runtimeDiagnostics())));
+  }
+
+  OpenBabel::OBMol uffMol = inputMol;
+  OpenBabel::OBMol uff4mofMol = inputMol;
+
+  std::unique_ptr<OpenBabel::OBForceField> uff(uffPrototype->MakeNewInstance());
+  std::unique_ptr<OpenBabel::OBForceField> uff4mof(uff4mofPrototype->MakeNewInstance());
+  if (!uff.get() || !uff4mof.get()) {
+    QSKIP(qPrintable(QString("Skipping UFF/UFF4MOF comparison because force field instances could not be created. %1")
+                         .arg(runtimeDiagnostics())));
+  }
+
+  if (!uff->Setup(uffMol) || !uff4mof->Setup(uff4mofMol)) {
+    QSKIP(qPrintable(QString("Skipping UFF/UFF4MOF comparison because setup failed for at least one force field. %1")
+                         .arg(runtimeDiagnostics())));
+  }
+
+  uff->ConjugateGradients(200, 1.0e-4);
+  uff->UpdateCoordinates(uffMol);
+  const double uffEnergy = uff->Energy(false);
+
+  uff4mof->ConjugateGradients(200, 1.0e-4);
+  uff4mof->UpdateCoordinates(uff4mofMol);
+  const double uff4mofEnergy = uff4mof->Energy(false);
+
+  QVERIFY2(std::isfinite(uffEnergy) && std::isfinite(uff4mofEnergy),
+           qPrintable(QString("Expected finite energies for UFF/UFF4MOF comparison. UFF=%1 UFF4MOF=%2. %3")
+                          .arg(uffEnergy).arg(uff4mofEnergy).arg(runtimeDiagnostics())));
+  QVERIFY2(std::fabs(uffEnergy - uff4mofEnergy) > 1.0e-6,
+           qPrintable(QString("Expected optimized UFF and UFF4MOF energies to differ for tpy-Ru.sdf, but got UFF=%1 and UFF4MOF=%2")
+                          .arg(uffEnergy).arg(uff4mofEnergy)));
 }
 
 QTEST_MAIN(ForceFieldTest)
