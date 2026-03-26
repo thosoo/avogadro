@@ -348,7 +348,7 @@ void ForceFieldTest::compareUffVsUff4mofOptimizedEnergy()
                           .arg(runtimeDiagnostics())));
 
   OpenBabel::OBConversion conv;
-  const QString fileName = "methane.cml";
+  const QString fileName = "Fe.sdf";
   const QByteArray formatName = QFileInfo(fileName).suffix().toLatin1();
   QVERIFY2(conv.SetInFormat(formatName.constData()),
            qPrintable(QString("OpenBabel input format plugin for '%1' is unavailable. %2")
