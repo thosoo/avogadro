@@ -207,6 +207,10 @@ namespace Avogadro {
               pFF->ConjugateGradients(250, 1.0e-4);
               pFF->UpdateCoordinates(obfragment);
             }
+            else if ((pFF = OBForceField::FindForceField("UFF4MOF")) && pFF->Setup(obfragment)) {
+              pFF->ConjugateGradients(250, 1.0e-4);
+              pFF->UpdateCoordinates(obfragment);
+            }
 
             fragment.setOBMol(&obfragment);
             if (noConnection) { // if we're not connecting to a specific atom, add Hs, center
