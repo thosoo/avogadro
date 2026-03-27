@@ -144,6 +144,36 @@ jobs:
           "CMAKE_LIBRARY_PATH=$libDir;$env:CMAKE_LIBRARY_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "CMAKE_PREFIX_PATH=$installDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$binDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Install Boost
+        shell: pwsh
+        run: |
+          choco install boost-msvc-14.3 --version=1.87.0 -y --no-progress
+          $boostRoot = 'C:\local\boost_1_87_0'
+          $boostInclude = 'C:\local\boost_1_87_0'
+          $boostLibDir = 'C:\local\boost_1_87_0\lib64-msvc-14.3'
+          if (-not (Test-Path $boostRoot)) {
+            throw "BOOST_ROOT path not found: $boostRoot"
+          }
+          if (-not (Test-Path (Join-Path $boostRoot 'boost\version.hpp'))) {
+            throw "Boost headers not found at $(Join-Path $boostRoot 'boost\\version.hpp')"
+          }
+          if (-not (Test-Path $boostLibDir)) {
+            throw "BOOST_LIBRARYDIR path not found: $boostLibDir"
+          }
+          "BOOST_ROOT=$boostRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "BOOST_INCLUDEDIR=$boostInclude" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "BOOST_LIBRARYDIR=$boostLibDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "Boost_NO_SYSTEM_PATHS=ON" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_PREFIX_PATH=$boostRoot;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_INCLUDE_PATH=$boostInclude;$env:CMAKE_INCLUDE_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_LIBRARY_PATH=$boostLibDir;$env:CMAKE_LIBRARY_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$boostLibDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $boostDlls = Get-ChildItem -Path $boostLibDir -Filter "boost_*.dll" -ErrorAction SilentlyContinue
+          if ($boostDlls) {
+            Write-Host "Discovered Boost DLLs:" ($boostDlls | ForEach-Object { $_.Name } | Join-String -Separator ", ")
+          } else {
+            Write-Host "No boost_*.dll files found yet under $boostLibDir"
+          }
       - name: Configure
         shell: pwsh
         env:
@@ -160,6 +190,10 @@ jobs:
             -DCMAKE_INSTALL_PREFIX="$dist" `
             -DENABLE_AVO_PACKAGE=ON `
             -DENABLE_GLSL=ON `
+            "-DBOOST_ROOT=$env:BOOST_ROOT" `
+            "-DBOOST_INCLUDEDIR=$env:BOOST_INCLUDEDIR" `
+            "-DBOOST_LIBRARYDIR=$env:BOOST_LIBRARYDIR" `
+            "-DBoost_NO_SYSTEM_PATHS=$env:Boost_NO_SYSTEM_PATHS" `
             "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR" `
             "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY" `
             "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR" `
@@ -169,6 +203,24 @@ jobs:
         shell: pwsh
         run: |
           cmake --build build --config Release --target openbabel_ext-install
+          $coordgenDir = "$PWD\build\openbabel-install\bin"
+          if (-not (Test-Path $coordgenDir)) {
+            throw "OpenBabel runtime directory not found: $coordgenDir"
+          }
+          $coordgenDlls = Get-ChildItem -Path $coordgenDir -Filter "coordgen*.dll" -ErrorAction SilentlyContinue
+          if (-not $coordgenDlls) {
+            Get-ChildItem -Path $coordgenDir | Format-Table -AutoSize
+            throw "CoordGen DLL not found under $coordgenDir"
+          }
+          Write-Host "CoordGen DLLs found:" ($coordgenDlls | ForEach-Object { $_.Name } | Join-String -Separator ", ")
+          $boostDlls = Get-ChildItem -Path $env:BOOST_LIBRARYDIR -Filter "boost_*.dll" -ErrorAction Stop
+          if (-not $boostDlls) {
+            throw "No Boost DLLs found under $env:BOOST_LIBRARYDIR"
+          }
+          foreach ($dll in $boostDlls) {
+            Copy-Item -Path $dll.FullName -Destination $coordgenDir -Force
+          }
+          Write-Host "Boost DLLs copied to ${coordgenDir}:" ($boostDlls | ForEach-Object { $_.Name } | Join-String -Separator ", ")
           cmake --build build --config Release --target install
       - name: Create installer
         if: matrix.target == 'installer'
