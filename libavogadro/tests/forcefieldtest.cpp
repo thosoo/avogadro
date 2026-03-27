@@ -7,14 +7,11 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
-#include <limits>
 #include <memory>
 #include <sstream>
 
 #include <QDir>
 #include <QFileInfo>
-#include <QProcess>
-#include <QRegularExpression>
 
 #include <openbabel/babelconfig.h>
 #include <openbabel/obconversion.h>
@@ -170,54 +167,34 @@ bool shouldSkipSetupFailure(const std::string &log)
          lowerLog.find("babel_libdir") != std::string::npos;
 }
 
-bool runObenergySinglePoint(const QString &forceFieldName, const QString &filePath,
-                            double &energy, QString &diagnostics)
+bool evaluateSinglePointEnergyLikeAutoOpt(OpenBabel::OBForceField *prototype,
+                                          const OpenBabel::OBMol &inputMol,
+                                          double &energy,
+                                          QString &diagnostics)
 {
-  QProcess process;
-  const QString program = "obenergy";
-  const QStringList arguments = QStringList() << "-ff" << forceFieldName << filePath;
-
-  process.start(program, arguments);
-  if (!process.waitForStarted(5000)) {
-    diagnostics = QString("Failed to start '%1'. %2").arg(program, runtimeDiagnostics());
+  std::unique_ptr<OpenBabel::OBForceField> forceField(prototype->MakeNewInstance());
+  if (!forceField.get()) {
+    diagnostics = "Could not create OBForceField instance.";
     return false;
   }
 
-  if (!process.waitForFinished(15000)) {
-    process.kill();
-    diagnostics = QString("Timed out running '%1 %2'. %3")
-                    .arg(program, arguments.join(" "), runtimeDiagnostics());
+  std::ostringstream log;
+  forceField->SetLogFile(&log);
+  forceField->SetLogLevel(OBFF_LOGLVL_NONE);
+
+  OpenBabel::OBMol mol = inputMol;
+  if (!forceField->Setup(mol)) {
+    diagnostics = QString("Force-field setup failed. Log: %1")
+                    .arg(QString::fromStdString(log.str()));
     return false;
   }
 
-  const QString stdOut = QString::fromLocal8Bit(process.readAllStandardOutput());
-  const QString stdErr = QString::fromLocal8Bit(process.readAllStandardError());
-  const QString combined = stdOut + "\n" + stdErr;
-
-  if (process.exitStatus() != QProcess::NormalExit || process.exitCode() != 0) {
-    diagnostics = QString("'%1 %2' failed with exitStatus=%3 exitCode=%4. Output:\n%5")
-                    .arg(program, arguments.join(" "))
-                    .arg(static_cast<int>(process.exitStatus()))
-                    .arg(process.exitCode())
-                    .arg(combined);
-    return false;
-  }
-
-  const QRegularExpression totalEnergyRx(
-    QStringLiteral("TOTAL\\s+ENERGY\\s*=\\s*([-+]?\\d*\\.?\\d+(?:[eE][-+]?\\d+)?)"),
-    QRegularExpression::CaseInsensitiveOption);
-  const QRegularExpressionMatch totalEnergyMatch = totalEnergyRx.match(combined);
-  if (!totalEnergyMatch.hasMatch()) {
-    diagnostics = QString("Could not parse TOTAL ENERGY from output of '%1 %2'. Output:\n%3")
-                    .arg(program, arguments.join(" "), combined);
-    return false;
-  }
-
-  bool ok = false;
-  energy = totalEnergyMatch.captured(1).toDouble(&ok);
-  if (!ok || !std::isfinite(energy)) {
-    diagnostics = QString("Parsed non-finite TOTAL ENERGY from '%1 %2'. Output:\n%3")
-                    .arg(program, arguments.join(" "), combined);
+  // Match AutoOptTool::AutoOptThread::update() behavior:
+  // setup on a temporary OBMol, set conformers, then query Energy(false).
+  forceField->SetConformers(mol);
+  energy = forceField->Energy(false);
+  if (!std::isfinite(energy)) {
+    diagnostics = "Energy(false) returned a non-finite value.";
     return false;
   }
 
@@ -411,27 +388,40 @@ void ForceFieldTest::compareUffVsUff4mofSinglePointEnergy()
                          .arg(runtimeDiagnostics())));
   }
 
-  double uffEnergy = std::numeric_limits<double>::quiet_NaN();
-  double uff4mofEnergy = std::numeric_limits<double>::quiet_NaN();
+  OpenBabel::OBConversion conv;
+  const QByteArray formatName = QFileInfo(fileName).suffix().toLatin1();
+  QVERIFY2(conv.SetInFormat(formatName.constData()),
+           qPrintable(QString("OpenBabel input format plugin for '%1' is unavailable. %2")
+                          .arg(QString::fromLatin1(formatName), runtimeDiagnostics())));
+
+  OpenBabel::OBMol inputMol;
+  QVERIFY2(conv.ReadFile(&inputMol, filePath.toLocal8Bit().constData()),
+           qPrintable(QString("Test molecule could not be read from %1. %2")
+                          .arg(filePath, runtimeDiagnostics())));
+
+  OpenBabel::OBForceField *uffPrototype = OpenBabel::OBForceField::FindForceField("UFF");
+  OpenBabel::OBForceField *uff4mofPrototype = OpenBabel::OBForceField::FindForceField("UFF4MOF");
+  QVERIFY2(uffPrototype && uff4mofPrototype,
+           qPrintable(QString("One or both force fields are unavailable for comparison. %1")
+                          .arg(runtimeDiagnostics())));
+
+  double uffEnergy = 0.0;
+  double uff4mofEnergy = 0.0;
   QString diagnostics;
 
-  QVERIFY2(runObenergySinglePoint("UFF", filePath, uffEnergy, diagnostics),
+  QVERIFY2(evaluateSinglePointEnergyLikeAutoOpt(uffPrototype, inputMol, uffEnergy, diagnostics),
            qPrintable(QString("Failed to evaluate UFF single-point energy for %1. %2. %3")
                           .arg(fileName, diagnostics, runtimeDiagnostics())));
-  QVERIFY2(runObenergySinglePoint("UFF4MOF", filePath, uff4mofEnergy, diagnostics),
+  QVERIFY2(evaluateSinglePointEnergyLikeAutoOpt(uff4mofPrototype, inputMol, uff4mofEnergy, diagnostics),
            qPrintable(QString("Failed to evaluate UFF4MOF single-point energy for %1. %2. %3")
                           .arg(fileName, diagnostics, runtimeDiagnostics())));
 
-  const double energyDelta = std::fabs(uffEnergy - uff4mofEnergy);
-  if (energyDelta <= 1.0e-8) {
-    QSKIP(qPrintable(QString("Skipping strict UFF/UFF4MOF delta assertion for %1 because obenergy output precision is insufficient "
-                             "(UFF=%2 UFF4MOF=%3, delta=%4). %5")
-                         .arg(fileName)
-                         .arg(uffEnergy, 0, 'f', 12)
-                         .arg(uff4mofEnergy, 0, 'f', 12)
-                         .arg(energyDelta, 0, 'g', 12)
-                         .arg(runtimeDiagnostics())));
-  }
+  QVERIFY2(std::fabs(uffEnergy - uff4mofEnergy) > 1.0e-8,
+           qPrintable(QString("Expected different single-point energies for UFF and UFF4MOF on %1. UFF=%2 UFF4MOF=%3. %4")
+                          .arg(fileName)
+                          .arg(uffEnergy, 0, 'f', 12)
+                          .arg(uff4mofEnergy, 0, 'f', 12)
+                          .arg(runtimeDiagnostics())));
 }
 
 QTEST_MAIN(ForceFieldTest)
