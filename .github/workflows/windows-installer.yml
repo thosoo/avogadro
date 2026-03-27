@@ -144,6 +144,35 @@ jobs:
           "CMAKE_LIBRARY_PATH=$libDir;$env:CMAKE_LIBRARY_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "CMAKE_PREFIX_PATH=$installDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$binDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Build Boost
+        shell: pwsh
+        run: |
+          $ver = '1.87.0'
+          $tag = '1_87_0'
+          $zip = "$env:RUNNER_TEMP\boost.zip"
+          Invoke-WebRequest "https://archives.boost.io/release/$ver/source/boost_$tag.zip" -OutFile $zip
+          $expectedHash = 'f367a218d27b23b568956bacf56d08d2c1d9647211337136be8cac5cb2ff0828'
+          $actualHash = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualHash -ne $expectedHash) {
+            throw "Boost archive hash mismatch. Expected $expectedHash but got $actualHash."
+          }
+          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
+          $src = Join-Path $env:RUNNER_TEMP "boost_$tag"
+          $installDir = Join-Path $src "install"
+          Push-Location $src
+          cmd /c "bootstrap.bat"
+          cmd /c "b2 -j2 toolset=msvc address-model=64 variant=release link=shared runtime-link=shared threading=multi --with-system --with-program_options --with-iostreams --with-filesystem --with-test --with-regex install --prefix=$installDir"
+          Pop-Location
+          $inc = Join-Path $installDir 'include'
+          $libDir = Join-Path $installDir 'lib'
+          "BOOST_ROOT=$installDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "BOOST_INCLUDEDIR=$inc" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "BOOST_LIBRARYDIR=$libDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "Boost_NO_SYSTEM_PATHS=ON" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_PREFIX_PATH=$installDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_INCLUDE_PATH=$inc;$env:CMAKE_INCLUDE_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "CMAKE_LIBRARY_PATH=$libDir;$env:CMAKE_LIBRARY_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$libDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Configure
         shell: pwsh
         env:
@@ -160,6 +189,10 @@ jobs:
             -DCMAKE_INSTALL_PREFIX="$dist" `
             -DENABLE_AVO_PACKAGE=ON `
             -DENABLE_GLSL=ON `
+            "-DBOOST_ROOT=$env:BOOST_ROOT" `
+            "-DBOOST_INCLUDEDIR=$env:BOOST_INCLUDEDIR" `
+            "-DBOOST_LIBRARYDIR=$env:BOOST_LIBRARYDIR" `
+            "-DBoost_NO_SYSTEM_PATHS=$env:Boost_NO_SYSTEM_PATHS" `
             "-DEIGEN3_INCLUDE_DIR=$env:EIGEN3_INCLUDE_DIR" `
             "-DLIBXML2_LIBRARY=$env:LIBXML2_LIBRARY" `
             "-DLIBXML2_INCLUDE_DIR=$env:LIBXML2_INCLUDE_DIR" `
@@ -169,6 +202,21 @@ jobs:
         shell: pwsh
         run: |
           cmake --build build --config Release --target openbabel_ext-install
+          $coordgenDir = "$PWD\build\openbabel-install\bin"
+          $coordgenDlls = Get-ChildItem -Path $coordgenDir -Filter "coordgen*.dll" -ErrorAction SilentlyContinue
+          if (-not $coordgenDlls) {
+            Get-ChildItem -Path $coordgenDir | Format-Table -AutoSize
+            throw "CoordGen DLL not found under $coordgenDir"
+          }
+          Write-Host "CoordGen DLLs found:" ($coordgenDlls | ForEach-Object { $_.Name } | Join-String -Separator ", ")
+          $boostDlls = Get-ChildItem -Path $env:BOOST_LIBRARYDIR -Filter "boost_*.dll" -ErrorAction Stop
+          if (-not $boostDlls) {
+            throw "No Boost DLLs found under $env:BOOST_LIBRARYDIR"
+          }
+          foreach ($dll in $boostDlls) {
+            Copy-Item -Path $dll.FullName -Destination $coordgenDir -Force
+          }
+          Write-Host "Boost DLLs copied to $coordgenDir:" ($boostDlls | ForEach-Object { $_.Name } | Join-String -Separator ", ")
           cmake --build build --config Release --target install
       - name: Create installer
         if: matrix.target == 'installer'
