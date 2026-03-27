@@ -262,6 +262,7 @@ pass_ob_arg(ZLIB_INCLUDE_DIR)
 pass_ob_arg(wxWidgets_LIB_DIR)
 pass_ob_arg(LIB_INSTALL_DIR)
 pass_ob_arg(ENABLE_OPENMP)
+pass_ob_arg(WITH_COORDGEN)
 ExternalProject_Add(openbabel_ext
   URL https://github.com/thosoo/openbabel/archive/4279ff2a802bee8820d314eedf1d71032c65ff2e.zip
   URL_HASH SHA256=207a326a3a0f850cd6abcbfec893557e3d4176570a081dfaa408d050ce32a3e1
