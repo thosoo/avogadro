@@ -198,6 +198,143 @@ namespace {
         || text.contains(QLatin1String("M  END"));
   }
 
+
+  bool parseV2000Molfile(OpenBabel::OBMol &mol, const QString &text)
+  {
+    const QStringList lines = text.split(QRegExp("\r?\n"), QString::SkipEmptyParts);
+    int countsLine = -1;
+    for (int i = 0; i < lines.size(); ++i) {
+      if (lines.at(i).contains(QLatin1String("V2000"))) {
+        countsLine = i;
+        break;
+      }
+    }
+    if (countsLine < 0)
+      return false;
+
+    const QStringList counts = lines.at(countsLine).simplified().split(QLatin1Char(' '));
+    if (counts.size() < 2)
+      return false;
+
+    bool okAtoms = false, okBonds = false;
+    const int atomCount = counts.at(0).toInt(&okAtoms);
+    const int bondCount = counts.at(1).toInt(&okBonds);
+    if (!okAtoms || !okBonds || atomCount <= 0)
+      return false;
+    if (lines.size() < countsLine + 1 + atomCount + bondCount)
+      return false;
+
+    mol.Clear();
+    mol.BeginModify();
+    for (int i = 0; i < atomCount; ++i) {
+      const QStringList fields = lines.at(countsLine + 1 + i).simplified().split(QLatin1Char(' '));
+      if (fields.size() < 4) {
+        mol.EndModify();
+        return false;
+      }
+      bool okX = false, okY = false, okZ = false;
+      const double x = fields.at(0).toDouble(&okX);
+      const double y = fields.at(1).toDouble(&okY);
+      const double z = fields.at(2).toDouble(&okZ);
+      const int atomicNum = OpenBabel::OBElements::GetAtomicNum(fields.at(3).toLatin1().constData());
+      if (!okX || !okY || !okZ || atomicNum == 0) {
+        mol.EndModify();
+        return false;
+      }
+      OpenBabel::OBAtom *atom = mol.NewAtom();
+      atom->SetAtomicNum(atomicNum);
+      atom->SetVector(x, y, z);
+    }
+
+    for (int i = 0; i < bondCount; ++i) {
+      const QStringList fields = lines.at(countsLine + 1 + atomCount + i).simplified().split(QLatin1Char(' '));
+      if (fields.size() < 3) {
+        mol.EndModify();
+        return false;
+      }
+      bool okBegin = false, okEnd = false, okOrder = false;
+      const int begin = fields.at(0).toInt(&okBegin);
+      const int end = fields.at(1).toInt(&okEnd);
+      const int order = fields.at(2).toInt(&okOrder);
+      if (!okBegin || !okEnd || !okOrder || !mol.AddBond(begin, end, order)) {
+        mol.EndModify();
+        return false;
+      }
+    }
+    mol.EndModify();
+    mol.SetDimension(2);
+    return true;
+  }
+
+  bool parseV3000Molfile(OpenBabel::OBMol &mol, const QString &text)
+  {
+    const QStringList lines = text.split(QRegExp("\r?\n"), QString::SkipEmptyParts);
+    int atomBegin = -1, atomEnd = -1, bondBegin = -1, bondEnd = -1;
+    for (int i = 0; i < lines.size(); ++i) {
+      const QString line = lines.at(i).trimmed();
+      if (line == QLatin1String("M  V30 BEGIN ATOM"))
+        atomBegin = i;
+      else if (line == QLatin1String("M  V30 END ATOM"))
+        atomEnd = i;
+      else if (line == QLatin1String("M  V30 BEGIN BOND"))
+        bondBegin = i;
+      else if (line == QLatin1String("M  V30 END BOND"))
+        bondEnd = i;
+    }
+    if (atomBegin < 0 || atomEnd <= atomBegin || bondBegin < 0 || bondEnd <= bondBegin)
+      return false;
+
+    mol.Clear();
+    mol.BeginModify();
+    for (int i = atomBegin + 1; i < atomEnd; ++i) {
+      const QStringList fields = lines.at(i).simplified().split(QLatin1Char(' '));
+      if (fields.size() < 7) {
+        mol.EndModify();
+        return false;
+      }
+      bool okX = false, okY = false, okZ = false;
+      const double x = fields.at(4).toDouble(&okX);
+      const double y = fields.at(5).toDouble(&okY);
+      const double z = fields.at(6).toDouble(&okZ);
+      const int atomicNum = OpenBabel::OBElements::GetAtomicNum(fields.at(3).toLatin1().constData());
+      if (!okX || !okY || !okZ || atomicNum == 0) {
+        mol.EndModify();
+        return false;
+      }
+      OpenBabel::OBAtom *atom = mol.NewAtom();
+      atom->SetAtomicNum(atomicNum);
+      atom->SetVector(x, y, z);
+    }
+
+    for (int i = bondBegin + 1; i < bondEnd; ++i) {
+      const QStringList fields = lines.at(i).simplified().split(QLatin1Char(' '));
+      if (fields.size() < 6) {
+        mol.EndModify();
+        return false;
+      }
+      bool okOrder = false, okBegin = false, okEnd = false;
+      const int order = fields.at(3).toInt(&okOrder);
+      const int begin = fields.at(4).toInt(&okBegin);
+      const int end = fields.at(5).toInt(&okEnd);
+      if (!okOrder || !okBegin || !okEnd || !mol.AddBond(begin, end, order)) {
+        mol.EndModify();
+        return false;
+      }
+    }
+    mol.EndModify();
+    mol.SetDimension(2);
+    return true;
+  }
+
+  bool parseMolfileText(OpenBabel::OBMol &mol, const QString &text)
+  {
+    if (text.contains(QLatin1String("V3000")))
+      return parseV3000Molfile(mol, text);
+    if (text.contains(QLatin1String("V2000")))
+      return parseV2000Molfile(mol, text);
+    return false;
+  }
+
   bool looksLikeInChI(const QString &text)
   {
     return text.startsWith(QLatin1String("InChI="), Qt::CaseInsensitive);
@@ -239,6 +376,9 @@ namespace {
       if (readPastedTextMolecule(mol, text, "mol")
           || readPastedTextMolecule(mol, text, "mdl"))
         return true;
+
+      if (parseMolfileText(mol, pastedText))
+        return optimizePastedMolecule(mol, false);
     }
 
     if (looksLikeInChI(pastedText) && readPastedTextMolecule(mol, text, "inchi", true))
