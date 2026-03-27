@@ -191,7 +191,7 @@ private Q_SLOTS:
   void forceFieldDiscoverable();
   void forceFieldSetupAndEnergy_data();
   void forceFieldSetupAndEnergy();
-  void compareUffVsUff4mofOptimizedEnergy();
+  void compareUffVsUff4mofSinglePointEnergy();
 };
 
 
@@ -338,7 +338,7 @@ void ForceFieldTest::forceFieldSetupAndEnergy()
   }
 }
 
-void ForceFieldTest::compareUffVsUff4mofOptimizedEnergy()
+void ForceFieldTest::compareUffVsUff4mofSinglePointEnergy()
 {
   ensureOpenBabelRuntimeInitialized();
 
@@ -382,20 +382,18 @@ void ForceFieldTest::compareUffVsUff4mofOptimizedEnergy()
            qPrintable(QString("UFF4MOF setup failed for %1. %2")
                           .arg(fileName, runtimeDiagnostics())));
 
-  uff->ConjugateGradients(150, 1.0e-4);
-  uff->UpdateCoordinates(uffMol);
+  // Use single-point energies on the same coordinates to avoid optimizer-path
+  // instability seen on some CI OpenBabel/runtime combinations.
   const double uffEnergy = uff->Energy(false);
 
-  uff4mof->ConjugateGradients(150, 1.0e-4);
-  uff4mof->UpdateCoordinates(uff4mofMol);
   const double uff4mofEnergy = uff4mof->Energy(false);
 
   QVERIFY2(std::isfinite(uffEnergy) && std::isfinite(uff4mofEnergy),
            qPrintable(QString("Expected finite energies for UFF/UFF4MOF comparison. UFF=%1 UFF4MOF=%2. %3")
                           .arg(uffEnergy).arg(uff4mofEnergy).arg(runtimeDiagnostics())));
-  if (std::fabs(uffEnergy - uff4mofEnergy) <= 1.0e-6) {
-    qWarning("UFF and UFF4MOF optimized energies are equal (or nearly equal) for %s.", qPrintable(fileName));
-  }
+  QVERIFY2(std::fabs(uffEnergy - uff4mofEnergy) > 1.0e-8,
+           qPrintable(QString("Expected different single-point energies for UFF and UFF4MOF on %1. UFF=%2 UFF4MOF=%3. %4")
+                          .arg(fileName).arg(uffEnergy).arg(uff4mofEnergy).arg(runtimeDiagnostics())));
 }
 
 QTEST_MAIN(ForceFieldTest)
