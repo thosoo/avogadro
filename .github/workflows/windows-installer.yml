@@ -157,7 +157,6 @@ jobs:
             -DCMAKE_VERBOSE_MAKEFILE=ON `
             "-DENABLE_TESTS=$env:ENABLE_TESTS" `
             -DENABLE_OPENMP=ON `
-            -DWITH_COORDGEN=ON `
             -DCMAKE_INSTALL_PREFIX="$dist" `
             -DENABLE_AVO_PACKAGE=ON `
             -DENABLE_GLSL=ON `
