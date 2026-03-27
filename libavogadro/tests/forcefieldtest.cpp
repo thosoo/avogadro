@@ -167,10 +167,10 @@ bool shouldSkipSetupFailure(const std::string &log)
          lowerLog.find("babel_libdir") != std::string::npos;
 }
 
-bool evaluateSinglePointEnergyLikeAutoOpt(OpenBabel::OBForceField *prototype,
-                                          const OpenBabel::OBMol &inputMol,
-                                          double &energy,
-                                          QString &diagnostics)
+bool evaluateOptimizedEnergyLikeAutoOpt(OpenBabel::OBForceField *prototype,
+                                        const OpenBabel::OBMol &inputMol,
+                                        double &energy,
+                                        QString &diagnostics)
 {
   std::unique_ptr<OpenBabel::OBForceField> forceField(prototype->MakeNewInstance());
   if (!forceField.get()) {
@@ -190,8 +190,10 @@ bool evaluateSinglePointEnergyLikeAutoOpt(OpenBabel::OBForceField *prototype,
   }
 
   // Match AutoOptTool::AutoOptThread::update() behavior:
-  // setup on a temporary OBMol, set conformers, then query Energy(false).
+  // setup on a temporary OBMol, set conformers, run optimizer, then query
+  // Energy(false).
   forceField->SetConformers(mol);
+  forceField->ConjugateGradients(200);
   energy = forceField->Energy(false);
   if (!std::isfinite(energy)) {
     diagnostics = "Energy(false) returned a non-finite value.";
@@ -225,7 +227,7 @@ private Q_SLOTS:
   void forceFieldDiscoverable();
   void forceFieldSetupAndEnergy_data();
   void forceFieldSetupAndEnergy();
-  void compareUffVsUff4mofSinglePointEnergy();
+  void compareUffVsUff4mofOptimizedEnergy();
 };
 
 
@@ -372,7 +374,7 @@ void ForceFieldTest::forceFieldSetupAndEnergy()
   }
 }
 
-void ForceFieldTest::compareUffVsUff4mofSinglePointEnergy()
+void ForceFieldTest::compareUffVsUff4mofOptimizedEnergy()
 {
   ensureOpenBabelRuntimeInitialized();
 
@@ -409,15 +411,15 @@ void ForceFieldTest::compareUffVsUff4mofSinglePointEnergy()
   double uff4mofEnergy = 0.0;
   QString diagnostics;
 
-  QVERIFY2(evaluateSinglePointEnergyLikeAutoOpt(uffPrototype, inputMol, uffEnergy, diagnostics),
-           qPrintable(QString("Failed to evaluate UFF single-point energy for %1. %2. %3")
+  QVERIFY2(evaluateOptimizedEnergyLikeAutoOpt(uffPrototype, inputMol, uffEnergy, diagnostics),
+           qPrintable(QString("Failed to evaluate UFF optimized energy for %1. %2. %3")
                           .arg(fileName, diagnostics, runtimeDiagnostics())));
-  QVERIFY2(evaluateSinglePointEnergyLikeAutoOpt(uff4mofPrototype, inputMol, uff4mofEnergy, diagnostics),
-           qPrintable(QString("Failed to evaluate UFF4MOF single-point energy for %1. %2. %3")
+  QVERIFY2(evaluateOptimizedEnergyLikeAutoOpt(uff4mofPrototype, inputMol, uff4mofEnergy, diagnostics),
+           qPrintable(QString("Failed to evaluate UFF4MOF optimized energy for %1. %2. %3")
                           .arg(fileName, diagnostics, runtimeDiagnostics())));
 
   QVERIFY2(std::fabs(uffEnergy - uff4mofEnergy) > 1.0e-8,
-           qPrintable(QString("Expected different single-point energies for UFF and UFF4MOF on %1. UFF=%2 UFF4MOF=%3. %4")
+           qPrintable(QString("Expected different optimized energies for UFF and UFF4MOF on %1. UFF=%2 UFF4MOF=%3. %4")
                           .arg(fileName)
                           .arg(uffEnergy, 0, 'f', 12)
                           .arg(uff4mofEnergy, 0, 'f', 12)
