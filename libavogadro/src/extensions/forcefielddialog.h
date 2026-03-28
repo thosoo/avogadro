@@ -30,6 +30,14 @@
 
 namespace Avogadro
 {
+  enum ForceFieldAlgorithm
+  {
+    AlgorithmSteepestDescent = 0,
+    AlgorithmConjugateGradients = 1,
+    AlgorithmBFGS = 2,
+    AlgorithmLBFGS = 3
+  };
+
   class ForceFieldDialog : public QDialog
   {
       Q_OBJECT
@@ -44,10 +52,14 @@ namespace Avogadro
       int nSteps();
       int algorithm();
       int convergence();
+      int lbfgsHistory();
 
     public slots:
       void accept();
       void reject();
+
+    private slots:
+      void updateLBFGSHistoryEnabled(int algorithm);
 
     private:
       Ui::ForceFieldDialog ui;
@@ -56,6 +68,7 @@ namespace Avogadro
       int m_nSteps;
       int m_algorithm;
       int m_convergence;
+      int m_lbfgsHistory;
   };
 }
 

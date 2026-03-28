@@ -40,6 +40,8 @@
 #include <QMessageBox>
 #include <QDebug>
 
+#include <algorithm>
+
 using namespace std;
 using namespace OpenBabel;
 
@@ -274,6 +276,7 @@ namespace Avogadro
       undo = new ForceFieldCommand( m_molecule, m_forceField, m_constraints,
                                     0, m_dialog->nSteps(), m_dialog->algorithm(),
                                     m_dialog->convergence(), 0 );
+      undo->setLBFGSHistory(m_dialog->lbfgsHistory());
 
       connect(undo, SIGNAL(message(QString)), this, SIGNAL(message(QString)));
 
@@ -333,6 +336,7 @@ namespace Avogadro
     m_convergence = convergence;
     m_task = task;
     m_stop = false;
+    m_lbfgsHistory = 7;
   }
 
   int ForceFieldThread::cycles() const
@@ -368,6 +372,11 @@ namespace Avogadro
   void ForceFieldThread::setMethod(int method)
   {
     m_method = method;
+  }
+
+  void ForceFieldThread::setLBFGSHistory(int history)
+  {
+    m_lbfgsHistory = std::max(1, history);
   }
 
   void ForceFieldThread::copyConformers()
@@ -434,89 +443,84 @@ namespace Avogadro
     }
 
     if ( m_task == 0 ) {
-      if ( m_algorithm == 0 ) {
-        m_forceField->SteepestDescentInitialize( m_nSteps, pow( 10.0, -m_convergence )); // initialize sd
-
-        while ( m_forceField->SteepestDescentTakeNSteps( 5 ) ) { // take 5 steps until convergence or m_nSteps taken
-          m_forceField->UpdateCoordinates( mol );
-          assert( mol.NumAtoms() == m_molecule->numAtoms() );
-          double *coordPtr = mol.GetCoordinates();
-          // forces
-          if (mol.HasData(OBGenericDataType::ConformerData)) {
-            OBConformerData *cd = (OBConformerData*) mol.GetData(OBGenericDataType::ConformerData);
-            const vector<vector<vector3> > &allForces = cd->GetForces();
-            if (allForces.size()) {
-              const vector<vector3> &forces = allForces[0];
-              if (forces.size() == mol.NumAtoms()) {
-                foreach(Atom* atom, m_molecule->atoms()) {
-                  atom->setForceVector(Eigen::Vector3d(forces[atom->index()].AsArray()));
-                }
+      auto runOptimizationStep = [&](OBMol& runMol) {
+        assert( runMol.NumAtoms() == m_molecule->numAtoms() );
+        double *coordPtr = runMol.GetCoordinates();
+        // forces
+        if (runMol.HasData(OBGenericDataType::ConformerData)) {
+          OBConformerData *cd = (OBConformerData*) runMol.GetData(OBGenericDataType::ConformerData);
+          const vector<vector<vector3> > &allForces = cd->GetForces();
+          if (allForces.size()) {
+            const vector<vector3> &forces = allForces[0];
+            if (forces.size() == runMol.NumAtoms()) {
+              foreach(Atom* atom, m_molecule->atoms()) {
+                atom->setForceVector(Eigen::Vector3d(forces[atom->index()].AsArray()));
               }
             }
           }
-
-          // Try to acquire a write lock on the molecule, and update geometry
-          if (m_molecule->lock()->tryLockForWrite()) {
-            foreach (Atom *atom, m_molecule->atoms()) {
-              atom->setPos(Eigen::Vector3d(coordPtr));
-              coordPtr += 3;
-            }
-            m_molecule->lock()->unlock();
-            m_molecule->update();
-          }
-
-          m_cycles++;
-          steps += 5;
-          m_mutex.lock();
-          if ( m_stop ) {
-            m_mutex.unlock();
-            break;
-          }
-          m_mutex.unlock();
-          emit stepsTaken( steps );
         }
-      } else if ( m_algorithm == 1 ) {
-        m_forceField->ConjugateGradientsInitialize( m_nSteps, pow( 10.0, -m_convergence )); // initialize cg
 
-        OBMol mol;
-        while ( m_forceField->ConjugateGradientsTakeNSteps( 5 ) ) { // take 5 steps until convergence or m_nSteps taken
-          mol = m_molecule->OBMol();
-          m_forceField->UpdateCoordinates( mol );
-          assert( mol.NumAtoms() == m_molecule->numAtoms() );
-          double *coordPtr = mol.GetCoordinates();
-          // forces
-          if (mol.HasData(OBGenericDataType::ConformerData)) {
-            OBConformerData *cd = (OBConformerData*) mol.GetData(OBGenericDataType::ConformerData);
-            const vector<vector<vector3> > &allForces = cd->GetForces();
-            if (allForces.size()) {
-              const vector<vector3> &forces = allForces[0];
-              if (forces.size() == mol.NumAtoms()) {
-                foreach(Atom* atom, m_molecule->atoms()) {
-                  atom->setForceVector(Eigen::Vector3d(forces[atom->index()].AsArray()));
-                }
-              }
-            }
+        // Try to acquire a write lock on the molecule, and update geometry
+        if (m_molecule->lock()->tryLockForWrite()) {
+          foreach (Atom *atom, m_molecule->atoms()) {
+            atom->setPos(Eigen::Vector3d(coordPtr));
+            coordPtr += 3;
           }
+          m_molecule->lock()->unlock();
+          m_molecule->update();
+        }
 
-          // Try to acquire a write lock on the molecule, and update geometry
-          if (m_molecule->lock()->tryLockForWrite()) {
-            foreach (Atom *atom, m_molecule->atoms()) {
-              atom->setPos(Eigen::Vector3d(coordPtr));
-              coordPtr += 3;
-            }
-            m_molecule->lock()->unlock();
-            m_molecule->update();
-          }
-
-          m_cycles++;
-          steps += 5;
-          m_mutex.lock();
-          if ( m_stop ) {
-            m_mutex.unlock();
-            break;
-          }
+        m_cycles++;
+        steps += 5;
+        m_mutex.lock();
+        if ( m_stop ) {
           m_mutex.unlock();
-          emit stepsTaken( steps );
+          return false;
+        }
+        m_mutex.unlock();
+        emit stepsTaken( steps );
+        return true;
+      };
+
+      if ( m_algorithm == AlgorithmSteepestDescent ) {
+        m_forceField->SteepestDescentInitialize( m_nSteps, pow( 10.0, -m_convergence ) );
+
+        while ( m_forceField->SteepestDescentTakeNSteps( 5 ) ) {
+          m_forceField->UpdateCoordinates( mol );
+          if (!runOptimizationStep(mol))
+            break;
+        }
+      } else if ( m_algorithm == AlgorithmConjugateGradients ) {
+        m_forceField->ConjugateGradientsInitialize( m_nSteps, pow( 10.0, -m_convergence ) );
+
+        OBMol runMol;
+        while ( m_forceField->ConjugateGradientsTakeNSteps( 5 ) ) {
+          runMol = m_molecule->OBMol();
+          m_forceField->UpdateCoordinates( runMol );
+          if (!runOptimizationStep(runMol))
+            break;
+        }
+      } else if ( m_algorithm == AlgorithmBFGS ) {
+        m_forceField->BFGSInitialize( m_nSteps, pow( 10.0, -m_convergence ) );
+
+        OBMol runMol;
+        while ( m_forceField->BFGSTakeNSteps( 5 ) ) {
+          runMol = m_molecule->OBMol();
+          m_forceField->UpdateCoordinates( runMol );
+          if (!runOptimizationStep(runMol))
+            break;
+        }
+      } else if ( m_algorithm == AlgorithmLBFGS ) {
+        const int history = std::max(1, m_lbfgsHistory);
+        m_forceField->LBFGSInitialize( m_nSteps, pow( 10.0, -m_convergence ),
+                                       OBFF_ANALYTICAL_GRADIENT, history );
+
+        OBMol runMol;
+        while ( m_forceField->LBFGSTakeNSteps( 5 ) ) {
+          runMol = m_molecule->OBMol();
+          m_forceField->UpdateCoordinates( runMol );
+          if (!runOptimizationStep(runMol))
+            break;
         }
       }
     } else if ( m_task == 1 ) {
@@ -612,6 +616,12 @@ namespace Avogadro
                                         int convergence, int task ) :
     m_nSteps( nSteps ),
     m_task( task ),
+    m_numConformers( 0 ),
+    m_numChildren( 0 ),
+    m_mutability( 0 ),
+    m_convergence( convergence ),
+    m_method( 0 ),
+    m_lbfgsHistory( 7 ),
     m_molecule( molecule ),
     m_constraints( constraints ),
     m_thread( 0 ),
@@ -672,6 +682,11 @@ namespace Avogadro
     m_method = method;
   }
 
+  void ForceFieldCommand::setLBFGSHistory(int history)
+  {
+    m_lbfgsHistory = std::max(1, history);
+  }
+
   void ForceFieldCommand::redo()
   {
     if(!m_dialog) {
@@ -705,6 +720,7 @@ namespace Avogadro
     m_thread->setMutability(m_mutability);
     m_thread->setConvergence(m_convergence);
     m_thread->setMethod(m_method);
+    m_thread->setLBFGSHistory(m_lbfgsHistory);
     m_thread->start();
   }
 
@@ -726,6 +742,16 @@ namespace Avogadro
       gc->detach();
       m_thread = gc->thread();
       m_dialog = gc->progressDialog();
+
+      // Keep our stored command state aligned with the merged command/thread.
+      m_nSteps = gc->m_nSteps;
+      m_task = gc->m_task;
+      m_numConformers = gc->m_numConformers;
+      m_numChildren = gc->m_numChildren;
+      m_mutability = gc->m_mutability;
+      m_convergence = gc->m_convergence;
+      m_method = gc->m_method;
+      m_lbfgsHistory = gc->m_lbfgsHistory;
     }
     // received another of the same call
     return true;
@@ -767,4 +793,3 @@ namespace Avogadro
   }
 
 } // end namespace Avogadro
-

@@ -269,8 +269,8 @@ pass_ob_arg(LIB_INSTALL_DIR)
 pass_ob_arg(ENABLE_OPENMP)
 pass_ob_arg(WITH_COORDGEN)
 ExternalProject_Add(openbabel_ext
-  URL https://github.com/thosoo/openbabel/archive/4279ff2a802bee8820d314eedf1d71032c65ff2e.zip
-  URL_HASH SHA256=207a326a3a0f850cd6abcbfec893557e3d4176570a081dfaa408d050ce32a3e1
+  URL https://github.com/thosoo/openbabel/archive/6d6ff4776e26dd6d4b0cfe011ed1fbbac3459343.zip
+  URL_HASH SHA256=873acf6039f99b1326de31e7e6a0f8eb41e6a8f70b107451675153be8de6a546
   BUILD_BYPRODUCTS
     $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.lib>
     $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.dll>

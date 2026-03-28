@@ -307,6 +307,8 @@ namespace Avogadro {
       m_comboAlgorithm = new QComboBox(m_settingsWidget);
       m_comboAlgorithm->addItem(tr("Steepest Descent"));
       m_comboAlgorithm->addItem(tr("Conjugate Gradients"));
+      m_comboAlgorithm->addItem(tr("BFGS"));
+      m_comboAlgorithm->addItem(tr("L-BFGS"));
       m_comboAlgorithm->addItem(tr("Molecular Dynamics (300K)"));
       m_comboAlgorithm->addItem(tr("Molecular Dynamics (600K)"));
       m_comboAlgorithm->addItem(tr("Molecular Dynamics (900K)"));
@@ -551,19 +553,28 @@ namespace Avogadro {
     m_forceField->SetConformers(mol);
 
     switch(m_algorithm) {
-      case 0:
+      case AutoOptSteepestDescent:
         m_forceField->SteepestDescent(m_steps);
         break;
-      case 1:
+      case AutoOptConjugateGradients:
         m_forceField->ConjugateGradients(m_steps);
         break;
-      case 2:
+      case AutoOptBFGS:
+        m_forceField->BFGSInitialize(m_steps, 1.0e-7);
+        m_forceField->BFGSTakeNSteps(m_steps);
+        break;
+      case AutoOptLBFGS:
+        m_forceField->LBFGSInitialize(m_steps, 1.0e-7,
+                                      OBFF_ANALYTICAL_GRADIENT, 7);
+        m_forceField->LBFGSTakeNSteps(m_steps);
+        break;
+      case AutoOptMolecularDynamics300K:
         m_forceField->MolecularDynamicsTakeNSteps(m_steps, 300, 0.001);
         break;
-      case 3:
+      case AutoOptMolecularDynamics600K:
         m_forceField->MolecularDynamicsTakeNSteps(m_steps, 600, 0.001);
         break;
-      case 4:
+      case AutoOptMolecularDynamics900K:
         m_forceField->MolecularDynamicsTakeNSteps(m_steps, 900, 0.001);
         break;
     }
@@ -617,6 +628,7 @@ namespace Avogadro {
     Tool::writeSettings(settings);
     settings.setValue("forceField", m_comboFF->currentIndex());
     settings.setValue("algorithm", m_comboAlgorithm->currentIndex());
+    settings.setValue("algorithmVersion", 2);
     settings.setValue("steps", m_stepsSpinBox->value());
     settings.setValue("fixedMovable", m_fixedMovable->checkState());
     settings.setValue("ignoredMovable", m_ignoredMovable->checkState());
@@ -638,8 +650,15 @@ namespace Avogadro {
       }
       m_comboFF->setCurrentIndex(currentFF);
     }
-    if (m_comboAlgorithm)
-      m_comboAlgorithm->setCurrentIndex(settings.value("algorithm", 0).toInt());
+    if (m_comboAlgorithm) {
+      int currentAlgorithm = settings.value("algorithm", AutoOptSteepestDescent).toInt();
+      // Migrate saved values from older versions where MD options were indices 2-4.
+      if (settings.value("algorithmVersion", 1).toInt() < 2 && currentAlgorithm >= 2)
+        currentAlgorithm += 2;
+      if (currentAlgorithm < 0 || currentAlgorithm >= m_comboAlgorithm->count())
+        currentAlgorithm = AutoOptSteepestDescent;
+      m_comboAlgorithm->setCurrentIndex(currentAlgorithm);
+    }
     if (m_stepsSpinBox)
       m_stepsSpinBox->setValue(settings.value("steps", 4).toInt());
     if (m_fixedMovable) {
