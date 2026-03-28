@@ -132,6 +132,136 @@
 #include <QXmlStreamReader>
 #endif
 
+namespace {
+
+  void buildAndOptimizeMolecule(OpenBabel::OBMol &mol, bool build3d,
+                                bool addHydrogens)
+  {
+    if (build3d) {
+      OpenBabel::OBBuilder builder;
+      builder.Build(mol);
+    }
+
+    if (addHydrogens) {
+      for (unsigned int i = 1; i <= mol.NumAtoms(); ++i)
+        OpenBabel::OBAtomAssignTypicalImplicitHydrogens(mol.GetAtom(i));
+      mol.AddHydrogens();
+    }
+
+    OpenBabel::OBForceField *pFF = 0;
+    OpenBabel::OBForceField *mmff94 = OpenBabel::OBForceField::FindForceField("MMFF94");
+    if (mmff94)
+      pFF = mmff94->MakeNewInstance();
+    if (pFF && !pFF->Setup(mol)) {
+      delete pFF;
+      pFF = 0;
+    }
+    if (!pFF) {
+      OpenBabel::OBForceField *uff = OpenBabel::OBForceField::FindForceField("UFF");
+      if (uff)
+        pFF = uff->MakeNewInstance();
+      if (!pFF || !pFF->Setup(mol)) {
+        delete pFF;
+        return;
+      }
+    }
+
+    if (pFF) {
+      pFF->ConjugateGradients(250, 1.0e-4);
+      pFF->UpdateCoordinates(mol);
+      delete pFF;
+    }
+  }
+
+  void optimizePastedMolecule(OpenBabel::OBMol &mol, bool addHydrogens)
+  {
+    const bool build3d = (mol.GetDimension() != 3);
+    buildAndOptimizeMolecule(mol, build3d, addHydrogens || build3d);
+  }
+
+  bool readPastedTextMolecule(OpenBabel::OBMol &mol, const QByteArray &text,
+                              const char *formatId, bool addHydrogens = false)
+  {
+    OpenBabel::OBConversion conv;
+    QByteArray normalizedText(text);
+    if (!normalizedText.endsWith("\n"))
+      normalizedText.append("\n");
+
+    if (!conv.SetInFormat(formatId))
+      return false;
+
+    mol.Clear();
+    if (!conv.ReadString(&mol, normalizedText.constData())
+        || mol.NumAtoms() == 0) {
+      return false;
+    }
+
+    optimizePastedMolecule(mol, addHydrogens);
+    return true;
+  }
+
+  bool looksLikeMolfile(const QString &text)
+  {
+    return text.contains(QLatin1String("V2000"))
+        || text.contains(QLatin1String("V3000"))
+        || text.contains(QLatin1String("M  END"));
+  }
+
+
+  bool looksLikeInChI(const QString &text)
+  {
+    return text.startsWith(QLatin1String("InChI="), Qt::CaseInsensitive);
+  }
+
+  bool looksLikeHelm(const QString &text)
+  {
+    return text.startsWith(QLatin1String("CHEM"), Qt::CaseInsensitive)
+        && text.contains(QLatin1Char('{')) && text.contains(QLatin1Char('}'));
+  }
+
+  QString extractHelmChemicalString(const QString &text)
+  {
+    const int start = text.indexOf(QLatin1Char('{'));
+    const int end = text.lastIndexOf(QLatin1Char('}'));
+    if (start < 0 || end <= start)
+      return QString();
+
+    QString chemical = text.mid(start + 1, end - start - 1).trimmed();
+    const int annotation = chemical.indexOf(QLatin1String(" |$"));
+    if (annotation >= 0)
+      chemical = chemical.left(annotation).trimmed();
+
+    return chemical;
+  }
+
+  bool buildPastedTextMolecule(OpenBabel::OBMol &mol, const QByteArray &text)
+  {
+    const QString pastedText = QString::fromLatin1(text).trimmed();
+
+    if (looksLikeHelm(pastedText)) {
+      const QString chemical = extractHelmChemicalString(pastedText);
+      if (!chemical.isEmpty()
+          && readPastedTextMolecule(mol, chemical.toLatin1(), "smi", true))
+        return true;
+    }
+
+    if (looksLikeMolfile(pastedText)) {
+      if (readPastedTextMolecule(mol, text, "mol")
+          || readPastedTextMolecule(mol, text, "mdl"))
+        return true;
+
+    }
+
+    if (looksLikeInChI(pastedText) && readPastedTextMolecule(mol, text, "inchi", true))
+      return true;
+
+    if (readPastedTextMolecule(mol, text, "xyz"))
+      return true;
+
+    return readPastedTextMolecule(mol, text, "smi", true);
+  }
+
+}
 using namespace std;
 using namespace OpenBabel;
 using namespace Eigen;
@@ -1198,27 +1328,7 @@ protected:
 
       if (build || d->build3D == AlwaysBuild) {
         // In OB-2.2.2 and later, builder will use 2D coordinates if present
-        OBBuilder builder;
-        builder.Build(*obMolecule);
-        for (unsigned int i = 1; i <= obMolecule->NumAtoms(); ++i)
-          OpenBabel::OBAtomAssignTypicalImplicitHydrogens(obMolecule->GetAtom(i));
-        obMolecule->AddHydrogens(); // Add some hydrogens before running force field
-
-        OBForceField* pFF =  OBForceField::FindForceField("MMFF94")->MakeNewInstance();
-        if (pFF && !pFF->Setup(*obMolecule)) {
-          delete pFF;
-          pFF = OBForceField::FindForceField("UFF")->MakeNewInstance();
-          if (pFF && !pFF->Setup(*obMolecule)) {
-            delete pFF;
-            pFF = OBForceField::FindForceField("UFF4MOF")->MakeNewInstance();
-          }
-          if (!pFF || !pFF->Setup(*obMolecule)) return; // can't do anything more
-        }
-        if (pFF) {
-          pFF->ConjugateGradients(250, 1.0e-4);
-          pFF->UpdateCoordinates(*obMolecule);
-          delete pFF;
-        }
+        buildAndOptimizeMolecule(*obMolecule, true, true);
       } // building geometry
 
     } // check 3D coordinates
@@ -1987,6 +2097,7 @@ protected:
     OBFormat *pasteFormat = NULL;
     QByteArray text;
     OBMol newMol;
+    bool plainTextPaste = false;
 
     if ( mimeData->hasFormat( "chemical/x-mdl-molfile" ) ) {
       pasteFormat = conv.FindFormat( "mdl" );
@@ -1996,31 +2107,35 @@ protected:
       pasteFormat = conv.FindFormat( "cdx" );
       text = mimeData->data( "chemical/x-cdx" );
     } else if ( mimeData->hasText() ) {
-      pasteFormat = conv.FindFormat( "xyz" );
-
+      plainTextPaste = true;
       text = mimeData->text().toLatin1();
     }
 
     if ( text.length() == 0 )
       return false;
 
-    if ( !pasteFormat || !conv.SetInFormat( pasteFormat ) ) {
+    bool validMol = false;
+    if ( plainTextPaste ) {
+      validMol = buildPastedTextMolecule(newMol, text);
+    } else if ( pasteFormat && conv.SetInFormat( pasteFormat ) ) {
+      if ( conv.ReadString( &newMol, text.constData() ) // Can we read with OB formats?
+           && newMol.NumAtoms() != 0 ) {
+        validMol = true;
+      }
+    } else {
       statusBar()->showMessage( tr( "Paste failed (format unavailable)." ), 5000 );
       return false;
     }
 
-    bool validMol = false;
-    if ( conv.ReadString( &newMol, text.constData() ) // Can we read with OB formats?
-         && newMol.NumAtoms() != 0 ) {
-      validMol = true;
-    }
-
-    if (!validMol) { // We failed as an authentic format, try annulen's heuristics
+    if (!validMol && plainTextPaste) { // We failed as authentic text formats, try annulen's heuristics
       validMol = parseText(&newMol, QString(text));
     }
 
     if (validMol && newMol.NumAtoms() == 0)
       return false;
+
+    if (validMol)
+      check3DCoords(&newMol);
 
     // We've got something we can paste
     /*

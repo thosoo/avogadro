@@ -237,6 +237,7 @@ set(I18N_LANGUAGE "" CACHE STRING "Build i18n only for selected language")
 set(OPENBABEL_INSTALL_DIR "${CMAKE_BINARY_DIR}/openbabel-install")
 file(MAKE_DIRECTORY "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
 file(MAKE_DIRECTORY "${OPENBABEL_INSTALL_DIR}/bin")
+option(WITH_COORDGEN "Build OpenBabel with CoordGen support" ON)
 set(OB_OVERRIDE_ARGS "")
 macro(pass_ob_arg var)
   if(DEFINED ${var})
@@ -255,6 +256,10 @@ pass_ob_arg(maeparser_LIBRARIES)
 pass_ob_arg(coordgen_DIR)
 pass_ob_arg(coordgen_INCLUDE_DIRS)
 pass_ob_arg(coordgen_LIBRARIES)
+pass_ob_arg(BOOST_ROOT)
+pass_ob_arg(BOOST_INCLUDEDIR)
+pass_ob_arg(BOOST_LIBRARYDIR)
+pass_ob_arg(Boost_NO_SYSTEM_PATHS)
 pass_ob_arg(LIBXML2_LIBRARIES)
 pass_ob_arg(LIBXML2_INCLUDE_DIR)
 pass_ob_arg(ZLIB_LIBRARY)
@@ -262,9 +267,10 @@ pass_ob_arg(ZLIB_INCLUDE_DIR)
 pass_ob_arg(wxWidgets_LIB_DIR)
 pass_ob_arg(LIB_INSTALL_DIR)
 pass_ob_arg(ENABLE_OPENMP)
+pass_ob_arg(WITH_COORDGEN)
 ExternalProject_Add(openbabel_ext
-  URL https://github.com/thosoo/openbabel/archive/e5228d59dae0fd356a318471aae930fd63399bd5.zip
-  URL_HASH SHA256=41fc5ecb32791a807d69b1899cfd26f1b616749b08aa494aeb92067e6fa95ba6
+  URL https://github.com/thosoo/openbabel/archive/4279ff2a802bee8820d314eedf1d71032c65ff2e.zip
+  URL_HASH SHA256=207a326a3a0f850cd6abcbfec893557e3d4176570a081dfaa408d050ce32a3e1
   BUILD_BYPRODUCTS
     $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.lib>
     $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.dll>
@@ -658,4 +664,3 @@ else()
     DESTINATION "${SHARE_INSTALL_PREFIX}/avogadro/qmake"
   )
 endif()
-
