@@ -10,6 +10,8 @@
 
 #include "eprintf.h"
 #include <stdarg.h> // Avogadro edit: Needed for va_arg --DCL 2011/11/11
+#include <string.h>
+#include <stdlib.h>
 
 /*
  * NOTES:

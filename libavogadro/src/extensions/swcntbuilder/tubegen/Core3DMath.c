@@ -8,6 +8,7 @@
 // Last Mod:	n/a
 */
 
+#include <string.h>
 #include "Core3DMath.h"
 #include "CoreConst.h"
 
