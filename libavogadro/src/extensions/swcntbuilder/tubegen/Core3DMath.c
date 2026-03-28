@@ -1,5 +1,5 @@
 /* ===============================================================================
-// Core3DMath.c                                              Â©1999-2001, J.T. Frey
+// Core3DMath.c                                              ©1999-2001, J.T. Frey
 // ===============================================================================
 // Written:		J.T. Frey, 03/11/2001
 // Purpose:		Defines a specialized library for three-dimensional
@@ -1124,7 +1124,7 @@
 		   Note:  J.B. initially raised the question of whether or not the eqn.
 		   		  should actually be:
 		  
-		   			w = cos ( theta / 2 ) = Â± sqrt( (v1.v2 + 1)/2 )
+		   			w = cos ( theta / 2 ) = ± sqrt( (v1.v2 + 1)/2 )
 		   
 		   		  It's a good point, but the answer is this:  it depends upon the
 		   		  range of theta.  Since the dot product only generates values in
