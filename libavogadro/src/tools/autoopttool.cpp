@@ -69,6 +69,8 @@ namespace Avogadro {
     // FindForceField call will work.
     OBConversion conv; Q_UNUSED(conv);
     m_forceField = OBForceField::FindForceField( "UFF" );
+    if (!m_forceField)
+      m_forceField = OBForceField::FindForceField( "UFF4MOF" );
     // Check that the force field exists and was initialised OK
     if (!m_forceField) {
       // We can't do anything is the force field cannot be found - OB issue
@@ -278,8 +280,10 @@ namespace Avogadro {
       for (unsigned int i = 0; i < m_forceFieldList.size(); ++i)
         m_comboFF->addItem(m_forceFieldList[i].c_str());
 
-      // find UFF for the default item
+      // Prefer UFF when available, then UFF4MOF.
       int currentFF = m_comboFF->findText("UFF");
+      if (currentFF == -1)
+        currentFF = m_comboFF->findText("UFF4MOF");
       if (currentFF != -1) // couldn't find it, go for index 0
         m_comboFF->setCurrentIndex(currentFF);
 
@@ -625,8 +629,10 @@ namespace Avogadro {
       int currentFF = settings.value("forceField", -1).toInt();
       if (currentFF == -1) {
         // haven't set a default
-        // find UFF for default
+        // Prefer UFF when available, then UFF4MOF.
         currentFF = m_comboFF->findText("UFF");
+        if (currentFF == -1)
+          currentFF = m_comboFF->findText("UFF4MOF");
         if (currentFF == -1) // couldn't find it, go for index 0
           currentFF = 0;
       }
@@ -647,4 +653,3 @@ namespace Avogadro {
   }
 
 }
-
