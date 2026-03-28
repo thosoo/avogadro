@@ -29,6 +29,7 @@
 #include <QFile>
 
 #include <QMessageBox>
+#include <QtGlobal>
 
 #include <openbabel/plugin.h>
 
@@ -53,11 +54,17 @@ namespace Avogadro {
     m_nSteps = 500; // a reasonable starting point (not too much time)
     ui.StepsSpinBox->setValue(m_nSteps);
 
-    m_algorithm = 0; // steepest descent
+    m_algorithm = AlgorithmSteepestDescent; // steepest descent
     ui.AlgorithmComboBox->setCurrentIndex(m_algorithm);
 
     m_convergence = 7;
     ui.ConvergenceSpinBox->setValue(m_convergence);
+
+    m_lbfgsHistory = 7;
+    ui.LBFGSHistorySpinBox->setValue(m_lbfgsHistory);
+    connect(ui.AlgorithmComboBox, SIGNAL(currentIndexChanged(int)),
+            this, SLOT(updateLBFGSHistoryEnabled(int)));
+    updateLBFGSHistoryEnabled(m_algorithm);
   }
 
   ForceFieldDialog::~ForceFieldDialog()
@@ -76,6 +83,7 @@ namespace Avogadro {
     m_nSteps = ui.StepsSpinBox->value();
     m_algorithm = ui.AlgorithmComboBox->currentIndex();
     m_convergence = ui.ConvergenceSpinBox->value();
+    m_lbfgsHistory = qMax(1, ui.LBFGSHistorySpinBox->value());
 
     hide();
   }
@@ -88,6 +96,8 @@ namespace Avogadro {
     ui.StepsSpinBox->setValue(m_nSteps);
     ui.AlgorithmComboBox->setCurrentIndex(m_algorithm);
     ui.ConvergenceSpinBox->setValue(m_convergence);
+    ui.LBFGSHistorySpinBox->setValue(m_lbfgsHistory);
+    updateLBFGSHistoryEnabled(m_algorithm);
   }
 
   int ForceFieldDialog::forceFieldID()
@@ -109,5 +119,16 @@ namespace Avogadro {
   {
     return m_convergence;
   }
-}
 
+  int ForceFieldDialog::lbfgsHistory()
+  {
+    return m_lbfgsHistory;
+  }
+
+  void ForceFieldDialog::updateLBFGSHistoryEnabled(int algorithm)
+  {
+    const bool enabled = (algorithm == AlgorithmLBFGS);
+    ui.label_4->setEnabled(enabled);
+    ui.LBFGSHistorySpinBox->setEnabled(enabled);
+  }
+}

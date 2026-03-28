@@ -42,6 +42,16 @@
 #include <QtWidgets/QUndoStack>
 
 namespace Avogadro {
+  enum AutoOptAlgorithm
+  {
+    AutoOptSteepestDescent = 0,
+    AutoOptConjugateGradients = 1,
+    AutoOptBFGS = 2,
+    AutoOptLBFGS = 3,
+    AutoOptMolecularDynamics300K = 4,
+    AutoOptMolecularDynamics600K = 5,
+    AutoOptMolecularDynamics900K = 6
+  };
 
   class AutoOptThread : public QThread
   {

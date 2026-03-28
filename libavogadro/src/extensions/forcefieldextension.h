@@ -100,6 +100,7 @@ namespace Avogadro {
       void setMutability(int mutability);
       void setConvergence(int convergence);
       void setMethod(int method);
+      void setLBFGSHistory(int history);
 
     Q_SIGNALS:
       void stepsTaken(int steps);
@@ -126,6 +127,7 @@ namespace Avogadro {
       int m_numChildren;
       int m_mutability;
       int m_method;
+      int m_lbfgsHistory;
 
       OpenBabel::OBForceField* m_forceField;
       //ForceFieldDialog *m_Dialog;
@@ -159,6 +161,7 @@ namespace Avogadro {
      void setMutability(int mutability);
      void setConvergence(int convergence);
      void setMethod(int method);
+     void setLBFGSHistory(int history);
 
 
      ForceFieldThread *thread() const;
@@ -177,6 +180,7 @@ namespace Avogadro {
      int m_mutability;
      int m_convergence;
      int m_method;
+     int m_lbfgsHistory;
      Molecule *m_molecule;
      ConstraintsModel* m_constraints;
 
@@ -198,4 +202,3 @@ namespace Avogadro {
 } // end namespace Avogadro
 
 #endif
-
