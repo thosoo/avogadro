@@ -228,6 +228,38 @@ jobs:
         run: |
           $env:OPENBABEL_INSTALL_DIR = "$PWD\build\openbabel-install"
           python scripts/installer/create_installer.py
+      - name: Validate staged Windows runtime files
+        if: matrix.target == 'installer'
+        shell: pwsh
+        run: |
+          $dist = "$PWD\scripts\installer\dist"
+          if (-not (Test-Path "$dist\share\avogadro\fragments")) {
+            throw "Missing fragment directory at $dist\share\avogadro\fragments"
+          }
+          $fragment = Get-ChildItem -Path "$dist\share\avogadro\fragments" -Filter *.cml -Recurse | Select-Object -First 1
+          if (-not $fragment) {
+            throw "No fragment .cml files were staged under $dist\share\avogadro\fragments"
+          }
+          if (-not (Test-Path "$dist\bin\openbabel-3.dll")) {
+            throw "Missing Open Babel runtime DLL: $dist\bin\openbabel-3.dll"
+          }
+          $xmlPlugin = Get-ChildItem -Path "$dist\lib\openbabel" -Filter formats_xml.obf -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $xmlPlugin) {
+            $xmlPlugin = Get-Item "$dist\bin\formats_xml.obf" -ErrorAction SilentlyContinue
+          }
+          if (-not $xmlPlugin) {
+            throw "Missing Open Babel XML plugin (formats_xml.obf) in dist tree"
+          }
+          $pluginDefines = Get-ChildItem -Path "$dist\share\openbabel" -Filter plugindefines.txt -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $pluginDefines) {
+            $pluginDefines = Get-Item "$dist\bin\plugindefines.txt" -ErrorAction SilentlyContinue
+          }
+          if (-not $pluginDefines) {
+            throw "Missing Open Babel data file plugindefines.txt in dist tree"
+          }
+          Write-Host "Fragment sample: $($fragment.FullName)"
+          Write-Host "XML plugin: $($xmlPlugin.FullName)"
+          Write-Host "Plugin defines: $($pluginDefines.FullName)"
       - name: Test
         if: matrix.target == 'tests'
         shell: pwsh

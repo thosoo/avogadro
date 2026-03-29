@@ -23,6 +23,14 @@ def main():
         log(f"Copying {src} -> {dst}")
         shutil.copy(src, dst)
 
+    def require_any(description, candidates):
+        for path in candidates:
+            if path.exists():
+                log(f"Verified {description}: {path}")
+                return path
+        checked = "\n".join(str(p) for p in candidates)
+        raise FileNotFoundError(f"Missing required {description}. Checked:\n{checked}")
+
     log(f"Installing build from {build_dir} into {dist}")
     subprocess.check_call(["cmake", "--install", str(build_dir), "--prefix", str(dist)])
 
@@ -121,6 +129,8 @@ def main():
             copy(dll, dest_plugins)
         for obf in ob.glob("bin/plugin_*.obf"):
             copy(obf, dest_plugins)
+        for obf in ob.glob("bin/formats_*.obf"):
+            copy(obf, dest_plugins)
 
         share = ob / "share" / "openbabel" / ob_version
         alt_share = ob / "bin" / "data"
@@ -144,6 +154,26 @@ def main():
                 for f in alt_share.glob(pat):
                     if f.is_file():
                         copy(f, dist / "bin")
+
+        # Fail early if required Open Babel runtime assets were not staged.
+        require_any(
+            "Open Babel runtime library",
+            [dist / "bin" / "openbabel-3.dll", dist / "bin" / "openbabel.dll"],
+        )
+        require_any(
+            "Open Babel XML format plugin",
+            [
+                dist / "lib" / "openbabel" / ob_version / "formats_xml.obf",
+                dist / "bin" / "formats_xml.obf",
+            ],
+        )
+        require_any(
+            "Open Babel plugindefines.txt",
+            [
+                dist / "share" / "openbabel" / ob_version / "plugindefines.txt",
+                dist / "bin" / "plugindefines.txt",
+            ],
+        )
 
     libxml = os.environ.get("LIBXML2_LIBRARY")
     if libxml:

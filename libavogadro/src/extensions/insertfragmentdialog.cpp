@@ -178,12 +178,27 @@ namespace Avogadro {
       return d->fragment; // return an empty fragment and do nothing
 
     Molecule *mol;
+    qDebug() << "InsertFragmentDialog: selected fragment file:" << fileName;
+    qDebug() << "InsertFragmentDialog: file exists:" << QFileInfo::exists(fileName);
+#ifdef WIN32
+    const QString babelLibDir = QString::fromLocal8Bit(qgetenv("BABEL_LIBDIR"));
+    const QString babelDataDir = QString::fromLocal8Bit(qgetenv("BABEL_DATADIR"));
+    const QString xmlPlugin = babelLibDir + QLatin1String("/formats_xml.obf");
+    const QString pluginDefines = babelDataDir + QLatin1String("/plugindefines.txt");
+    qDebug() << "InsertFragmentDialog: BABEL_LIBDIR:" << babelLibDir;
+    qDebug() << "InsertFragmentDialog: BABEL_DATADIR:" << babelDataDir;
+    qDebug() << "InsertFragmentDialog: formats_xml.obf found:"
+             << QFileInfo::exists(xmlPlugin) << xmlPlugin;
+    qDebug() << "InsertFragmentDialog: plugindefines.txt found:"
+             << QFileInfo::exists(pluginDefines) << pluginDefines;
+#endif
     if (d->crystalFiles) {
       // No bonding, at first
       mol = MoleculeFile::readMolecule(fileName, QString(), QString("b"));
     }
     else
       mol = MoleculeFile::readMolecule(fileName);
+    qDebug() << "InsertFragmentDialog: readMolecule returned null:" << (mol == 0);
 
     // After reading, check if it worked
     if (mol) {
