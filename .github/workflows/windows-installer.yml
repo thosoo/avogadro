@@ -281,24 +281,11 @@ jobs:
           if (-not (Test-Path $dataDir)) {
             throw "Missing OpenBabel data directory for version '$versionDir': $dataDir"
           }
-
-          $obabelExe = Join-Path $dist "bin\obabel.exe"
-          if (-not (Test-Path $obabelExe)) {
-            throw "Missing obabel runtime executable in packaged tree: $obabelExe"
-          }
-
-          $env:BABEL_LIBDIR = $pluginRoot
-          $env:BABEL_DATADIR = $dataDir
-          $env:PATH = "$dist\bin;$env:PATH"
-
-          $formatsOutput = & $obabelExe -L formats
-          if ($LASTEXITCODE -ne 0) {
-            throw "obabel -L formats failed (exit code $LASTEXITCODE)"
-          }
-          if ($formatsOutput -notmatch "(?im)^\s*cml(\s|$)") {
-            throw "OpenBabel packaged runtime did not report a CML reader in 'obabel -L formats' output."
-          }
-          Write-Host "OpenBabel packaged runtime reports CML format support."
+      - name: Probe packaged OpenBabel runtime (installer)
+        if: matrix.target == 'installer'
+        shell: pwsh
+        run: |
+          python scripts/installer/probe_openbabel_runtime.py scripts\installer\dist
       - name: Test
         if: matrix.target == 'tests'
         shell: pwsh
