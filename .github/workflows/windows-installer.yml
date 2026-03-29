@@ -228,6 +228,64 @@ jobs:
         run: |
           $env:OPENBABEL_INSTALL_DIR = "$PWD\build\openbabel-install"
           python scripts/installer/create_installer.py
+      - name: Verify bundled OpenBabel runtime (installer)
+        if: matrix.target == 'installer'
+        shell: pwsh
+        run: |
+          $dist = "$PWD\scripts\installer\dist"
+          $required = @(
+            "$dist\bin\openbabel-3.dll"
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path $path)) {
+              throw "Missing required runtime file: $path"
+            }
+          }
+
+          $libxml = Get-ChildItem -Path "$dist\bin" -Filter "libxml2*.dll" -ErrorAction SilentlyContinue
+          if (-not $libxml) {
+            throw "Missing libxml2 runtime DLL in $dist\bin"
+          }
+          Write-Host "libxml2 runtime DLL(s):" ($libxml | ForEach-Object { $_.Name } | Join-String -Separator ", ")
+
+          $pluginRoots = Get-ChildItem -Path "$dist\lib\openbabel" -Directory -ErrorAction SilentlyContinue
+          if (-not $pluginRoots) {
+            throw "No OpenBabel plugin root found in $dist\lib\openbabel"
+          }
+          $xmlPlugin = $null
+          $descriptorPlugin = $null
+          foreach ($root in $pluginRoots) {
+            $candidateXml = Join-Path $root.FullName "formats_xml.obf"
+            if ((-not $xmlPlugin) -and (Test-Path $candidateXml)) {
+              $xmlPlugin = $candidateXml
+            }
+
+            $candidateDescriptors = Join-Path $root.FullName "plugin_descriptors.obf"
+            if ((-not $descriptorPlugin) -and (Test-Path $candidateDescriptors)) {
+              $descriptorPlugin = $candidateDescriptors
+            }
+          }
+          if (-not $xmlPlugin) {
+            throw "Missing formats_xml.obf in $dist\lib\openbabel\<version>"
+          }
+          Write-Host "Found XML format plugin artifact:" $xmlPlugin
+          if ($descriptorPlugin) {
+            Write-Host "Found OpenBabel descriptor plugin artifact:" $descriptorPlugin
+          } else {
+            Write-Host "plugin_descriptors.obf not found (continuing)."
+          }
+
+          $pluginRoot = Split-Path $xmlPlugin -Parent
+          $versionDir = Split-Path $pluginRoot -Leaf
+          $dataDir = Join-Path $dist "share\openbabel\$versionDir"
+          if (-not (Test-Path $dataDir)) {
+            throw "Missing OpenBabel data directory for version '$versionDir': $dataDir"
+          }
+      - name: Probe packaged OpenBabel runtime (installer)
+        if: matrix.target == 'installer'
+        shell: pwsh
+        run: |
+          python scripts/installer/probe_openbabel_runtime.py scripts\installer\dist
       - name: Test
         if: matrix.target == 'tests'
         shell: pwsh

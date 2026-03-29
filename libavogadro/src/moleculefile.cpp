@@ -391,6 +391,10 @@ namespace Avogadro {
     describeEnvDir("BABEL_LIBDIR", QStringList() << "*.obf" << "*.dll" << "*.so" << "*.dylib");
     describeEnvDir("BABEL_DATADIR", QStringList());
 
+    OBConversion conversion;
+    const bool hasCmlReader = conversion.SetInFormat("cml");
+    details << QObject::tr("CML reader available=%1")
+               .arg(hasCmlReader ? QObject::tr("yes") : QObject::tr("no"));
     QByteArray pathEnv = qgetenv("PATH");
     if (!pathEnv.isEmpty()) {
       QStringList paths = QString::fromLocal8Bit(pathEnv)
