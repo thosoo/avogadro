@@ -252,15 +252,53 @@ jobs:
           if (-not $pluginRoots) {
             throw "No OpenBabel plugin root found in $dist\lib\openbabel"
           }
-          $cmlPlugins = @()
+          $xmlPlugin = $null
+          $descriptorPlugin = $null
           foreach ($root in $pluginRoots) {
-            $cmlPlugins += Get-ChildItem -Path $root.FullName -Filter "*cml*.dll" -ErrorAction SilentlyContinue
-            $cmlPlugins += Get-ChildItem -Path $root.FullName -Filter "*cml*.obf" -ErrorAction SilentlyContinue
+            $candidateXml = Join-Path $root.FullName "formats_xml.obf"
+            if ((-not $xmlPlugin) -and (Test-Path $candidateXml)) {
+              $xmlPlugin = $candidateXml
+            }
+
+            $candidateDescriptors = Join-Path $root.FullName "plugin_descriptors.obf"
+            if ((-not $descriptorPlugin) -and (Test-Path $candidateDescriptors)) {
+              $descriptorPlugin = $candidateDescriptors
+            }
           }
-          if (-not $cmlPlugins) {
-            throw "No CML-related OpenBabel plugin found in $dist\lib\openbabel"
+          if (-not $xmlPlugin) {
+            throw "Missing formats_xml.obf in $dist\lib\openbabel\<version>"
           }
-          Write-Host "CML-related OpenBabel plugin(s):" ($cmlPlugins | ForEach-Object { $_.FullName } | Join-String -Separator ", ")
+          Write-Host "Found XML format plugin artifact:" $xmlPlugin
+          if ($descriptorPlugin) {
+            Write-Host "Found OpenBabel descriptor plugin artifact:" $descriptorPlugin
+          } else {
+            Write-Host "plugin_descriptors.obf not found (continuing)."
+          }
+
+          $pluginRoot = Split-Path $xmlPlugin -Parent
+          $versionDir = Split-Path $pluginRoot -Leaf
+          $dataDir = Join-Path $dist "share\openbabel\$versionDir"
+          if (-not (Test-Path $dataDir)) {
+            throw "Missing OpenBabel data directory for version '$versionDir': $dataDir"
+          }
+
+          $obabelExe = Join-Path $dist "bin\obabel.exe"
+          if (-not (Test-Path $obabelExe)) {
+            throw "Missing obabel runtime executable in packaged tree: $obabelExe"
+          }
+
+          $env:BABEL_LIBDIR = $pluginRoot
+          $env:BABEL_DATADIR = $dataDir
+          $env:PATH = "$dist\bin;$env:PATH"
+
+          $formatsOutput = & $obabelExe -L formats
+          if ($LASTEXITCODE -ne 0) {
+            throw "obabel -L formats failed (exit code $LASTEXITCODE)"
+          }
+          if ($formatsOutput -notmatch "(?im)^\s*cml(\s|$)") {
+            throw "OpenBabel packaged runtime did not report a CML reader in 'obabel -L formats' output."
+          }
+          Write-Host "OpenBabel packaged runtime reports CML format support."
       - name: Test
         if: matrix.target == 'tests'
         shell: pwsh
