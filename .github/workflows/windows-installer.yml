@@ -228,6 +228,39 @@ jobs:
         run: |
           $env:OPENBABEL_INSTALL_DIR = "$PWD\build\openbabel-install"
           python scripts/installer/create_installer.py
+      - name: Verify bundled OpenBabel runtime (installer)
+        if: matrix.target == 'installer'
+        shell: pwsh
+        run: |
+          $dist = "$PWD\scripts\installer\dist"
+          $required = @(
+            "$dist\bin\openbabel-3.dll"
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path $path)) {
+              throw "Missing required runtime file: $path"
+            }
+          }
+
+          $libxml = Get-ChildItem -Path "$dist\bin" -Filter "libxml2*.dll" -ErrorAction SilentlyContinue
+          if (-not $libxml) {
+            throw "Missing libxml2 runtime DLL in $dist\bin"
+          }
+          Write-Host "libxml2 runtime DLL(s):" ($libxml | ForEach-Object { $_.Name } | Join-String -Separator ", ")
+
+          $pluginRoots = Get-ChildItem -Path "$dist\lib\openbabel" -Directory -ErrorAction SilentlyContinue
+          if (-not $pluginRoots) {
+            throw "No OpenBabel plugin root found in $dist\lib\openbabel"
+          }
+          $cmlPlugins = @()
+          foreach ($root in $pluginRoots) {
+            $cmlPlugins += Get-ChildItem -Path $root.FullName -Filter "*cml*.dll" -ErrorAction SilentlyContinue
+            $cmlPlugins += Get-ChildItem -Path $root.FullName -Filter "*cml*.obf" -ErrorAction SilentlyContinue
+          }
+          if (-not $cmlPlugins) {
+            throw "No CML-related OpenBabel plugin found in $dist\lib\openbabel"
+          }
+          Write-Host "CML-related OpenBabel plugin(s):" ($cmlPlugins | ForEach-Object { $_.FullName } | Join-String -Separator ", ")
       - name: Test
         if: matrix.target == 'tests'
         shell: pwsh

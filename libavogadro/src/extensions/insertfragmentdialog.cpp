@@ -177,18 +177,27 @@ namespace Avogadro {
     if (fileInfo.isDir())
       return d->fragment; // return an empty fragment and do nothing
 
+    qDebug() << "InsertFragmentDialog selected fragment file:" << fileName
+             << "exists=" << fileInfo.exists()
+             << "readable=" << fileInfo.isReadable();
+
+    QString readError;
     Molecule *mol;
     if (d->crystalFiles) {
       // No bonding, at first
-      mol = MoleculeFile::readMolecule(fileName, QString(), QString("b"));
+      mol = MoleculeFile::readMolecule(fileName, QString(), QString("b"),
+                                       &readError);
     }
     else
-      mol = MoleculeFile::readMolecule(fileName);
+      mol = MoleculeFile::readMolecule(fileName, QString(), QString(),
+                                       &readError);
 
     // After reading, check if it worked
     if (mol) {
       d->fragment = *mol;
     } else {
+      qWarning() << "InsertFragmentDialog failed to read fragment file:"
+                 << fileName << "error:" << readError;
       QMessageBox::warning( (QWidget*)this, tr( "Avogadro" ),
                             tr( "Cannot read molecular file %1." )
                             .arg( fileName ) );

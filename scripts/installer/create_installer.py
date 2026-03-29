@@ -147,9 +147,18 @@ def main():
 
     libxml = os.environ.get("LIBXML2_LIBRARY")
     if libxml:
-        dll = Path(libxml).with_suffix('.dll')
-        if dll.exists():
-            copy(dll, dist / "bin")
+        libxml_lib = Path(libxml)
+        libxml_candidates = [libxml_lib.with_suffix('.dll')]
+        libxml_candidates.extend((libxml_lib.parent.parent / "bin").glob("libxml2*.dll"))
+        copied = False
+        for dll in libxml_candidates:
+            if dll.exists():
+                copy(dll, dist / "bin")
+                copied = True
+        if not copied:
+            raise FileNotFoundError(
+                f"Could not locate libxml2 runtime DLL from LIBXML2_LIBRARY={libxml_lib}"
+            )
 
     zlib_lib = os.environ.get("ZLIB_LIBRARY")
     zlib_dir = os.environ.get("ZLIB_LIBRARY_DIR")

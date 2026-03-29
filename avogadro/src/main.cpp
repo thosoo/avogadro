@@ -26,6 +26,7 @@
 
 #include <avogadro/global.h>
 #include <openbabel/babelconfig.h>
+#include <openbabel/obconversion.h>
 
 #ifdef ENABLE_GLSL
   #include <GL/glew.h>
@@ -152,6 +153,10 @@ int main(int argc, char *argv[])
     qDebug() << "BABEL_LIBDIR" << babelLibDir;
     _putenv_s("BABEL_LIBDIR", babelLibDir.toLocal8Bit().constData());
   }
+
+  OpenBabel::OBConversion conversion;
+  const bool cmlReaderAvailable = conversion.SetInFormat("cml");
+  qDebug() << "OpenBabel CML reader available at startup:" << cmlReaderAvailable;
 #endif
 #endif
 
