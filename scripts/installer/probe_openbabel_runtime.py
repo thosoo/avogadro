@@ -94,6 +94,11 @@ def main() -> int:
     plugin_descriptors = plugin_dir / "plugin_descriptors.obf"
     formats_common = plugin_dir / "formats_common.obf"
     obabel_exe = bin_dir / "obabel.exe"
+    print(f"obabel_exe={obabel_exe.resolve()}")
+    print(f"obabel_exe_exists={obabel_exe.exists()}")
+    if not obabel_exe.exists():
+        print(f"ERROR: missing packaged OpenBabel executable: {obabel_exe}", file=sys.stderr)
+        return 1
 
     libxml_dlls = _find_glob(bin_dir, "libxml2*.dll")
     maeparser_dlls = _find_glob(bin_dir, "maeparser*.dll")
@@ -115,10 +120,11 @@ def main() -> int:
     env["BABEL_DATADIR"] = str(data_dir)
     env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", "")
 
+    dll_dir_handles = []
     if hasattr(os, "add_dll_directory"):
         # Python 3.8+ on Windows
-        os.add_dll_directory(str(bin_dir))
-        os.add_dll_directory(str(plugin_dir))
+        dll_dir_handles.append(os.add_dll_directory(str(bin_dir)))
+        dll_dir_handles.append(os.add_dll_directory(str(plugin_dir)))
 
     _print_header("ctypes direct-load probes")
     load_targets: list[Path] = [openbabel_dll]
@@ -137,9 +143,9 @@ def main() -> int:
 
     _print_header("obabel command probes")
     commands = [
-        ["obabel", "-V"],
-        ["obabel", "-L", "formats"],
-        ["obabel", "-H", "cml"],
+        [str(obabel_exe), "-V"],
+        [str(obabel_exe), "-L", "formats"],
+        [str(obabel_exe), "-H", "cml"],
     ]
     cmd_results: dict[str, tuple[int, str, str]] = {}
     for cmd in commands:
@@ -161,7 +167,7 @@ def main() -> int:
     if sample_cml is None:
         print(f"No packaged fragment .cml file found under {fragments_root}")
     else:
-        conversion_cmd = ["obabel", "-icml", str(sample_cml), "-ocan"]
+        conversion_cmd = [str(obabel_exe), "-icml", str(sample_cml), "-ocan"]
         code, out, err = _run(conversion_cmd, env)
         print(f"$ {' '.join(conversion_cmd)}")
         print(f"exit_code={code}")
@@ -171,11 +177,17 @@ def main() -> int:
         print(err.rstrip() or "<empty>")
         conversion_ok = code == 0 and bool(out.strip())
 
-    formats_list_out = cmd_results.get("obabel -L formats", (1, "", ""))[1]
+    formats_key = f"{obabel_exe} -L formats"
+    formats_list_out = cmd_results.get(formats_key, (1, "", ""))[1]
     cml_in_list = bool(re.search(r"(?im)^\s*cml(\s|$)", formats_list_out))
     formats_xml_load_ok = load_results.get(str(formats_xml), (False, "not attempted"))[0]
+    obabel_launch_ok = all(
+        cmd_results.get(" ".join(cmd), (1, "", ""))[0] == 0
+        for cmd in commands
+    )
 
     _print_header("Heuristic summary")
+    print(f"obabel_launch_ok={obabel_launch_ok}")
     print(f"cml_listed_by_obabel={cml_in_list}")
     print(f"formats_xml_obf_loadable={formats_xml_load_ok}")
     print(f"sample_cml_conversion_ok={conversion_ok}")
@@ -185,15 +197,20 @@ def main() -> int:
         likely = "plugin missing"
     elif not formats_xml_load_ok:
         likely = "plugin dependency load failure"
+    elif not obabel_launch_ok:
+        likely = "executable launch failure"
     elif not cml_in_list:
-        likely = "plugin discovery/path failure or plugin loaded but cml not registered"
+        likely = "plugin discovery/registration failure"
     elif not conversion_ok:
-        likely = "plugin loaded but runtime conversion still failing"
+        likely = "real CML conversion failure"
     print(f"likely_failure_class={likely}")
 
     fail = False
     if not formats_xml_load_ok:
         print("FAIL: formats_xml.obf is not loadable via ctypes.", file=sys.stderr)
+        fail = True
+    if not obabel_launch_ok:
+        print("FAIL: packaged obabel.exe command probes failed to execute successfully.", file=sys.stderr)
         fail = True
     if not cml_in_list:
         print("FAIL: obabel -L formats does not list cml.", file=sys.stderr)
