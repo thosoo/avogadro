@@ -10,6 +10,19 @@ namespace {
 const char kChemDrawCDXSignature[] = "VjCD0100";
 const int kChemDrawCDXSignatureLength = 8;
 const int kMinimumCDXPayloadLength = 24;
+
+bool isWindowsCustomMime(const QString &format)
+{
+  return format.startsWith(QLatin1String("application/x-qt-windows-mime;value=\""));
+}
+
+bool formatNameSuggestsChemDraw(const QString &format)
+{
+  return format.contains(QLatin1String("chemdraw"), Qt::CaseInsensitive)
+      || format.contains(QLatin1String("cdx"), Qt::CaseInsensitive)
+      || format.contains(QLatin1String("cdxml"), Qt::CaseInsensitive)
+      || format.contains(QLatin1String("chem"), Qt::CaseInsensitive);
+}
 }
 
 bool isChemDrawCDX(const QByteArray &payload)
@@ -115,12 +128,16 @@ QList<ChemDrawCandidate> detectChemDrawClipboardCandidates(const QMimeData *mime
     if (blob.isEmpty())
       continue;
 
+    const bool isWindowsMime = isWindowsCustomMime(format);
+    const DetectionStrength strength =
+      (isWindowsMime && formatNameSuggestsChemDraw(format)) ? DetectionStrong : DetectionWeak;
+
     const int offset = findEmbeddedCDX(blob);
     if (offset >= 0) {
       ChemDrawCandidate candidate;
       candidate.payload = blob.mid(offset);
       candidate.formatId = "cdx";
-      candidate.strength = DetectionWeak;
+      candidate.strength = strength;
       const QByteArray key = candidate.formatId + '\n' + candidate.payload;
       if (!seenPayloads.contains(key)) {
         candidates.append(candidate);
@@ -133,7 +150,7 @@ QList<ChemDrawCandidate> detectChemDrawClipboardCandidates(const QMimeData *mime
       ChemDrawCandidate candidate;
       candidate.payload = blob;
       candidate.formatId = "cdxml";
-      candidate.strength = DetectionWeak;
+      candidate.strength = strength;
       const QByteArray key = candidate.formatId + '\n' + candidate.payload;
       if (!seenPayloads.contains(key)) {
         candidates.append(candidate);

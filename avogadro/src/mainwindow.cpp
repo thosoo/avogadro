@@ -135,6 +135,29 @@
 
 namespace {
 
+const bool kChemDrawClipboardDebug = false;
+
+void logChemDrawClipboardDebug(const QMimeData *mimeData)
+{
+  if (!kChemDrawClipboardDebug || !mimeData)
+    return;
+
+  qDebug() << "[ChemDrawPaste] Clipboard MIME formats:" << mimeData->formats();
+  foreach (const QString &format, mimeData->formats()) {
+    const QByteArray payload = mimeData->data(format);
+    const QByteArray hexHead = payload.left(32).toHex();
+    const int embeddedOffset = Avogadro::findEmbeddedCDX(payload);
+    const bool cdxMatch = (embeddedOffset >= 0);
+    const bool cdxmlMatch = Avogadro::looksLikeCDXML(payload);
+    qDebug() << "[ChemDrawPaste] format=" << format
+             << "size=" << payload.size()
+             << "hex32=" << hexHead
+             << "embeddedCDX=" << cdxMatch
+             << "embeddedOffset=" << embeddedOffset
+             << "looksLikeCDXML=" << cdxmlMatch;
+  }
+}
+
   void buildAndOptimizeMolecule(OpenBabel::OBMol &mol, bool build3d,
                                 bool addHydrogens)
   {
@@ -2098,20 +2121,28 @@ protected:
 
     // if we don't support selection, or we failed pasting the selection
     // try from the clipboard
-    if ( !supportsSelection || !pasteMimeData(mimeData) )
+    bool specificError = false;
+    if ( !supportsSelection || !pasteMimeData(mimeData, &specificError) )
     {
       mimeData = clipboard->mimeData();
-      if(!pasteMimeData(mimeData))
+      bool clipboardSpecificError = false;
+      if(!pasteMimeData(mimeData, &clipboardSpecificError)
+         && !(specificError || clipboardSpecificError))
       {
         statusBar()->showMessage( tr( "Unable to paste molecule." ) );
       }
     }
   }
 
-  bool MainWindow::pasteMimeData(const QMimeData *mimeData)
+  bool MainWindow::pasteMimeData(const QMimeData *mimeData, bool *specificError)
   {
+    if (specificError)
+      *specificError = false;
+
     if (!mimeData)
       return false;
+
+    logChemDrawClipboardDebug(mimeData);
 
     OBFormat *pasteFormat = NULL;
     QByteArray text;
@@ -2129,6 +2160,14 @@ protected:
       const ChemDrawHandlingDecision decision = classifyChemDrawHandling(
         candidate, readerAvailable, parseSucceeded);
 
+      if (kChemDrawClipboardDebug) {
+        qDebug() << "[ChemDrawPaste] candidateFormat=" << candidate.formatId
+                 << "candidateStrength="
+                 << (candidate.strength == DetectionStrong ? "strong" : "weak")
+                 << "readerAvailable=" << readerAvailable
+                 << "parseSucceeded=" << parseSucceeded;
+      }
+
       if (decision == Handled) {
         check3DCoords(&newMol);
         Molecule newMolecule;
@@ -2140,6 +2179,8 @@ protected:
       }
 
       if (decision == HardFailure) {
+        if (specificError)
+          *specificError = true;
         if (!readerAvailable)
           statusBar()->showMessage(tr("Paste failed (ChemDraw format unavailable)."), 5000);
         else
@@ -2167,6 +2208,8 @@ protected:
     } else if (pasteFormat) {
       OBConversion conv;
       if (!conv.SetInFormat(pasteFormat)) {
+        if (specificError)
+          *specificError = true;
         statusBar()->showMessage( tr( "Paste failed (format unavailable)." ), 5000 );
         return false;
       }
@@ -2176,6 +2219,8 @@ protected:
         validMol = true;
       }
     } else {
+      if (specificError)
+        *specificError = true;
       statusBar()->showMessage( tr( "Paste failed (format unavailable)." ), 5000 );
       return false;
     }
