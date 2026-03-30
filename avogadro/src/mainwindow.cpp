@@ -35,6 +35,7 @@
 #include "settingsdialog.h"
 #include "pluginsettings.h"
 #include "savedialog.h"
+#include "clipboardformatdetector.h"
 
 #include "engineitemmodel.h"
 #include "engineviewwidget.h"
@@ -179,34 +180,30 @@ namespace {
     buildAndOptimizeMolecule(mol, build3d, addHydrogens || build3d);
   }
 
-  bool readPastedTextMolecule(OpenBabel::OBMol &mol, const QByteArray &text,
-                              const char *formatId, bool addHydrogens = false)
+  bool readPastedMolecule(OpenBabel::OBMol &mol, const QByteArray &payload,
+                          const char *formatId, bool addHydrogens = false,
+                          bool normalizeNewline = true,
+                          bool optimizeGeometry = true)
   {
     OpenBabel::OBConversion conv;
-    QByteArray normalizedText(text);
-    if (!normalizedText.endsWith("\n"))
-      normalizedText.append("\n");
+    QByteArray data(payload);
+    if (normalizeNewline && !data.endsWith("\n"))
+      data.append("\n");
 
     if (!conv.SetInFormat(formatId))
       return false;
 
+    const std::string input(data.constData(), static_cast<size_t>(data.size()));
     mol.Clear();
-    if (!conv.ReadString(&mol, normalizedText.constData())
+    if (!conv.ReadString(&mol, input)
         || mol.NumAtoms() == 0) {
       return false;
     }
 
-    optimizePastedMolecule(mol, addHydrogens);
+    if (optimizeGeometry)
+      optimizePastedMolecule(mol, addHydrogens);
     return true;
   }
-
-  bool looksLikeMolfile(const QString &text)
-  {
-    return text.contains(QLatin1String("V2000"))
-        || text.contains(QLatin1String("V3000"))
-        || text.contains(QLatin1String("M  END"));
-  }
-
 
   bool looksLikeInChI(const QString &text)
   {
@@ -241,24 +238,43 @@ namespace {
     if (looksLikeHelm(pastedText)) {
       const QString chemical = extractHelmChemicalString(pastedText);
       if (!chemical.isEmpty()
-          && readPastedTextMolecule(mol, chemical.toLatin1(), "smi", true))
+          && readPastedMolecule(mol, chemical.toLatin1(), "smi", true))
         return true;
     }
 
-    if (looksLikeMolfile(pastedText)) {
-      if (readPastedTextMolecule(mol, text, "mol")
-          || readPastedTextMolecule(mol, text, "mdl"))
+    if (looksLikeCDXML(text) && readPastedMolecule(mol, text, "cdxml", false))
+      return true;
+
+    if (looksLikeMolfileText(text)) {
+      if (readPastedMolecule(mol, text, "mol")
+          || readPastedMolecule(mol, text, "mdl"))
         return true;
 
     }
 
-    if (looksLikeInChI(pastedText) && readPastedTextMolecule(mol, text, "inchi", true))
+    if (looksLikeInChI(pastedText) && readPastedMolecule(mol, text, "inchi", true))
       return true;
 
-    if (readPastedTextMolecule(mol, text, "xyz"))
+    if (readPastedMolecule(mol, text, "xyz"))
       return true;
 
-    return readPastedTextMolecule(mol, text, "smi", true);
+    return readPastedMolecule(mol, text, "smi", true);
+  }
+
+  bool tryReadClipboardPayloadAsFormat(OpenBabel::OBMol &mol,
+                                       const QByteArray &payload,
+                                       OpenBabel::OBFormat *pasteFormat)
+  {
+    if (!pasteFormat)
+      return false;
+
+    OpenBabel::OBConversion conv;
+    if (!conv.SetInFormat(pasteFormat))
+      return false;
+
+    const std::string input(payload.constData(), static_cast<size_t>(payload.size()));
+    mol.Clear();
+    return conv.ReadString(&mol, input) && mol.NumAtoms() != 0;
   }
 
 }
@@ -2093,19 +2109,49 @@ protected:
 
   bool MainWindow::pasteMimeData(const QMimeData *mimeData)
   {
-    OBConversion conv;
+    if (!mimeData)
+      return false;
+
     OBFormat *pasteFormat = NULL;
     QByteArray text;
     OBMol newMol;
     bool plainTextPaste = false;
 
-    if ( mimeData->hasFormat( "chemical/x-mdl-molfile" ) ) {
-      pasteFormat = conv.FindFormat( "mdl" );
+    const QList<ChemDrawCandidate> chemDrawCandidates =
+      detectChemDrawClipboardCandidates(mimeData);
+    foreach (const ChemDrawCandidate &candidate, chemDrawCandidates) {
+      OBConversion conv;
+      OBFormat *candidateFormat = conv.FindFormat(candidate.formatId.constData());
+      const bool readerAvailable = (candidateFormat != NULL);
+      const bool parseSucceeded = readerAvailable
+        && tryReadClipboardPayloadAsFormat(newMol, candidate.payload, candidateFormat);
+      const ChemDrawHandlingDecision decision = classifyChemDrawHandling(
+        candidate, readerAvailable, parseSucceeded);
 
+      if (decision == Handled) {
+        check3DCoords(&newMol);
+        Molecule newMolecule;
+        newMolecule.setOBMol(&newMol);
+        PasteCommand *command = new PasteCommand(d->molecule, newMolecule, d->glWidget);
+        d->undoStack->push(command);
+        d->toolGroup->setActiveTool("Manipulate");
+        return true;
+      }
+
+      if (decision == HardFailure) {
+        if (!readerAvailable)
+          statusBar()->showMessage(tr("Paste failed (ChemDraw format unavailable)."), 5000);
+        else
+          statusBar()->showMessage(tr("Paste failed (ChemDraw clipboard data could not be parsed)."),
+                                   5000);
+        return false;
+      }
+    }
+
+    if ( mimeData->hasFormat( "chemical/x-mdl-molfile" ) ) {
+      OBConversion conv;
+      pasteFormat = conv.FindFormat( "mdl" );
       text = mimeData->data( "chemical/x-mdl-molfile" );
-    } else if ( mimeData->hasFormat( "chemical/x-cdx" ) ) {
-      pasteFormat = conv.FindFormat( "cdx" );
-      text = mimeData->data( "chemical/x-cdx" );
     } else if ( mimeData->hasText() ) {
       plainTextPaste = true;
       text = mimeData->text().toLatin1();
@@ -2117,8 +2163,14 @@ protected:
     bool validMol = false;
     if ( plainTextPaste ) {
       validMol = buildPastedTextMolecule(newMol, text);
-    } else if ( pasteFormat && conv.SetInFormat( pasteFormat ) ) {
-      if ( conv.ReadString( &newMol, text.constData() ) // Can we read with OB formats?
+    } else if (pasteFormat) {
+      OBConversion conv;
+      if (!conv.SetInFormat(pasteFormat)) {
+        statusBar()->showMessage( tr( "Paste failed (format unavailable)." ), 5000 );
+        return false;
+      }
+      const std::string input(text.constData(), static_cast<size_t>(text.size()));
+      if ( conv.ReadString( &newMol, input ) // Can we read with OB formats?
            && newMol.NumAtoms() != 0 ) {
         validMol = true;
       }

@@ -47,6 +47,8 @@ if(QtTesting)
 endif()
 
 FILE(GLOB avogadro_SRCS "*.cpp")
+list(APPEND avogadro_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/clipboardformatdetector.cpp")
+list(REMOVE_DUPLICATES avogadro_SRCS)
 
 # Should we build the update checking code? Currently causes segfaults with Qt
 # 4.5.3 on both Arch and Gentoo 64 bit platforms (may be more)
@@ -214,4 +216,8 @@ endif()
 if(XDG_APPS_INSTALL_DIR AND XDG_ICON_INSTALL_DIR)
   install(FILES "avogadro.desktop" DESTINATION "${XDG_APPS_INSTALL_DIR}")
   install(FILES "icons/avogadro-icon.png" DESTINATION "${XDG_ICON_INSTALL_DIR}")
+endif()
+
+if(ENABLE_TESTS)
+  add_subdirectory(tests)
 endif()
