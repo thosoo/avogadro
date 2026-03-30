@@ -242,10 +242,11 @@ namespace {
         return true;
     }
 
-    if (looksLikeCDXML(text) && readPastedMolecule(mol, text, "cdxml", false))
+    if (Avogadro::looksLikeCDXML(text) &&
+        readPastedMolecule(mol, text, "cdxml", false))
       return true;
 
-    if (looksLikeMolfileText(text)) {
+    if (Avogadro::looksLikeMolfileText(text)) {
       if (readPastedMolecule(mol, text, "mol")
           || readPastedMolecule(mol, text, "mdl"))
         return true;
