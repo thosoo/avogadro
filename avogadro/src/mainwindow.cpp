@@ -103,13 +103,11 @@
 #include <QStackedLayout>
 #include <QMimeData>
 #include <QTabWidget>
-#include <QTemporaryFile>
 #include <QTextEdit>
 #include <QTimer>
 #include <QToolButton>
 #include <QUndoStack>
 #include <QDesktopWidget>
-#include <QDir>
 #include <QInputDialog>
 #include <QUrl>
 #include <QDesktopServices>
@@ -137,7 +135,7 @@
 
 namespace {
 
-const bool kChemDrawClipboardDebug = true;
+const bool kChemDrawClipboardDebug = false;
 
 bool looksLikeChemDrawFormatName(const QString &format)
 {
@@ -310,25 +308,6 @@ void logChemDrawClipboardDebug(const QMimeData *mimeData)
     const std::string input(payload.constData(), static_cast<size_t>(payload.size()));
     mol.Clear();
     return conv.ReadString(&mol, input) && mol.NumAtoms() != 0;
-  }
-
-  bool tryReadStrongCDXCandidateAsFile(OpenBabel::OBMol &mol,
-                                       const QByteArray &payload)
-  {
-    OpenBabel::OBConversion conv;
-    if (!conv.SetInFormat("cdx"))
-      return false;
-
-    QTemporaryFile tempFile(QDir::tempPath() + QLatin1String("/avogadro-chemdraw-XXXXXX.cdx"));
-    if (!tempFile.open())
-      return false;
-
-    if (tempFile.write(payload) != payload.size())
-      return false;
-
-    tempFile.flush();
-    mol.Clear();
-    return conv.ReadFile(&mol, tempFile.fileName().toStdString()) && mol.NumAtoms() != 0;
   }
 
 }
@@ -2188,14 +2167,8 @@ protected:
       OBConversion conv;
       OBFormat *candidateFormat = conv.FindFormat(candidate.formatId.constData());
       const bool readerAvailable = (candidateFormat != NULL);
-      const bool readStringSucceeded = readerAvailable
+      const bool parseSucceeded = readerAvailable
         && tryReadClipboardPayloadAsFormat(newMol, candidate.payload, candidateFormat);
-      bool readFileSucceeded = false;
-      if (candidate.strength == DetectionStrong && candidate.formatId == "cdx"
-          && !readStringSucceeded && readerAvailable) {
-        readFileSucceeded = tryReadStrongCDXCandidateAsFile(newMol, candidate.payload);
-      }
-      const bool parseSucceeded = readStringSucceeded || readFileSucceeded;
       const ChemDrawHandlingDecision decision = classifyChemDrawHandling(
         candidate, readerAvailable, parseSucceeded);
 
@@ -2206,8 +2179,6 @@ protected:
                  << "candidateStrength="
                  << (candidate.strength == DetectionStrong ? "strong" : "weak")
                  << "readerAvailable=" << readerAvailable
-                 << "readStringSucceeded=" << readStringSucceeded
-                 << "readFileSucceeded=" << readFileSucceeded
                  << "parseSucceeded=" << parseSucceeded;
       }
       ++candidateIndex;
