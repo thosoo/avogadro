@@ -1,5 +1,6 @@
 #include "clipboardformatdetector.h"
 
+#include <algorithm>
 #include <QMimeData>
 #include <QString>
 #include <QSet>
@@ -21,6 +22,29 @@ bool formatNameSuggestsChemDraw(const QString &format)
   return format.contains(QLatin1String("chemdraw"), Qt::CaseInsensitive)
       || format.contains(QLatin1String("cdx"), Qt::CaseInsensitive)
       || format.contains(QLatin1String("cdxml"), Qt::CaseInsensitive);
+}
+
+int candidatePriority(const ChemDrawCandidate &candidate)
+{
+  if (candidate.source == "explicit-cdx-header"
+      || candidate.source == "explicit-cdx-embedded")
+    return 0;
+  if (candidate.source == "explicit-cdxml")
+    return 1;
+  if (candidate.source == "windows-interchange-cdx")
+    return 2;
+  if (candidate.source == "direct-cdxml-text")
+    return 3;
+  if (candidate.source == "native-embedded" || candidate.source == "native-cdxml"
+      || candidate.source == "windows-wrapper-embedded")
+    return 5;
+  return 6;
+}
+
+bool candidateHasHigherPriority(const ChemDrawCandidate &a,
+                                const ChemDrawCandidate &b)
+{
+  return candidatePriority(a) < candidatePriority(b);
 }
 }
 
@@ -107,6 +131,30 @@ QList<ChemDrawCandidate> detectChemDrawClipboardCandidates(const QMimeData *mime
 
   const QString nativeMime =
     QLatin1String("application/x-qt-windows-mime;value=\"Native\"");
+  const QString windowsInterchangeMime =
+    QLatin1String("application/x-qt-windows-mime;value=\"ChemDraw Interchange Format\"");
+  if (mimeData->hasFormat(windowsInterchangeMime)) {
+    const QByteArray interchangeData = mimeData->data(windowsInterchangeMime);
+    if (hasPlausibleChemDrawCDX(interchangeData)) {
+      ChemDrawCandidate candidate;
+      candidate.payload = interchangeData;
+      candidate.formatId = "cdx";
+      candidate.source = "windows-interchange-cdx";
+      candidate.strength = DetectionStrong;
+      candidates.append(candidate);
+    } else {
+      const int offset = findEmbeddedCDX(interchangeData);
+      if (offset >= 0) {
+        ChemDrawCandidate candidate;
+        candidate.payload = interchangeData.mid(offset);
+        candidate.formatId = "cdx";
+        candidate.source = "windows-interchange-cdx";
+        candidate.strength = DetectionStrong;
+        candidates.append(candidate);
+      }
+    }
+  }
+
   if (mimeData->hasFormat(nativeMime)) {
     const QByteArray nativeData = mimeData->data(nativeMime);
     const int offset = findEmbeddedCDX(nativeData);
@@ -150,7 +198,10 @@ QList<ChemDrawCandidate> detectChemDrawClipboardCandidates(const QMimeData *mime
       ChemDrawCandidate candidate;
       candidate.payload = blob.mid(offset);
       candidate.formatId = "cdx";
-      candidate.source = "weak-generic";
+      candidate.source =
+        (isWindowsMime && format.contains(QLatin1String("Embed Source"), Qt::CaseInsensitive))
+          ? "windows-wrapper-embedded"
+          : "weak-generic";
       candidate.strength = strength;
       const QByteArray key = candidate.formatId + '\n' + candidate.payload;
       if (!seenPayloads.contains(key)) {
@@ -164,7 +215,9 @@ QList<ChemDrawCandidate> detectChemDrawClipboardCandidates(const QMimeData *mime
       ChemDrawCandidate candidate;
       candidate.payload = blob;
       candidate.formatId = "cdxml";
-      candidate.source = "weak-generic";
+      candidate.source = QString::fromUtf8(blob).trimmed().startsWith(QLatin1String("<"))
+        ? "direct-cdxml-text"
+        : "weak-generic";
       candidate.strength = strength;
       const QByteArray key = candidate.formatId + '\n' + candidate.payload;
       if (!seenPayloads.contains(key)) {
@@ -174,6 +227,7 @@ QList<ChemDrawCandidate> detectChemDrawClipboardCandidates(const QMimeData *mime
     }
   }
 
+  std::stable_sort(candidates.begin(), candidates.end(), candidateHasHigherPriority);
   return candidates;
 }
 

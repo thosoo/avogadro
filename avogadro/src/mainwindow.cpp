@@ -2181,6 +2181,9 @@ protected:
 
     const QList<ChemDrawCandidate> chemDrawCandidates =
       detectChemDrawClipboardCandidates(mimeData);
+    bool hadHardFailure = false;
+    bool hardFailureReaderUnavailable = false;
+    int candidateIndex = 0;
     foreach (const ChemDrawCandidate &candidate, chemDrawCandidates) {
       OBConversion conv;
       OBFormat *candidateFormat = conv.FindFormat(candidate.formatId.constData());
@@ -2197,7 +2200,8 @@ protected:
         candidate, readerAvailable, parseSucceeded);
 
       if (kChemDrawClipboardDebug) {
-        qDebug() << "[ChemDrawPaste] candidateFormat=" << candidate.formatId
+        qDebug() << "[ChemDrawPaste] candidateIndex=" << candidateIndex
+                 << "candidateFormat=" << candidate.formatId
                  << "candidateSource=" << candidate.source
                  << "candidateStrength="
                  << (candidate.strength == DetectionStrong ? "strong" : "weak")
@@ -2206,6 +2210,7 @@ protected:
                  << "readFileSucceeded=" << readFileSucceeded
                  << "parseSucceeded=" << parseSucceeded;
       }
+      ++candidateIndex;
 
       if (decision == Handled) {
         check3DCoords(&newMol);
@@ -2218,15 +2223,22 @@ protected:
       }
 
       if (decision == HardFailure) {
-        if (specificError)
-          *specificError = true;
-        if (!readerAvailable)
-          statusBar()->showMessage(tr("Paste failed (ChemDraw format unavailable)."), 5000);
-        else
-          statusBar()->showMessage(tr("Paste failed (ChemDraw clipboard data could not be parsed)."),
-                                   5000);
-        return false;
+        if (!hadHardFailure) {
+          hadHardFailure = true;
+          hardFailureReaderUnavailable = !readerAvailable;
+        }
       }
+    }
+
+    if (hadHardFailure) {
+      if (specificError)
+        *specificError = true;
+      if (hardFailureReaderUnavailable)
+        statusBar()->showMessage(tr("Paste failed (ChemDraw format unavailable)."), 5000);
+      else
+        statusBar()->showMessage(tr("Paste failed (ChemDraw clipboard data could not be parsed)."),
+                                 5000);
+      return false;
     }
 
     if ( mimeData->hasFormat( "chemical/x-mdl-molfile" ) ) {
