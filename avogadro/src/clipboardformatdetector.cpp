@@ -72,26 +72,37 @@ QList<ChemDrawCandidate> detectChemDrawClipboardCandidates(const QMimeData *mime
     return candidates;
 
   if (mimeData->hasFormat("chemical/x-cdx")) {
-    ChemDrawCandidate candidate;
     const QByteArray cdxData = mimeData->data("chemical/x-cdx");
-    const int offset = findEmbeddedCDX(cdxData);
-    // Treat explicit chemical/x-cdx as authoritative clipboard metadata from
-    // the producer (strong signal), even if the payload is shorter than our
-    // heuristic plausibility threshold used for weak/custom MIME sniffing.
-    candidate.payload = (offset >= 0) ? cdxData.mid(offset) : cdxData;
-    candidate.formatId = "cdx";
-    candidate.strength = DetectionStrong;
-    if (candidate.isValid())
+    if (hasPlausibleChemDrawCDX(cdxData)) {
+      ChemDrawCandidate candidate;
+      candidate.payload = cdxData;
+      candidate.formatId = "cdx";
+      candidate.source = "explicit-cdx-header";
+      candidate.strength = DetectionStrong;
       candidates.append(candidate);
+    } else {
+      const int offset = findEmbeddedCDX(cdxData);
+      if (offset >= 0) {
+        ChemDrawCandidate candidate;
+        candidate.payload = cdxData.mid(offset);
+        candidate.formatId = "cdx";
+        candidate.source = "explicit-cdx-embedded";
+        candidate.strength = DetectionStrong;
+        candidates.append(candidate);
+      }
+    }
   }
 
   if (mimeData->hasFormat("chemical/x-cdxml")) {
-    ChemDrawCandidate candidate;
-    candidate.payload = mimeData->data("chemical/x-cdxml");
-    candidate.formatId = "cdxml";
-    candidate.strength = DetectionStrong;
-    if (candidate.isValid())
+    const QByteArray payload = mimeData->data("chemical/x-cdxml");
+    if (looksLikeCDXML(payload)) {
+      ChemDrawCandidate candidate;
+      candidate.payload = payload;
+      candidate.formatId = "cdxml";
+      candidate.source = "explicit-cdxml";
+      candidate.strength = DetectionStrong;
       candidates.append(candidate);
+    }
   }
 
   const QString nativeMime =
@@ -103,12 +114,14 @@ QList<ChemDrawCandidate> detectChemDrawClipboardCandidates(const QMimeData *mime
       ChemDrawCandidate candidate;
       candidate.payload = nativeData.mid(offset);
       candidate.formatId = "cdx";
+      candidate.source = "native-embedded";
       candidate.strength = DetectionStrong;
       candidates.append(candidate);
     } else if (looksLikeCDXML(nativeData)) {
       ChemDrawCandidate candidate;
       candidate.payload = nativeData;
       candidate.formatId = "cdxml";
+      candidate.source = "native-cdxml";
       candidate.strength = DetectionStrong;
       candidates.append(candidate);
     }
@@ -137,6 +150,7 @@ QList<ChemDrawCandidate> detectChemDrawClipboardCandidates(const QMimeData *mime
       ChemDrawCandidate candidate;
       candidate.payload = blob.mid(offset);
       candidate.formatId = "cdx";
+      candidate.source = "weak-generic";
       candidate.strength = strength;
       const QByteArray key = candidate.formatId + '\n' + candidate.payload;
       if (!seenPayloads.contains(key)) {
@@ -150,6 +164,7 @@ QList<ChemDrawCandidate> detectChemDrawClipboardCandidates(const QMimeData *mime
       ChemDrawCandidate candidate;
       candidate.payload = blob;
       candidate.formatId = "cdxml";
+      candidate.source = "weak-generic";
       candidate.strength = strength;
       const QByteArray key = candidate.formatId + '\n' + candidate.payload;
       if (!seenPayloads.contains(key)) {

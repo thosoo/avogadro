@@ -103,11 +103,13 @@
 #include <QStackedLayout>
 #include <QMimeData>
 #include <QTabWidget>
+#include <QTemporaryFile>
 #include <QTextEdit>
 #include <QTimer>
 #include <QToolButton>
 #include <QUndoStack>
 #include <QDesktopWidget>
+#include <QDir>
 #include <QInputDialog>
 #include <QUrl>
 #include <QDesktopServices>
@@ -308,6 +310,25 @@ void logChemDrawClipboardDebug(const QMimeData *mimeData)
     const std::string input(payload.constData(), static_cast<size_t>(payload.size()));
     mol.Clear();
     return conv.ReadString(&mol, input) && mol.NumAtoms() != 0;
+  }
+
+  bool tryReadStrongCDXCandidateAsFile(OpenBabel::OBMol &mol,
+                                       const QByteArray &payload)
+  {
+    OpenBabel::OBConversion conv;
+    if (!conv.SetInFormat("cdx"))
+      return false;
+
+    QTemporaryFile tempFile(QDir::tempPath() + QLatin1String("/avogadro-chemdraw-XXXXXX.cdx"));
+    if (!tempFile.open())
+      return false;
+
+    if (tempFile.write(payload) != payload.size())
+      return false;
+
+    tempFile.flush();
+    mol.Clear();
+    return conv.ReadFile(&mol, tempFile.fileName().toStdString()) && mol.NumAtoms() != 0;
   }
 
 }
@@ -2164,16 +2185,25 @@ protected:
       OBConversion conv;
       OBFormat *candidateFormat = conv.FindFormat(candidate.formatId.constData());
       const bool readerAvailable = (candidateFormat != NULL);
-      const bool parseSucceeded = readerAvailable
+      const bool readStringSucceeded = readerAvailable
         && tryReadClipboardPayloadAsFormat(newMol, candidate.payload, candidateFormat);
+      bool readFileSucceeded = false;
+      if (candidate.strength == DetectionStrong && candidate.formatId == "cdx"
+          && !readStringSucceeded && readerAvailable) {
+        readFileSucceeded = tryReadStrongCDXCandidateAsFile(newMol, candidate.payload);
+      }
+      const bool parseSucceeded = readStringSucceeded || readFileSucceeded;
       const ChemDrawHandlingDecision decision = classifyChemDrawHandling(
         candidate, readerAvailable, parseSucceeded);
 
       if (kChemDrawClipboardDebug) {
         qDebug() << "[ChemDrawPaste] candidateFormat=" << candidate.formatId
+                 << "candidateSource=" << candidate.source
                  << "candidateStrength="
                  << (candidate.strength == DetectionStrong ? "strong" : "weak")
                  << "readerAvailable=" << readerAvailable
+                 << "readStringSucceeded=" << readStringSucceeded
+                 << "readFileSucceeded=" << readFileSucceeded
                  << "parseSucceeded=" << parseSucceeded;
       }
 

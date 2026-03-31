@@ -26,6 +26,7 @@ struct ChemDrawCandidate
 {
   QByteArray formatId;
   QByteArray payload;
+  QByteArray source;
   DetectionStrength strength;
 
   ChemDrawCandidate() : strength(DetectionNone) {}
