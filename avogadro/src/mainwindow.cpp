@@ -135,7 +135,14 @@
 
 namespace {
 
-const bool kChemDrawClipboardDebug = false;
+const bool kChemDrawClipboardDebug = true;
+
+bool looksLikeChemDrawFormatName(const QString &format)
+{
+  return format.contains(QLatin1String("chemdraw"), Qt::CaseInsensitive)
+      || format.contains(QLatin1String("cdx"), Qt::CaseInsensitive)
+      || format.contains(QLatin1String("cdxml"), Qt::CaseInsensitive);
+}
 
 void logChemDrawClipboardDebug(const QMimeData *mimeData)
 {
@@ -149,9 +156,11 @@ void logChemDrawClipboardDebug(const QMimeData *mimeData)
     const int embeddedOffset = Avogadro::findEmbeddedCDX(payload);
     const bool cdxMatch = (embeddedOffset >= 0);
     const bool cdxmlMatch = Avogadro::looksLikeCDXML(payload);
+    const bool formatHint = looksLikeChemDrawFormatName(format);
     qDebug() << "[ChemDrawPaste] format=" << format
              << "size=" << payload.size()
              << "hex32=" << hexHead
+             << "formatNameHint=" << formatHint
              << "embeddedCDX=" << cdxMatch
              << "embeddedOffset=" << embeddedOffset
              << "looksLikeCDXML=" << cdxmlMatch;

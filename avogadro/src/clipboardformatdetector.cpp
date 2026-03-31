@@ -20,8 +20,7 @@ bool formatNameSuggestsChemDraw(const QString &format)
 {
   return format.contains(QLatin1String("chemdraw"), Qt::CaseInsensitive)
       || format.contains(QLatin1String("cdx"), Qt::CaseInsensitive)
-      || format.contains(QLatin1String("cdxml"), Qt::CaseInsensitive)
-      || format.contains(QLatin1String("chem"), Qt::CaseInsensitive);
+      || format.contains(QLatin1String("cdxml"), Qt::CaseInsensitive);
 }
 }
 
@@ -129,8 +128,9 @@ QList<ChemDrawCandidate> detectChemDrawClipboardCandidates(const QMimeData *mime
       continue;
 
     const bool isWindowsMime = isWindowsCustomMime(format);
-    const DetectionStrength strength =
-      (isWindowsMime && formatNameSuggestsChemDraw(format)) ? DetectionStrong : DetectionWeak;
+    const bool formatHint = isWindowsMime && formatNameSuggestsChemDraw(format);
+    Q_UNUSED(formatHint);
+    const DetectionStrength strength = DetectionWeak;
 
     const int offset = findEmbeddedCDX(blob);
     if (offset >= 0) {
