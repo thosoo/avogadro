@@ -296,7 +296,7 @@ namespace Avogadro {
       QMimeData* prepareClipboardData(PrimitiveList selectedItems, const char* format = NULL);
 
       //! Helper function to paste data from mime data
-      bool pasteMimeData(const QMimeData *mimeData);
+      bool pasteMimeData(const QMimeData *mimeData, bool *specificError = 0);
 
       //! Helper function to check for 3D coordinates from files
       void check3DCoords(OpenBabel::OBMol *molecule);
