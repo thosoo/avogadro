@@ -221,7 +221,7 @@ void logChemDrawClipboardDebug(const QMimeData *mimeData)
     if (normalizeNewline && !data.endsWith("\n"))
       data.append("\n");
 
-    if (!tryReadClipboardPayloadAsFormat(mol, data, QByteArray(formatId)))
+    if (!Avogadro::tryReadClipboardPayloadAsFormat(mol, data, QByteArray(formatId)))
       return false;
 
     if (optimizeGeometry)
