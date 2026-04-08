@@ -26,6 +26,7 @@
 #define ORCAINPUTDIALOG_H
 
 #include <QDialog>
+#include <QPointer>
 #include <QtCore/QSettings>
 //#include <avogadro/molecule.h>
 
@@ -191,7 +192,7 @@ namespace Avogadro {
         void enableAllDFTFunctionals();
         // Internal data structure for the input dialog
 
-        Molecule*           m_molecule;
+        QPointer<Molecule>  m_molecule;
 
         QMetaObject*        meta;
 
