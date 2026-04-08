@@ -46,7 +46,8 @@ namespace Avogadro {
 
   OrcaExtension::OrcaExtension(QObject *parent)
     : Extension(parent),
-      m_dialog(NULL), m_analyseDialog(NULL) // Initialize the dialog pointer to 0, it will be
+      m_dialog(NULL), m_analyseDialog(NULL), m_molecule(NULL), m_widget(NULL),
+      m_NOAnalyse(false) // Initialize the dialog pointer to 0, it will be
                   // created only when requested
   {
 
@@ -57,7 +58,6 @@ namespace Avogadro {
       const char* str=NULL;
 
       QString qtest=NULL;
-      m_NOAnalyse = false;
  //
  // Look if the installed OpenBabel version supports orca file format
  //

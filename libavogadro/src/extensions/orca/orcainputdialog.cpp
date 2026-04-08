@@ -500,6 +500,11 @@ void  OrcaInputDialog::initComboboxes()
 
       m_molecule = molecule;
 
+      if (!m_molecule) {
+          updatePreviewText();
+          return;
+      }
+
       // Set multiplicity to the OB value
 
       OpenBabel::OBMol obmol = m_molecule->OBMol();
@@ -1417,7 +1422,9 @@ void  OrcaInputDialog::initComboboxes()
     //  2) directory where previous deck was saved;
     //  3) $HOME
 
-    QFileInfo defaultFile(m_molecule->fileName());
+    QFileInfo defaultFile;
+    if (m_molecule)
+      defaultFile.setFile(m_molecule->fileName());
     QString defaultPath = defaultFile.canonicalPath();
     if(m_savePath == "") {
       if (defaultPath.isEmpty())
@@ -1426,7 +1433,10 @@ void  OrcaInputDialog::initComboboxes()
       defaultPath = m_savePath;
     }
 
-    QString defaultFileName = defaultPath + '/' + defaultFile.baseName() + "." + ext;
+    QString defaultBaseName = defaultFile.baseName();
+    if (defaultBaseName.isEmpty())
+      defaultBaseName = tr("orca-input");
+    QString defaultFileName = defaultPath + '/' + defaultBaseName + "." + ext;
     QString fileName = QFileDialog::getSaveFileName(this, tr("Save Input Deck"),
         defaultFileName, fileType + " (*." + ext + ")");
 

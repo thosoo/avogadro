@@ -29,6 +29,7 @@
 #include <avogadro/global.h>
 #include <avogadro/plugin.h>
 #include <avogadro/extension.h>
+#include <QPointer>
 #include <avogadro/molecule.h>
 
 // This is a work around for a bug on older versions Avogadro, bug
@@ -89,7 +90,7 @@ namespace Avogadro {
 //    OrcaData *m_orcaData;
     OrcaAnalyseDialog *m_analyseDialog;
 
-    Molecule* m_molecule;
+    QPointer<Molecule> m_molecule;
     GLWidget* m_widget;
 
     bool m_NOAnalyse;
@@ -109,4 +110,3 @@ namespace Avogadro {
 }
 
 #endif
-
