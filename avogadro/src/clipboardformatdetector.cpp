@@ -4,6 +4,8 @@
 #include <QMimeData>
 #include <QString>
 #include <QSet>
+#include <openbabel/obconversion.h>
+#include <openbabel/mol.h>
 
 namespace Avogadro {
 
@@ -239,6 +241,43 @@ ChemDrawHandlingDecision classifyChemDrawHandling(const ChemDrawCandidate &candi
     return Handled;
 
   return NotHandled;
+}
+
+bool tryReadClipboardPayloadAsFormat(OpenBabel::OBMol &mol,
+                                     const QByteArray &payload,
+                                     const QByteArray &formatId,
+                                     bool *readerAvailable)
+{
+  OpenBabel::OBConversion findConv;
+  OpenBabel::OBFormat *baseFormat = findConv.FindFormat(formatId.constData());
+  if (readerAvailable)
+    *readerAvailable = (baseFormat != 0);
+  if (!baseFormat)
+    return false;
+
+  OpenBabel::OBFormat *parseFormat = baseFormat;
+  bool ownsFormat = false;
+  if (OpenBabel::OBFormat *freshFormat = baseFormat->MakeNewInstance()) {
+    parseFormat = freshFormat;
+    ownsFormat = true;
+  }
+
+  OpenBabel::OBConversion conv;
+  // OBConversion borrows the format pointer (it does not delete it), so we
+  // must keep parseFormat alive through ReadString() and clean up clones here.
+  if (!conv.SetInFormat(parseFormat)) {
+    if (ownsFormat)
+      delete parseFormat;
+    return false;
+  }
+
+  const std::string input(payload.constData(), static_cast<size_t>(payload.size()));
+  mol.Clear();
+  const bool ok = conv.ReadString(&mol, input) && mol.NumAtoms() != 0;
+
+  if (ownsFormat)
+    delete parseFormat;
+  return ok;
 }
 
 } // namespace Avogadro

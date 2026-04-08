@@ -18,6 +18,7 @@ set_target_properties(clipboardformatdetectortest PROPERTIES
 target_link_libraries(clipboardformatdetectortest
   ${QT_LIBRARIES}
   ${QT_QTTEST_LIBRARY}
+  ${OPENBABEL2_LIBRARIES}
 )
 
 add_test(clipboardFormatDetectorTest ${CMAKE_BINARY_DIR}/bin/clipboardformatdetectortest)

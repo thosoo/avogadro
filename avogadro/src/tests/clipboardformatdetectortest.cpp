@@ -1,5 +1,7 @@
 #include <QtTest/QtTest>
 #include <QMimeData>
+#include <openbabel/mol.h>
+#include <openbabel/obconversion.h>
 
 #include "../clipboardformatdetector.h"
 
@@ -22,6 +24,9 @@ private slots:
   void generatesWeakCandidateFromCustomEmbeddedCDX();
   void generatesWeakCandidateFromCustomCDXML();
   void ignoresTinyBogusEmbeddedCDX();
+  void repeatedReadClonesStatefulFormatInstance();
+  void repeatedCDXMLReadsSucceedWhenReaderAvailable();
+  void repeatedCDXReadsSucceedWhenReaderAvailable();
 };
 
 void ClipboardFormatDetectorTest::detectsRawCDXHeader()
@@ -158,6 +163,133 @@ void ClipboardFormatDetectorTest::ignoresTinyBogusEmbeddedCDX()
   mimeData.setData("application/x-some-custom-binary", tinyBlob);
   const QList<ChemDrawCandidate> candidates = detectChemDrawClipboardCandidates(&mimeData);
   QCOMPARE(candidates.size(), 0);
+}
+
+namespace {
+
+class StatefulReadOnceFormat : public OpenBabel::OBFormat
+{
+public:
+  StatefulReadOnceFormat(bool registerFormat = false) : m_alreadyRead(false)
+  {
+    if (registerFormat)
+      this->RegisterFormat("stateful-read-once");
+  }
+
+  const char* Description() override { return "Stateful read-once test format"; }
+  unsigned int Flags() override { return READONEONLY; }
+  const char* SpecificationURL() override { return ""; }
+  bool ReadMolecule(OpenBabel::OBBase *pOb, OpenBabel::OBConversion *) override
+  {
+    if (m_alreadyRead)
+      return false;
+    m_alreadyRead = true;
+
+    OpenBabel::OBMol *mol = dynamic_cast<OpenBabel::OBMol*>(pOb);
+    if (!mol)
+      return false;
+    mol->NewAtom();
+    return true;
+  }
+  bool WriteMolecule(OpenBabel::OBBase *, OpenBabel::OBConversion *) override
+  {
+    return false;
+  }
+  OpenBabel::OBFormat* MakeNewInstance() override
+  {
+    return new StatefulReadOnceFormat;
+  }
+
+private:
+  bool m_alreadyRead;
+};
+
+StatefulReadOnceFormat g_statefulReadOnceFormat(true);
+
+} // namespace
+
+void ClipboardFormatDetectorTest::repeatedReadClonesStatefulFormatInstance()
+{
+  OpenBabel::OBMol firstRead;
+  bool firstReaderAvailable = false;
+  QVERIFY(tryReadClipboardPayloadAsFormat(
+    firstRead, QByteArray("dummy"), QByteArray("stateful-read-once"), &firstReaderAvailable));
+  QVERIFY(firstReaderAvailable);
+  QCOMPARE(firstRead.NumAtoms(), 1u);
+
+  OpenBabel::OBMol secondRead;
+  bool secondReaderAvailable = false;
+  QVERIFY(tryReadClipboardPayloadAsFormat(
+    secondRead, QByteArray("dummy"), QByteArray("stateful-read-once"), &secondReaderAvailable));
+  QVERIFY(secondReaderAvailable);
+  QCOMPARE(secondRead.NumAtoms(), 1u);
+}
+
+void ClipboardFormatDetectorTest::repeatedCDXMLReadsSucceedWhenReaderAvailable()
+{
+  const QByteArray cdxml(
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+    "<CDXML><page><fragment><n id=\"1\" Element=\"6\" p=\"0 0\"/>"
+    "<n id=\"2\" Element=\"8\" p=\"10 0\"/>"
+    "<b id=\"3\" B=\"1\" E=\"2\" Order=\"1\"/></fragment></page></CDXML>");
+
+  OpenBabel::OBMol firstRead;
+  bool firstReaderAvailable = false;
+  const bool firstOk = tryReadClipboardPayloadAsFormat(
+    firstRead, cdxml, QByteArray("cdxml"), &firstReaderAvailable);
+  if (!firstReaderAvailable)
+    QSKIP("Open Babel cdxml reader unavailable in this build.");
+  QVERIFY(firstOk);
+  QVERIFY(firstRead.NumAtoms() > 0);
+
+  OpenBabel::OBMol secondRead;
+  bool secondReaderAvailable = false;
+  const bool secondOk = tryReadClipboardPayloadAsFormat(
+    secondRead, cdxml, QByteArray("cdxml"), &secondReaderAvailable);
+  QVERIFY(secondReaderAvailable);
+  QVERIFY(secondOk);
+  QCOMPARE(secondRead.NumAtoms(), firstRead.NumAtoms());
+}
+
+void ClipboardFormatDetectorTest::repeatedCDXReadsSucceedWhenReaderAvailable()
+{
+  const QByteArray cdx = QByteArray::fromBase64(
+    "VmpDRDAxMDAEAwIBAAAAAAAAAAAAAACAAAAAAAMAFQAAAENoZW1EcmF3IDE3LjEuMC4xMDUIAA0AAABldGhhbm9sLmNkeAQCEAAy"
+    "7EIA9YjuAACAVgBC3i0BAQkIAABAFwAAAAYAAgkIAABAiAEAQCQCDQgBAAEIBwEAAToEAQABOwQBAABFBAEAATwEAQAASgQBAAAM"
+    "BgEAAQ8GAQABDQYBAABCBAEAAEMEAQAARAQBAAAKCAgAAwBgAMgAAwALCAgABAAAAPAAAwAJCAQAM7MCAAgIBAAAAAIABwgEAAAA"
+    "AQAGCAQAAAAEAAUIBAAAAB4ABAgCAHgAAwgEAAAAeAAjCAEABQwIAQAAKAgBAAEpCAEAASoIAQABMggBAAArCAEAKCwIAQAKLQgB"
+    "AAEuCAEAAAIIEAAAACQAAAAkAAAAJAAAACQAAQMCAAAAAgMCAAEAAAMyAAgA////////AAAAAAAA//8AAAAA/////wAAAAD//wAA"
+    "AAD/////AAAAAP////8AAP//AAEkAAAAAgADAOQEBQBBcmlhbAQA5AQPAFRpbWVzIE5ldyBSb21hbgAIeAAAAwAAAlgCWAAAAAAa"
+    "zBLF/7L/shsaExMDZwV7A+AAAgAAAlgCWAAAAAAazBLFAAEAAABkAAAAAQABAQEAAgABJw8AAQABAAAAAAAAAAAAAAAAAAIAGQGQ"
+    "AAAAAABgAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAC0CwIAAAC1CxQAAABDaGVtaWNhbCBGb3JtdWxhOiC2Cw4AAABFeGFjdCBN"
+    "YXNzOiC3CxQAAABNb2xlY3VsYXIgV2VpZ2h0OiC4CwcAAABtL3o6ILkLFgAAAEVsZW1lbnRhbCBBbmFseXNpczogugsRAAAAQm9p"
+    "bGluZyBQb2ludDoguwsRAAAATWVsdGluZyBQb2ludDogvAsRAAAAQ3JpdGljYWwgVGVtcDogvQsRAAAAQ3JpdGljYWwgUHJlczog"
+    "vgsQAAAAQ3JpdGljYWwgVm9sOiC/CxAAAABHaWJicyBFbmVyZ3k6IMALCQAAAExvZyBQOiDBCwYAAABNUjogwgsPAAAASGVucnkn"
+    "cyBMYXc6IMMLEAAAAEhlYXQgb2YgRm9ybTogxAsIAAAAdFBTQTogxQsJAAAAQ0xvZ1A6IMYLBwAAAENNUjogxwsIAAAATG9nUzog"
+    "yAsHAAAAcEthOiDJCwIAAADKCwIAAAALDAIAAQAKDAEAAAkMAQAADAwFAAAAKCMpAYBCAAAABAIQAAAAAAAAAAAAhesBA+tRCwIW"
+    "CAQAAAAkABgIBAAAACQAGQgAABAIAgABAA8IAgABAAOAPAAAAAQCEAAy7EIA9YjuAACAVgBC3i0BCgACADsABIA7AAAAAAIIAACA"
+    "UgD1yO4ACgACADoANwQBAAEAAASAPQAAAAACCAAAgEMACMQIAQoAAgA8ADcEAQABAAAEgD8AAAAAAggAAIBSABy/IgEKAAIAPgAC"
+    "BAIACAArBAIAAQBIBAAANwQBAAEGgAAAAAAAAggAZmZWALXYHgEEAhAAEfFNALXYHgEAgFYAQt4tASMIAQAAAgcCAAAABQcBAAEA"
+    "Bw4AAQAAAAMAYADIAAAAT0gAAAAABYA+AAAACgACAD0ABAYEADsAAAAFBgQAPQAAAAoGAQABAAAFgEAAAAAKAAIAPwAEBgQAPQAA"
+    "AAUGBAA/AAAACgYBAAEAAAAAAAAAAAAA"
+  );
+
+  OpenBabel::OBMol firstRead;
+  bool firstReaderAvailable = false;
+  const bool firstOk = tryReadClipboardPayloadAsFormat(
+    firstRead, cdx, QByteArray("cdx"), &firstReaderAvailable);
+  if (!firstReaderAvailable)
+    QSKIP("Open Babel cdx reader unavailable in this build.");
+  QVERIFY(firstOk);
+  QVERIFY(firstRead.NumAtoms() > 0);
+
+  OpenBabel::OBMol secondRead;
+  bool secondReaderAvailable = false;
+  const bool secondOk = tryReadClipboardPayloadAsFormat(
+    secondRead, cdx, QByteArray("cdx"), &secondReaderAvailable);
+  QVERIFY(secondReaderAvailable);
+  QVERIFY(secondOk);
+  QCOMPARE(secondRead.NumAtoms(), firstRead.NumAtoms());
 }
 
 QTEST_MAIN(ClipboardFormatDetectorTest)

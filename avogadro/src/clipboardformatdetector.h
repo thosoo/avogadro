@@ -5,6 +5,9 @@
 #include <QList>
 
 class QMimeData;
+namespace OpenBabel {
+class OBMol;
+}
 
 namespace Avogadro {
 
@@ -42,6 +45,11 @@ QList<ChemDrawCandidate> detectChemDrawClipboardCandidates(const QMimeData *mime
 ChemDrawHandlingDecision classifyChemDrawHandling(const ChemDrawCandidate &candidate,
                                                   bool readerAvailable,
                                                   bool parseSucceeded);
+// Internal clipboard parse helper used by MainWindow paste paths and unit tests.
+bool tryReadClipboardPayloadAsFormat(OpenBabel::OBMol &mol,
+                                     const QByteArray &payload,
+                                     const QByteArray &formatId,
+                                     bool *readerAvailable = 0);
 
 } // namespace Avogadro
 
