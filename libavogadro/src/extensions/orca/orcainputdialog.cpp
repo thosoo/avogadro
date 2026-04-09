@@ -47,6 +47,7 @@
 #include <QTextStream>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QSignalBlocker>
 
 using namespace OpenBabel;
 using namespace Eigen;
@@ -56,7 +57,7 @@ namespace Avogadro {
 
 OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
     QDialog( parent, f ), m_molecule(NULL), m_scfConvButtons(NULL), m_scfConv2ndButtons(NULL),
-    m_output(), m_savePath(), m_dirty(false), m_warned(false)
+    m_output(), m_savePath(), m_dirty(false), m_warned(false), m_initializing(true)
 {
     basicData = new OrcaBasicData;
     basisData = new OrcaBasisData;
@@ -72,16 +73,6 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
     // write items into comboboxes
 
     initComboboxes();
-
-    // init dialog boxes
-
-    initBasicData();
-    initBasisData();
-    initControlData();
-    initSCFData();
-    initDFTData();
-    initResourcesData();
-    initDataData();
 
     ui.basicCalculationCombo->setItemText(0, tr("Single Point"));
     ui.basicCalculationCombo->setItemText(1, tr("Geometry Optimization"));
@@ -112,6 +103,15 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
     ui.maxCoreCombo->clear();
     ui.maxCoreCombo->addItems(QStringList() << "0" << "500" << "1000" << "2000" << "4000");
     ui.tddftCheck->setText(tr("Enable TD-DFT"));
+
+    // init dialog boxes
+    initBasicData();
+    initBasisData();
+    initControlData();
+    initSCFData();
+    initDFTData();
+    initResourcesData();
+    initDataData();
 
     ui.scfDampingGroup->hide();
     ui.scfLevelShiftGroup->hide();
@@ -161,6 +161,7 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
 //    ui.basisAuxCorrECPCheck->setEnabled(false);
     m_basic = true;
     m_advanced = false;
+    m_initializing = false;
 }
 
   OrcaInputDialog::~OrcaInputDialog()
@@ -339,6 +340,12 @@ void  OrcaInputDialog::initComboboxes()
   }
   void OrcaInputDialog::initBasicData()
   {
+      const QSignalBlocker b1(ui.basicCalculationCombo);
+      const QSignalBlocker b2(ui.basicMethodCombo);
+      const QSignalBlocker b3(ui.basicBasisSetCombo);
+      const QSignalBlocker b4(ui.basicChargeSpin);
+      const QSignalBlocker b5(ui.basicMultiplicitySpin);
+      const QSignalBlocker b6(ui.basicFormatCombo);
       ui.basicCalculationCombo->setCurrentIndex(basicData->getCalculation());
       ui.basicMethodCombo->setCurrentIndex(basicData->getMethod() == DFT ? 1 : 0);
       ui.basicBasisSetCombo->setCurrentIndex(basicData->getBasis ());
@@ -350,6 +357,9 @@ void  OrcaInputDialog::initComboboxes()
 
   void OrcaInputDialog::initBasisData()
   {
+      const QSignalBlocker b1(ui.basisBasisSetCombo);
+      const QSignalBlocker b2(ui.basisAuxBasisSetCombo);
+      const QSignalBlocker b3(ui.basisAuxCorrBasisSetCombo);
       ui.basisBasisSetCombo->setCurrentIndex(basisData->getBasis());
       ui.basisAuxBasisSetCombo->setCurrentIndex(basisData->getAuxBasis());
       ui.basisAuxCorrBasisSetCombo->setCurrentIndex(basisData->getAuxCorrBasis());
@@ -367,6 +377,10 @@ void  OrcaInputDialog::initComboboxes()
 
   void OrcaInputDialog::initControlData()
   {
+      const QSignalBlocker b1(ui.controlChargeSpin);
+      const QSignalBlocker b2(ui.controlMultiplicitySpin);
+      const QSignalBlocker b3(ui.controlRunTypeCombo);
+      const QSignalBlocker b4(ui.controlMethodCombo);
       ui.controlChargeSpin->setValue(controlData->getCharge());
       ui.controlMultiplicitySpin->setValue((controlData->getMultiplicity()));
 
@@ -376,6 +390,9 @@ void  OrcaInputDialog::initComboboxes()
 
   void OrcaInputDialog::initSCFData()
   {
+      const QSignalBlocker b1(ui.scfAccCombo);
+      const QSignalBlocker b2(ui.scfTypeCombo);
+      const QSignalBlocker b3(ui.scfMaxIterSpin);
       ui.scfAccCombo->setCurrentIndex(scfData->getAccuracy());
       ui.scfTypeCombo->setCurrentIndex(scfData->getType());
       ui.scfMaxIterSpin->setValue(scfData->getMaxIter());
@@ -418,6 +435,11 @@ void  OrcaInputDialog::initComboboxes()
 
   void OrcaInputDialog::initDFTData()
   {
+      const QSignalBlocker b1(ui.dispersionCombo);
+      const QSignalBlocker b2(ui.solvationCombo);
+      const QSignalBlocker b3(ui.dftFunctionalCombo);
+      const QSignalBlocker b4(ui.tddftRootsSpin);
+      const QSignalBlocker b5(ui.nmrCheck);
       ui.dispersionCombo->setCurrentIndex(controlData->getDispersion());
       ui.solvationCombo->setCurrentIndex(controlData->getSolvent());
       ui.dftFunctionalCombo->setCurrentIndex(dftData->getDFTFunctional());
@@ -429,6 +451,9 @@ void  OrcaInputDialog::initComboboxes()
 
   void OrcaInputDialog::initResourcesData()
   {
+      const QSignalBlocker b1(ui.nprocsCombo);
+      const QSignalBlocker b2(ui.maxCoreCombo);
+      const QSignalBlocker b3(ui.tddftCheck);
       const int nProcIndex = qMax(0, ui.nprocsCombo->findText(QString::number(controlData->getNProcs())));
       ui.nprocsCombo->setCurrentIndex(nProcIndex);
       const int maxCoreIndex = qMax(0, ui.maxCoreCombo->findText(QString::number(controlData->getMaxCore())));
@@ -439,6 +464,9 @@ void  OrcaInputDialog::initComboboxes()
 
   void OrcaInputDialog::initDataData()
   {
+      const QSignalBlocker b1(ui.dataPrintCombo);
+      const QSignalBlocker b2(ui.MOPrintCheck);
+      const QSignalBlocker b3(ui.basisPrintCheck);
       ui.dataPrintCombo->setCurrentIndex(dataData->getPrintLevel());
       if (dataData->MOPrintEnabled()) {
           ui.MOPrintCheck->setChecked(true);
@@ -901,6 +929,8 @@ void  OrcaInputDialog::initComboboxes()
 //
   void OrcaInputDialog::updatePreviewText ()
   {
+      if (m_initializing)
+          return;
       if (!isVisible())
           return;
 

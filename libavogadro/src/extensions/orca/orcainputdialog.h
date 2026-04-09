@@ -216,6 +216,7 @@ namespace Avogadro {
 
         bool m_dirty;
         bool m_warned;
+        bool m_initializing;
         // Generate an input deck as a string
         QString generateInputDeck();
   };
