@@ -490,8 +490,10 @@ void  OrcaInputDialog::initComboboxes()
       initResourcesData();
 
       QTreeWidgetItem *controlItem = ui.advancedTree->topLevelItem(1);
-      controlItem->child(1)->setText(0, tr("Resources / TD-DFT"));
-      controlItem->child(2)->setText(0, tr("DFT / Solvation"));
+      controlItem->child(1)->setText(0, tr("Resources"));
+      controlItem->child(2)->setText(0, tr("DFT"));
+      controlItem->child(3)->setText(0, tr("Solvation"));
+      controlItem->child(4)->setText(0, tr("TD-DFT"));
 
       ui.resourcesPage->setEnabled(true);
       controlItem->child(1)->setHidden(false);
@@ -500,6 +502,10 @@ void  OrcaInputDialog::initComboboxes()
       const bool nmrCompatible = dftEnabled || (!controlData->mp2Enabled() && !controlData->ccsdEnabled());
       ui.dftOptionsPage->setEnabled( dftEnabled );
       controlItem->child(2)->setHidden(!dftEnabled);
+      ui.solvationPage->setEnabled(dftEnabled);
+      controlItem->child(3)->setHidden(!dftEnabled);
+      ui.tddftPage->setEnabled(dftEnabled);
+      controlItem->child(4)->setHidden(!dftEnabled);
       ui.tddftCheck->setEnabled(dftEnabled);
       ui.tddftRootsSpin->setEnabled(dftEnabled && ui.tddftCheck->isChecked());
       ui.nmrCheck->setEnabled(nmrCompatible);

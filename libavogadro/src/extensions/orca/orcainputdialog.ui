@@ -377,6 +377,16 @@
           <string>DFT</string>
          </property>
         </item>
+        <item>
+         <property name="text">
+          <string>Solvation</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>TD-DFT</string>
+         </property>
+        </item>
        </item>
        <item>
         <property name="text">
@@ -1286,22 +1296,6 @@
         </widget>
        </widget>
        <widget class="QWidget" name="resourcesPage">
-        <widget class="QCheckBox" name="tddftCheck">
-         <property name="enabled">
-          <bool>true</bool>
-         </property>
-         <property name="geometry">
-          <rect>
-           <x>36</x>
-           <y>132</y>
-           <width>109</width>
-           <height>26</height>
-          </rect>
-         </property>
-         <property name="text">
-          <string>Enable TD-DFT</string>
-         </property>
-        </widget>
         <widget class="QWidget" name="layoutWidget">
          <property name="geometry">
           <rect>
@@ -1405,61 +1399,97 @@
            <widget class="QComboBox" name="dispersionCombo"/>
           </item>
           <item row="1" column="0" colspan="2">
+           <widget class="QCheckBox" name="nmrCheck">
+            <property name="text">
+             <string>NMR shielding</string>
+            </property>
+           </widget>
+          </item>
+        </layout>
+       </widget>
+       </widget>
+       <widget class="QWidget" name="solvationPage">
+        <widget class="QWidget" name="layoutWidget">
+         <property name="geometry">
+          <rect>
+           <x>36</x>
+           <y>24</y>
+           <width>263</width>
+           <height>33</height>
+          </rect>
+         </property>
+         <layout class="QHBoxLayout" name="horizontalLayout_20">
+          <item>
            <widget class="QLabel" name="label_34">
             <property name="text">
              <string>Solvation</string>
             </property>
            </widget>
           </item>
-          <item row="1" column="2">
+          <item>
            <widget class="QComboBox" name="solvationCombo"/>
           </item>
          </layout>
         </widget>
-        <widget class="QWidget" name="layoutWidget">
+       </widget>
+       <widget class="QWidget" name="tddftPage">
+        <widget class="QGroupBox" name="groupBox_5">
          <property name="geometry">
           <rect>
            <x>35</x>
-           <y>110</y>
-           <width>255</width>
-           <height>33</height>
+           <y>24</y>
+           <width>287</width>
+           <height>101</height>
           </rect>
          </property>
-         <layout class="QHBoxLayout" name="horizontalLayout_19">
-          <item>
-           <widget class="QLabel" name="label_36">
-            <property name="text">
-             <string>NRoots</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QSpinBox" name="tddftRootsSpin">
-            <property name="minimum">
-             <number>1</number>
-            </property>
-            <property name="maximum">
-             <number>100</number>
-            </property>
-            <property name="value">
-             <number>10</number>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </widget>
-        <widget class="QCheckBox" name="nmrCheck">
-         <property name="geometry">
-          <rect>
-           <x>35</x>
-           <y>152</y>
-           <width>171</width>
-           <height>26</height>
-          </rect>
+         <property name="title">
+          <string>TD-DFT</string>
          </property>
-         <property name="text">
-          <string>NMR shielding</string>
-         </property>
+         <widget class="QCheckBox" name="tddftCheck">
+          <property name="geometry">
+           <rect>
+            <x>18</x>
+            <y>28</y>
+            <width>127</width>
+            <height>26</height>
+           </rect>
+          </property>
+          <property name="text">
+           <string>Enable TD-DFT</string>
+          </property>
+         </widget>
+         <widget class="QWidget" name="layoutWidget">
+          <property name="geometry">
+           <rect>
+            <x>18</x>
+            <y>60</y>
+            <width>239</width>
+            <height>33</height>
+           </rect>
+          </property>
+          <layout class="QHBoxLayout" name="horizontalLayout_19">
+           <item>
+            <widget class="QLabel" name="label_36">
+             <property name="text">
+              <string>NRoots</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSpinBox" name="tddftRootsSpin">
+             <property name="minimum">
+              <number>1</number>
+             </property>
+             <property name="maximum">
+              <number>100</number>
+             </property>
+             <property name="value">
+              <number>10</number>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
         </widget>
        </widget>
       </widget>
