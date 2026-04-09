@@ -48,16 +48,13 @@ namespace Avogadro {
   {
     Q_OBJECT
     AVOGADRO_EXTENSION(// Static identifier:
-                       "Orca Test Extension",
+                       "ORCA Input Generator",
                        // Short description:
-                       tr("Orca Test Example"),
+                       tr("Generate ORCA input files"),
                        // Long description:
-                       tr("Provides a dialog box with the words \"H...\"."))
+                       tr("Create modern ORCA 6.x input decks from Avogadro."))
     Q_ENUMS (DFTFunctionalType)
-    Q_ENUMS (DFTNoCosXType)
     Q_ENUMS (basisType)
-    Q_ENUMS (gridType)
-    Q_ENUMS (finalgridType)
 
   public:
     OrcaExtension(QObject *parent=NULL);
@@ -76,11 +73,8 @@ namespace Avogadro {
     // a new molecule is loaded.
     virtual void setMolecule(Avogadro::Molecule *molecule);
 
-    enum DFTFunctionalType {LDA, BP, BLYP, PW91, B3LYP, B3PW, PBEO, TPSS, TPSSH, M06L};
-    enum DFTNoCosXType {NoBP, NoBLYP, NoPW91, NoTPSS};
-    enum basisType {SVP, TZVP, TZVPP, QZVPP};
-    enum gridType {Default, None, Grid3, Grid4, Grid5, Grid6, Grid7, Grid8};
-    enum finalgridType {fDefault, fNone, fGrid4, fGrid5, fGrid6, fGrid7, fGrid8, fGrid9};
+    enum DFTFunctionalType {PBE, r2SCAN, B3LYP, PBE0, TPSSh, M06L};
+    enum basisType {SVP, SV_P, TZVP, TZVP_F, TZVPP, QZVPP};
 
   private:
     // List of actions implemented by the extension
