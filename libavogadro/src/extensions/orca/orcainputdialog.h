@@ -180,6 +180,7 @@ namespace Avogadro {
         // This member provides access to all ui elements
 
         Ui::OrcaInputDialog ui;
+        void applyMoleculeToUi();
 
         void initComboboxes();
 
@@ -227,6 +228,7 @@ namespace Avogadro {
         bool m_dirty;
         bool m_warned;
         bool m_initializing;
+        bool m_pendingMoleculeSync;
         // Generate an input deck as a string
         QString generateInputDeck();
   };

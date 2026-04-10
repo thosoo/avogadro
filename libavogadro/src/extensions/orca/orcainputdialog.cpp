@@ -248,7 +248,8 @@ QStringList orcaSolventEntries()
 
 OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
     QDialog( parent, f ), m_molecule(NULL), m_scfConvButtons(NULL), m_scfConv2ndButtons(NULL),
-    m_output(), m_savePath(), m_dirty(false), m_warned(false), m_initializing(true)
+    m_output(), m_savePath(), m_dirty(false), m_warned(false), m_initializing(true),
+    m_pendingMoleculeSync(false)
 {
     basicData = new OrcaBasicData;
     basisData = new OrcaBasisData;
@@ -371,8 +372,11 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
       delete dftData;
       delete dataData;
   }
-  void OrcaInputDialog::showEvent(QShowEvent *)
+  void OrcaInputDialog::showEvent(QShowEvent *event)
   {
+    QDialog::showEvent(event);
+    if (m_pendingMoleculeSync)
+      applyMoleculeToUi();
     // Generate an initial preview of the input deck
     updatePreviewText();
   }
@@ -783,20 +787,13 @@ void  OrcaInputDialog::initComboboxes()
         disconnect(m_molecule, 0, this, 0);
 
       m_molecule = molecule;
+      m_pendingMoleculeSync = true;
 
       if (!m_molecule) {
+          m_pendingMoleculeSync = false;
           updatePreviewText();
           return;
       }
-
-      // Set multiplicity to the OB value
-
-      OpenBabel::OBMol obmol = m_molecule->OBMol();
-
-      setBasicMultiplicity(obmol.GetTotalSpinMultiplicity());
-      setControlMultiplicity(obmol.GetTotalSpinMultiplicity());
-      setBasicCharge(obmol.GetTotalCharge());
-      setControlCharge(obmol.GetTotalCharge());
 
       if (m_molecule){
           // Update the preview text whenever primitives are changed
@@ -807,11 +804,39 @@ void  OrcaInputDialog::initComboboxes()
                   this, SLOT(updatePreviewText()));
           connect(m_molecule, SIGNAL(atomUpdated(Atom *)),
                   this, SLOT(updatePreviewText()));
-
-          // Add atom coordinates
-
-          updatePreviewText();
+          if (!m_initializing && isVisible()) {
+              applyMoleculeToUi();
+              updatePreviewText();
+          }
       }
+  }
+
+  void OrcaInputDialog::applyMoleculeToUi()
+  {
+      if (m_initializing || !m_molecule)
+          return;
+
+      OpenBabel::OBMol obmol = m_molecule->OBMol();
+      const int multiplicity = obmol.GetTotalSpinMultiplicity();
+      const int charge = obmol.GetTotalCharge();
+
+      basicData->setMultiplicity(multiplicity);
+      controlData->setMultiplicity(multiplicity);
+      basicData->setCharge(charge);
+      controlData->setCharge(charge);
+
+      {
+          const QSignalBlocker b1(ui.basicMultiplicitySpin);
+          const QSignalBlocker b2(ui.controlMultiplicitySpin);
+          const QSignalBlocker b3(ui.basicChargeSpin);
+          const QSignalBlocker b4(ui.controlChargeSpin);
+          ui.basicMultiplicitySpin->setValue(multiplicity);
+          ui.controlMultiplicitySpin->setValue(multiplicity);
+          ui.basicChargeSpin->setValue(charge);
+          ui.controlChargeSpin->setValue(charge);
+      }
+
+      m_pendingMoleculeSync = false;
   }
 
   void OrcaInputDialog::resetClicked()
