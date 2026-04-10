@@ -286,7 +286,7 @@ OrcaControlData::OrcaControlData()
     m_methodType = DFT;
     m_dispersion = DISP_D4;
     m_solvationModel = SOLV_MODEL_NONE;
-    m_solvent = SOLV_WATER;
+    m_solventName = "water / h2o";
     m_useCpcmAdvanced = false;
     m_useDraco = false;
     m_cpcmEpsilon = 0.0;
@@ -308,7 +308,7 @@ void OrcaControlData::reset()
     m_methodType = DFT;
     m_dispersion = DISP_D4;
     m_solvationModel = SOLV_MODEL_NONE;
-    m_solvent = SOLV_WATER;
+    m_solventName = "water / h2o";
     m_useCpcmAdvanced = false;
     m_useDraco = false;
     m_cpcmEpsilon = 0.0;
@@ -358,26 +358,16 @@ QString OrcaControlData::getSolvationModelTxt() const
     }
 }
 
-QString OrcaControlData::getSolventNameTxt() const
+QString OrcaControlData::getSolventTokenTxt() const
 {
-    switch (m_solvent) {
-    case SOLV_WATER: return "Water";
-    case SOLV_ACETONITRILE: return "Acetonitrile";
-    case SOLV_DMSO: return "DMSO";
-    case SOLV_CHLOROFORM: return "Chloroform";
-    case SOLV_METHANOL: return "Methanol";
-    case SOLV_ETHANOL: return "Ethanol";
-    case SOLV_TOLUENE: return "Toluene";
-    case SOLV_DICHLOROMETHANE: return "Dichloromethane";
-    case SOLV_THF: return "THF";
-    default: return "";
-    }
+    const QStringList aliases = m_solventName.split(" / ");
+    return aliases.isEmpty() ? QString() : aliases.first().trimmed();
 }
 
 QString OrcaControlData::getSolvationTxt() const
 {
     const QString model = getSolvationModelTxt();
-    const QString solvent = getSolventNameTxt();
+    const QString solvent = getSolventTokenTxt();
     if (model.isEmpty() || solvent.isEmpty())
         return "";
     return QString("%1(%2)").arg(model, solvent);
@@ -520,7 +510,6 @@ QString OrcaDataData::getFormatTxt()
         return "";
     }
 }
-
 
 
 

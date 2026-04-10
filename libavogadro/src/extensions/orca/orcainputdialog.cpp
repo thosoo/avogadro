@@ -55,6 +55,197 @@ using namespace std;
 
 namespace Avogadro {
 
+namespace {
+QStringList orcaSolventEntries()
+{
+    return QStringList()
+      << "1,1,1-trichloroethane"
+      << "1,1,2-trichloroethane"
+      << "1,2,4-trimethylbenzene"
+      << "1,2-dibromoethane"
+      << "1,2-dichloroethane"
+      << "1,2-ethanediol"
+      << "1,4-dioxane / dioxane"
+      << "1-bromo-2-methylpropane"
+      << "1-bromooctane / bromooctane"
+      << "1-bromopentane"
+      << "1-bromopropane"
+      << "1-butanol / butanol"
+      << "1-chlorohexane / chlorohexane"
+      << "1-chloropentane"
+      << "1-chloropropane"
+      << "1-decanol / decanol"
+      << "1-fluorooctane"
+      << "1-heptanol / heptanol"
+      << "1-hexanol / hexanol"
+      << "1-hexene"
+      << "1-hexyne"
+      << "1-iodobutane"
+      << "1-iodohexadecane / hexadecyliodide"
+      << "1-iodopentane"
+      << "1-iodopropane"
+      << "1-nitropropane"
+      << "1-nonanol / nonanol"
+      << "1-octanol / octanol"
+      << "1-pentanol / pentanol"
+      << "1-pentene"
+      << "1-propanol / propanol"
+      << "2,2,2-trifluoroethanol"
+      << "2,2,4-trimethylpentane / isooctane"
+      << "2,4-dimethylpentane"
+      << "2,4-dimethylpyridine"
+      << "2,6-dimethylpyridine"
+      << "2-bromopropane"
+      << "2-butanol / secbutanol"
+      << "2-chlorobutane"
+      << "2-heptanone"
+      << "2-hexanone"
+      << "2-methoxyethanol / methoxyethanol"
+      << "2-methyl-1-propanol / isobutanol"
+      << "2-methyl-2-propanol"
+      << "2-methylpentane"
+      << "2-methylpyridine / 2methylpyridine"
+      << "2-nitropropane"
+      << "2-octanone"
+      << "2-pentanone"
+      << "2-propanol / isopropanol"
+      << "2-propen-1-ol"
+      << "e-2-pentene"
+      << "3-methylpyridine"
+      << "3-pentanone"
+      << "4-heptanone"
+      << "4-methyl-2-pentanone / 4methyl2pentanone"
+      << "4-methylpyridine"
+      << "5-nonanone"
+      << "acetic acid / aceticacid"
+      << "acetone"
+      << "acetonitrile / mecn / ch3cn"
+      << "acetophenone"
+      << "ammonia"
+      << "aniline"
+      << "anisole"
+      << "benzaldehyde"
+      << "benzene"
+      << "benzonitrile"
+      << "benzyl alcohol / benzylalcohol"
+      << "bromobenzene"
+      << "bromoethane"
+      << "bromoform"
+      << "butanal"
+      << "butanoic acid"
+      << "butanone"
+      << "butanonitrile"
+      << "butyl ethanoate / butyl acetate / butylacetate"
+      << "butylamine"
+      << "n-butylbenzene / butylbenzene"
+      << "sec-butylbenzene / secbutylbenzene"
+      << "tert-butylbenzene / tbutylbenzene"
+      << "carbon disulfide / carbondisulfide / cs2"
+      << "carbon tetrachloride / ccl4"
+      << "chlorobenzene"
+      << "chloroform / chcl3"
+      << "a-chlorotoluene"
+      << "o-chlorotoluene"
+      << "conductor"
+      << "m-cresol / mcresol"
+      << "o-cresol"
+      << "cyclohexane"
+      << "cyclohexanone"
+      << "cyclopentane"
+      << "cyclopentanol"
+      << "cyclopentanone"
+      << "decalin"
+      << "cis-decalin"
+      << "n-decane / decane"
+      << "dibromomethane"
+      << "dibutylether"
+      << "o-dichlorobenzene / odichlorobenzene"
+      << "e-1,2-dichloroethene"
+      << "z-1,2-dichloroethene"
+      << "dichloromethane / ch2cl2 / dcm"
+      << "diethyl ether / diethylether"
+      << "diethyl sulfide"
+      << "diethylamine"
+      << "diiodomethane"
+      << "diisopropyl ether / diisopropylether"
+      << "cis-1,2-dimethylcyclohexane"
+      << "dimethyl disulfide"
+      << "n,n-dimethylacetamide / dimethylacetamide"
+      << "n,n-dimethylformamide / dimethylformamide / dmf"
+      << "dimethylsulfoxide / dmso"
+      << "diphenylether"
+      << "dipropylamine"
+      << "n-dodecane / dodecane"
+      << "ethanethiol"
+      << "ethanol"
+      << "ethyl acetate / ethylacetate / ethanoate"
+      << "ethyl methanoate"
+      << "ethyl phenyl ether / ethoxybenzene"
+      << "ethylbenzene"
+      << "fluorobenzene"
+      << "formamide"
+      << "formic acid"
+      << "furan / furane"
+      << "n-heptane / heptane"
+      << "n-hexadecane / hexadecane"
+      << "n-hexane / hexane"
+      << "hexanoic acid"
+      << "iodobenzene"
+      << "iodoethane"
+      << "iodomethane"
+      << "isopropylbenzene"
+      << "p-isopropyltoluene / isopropyltoluene"
+      << "mesitylene"
+      << "methanol"
+      << "methyl benzoate"
+      << "methyl butanoate"
+      << "methyl ethanoate"
+      << "methyl methanoate"
+      << "methyl propanoate"
+      << "n-methylaniline"
+      << "methylcyclohexane"
+      << "n-methylformamide / methylformamide"
+      << "nitrobenzene / phno2"
+      << "nitroethane"
+      << "nitromethane / meno2"
+      << "o-nitrotoluene / onitrotoluene"
+      << "n-nonane / nonane"
+      << "n-octane / octane"
+      << "n-pentadecane / pentadecane"
+      << "octanol(wet) / wetoctanol / woctanol"
+      << "pentanal"
+      << "n-pentane / pentane"
+      << "pentanoic acid"
+      << "pentyl ethanoate"
+      << "pentylamine"
+      << "perfluorobenzene / hexafluorobenzene"
+      << "phenol"
+      << "propanal"
+      << "propanoic acid"
+      << "propanonitrile"
+      << "propyl ethanoate"
+      << "propylamine"
+      << "pyridine"
+      << "tetrachloroethene / c2cl4"
+      << "tetrahydrofuran / thf"
+      << "tetrahydrothiophene-s,s-dioxide / tetrahydrothiophenedioxide / sulfolane"
+      << "tetralin"
+      << "thiophene"
+      << "thiophenol"
+      << "toluene"
+      << "trans-decalin"
+      << "tributylphosphate"
+      << "trichloroethene"
+      << "triethylamine"
+      << "n-undecane / undecane"
+      << "water / h2o"
+      << "xylene"
+      << "m-xylene"
+      << "o-xylene"
+      << "p-xylene";
+}
+}
+
 OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
     QDialog( parent, f ), m_molecule(NULL), m_scfConvButtons(NULL), m_scfConv2ndButtons(NULL),
     m_output(), m_savePath(), m_dirty(false), m_warned(false), m_initializing(true)
@@ -94,9 +285,7 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
     ui.solvationModelCombo->clear();
     ui.solvationModelCombo->addItems(QStringList() << tr("None") << "CPCM" << "CPCMC" << "SMD");
     ui.solvationCombo->clear();
-    ui.solvationCombo->addItems(QStringList() << "Water" << "Acetonitrile" << "DMSO"
-                                 << "Chloroform" << "Methanol" << "Ethanol"
-                                 << "Toluene" << "Dichloromethane" << "THF");
+    ui.solvationCombo->addItems(orcaSolventEntries());
     ui.cpcmSurfaceTypeCombo->clear();
     ui.cpcmSurfaceTypeCombo->addItems(QStringList() << tr("Default")
                                      << "vdw_gaussian"
@@ -472,7 +661,8 @@ void  OrcaInputDialog::initComboboxes()
       const QSignalBlocker b7(ui.cpcmRSolvSpin);
       const QSignalBlocker b8(ui.cpcmSurfaceTypeCombo);
       ui.solvationModelCombo->setCurrentIndex(controlData->getSolvationModel());
-      const int solventIndex = qMax(0, int(controlData->getSolvent()) - 1);
+      const int solventIndex =
+        qMax(0, ui.solvationCombo->findText(controlData->getSolventName()));
       ui.solvationCombo->setCurrentIndex(solventIndex);
       ui.cpcmGroup->setChecked(controlData->cpcmAdvancedEnabled());
       ui.cpcmDRACOCheck->setChecked(controlData->dracoEnabled());
@@ -543,7 +733,7 @@ void  OrcaInputDialog::initComboboxes()
       ui.dftOptionsPage->setEnabled( dftEnabled );
       controlItem->child(2)->setHidden(!dftEnabled);
       ui.solvationPage->setEnabled(solvationEnabled);
-      controlItem->child(3)->setHidden(!solvationEnabled);
+      controlItem->child(3)->setHidden(false);
       ui.tddftPage->setEnabled(dftEnabled);
       controlItem->child(4)->setHidden(!dftEnabled);
       ui.tddftCheck->setEnabled(dftEnabled);
@@ -906,7 +1096,7 @@ void  OrcaInputDialog::initComboboxes()
 
   void OrcaInputDialog::setSolvation(int n)
   {
-      controlData->setSolvent(n + 1);
+      controlData->setSolventName(ui.solvationCombo->itemText(n));
       updateAdvancedSetup();
   }
   void OrcaInputDialog::setSolvationModel(int n)
@@ -914,8 +1104,8 @@ void  OrcaInputDialog::initComboboxes()
       controlData->setSolvationModel(n);
       if (n == SOLV_MODEL_NONE) {
           controlData->setCpcmAdvancedEnabled(false);
-      } else if (controlData->getSolvent() == SOLV_NONE) {
-          controlData->setSolvent(SOLV_WATER);
+      } else if (controlData->getSolventName().isEmpty()) {
+          controlData->setSolventName(ui.solvationCombo->itemText(0));
       }
       updateAdvancedSetup();
   }
@@ -1114,7 +1304,7 @@ void  OrcaInputDialog::initComboboxes()
                   tokens << disp;
           }
           const QString solv = controlData->getSolvationTxt();
-          if (!solv.isEmpty() && !shouldEmitSolvationBlock())
+          if (!solv.isEmpty())
               tokens << solv;
           if (shouldEmitDracoToken())
               tokens << "DRACO";
@@ -1145,7 +1335,7 @@ void  OrcaInputDialog::initComboboxes()
               mol << "%cpcm\n";
               if (controlData->getSolvationModel() == SOLV_MODEL_SMD) {
                   mol << "  smd true\n";
-                  mol << "  SMDsolvent \"" << controlData->getSolventNameTxt() << "\"\n";
+                  mol << "  SMDsolvent \"" << controlData->getSolventTokenTxt() << "\"\n";
               }
               if (controlData->dracoEnabled()) {
                   mol << "  draco true\n";
@@ -1415,8 +1605,7 @@ void  OrcaInputDialog::initComboboxes()
       return controlData->usesCpcmEpsilon() || controlData->usesCpcmRefrac() ||
              controlData->usesCpcmRSolv() ||
              controlData->getCpcmSurfaceType() != CPCM_SURFACE_DEFAULT ||
-             (controlData->dracoEnabled() && !shouldEmitDracoToken()) ||
-             controlData->getSolvationModel() == SOLV_MODEL_SMD;
+             (controlData->dracoEnabled() && !shouldEmitDracoToken());
   }
 
   bool OrcaInputDialog::shouldEmitDracoToken() const
@@ -1429,8 +1618,7 @@ void  OrcaInputDialog::initComboboxes()
           return true;
       return !(controlData->usesCpcmEpsilon() || controlData->usesCpcmRefrac() ||
                controlData->usesCpcmRSolv() ||
-               controlData->getCpcmSurfaceType() != CPCM_SURFACE_DEFAULT ||
-               controlData->getSolvationModel() == SOLV_MODEL_SMD);
+               controlData->getCpcmSurfaceType() != CPCM_SURFACE_DEFAULT);
   }
 
   QString OrcaInputDialog::safeHFReference(int multiplicity) const

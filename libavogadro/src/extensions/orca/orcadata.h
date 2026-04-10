@@ -51,18 +51,6 @@ enum calculationType {SP, OPT, FREQ, OPTFREQ};
 enum methodType {HF, DFT, MP2, CCSD};
 enum dispersionType {DISP_NONE, DISP_D3BJ, DISP_D4};
 enum solvationModelType {SOLV_MODEL_NONE, SOLV_MODEL_CPCM, SOLV_MODEL_CPCMC, SOLV_MODEL_SMD};
-enum solventType {
-  SOLV_NONE,
-  SOLV_WATER,
-  SOLV_ACETONITRILE,
-  SOLV_DMSO,
-  SOLV_CHLOROFORM,
-  SOLV_METHANOL,
-  SOLV_ETHANOL,
-  SOLV_TOLUENE,
-  SOLV_DICHLOROMETHANE,
-  SOLV_THF
-};
 enum cpcmSurfaceType {CPCM_SURFACE_DEFAULT, CPCM_SURFACE_VDW_GAUSSIAN,
                        CPCM_SURFACE_GEPOL_SES, CPCM_SURFACE_GEPOL_SES_GAUSSIAN};
 //enum relType {ZORA, DKH};
@@ -297,9 +285,9 @@ public:
     solvationModelType getSolvationModel() const { return m_solvationModel; }
     QString getSolvationModelTxt() const;
 
-    void setSolvent(int n) { m_solvent = solventType(n); }
-    solventType getSolvent() const { return m_solvent; }
-    QString getSolventNameTxt() const;
+    void setSolventName(const QString& solvent) { m_solventName = solvent; }
+    QString getSolventName() const { return m_solventName; }
+    QString getSolventTokenTxt() const;
     QString getSolvationTxt() const;
 
     bool hfEnabled() const { return m_methodType == HF; }
@@ -354,7 +342,7 @@ private:
     methodType m_methodType;
     dispersionType m_dispersion;
     solvationModelType m_solvationModel;
-    solventType m_solvent;
+    QString m_solventName;
     bool m_useCpcmAdvanced;
     bool m_useDraco;
     double m_cpcmEpsilon;
