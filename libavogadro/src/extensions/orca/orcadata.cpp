@@ -285,7 +285,14 @@ OrcaControlData::OrcaControlData()
     m_calculationType = SP;
     m_methodType = DFT;
     m_dispersion = DISP_D4;
-    m_solvent = SOLV_NONE;
+    m_solvationModel = SOLV_MODEL_NONE;
+    m_solvent = SOLV_WATER;
+    m_useCpcmAdvanced = false;
+    m_useDraco = false;
+    m_cpcmEpsilon = 0.0;
+    m_cpcmRefrac = 0.0;
+    m_cpcmRSolv = 0.0;
+    m_cpcmSurfaceType = CPCM_SURFACE_DEFAULT;
     m_nProcs = 1;
     m_maxCore = 0;
     m_useTDDFT = false;
@@ -300,7 +307,14 @@ void OrcaControlData::reset()
     m_calculationType = SP;
     m_methodType = DFT;
     m_dispersion = DISP_D4;
-    m_solvent = SOLV_NONE;
+    m_solvationModel = SOLV_MODEL_NONE;
+    m_solvent = SOLV_WATER;
+    m_useCpcmAdvanced = false;
+    m_useDraco = false;
+    m_cpcmEpsilon = 0.0;
+    m_cpcmRefrac = 0.0;
+    m_cpcmRSolv = 0.0;
+    m_cpcmSurfaceType = CPCM_SURFACE_DEFAULT;
     m_nProcs = 1;
     m_maxCore = 0;
     m_useTDDFT = false;
@@ -334,14 +348,52 @@ QString OrcaControlData::getDispersionTxt() const
     default: return "";
     }
 }
-QString OrcaControlData::getSolventTxt() const
+QString OrcaControlData::getSolvationModelTxt() const
+{
+    switch (m_solvationModel) {
+    case SOLV_MODEL_CPCM: return "CPCM";
+    case SOLV_MODEL_CPCMC: return "CPCMC";
+    case SOLV_MODEL_SMD: return "SMD";
+    default: return "";
+    }
+}
+
+QString OrcaControlData::getSolventNameTxt() const
 {
     switch (m_solvent) {
-    case SOLV_WATER: return "CPCM(Water)";
-    case SOLV_ACETONITRILE: return "CPCM(Acetonitrile)";
-    case SOLV_DMSO: return "CPCM(DMSO)";
-    case SOLV_CHLOROFORM: return "CPCM(Chloroform)";
+    case SOLV_WATER: return "Water";
+    case SOLV_ACETONITRILE: return "Acetonitrile";
+    case SOLV_DMSO: return "DMSO";
+    case SOLV_CHLOROFORM: return "Chloroform";
+    case SOLV_METHANOL: return "Methanol";
+    case SOLV_ETHANOL: return "Ethanol";
+    case SOLV_TOLUENE: return "Toluene";
+    case SOLV_DICHLOROMETHANE: return "Dichloromethane";
+    case SOLV_THF: return "THF";
     default: return "";
+    }
+}
+
+QString OrcaControlData::getSolvationTxt() const
+{
+    const QString model = getSolvationModelTxt();
+    const QString solvent = getSolventNameTxt();
+    if (model.isEmpty() || solvent.isEmpty())
+        return "";
+    return QString("%1(%2)").arg(model, solvent);
+}
+
+QString OrcaControlData::getCpcmSurfaceTypeTxt() const
+{
+    switch (m_cpcmSurfaceType) {
+    case CPCM_SURFACE_VDW_GAUSSIAN:
+        return "vdw_gaussian";
+    case CPCM_SURFACE_GEPOL_SES:
+        return "gepol_ses";
+    case CPCM_SURFACE_GEPOL_SES_GAUSSIAN:
+        return "gepol_ses_gaussian";
+    default:
+        return "";
     }
 }
 
@@ -468,8 +520,6 @@ QString OrcaDataData::getFormatTxt()
         return "";
     }
 }
-
-
 
 
 

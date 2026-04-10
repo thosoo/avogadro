@@ -89,13 +89,19 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
     ui.label_13->setText(tr("Job type"));
 
     ui.label_33->setText(tr("Dispersion"));
-    ui.label_34->setText(tr("Solvation"));
     ui.dispersionCombo->clear();
     ui.dispersionCombo->addItems(QStringList() << tr("None") << "D3BJ" << "D4");
+    ui.solvationModelCombo->clear();
+    ui.solvationModelCombo->addItems(QStringList() << tr("None") << "CPCM" << "CPCMC" << "SMD");
     ui.solvationCombo->clear();
-    ui.solvationCombo->addItems(QStringList() << tr("None") << "CPCM(Water)"
-                                 << "CPCM(Acetonitrile)" << "CPCM(DMSO)"
-                                 << "CPCM(Chloroform)");
+    ui.solvationCombo->addItems(QStringList() << "Water" << "Acetonitrile" << "DMSO"
+                                 << "Chloroform" << "Methanol" << "Ethanol"
+                                 << "Toluene" << "Dichloromethane" << "THF");
+    ui.cpcmSurfaceTypeCombo->clear();
+    ui.cpcmSurfaceTypeCombo->addItems(QStringList() << tr("Default")
+                                     << "vdw_gaussian"
+                                     << "gepol_ses"
+                                     << "gepol_ses_gaussian");
     ui.label_31->setText(tr("nprocs"));
     ui.label_32->setText(tr("MaxCore (MB)"));
     ui.nprocsCombo->clear();
@@ -111,6 +117,7 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
     initSCFData();
     initDFTData();
     initResourcesData();
+    initSolvationData();
     initDataData();
 
     ui.scfDampingGroup->hide();
@@ -230,6 +237,13 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
       // Advanced DFT Slots
 
       connect (ui.solvationCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setSolvation(int)));
+      connect (ui.solvationModelCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setSolvationModel(int)));
+      connect (ui.cpcmGroup, SIGNAL(toggled(bool)), this, SLOT(setCpcmAdvancedEnabled(bool)));
+      connect (ui.cpcmDRACOCheck, SIGNAL(toggled(bool)), this, SLOT(setCpcmDRACO(bool)));
+      connect (ui.cpcmEpsilonSpin, SIGNAL(valueChanged(double)), this, SLOT(setCpcmEpsilon(double)));
+      connect (ui.cpcmRefracSpin, SIGNAL(valueChanged(double)), this, SLOT(setCpcmRefrac(double)));
+      connect (ui.cpcmRSolvSpin, SIGNAL(valueChanged(double)), this, SLOT(setCpcmRSolv(double)));
+      connect (ui.cpcmSurfaceTypeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setCpcmSurfaceType(int)));
       connect (ui.dispersionCombo, SIGNAL(currentIndexChanged(int)), this,SLOT(setDispersion(int)));
       connect (ui.dftFunctionalCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setDFTFunctional(int)));
 
@@ -436,17 +450,41 @@ void  OrcaInputDialog::initComboboxes()
   void OrcaInputDialog::initDFTData()
   {
       const QSignalBlocker b1(ui.dispersionCombo);
-      const QSignalBlocker b2(ui.solvationCombo);
-      const QSignalBlocker b3(ui.dftFunctionalCombo);
-      const QSignalBlocker b4(ui.tddftRootsSpin);
-      const QSignalBlocker b5(ui.nmrCheck);
+      const QSignalBlocker b2(ui.dftFunctionalCombo);
+      const QSignalBlocker b3(ui.tddftRootsSpin);
+      const QSignalBlocker b4(ui.nmrCheck);
       ui.dispersionCombo->setCurrentIndex(controlData->getDispersion());
-      ui.solvationCombo->setCurrentIndex(controlData->getSolvent());
       ui.dftFunctionalCombo->setCurrentIndex(dftData->getDFTFunctional());
       ui.tddftRootsSpin->setValue(controlData->getTDDFTRoots());
       ui.nmrCheck->setChecked(controlData->nmrShieldingEnabled());
       ui.tddftRootsSpin->setEnabled(controlData->dftEnabled() && controlData->tddftEnabled());
 
+  }
+
+  void OrcaInputDialog::initSolvationData()
+  {
+      const QSignalBlocker b1(ui.solvationModelCombo);
+      const QSignalBlocker b2(ui.solvationCombo);
+      const QSignalBlocker b3(ui.cpcmGroup);
+      const QSignalBlocker b4(ui.cpcmDRACOCheck);
+      const QSignalBlocker b5(ui.cpcmEpsilonSpin);
+      const QSignalBlocker b6(ui.cpcmRefracSpin);
+      const QSignalBlocker b7(ui.cpcmRSolvSpin);
+      const QSignalBlocker b8(ui.cpcmSurfaceTypeCombo);
+      ui.solvationModelCombo->setCurrentIndex(controlData->getSolvationModel());
+      const int solventIndex = qMax(0, int(controlData->getSolvent()) - 1);
+      ui.solvationCombo->setCurrentIndex(solventIndex);
+      ui.cpcmGroup->setChecked(controlData->cpcmAdvancedEnabled());
+      ui.cpcmDRACOCheck->setChecked(controlData->dracoEnabled());
+      ui.cpcmEpsilonSpin->setValue(controlData->getCpcmEpsilon());
+      ui.cpcmRefracSpin->setValue(controlData->getCpcmRefrac());
+      ui.cpcmRSolvSpin->setValue(controlData->getCpcmRSolv());
+      ui.cpcmSurfaceTypeCombo->setCurrentIndex(controlData->getCpcmSurfaceType());
+      ui.cpcmDRACOCheck->setEnabled(controlData->cpcmAdvancedEnabled());
+      ui.cpcmEpsilonSpin->setEnabled(controlData->cpcmAdvancedEnabled());
+      ui.cpcmRefracSpin->setEnabled(controlData->cpcmAdvancedEnabled());
+      ui.cpcmRSolvSpin->setEnabled(controlData->cpcmAdvancedEnabled());
+      ui.cpcmSurfaceTypeCombo->setEnabled(controlData->cpcmAdvancedEnabled());
   }
 
   void OrcaInputDialog::initResourcesData()
@@ -486,6 +524,7 @@ void  OrcaInputDialog::initComboboxes()
       initControlData();
       initSCFData();
       initDFTData();
+      initSolvationData();
       initDataData();
       initResourcesData();
 
@@ -499,16 +538,25 @@ void  OrcaInputDialog::initComboboxes()
       controlItem->child(1)->setHidden(false);
 
       bool dftEnabled = controlData->dftEnabled();
-      const bool nmrCompatible = dftEnabled || (!controlData->mp2Enabled() && !controlData->ccsdEnabled());
+      const bool solvationEnabled = dftEnabled || controlData->hfEnabled();
+      const bool nmrCompatible = dftEnabled || controlData->hfEnabled();
       ui.dftOptionsPage->setEnabled( dftEnabled );
       controlItem->child(2)->setHidden(!dftEnabled);
-      ui.solvationPage->setEnabled(dftEnabled);
-      controlItem->child(3)->setHidden(!dftEnabled);
+      ui.solvationPage->setEnabled(solvationEnabled);
+      controlItem->child(3)->setHidden(!solvationEnabled);
       ui.tddftPage->setEnabled(dftEnabled);
       controlItem->child(4)->setHidden(!dftEnabled);
       ui.tddftCheck->setEnabled(dftEnabled);
       ui.tddftRootsSpin->setEnabled(dftEnabled && ui.tddftCheck->isChecked());
       ui.nmrCheck->setEnabled(nmrCompatible);
+      const bool cpcmEnabled = solvationEnabled && controlData->getSolvationModel() != SOLV_MODEL_NONE;
+      ui.solvationCombo->setEnabled(cpcmEnabled);
+      ui.cpcmGroup->setEnabled(cpcmEnabled);
+      ui.cpcmDRACOCheck->setEnabled(cpcmEnabled && controlData->cpcmAdvancedEnabled());
+      ui.cpcmEpsilonSpin->setEnabled(cpcmEnabled && controlData->cpcmAdvancedEnabled());
+      ui.cpcmRefracSpin->setEnabled(cpcmEnabled && controlData->cpcmAdvancedEnabled());
+      ui.cpcmRSolvSpin->setEnabled(cpcmEnabled && controlData->cpcmAdvancedEnabled());
+      ui.cpcmSurfaceTypeCombo->setEnabled(cpcmEnabled && controlData->cpcmAdvancedEnabled());
 
 //      bool mp2Enabled = controlData->mp2Enabled();
 //      ui.mp2Page->setEnabled( mp2Enabled );
@@ -772,6 +820,10 @@ void  OrcaInputDialog::initComboboxes()
       if (!controlData->dftEnabled()) {
           controlData->setTDDFTEnabled(false);
       }
+      if (!(controlData->dftEnabled() || controlData->hfEnabled())) {
+          controlData->setSolvationModel(SOLV_MODEL_NONE);
+          controlData->setCpcmAdvancedEnabled(false);
+      }
       if (controlData->mp2Enabled() || controlData->ccsdEnabled()) {
           controlData->setNMRShielding(false);
       }
@@ -854,7 +906,47 @@ void  OrcaInputDialog::initComboboxes()
 
   void OrcaInputDialog::setSolvation(int n)
   {
-      controlData->setSolvent(n);
+      controlData->setSolvent(n + 1);
+      updateAdvancedSetup();
+  }
+  void OrcaInputDialog::setSolvationModel(int n)
+  {
+      controlData->setSolvationModel(n);
+      if (n == SOLV_MODEL_NONE) {
+          controlData->setCpcmAdvancedEnabled(false);
+      } else if (controlData->getSolvent() == SOLV_NONE) {
+          controlData->setSolvent(SOLV_WATER);
+      }
+      updateAdvancedSetup();
+  }
+  void OrcaInputDialog::setCpcmAdvancedEnabled(bool value)
+  {
+      controlData->setCpcmAdvancedEnabled(value);
+      updateAdvancedSetup();
+  }
+  void OrcaInputDialog::setCpcmDRACO(bool value)
+  {
+      controlData->setDracoEnabled(value);
+      updateAdvancedSetup();
+  }
+  void OrcaInputDialog::setCpcmEpsilon(double value)
+  {
+      controlData->setCpcmEpsilon(value);
+      updateAdvancedSetup();
+  }
+  void OrcaInputDialog::setCpcmRefrac(double value)
+  {
+      controlData->setCpcmRefrac(value);
+      updateAdvancedSetup();
+  }
+  void OrcaInputDialog::setCpcmRSolv(double value)
+  {
+      controlData->setCpcmRSolv(value);
+      updateAdvancedSetup();
+  }
+  void OrcaInputDialog::setCpcmSurfaceType(int n)
+  {
+      controlData->setCpcmSurfaceType(n);
       updateAdvancedSetup();
   }
   void OrcaInputDialog::setDispersion(int n)
@@ -1021,9 +1113,11 @@ void  OrcaInputDialog::initComboboxes()
               if (!disp.isEmpty())
                   tokens << disp;
           }
-          const QString solv = controlData->getSolventTxt();
-          if (!solv.isEmpty())
+          const QString solv = controlData->getSolvationTxt();
+          if (!solv.isEmpty() && !shouldEmitSolvationBlock())
               tokens << solv;
+          if (shouldEmitDracoToken())
+              tokens << "DRACO";
           const bool nmrCompatible = controlData->dftEnabled() ||
             (!controlData->mp2Enabled() && !controlData->ccsdEnabled());
           if (controlData->nmrShieldingEnabled() && nmrCompatible)
@@ -1046,6 +1140,30 @@ void  OrcaInputDialog::initComboboxes()
           }
           if (controlData->tddftEnabled() && controlData->dftEnabled()) {
               mol << "%tddft\n  NRoots " << controlData->getTDDFTRoots() << "\nend\n";
+          }
+          if (shouldEmitSolvationBlock()) {
+              mol << "%cpcm\n";
+              if (controlData->getSolvationModel() == SOLV_MODEL_SMD) {
+                  mol << "  smd true\n";
+                  mol << "  SMDsolvent \"" << controlData->getSolventNameTxt() << "\"\n";
+              }
+              if (controlData->dracoEnabled()) {
+                  mol << "  draco true\n";
+              }
+              if (controlData->usesCpcmEpsilon()) {
+                  mol << "  epsilon " << controlData->getCpcmEpsilon() << "\n";
+              }
+              if (controlData->usesCpcmRefrac()) {
+                  mol << "  refrac " << controlData->getCpcmRefrac() << "\n";
+              }
+              if (controlData->usesCpcmRSolv()) {
+                  mol << "  rsolv " << controlData->getCpcmRSolv() << "\n";
+              }
+              const QString surfaceType = controlData->getCpcmSurfaceTypeTxt();
+              if (!surfaceType.isEmpty()) {
+                  mol << "  surfacetype " << surfaceType << "\n";
+              }
+              mol << "end\n";
           }
           if (shouldEmitSCFBlock()) {
               mol << "%scf\n  MaxIter " << scfData->getMaxIter() << "\nend\n";
@@ -1286,6 +1404,33 @@ void  OrcaInputDialog::initComboboxes()
   bool OrcaInputDialog::shouldEmitMaxCore() const
   {
       return !m_basic && controlData->usesMaxCore();
+  }
+
+  bool OrcaInputDialog::shouldEmitSolvationBlock() const
+  {
+      if (m_basic || !controlData->cpcmAdvancedEnabled())
+          return false;
+      if (controlData->getSolvationModel() == SOLV_MODEL_NONE)
+          return false;
+      return controlData->usesCpcmEpsilon() || controlData->usesCpcmRefrac() ||
+             controlData->usesCpcmRSolv() ||
+             controlData->getCpcmSurfaceType() != CPCM_SURFACE_DEFAULT ||
+             (controlData->dracoEnabled() && !shouldEmitDracoToken()) ||
+             controlData->getSolvationModel() == SOLV_MODEL_SMD;
+  }
+
+  bool OrcaInputDialog::shouldEmitDracoToken() const
+  {
+      if (m_basic || !controlData->dracoEnabled())
+          return false;
+      if (controlData->getSolvationModel() == SOLV_MODEL_NONE)
+          return false;
+      if (!controlData->cpcmAdvancedEnabled())
+          return true;
+      return !(controlData->usesCpcmEpsilon() || controlData->usesCpcmRefrac() ||
+               controlData->usesCpcmRSolv() ||
+               controlData->getCpcmSurfaceType() != CPCM_SURFACE_DEFAULT ||
+               controlData->getSolvationModel() == SOLV_MODEL_SMD);
   }
 
   QString OrcaInputDialog::safeHFReference(int multiplicity) const

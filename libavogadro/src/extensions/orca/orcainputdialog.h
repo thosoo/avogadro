@@ -135,7 +135,14 @@ namespace Avogadro {
 
 
         void setDispersion( int n);
+        void setSolvationModel(int n);
         void setSolvation( int n);
+        void setCpcmAdvancedEnabled(bool value);
+        void setCpcmDRACO(bool value);
+        void setCpcmEpsilon(double value);
+        void setCpcmRefrac(double value);
+        void setCpcmRSolv(double value);
+        void setCpcmSurfaceType(int n);
         void setDFTFunctional (int n);
 
         // Advanced resource / excited-state slots
@@ -184,12 +191,15 @@ namespace Avogadro {
         void initSCFData();
         void initResourcesData();
         void initDFTData ();
+        void initSolvationData();
         void initDataData();
 
         bool shouldEmitSCFBlock() const;
         bool needsAuxCBasis() const;
         bool shouldEmitPalBlock() const;
         bool shouldEmitMaxCore() const;
+        bool shouldEmitSolvationBlock() const;
+        bool shouldEmitDracoToken() const;
         QString safeHFReference(int multiplicity) const;
         // Internal data structure for the input dialog
 

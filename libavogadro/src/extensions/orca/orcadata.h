@@ -50,13 +50,21 @@ namespace Avogadro {
 enum calculationType {SP, OPT, FREQ, OPTFREQ};
 enum methodType {HF, DFT, MP2, CCSD};
 enum dispersionType {DISP_NONE, DISP_D3BJ, DISP_D4};
+enum solvationModelType {SOLV_MODEL_NONE, SOLV_MODEL_CPCM, SOLV_MODEL_CPCMC, SOLV_MODEL_SMD};
 enum solventType {
   SOLV_NONE,
   SOLV_WATER,
   SOLV_ACETONITRILE,
   SOLV_DMSO,
-  SOLV_CHLOROFORM
+  SOLV_CHLOROFORM,
+  SOLV_METHANOL,
+  SOLV_ETHANOL,
+  SOLV_TOLUENE,
+  SOLV_DICHLOROMETHANE,
+  SOLV_THF
 };
+enum cpcmSurfaceType {CPCM_SURFACE_DEFAULT, CPCM_SURFACE_VDW_GAUSSIAN,
+                       CPCM_SURFACE_GEPOL_SES, CPCM_SURFACE_GEPOL_SES_GAUSSIAN};
 //enum relType {ZORA, DKH};
 enum accType {NORMALSCF, TIGHTSCF, VERYTIGHTSCF, EXTREMESCF};
 enum scfType {RKS, UKS};
@@ -285,9 +293,38 @@ public:
     dispersionType getDispersion() const { return m_dispersion; }
     QString getDispersionTxt() const;
 
+    void setSolvationModel(int n) { m_solvationModel = solvationModelType(n); }
+    solvationModelType getSolvationModel() const { return m_solvationModel; }
+    QString getSolvationModelTxt() const;
+
     void setSolvent(int n) { m_solvent = solventType(n); }
     solventType getSolvent() const { return m_solvent; }
-    QString getSolventTxt() const;
+    QString getSolventNameTxt() const;
+    QString getSolvationTxt() const;
+
+    bool hfEnabled() const { return m_methodType == HF; }
+
+    void setCpcmAdvancedEnabled(bool value) { m_useCpcmAdvanced = value; }
+    bool cpcmAdvancedEnabled() const { return m_useCpcmAdvanced; }
+
+    void setDracoEnabled(bool value) { m_useDraco = value; }
+    bool dracoEnabled() const { return m_useDraco; }
+
+    void setCpcmEpsilon(double value) { m_cpcmEpsilon = value; }
+    double getCpcmEpsilon() const { return m_cpcmEpsilon; }
+    bool usesCpcmEpsilon() const { return m_cpcmEpsilon > 0.0; }
+
+    void setCpcmRefrac(double value) { m_cpcmRefrac = value; }
+    double getCpcmRefrac() const { return m_cpcmRefrac; }
+    bool usesCpcmRefrac() const { return m_cpcmRefrac > 0.0; }
+
+    void setCpcmRSolv(double value) { m_cpcmRSolv = value; }
+    double getCpcmRSolv() const { return m_cpcmRSolv; }
+    bool usesCpcmRSolv() const { return m_cpcmRSolv > 0.0; }
+
+    void setCpcmSurfaceType(int n) { m_cpcmSurfaceType = cpcmSurfaceType(n); }
+    cpcmSurfaceType getCpcmSurfaceType() const { return m_cpcmSurfaceType; }
+    QString getCpcmSurfaceTypeTxt() const;
 
     void setNProcs(int n) { m_nProcs = n; }
     int getNProcs() const { return m_nProcs; }
@@ -316,7 +353,14 @@ private:
     int m_charge;
     methodType m_methodType;
     dispersionType m_dispersion;
+    solvationModelType m_solvationModel;
     solventType m_solvent;
+    bool m_useCpcmAdvanced;
+    bool m_useDraco;
+    double m_cpcmEpsilon;
+    double m_cpcmRefrac;
+    double m_cpcmRSolv;
+    cpcmSurfaceType m_cpcmSurfaceType;
     int m_nProcs;
     int m_maxCore;
     bool m_useTDDFT;
