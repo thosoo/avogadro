@@ -10,6 +10,7 @@ set_directory_properties(PROPERTIES INCLUDE_DIRECTORIES
   "${libavogadro_BINARY_DIR}/include;${tmp_include_dirs}")
 include_directories(
   ${CMAKE_SOURCE_DIR}
+  ${CMAKE_SOURCE_DIR}/libavogadro/src
   ${CMAKE_CURRENT_BINARY_DIR}
   ${libavogadro_BINARY_DIR}/src
   ${libavogadro_BINARY_DIR}/src/extensions
@@ -43,6 +44,7 @@ set(tests
   moleculefile
   neighborlist
   addremovehydrogens
+  irbroadening
 )
 if(XTB_FOUND)
   list(APPEND tests xtbopttool xtbphysics)
@@ -59,6 +61,9 @@ foreach (test ${tests})
       ../src/extensions/sortfiltertreeproxymodel.cpp)
   endif()
   set(test_MOC_CPPS ${test}test.cpp)
+  if(test STREQUAL "irbroadening")
+    list(APPEND test_SRCS ../src/extensions/spectra/broadening.cpp)
+  endif()
   QT4_WRAP_CPP(test_MOC_SRCS ${test_MOC_CPPS})
   ADD_CUSTOM_TARGET(${test}testmoc ALL DEPENDS ${test_MOC_SRCS})
   add_executable(${test}test ${test_SRCS})

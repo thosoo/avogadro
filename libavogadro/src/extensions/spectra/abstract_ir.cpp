@@ -20,14 +20,24 @@
 
 #include "abstract_ir.h"
 
+#include "broadening.h"
+
+#include <algorithm>
+#include <cmath>
+
 using namespace std;
 
 namespace Avogadro {
   AbstractIRSpectra::AbstractIRSpectra( SpectraDialog *parent ) :
     SpectraType( parent ), m_scale(0.0), m_fwhm(0.0), m_labelYThreshold(0.0),
-    m_lineShape(GAUSSIAN), m_nPoints(10)
+    m_temperature(298.15), m_pressure(1.0), m_gammaRef(0.0), m_tempExponent(0.0),
+    m_referenceTemperature(296.0), m_nPoints(10), m_molecularMassKg(0.0)
     {
     ui.setupUi(m_tab_widget);
+
+    ui.spin_gammaRef->setToolTip(tr("Pressure-broadening HWHM at the reference temperature (cm⁻¹/atm). Leave at 0 to use Doppler-only broadening."));
+    ui.spin_tempExponent->setToolTip(tr("Temperature exponent n for the pressure broadening law."));
+    ui.spin_referenceTemperature->setToolTip(tr("Reference temperature T₀ for the collisional width (K)."));
 
     // Setup signals/slots    
     connect(this, SIGNAL(plotDataChanged()),
@@ -56,54 +66,81 @@ namespace Avogadro {
             this, SIGNAL(plotDataChanged()));
     connect(ui.combo_yaxis, SIGNAL(currentIndexChanged(QString)),
             this, SLOT(updateYAxis(QString)));
+    connect(ui.spin_temperature, SIGNAL(valueChanged(double)),
+            this, SLOT(updateTemperature(double)));
+    connect(ui.spin_pressure, SIGNAL(valueChanged(double)),
+            this, SLOT(updatePressure(double)));
+    connect(ui.spin_gammaRef, SIGNAL(valueChanged(double)),
+            this, SLOT(updateGammaRef(double)));
+    connect(ui.spin_tempExponent, SIGNAL(valueChanged(double)),
+            this, SLOT(updateTemperatureExponent(double)));
+    connect(ui.spin_referenceTemperature, SIGNAL(valueChanged(double)),
+            this, SLOT(updateReferenceTemperature(double)));
     connect(ui.combo_scalingType, SIGNAL(currentIndexChanged(int)),
             this, SLOT(changeScalingType(int)));
-    connect(ui.combo_lineShape, SIGNAL(currentIndexChanged(int)),
-            this, SLOT(changeLineShape(int)));
   }
 
   void AbstractIRSpectra::getCalculatedPlotObject(PlotObject *plotObject) {
     plotObject->clearPoints();
 
-    if (m_fwhm == 0.0) { // get singlets
-      plotObject->addPoint( 400, 0);
+    if (m_xList.isEmpty())
+      return;
 
-      for (int i = 0; i < m_yList.size(); i++) {
-        double wavenumber = m_xList.at(i);// already scaled!
-        double transmittance = m_yList.at(i);
-        plotObject->addPoint ( wavenumber, 0 );
-        if (ui.cb_labelPeaks->isChecked()) {
-          // %L1 uses localized number format (e.g., 1.023,4 in Europe)
-          plotObject->addPoint( wavenumber, transmittance, QString("%L1").arg(wavenumber, 0, 'f', 1) );
-        }
-        else {
-          plotObject->addPoint( wavenumber, transmittance );
-        }
-        plotObject->addPoint( wavenumber, 0 );
-      }
-      plotObject->addPoint( 3500, 0);
-    } // End singlets
+    m_nPoints = ui.spin_nPoints->value();
 
-    else { // Get gaussians
-        m_nPoints = ui.spin_nPoints->value();
-        if (m_lineShape == GAUSSIAN) {
-            gaussianWiden(plotObject, m_fwhm, m_nPoints);
-        } else {
-            lorentzianWiden (plotObject, m_fwhm, m_nPoints);
-        }
-      // Normalization is probably screwed up, so renormalize the data
-      double min, max;
-      min = max = plotObject->points().first()->y();
-      for(int i = 0; i< plotObject->points().size(); i++) {
-        double cur = plotObject->points().at(i)->y();
-        if (cur < min) min = cur;
-        if (cur > max) max = cur;
+    QList<double> sigmas;
+    QList<double> gammaL;
+    sigmas.reserve(m_xList.size());
+    gammaL.reserve(m_xList.size());
+
+    const double instrument = instrumentSigma();
+    const double mass = molecularMass();
+
+    double maxFwhm = 0.0;
+    for (int i = 0; i < m_xList.size(); ++i) {
+      const double nu0 = m_xList.at(i);
+      const double sigmaD = SpectraBroadening::dopplerSigma(nu0, m_temperature,
+                                                            mass);
+      const double totalSigma = std::sqrt(sigmaD * sigmaD +
+                                          instrument * instrument);
+      sigmas.append(totalSigma);
+      const double gamma = SpectraBroadening::collisionalHalfWidth(
+        m_gammaRef, m_referenceTemperature, m_tempExponent, m_temperature,
+        m_pressure);
+      gammaL.append(gamma);
+      maxFwhm = std::max(maxFwhm,
+                         SpectraBroadening::pseudoVoigtFwhm(totalSigma,
+                                                            gamma));
+    }
+
+    const double fwhmForGrid = (maxFwhm > 0.0) ? maxFwhm : 1.0;
+    QList<double> xPoints = getXPoints(fwhmForGrid, m_nPoints);
+    for (int i = 0; i < xPoints.size(); i++) {
+      double x = xPoints.at(i);// already scaled!
+      double y = 0;
+      for (int j = 0; j < m_yList.size(); j++) {
+        const double t = m_yList.at(j);
+        const double w = m_xList.at(j);// already scaled!
+        y += t * SpectraBroadening::pseudoVoigtValue(x, w, sigmas.at(j),
+                                                     gammaL.at(j));
       }
-      for(int i = 0; i< plotObject->points().size(); i++) {
-        double cur = plotObject->points().at(i)->y();
-        plotObject->points().at(i)->setY( (cur - min) * 100 / (max - min));
-      }
-    } // End gaussians
+      plotObject->addPoint(x,y);
+    }
+
+    // Normalization is probably screwed up, so renormalize the data
+    double min, max;
+    min = max = plotObject->points().first()->y();
+    for(int i = 0; i< plotObject->points().size(); i++) {
+      double cur = plotObject->points().at(i)->y();
+      if (cur < min) min = cur;
+      if (cur > max) max = cur;
+    }
+    if (max - min == 0.0)
+      return;
+    for(int i = 0; i< plotObject->points().size(); i++) {
+      double cur = plotObject->points().at(i)->y();
+      plotObject->points().at(i)->setY( (cur - min) * 100 / (max - min));
+    }
   }
 
   void AbstractIRSpectra::rescaleFrequencies()
@@ -178,6 +215,46 @@ namespace Avogadro {
             this, SLOT(updateFWHMSlider(double)));
   }
 
+  void AbstractIRSpectra::updateTemperature(double value)
+  {
+    if (m_temperature == value)
+      return;
+    m_temperature = value;
+    updateBroadeningParameters();
+  }
+
+  void AbstractIRSpectra::updatePressure(double value)
+  {
+    if (m_pressure == value)
+      return;
+    m_pressure = value;
+    updateBroadeningParameters();
+  }
+
+  void AbstractIRSpectra::updateGammaRef(double value)
+  {
+    if (m_gammaRef == value)
+      return;
+    m_gammaRef = value;
+    updateBroadeningParameters();
+  }
+
+  void AbstractIRSpectra::updateTemperatureExponent(double value)
+  {
+    if (m_tempExponent == value)
+      return;
+    m_tempExponent = value;
+    updateBroadeningParameters();
+  }
+
+  void AbstractIRSpectra::updateReferenceTemperature(double value)
+  {
+    if (m_referenceTemperature == value)
+      return;
+    m_referenceTemperature = value;
+    updateBroadeningParameters();
+  }
+
   void AbstractIRSpectra::updateYAxis(QString text) {
     if (m_yaxis == text) {
       return;
@@ -192,11 +269,6 @@ namespace Avogadro {
     m_scalingType = static_cast<ScalingType>(type);
     rescaleFrequencies();
   }
-  void AbstractIRSpectra::changeLineShape(int type)
-  {
-    m_lineShape = static_cast<LineShape>(type);
-    emit plotDataChanged();
-  }
 
   void AbstractIRSpectra::toggleLabels(bool enabled)
   {
@@ -207,6 +279,23 @@ namespace Avogadro {
   void AbstractIRSpectra::updateThreshold(double t)
   {
     m_labelYThreshold = t;
+    emit plotDataChanged();
+  }
+
+  double AbstractIRSpectra::instrumentSigma() const
+  {
+    return SpectraBroadening::instrumentSigma(m_fwhm);
+  }
+
+  double AbstractIRSpectra::molecularMass() const
+  {
+    // Default to 1 amu if we failed to gather a valid molecular mass.
+    const double protonMassKg = 1.66053906660e-27;
+    return (m_molecularMassKg > 0.0) ? m_molecularMassKg : protonMassKg;
+  }
+
+  void AbstractIRSpectra::updateBroadeningParameters()
+  {
     emit plotDataChanged();
   }
 

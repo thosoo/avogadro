@@ -59,9 +59,13 @@ namespace Avogadro {
     settings.setValue("spectra/Raman/gaussianWidth", m_fwhm);
     settings.setValue("spectra/Raman/experimentTemperature", m_T);
     settings.setValue("spectra/Raman/laserWavenumber", m_W);
+    settings.setValue("spectra/Raman/temperature", m_temperature);
+    settings.setValue("spectra/Raman/pressure", m_pressure);
+    settings.setValue("spectra/Raman/collisionWidth", m_gammaRef);
+    settings.setValue("spectra/Raman/temperatureExponent", m_tempExponent);
+    settings.setValue("spectra/Raman/referenceTemperature", m_referenceTemperature);
     settings.setValue("spectra/Raman/labelPeaks", ui.cb_labelPeaks->isChecked());
     settings.setValue("spectra/Raman/yAxisUnits", ui.combo_yaxis->currentText());
-    settings.setValue("spectra/Raman/lineShape", ui.combo_lineShape->currentIndex());
   }
 
   void RamanSpectra::readSettings() {
@@ -76,14 +80,21 @@ namespace Avogadro {
     ui.spin_T->setValue(m_T);
     m_W = settings.value("spectra/Raman/laserWavenumber", 9398.5).toDouble();
     ui.spin_W->setValue(m_W);
+    m_temperature = settings.value("spectra/Raman/temperature", 298.15).toDouble();
+    ui.spin_temperature->setValue(m_temperature);
+    m_pressure = settings.value("spectra/Raman/pressure", 1.0).toDouble();
+    ui.spin_pressure->setValue(m_pressure);
+    m_gammaRef = settings.value("spectra/Raman/collisionWidth", 0.0).toDouble();
+    ui.spin_gammaRef->setValue(m_gammaRef);
+    m_tempExponent = settings.value("spectra/Raman/temperatureExponent", 0.0).toDouble();
+    ui.spin_tempExponent->setValue(m_tempExponent);
+    m_referenceTemperature = settings.value("spectra/Raman/referenceTemperature", 296.0).toDouble();
+    ui.spin_referenceTemperature->setValue(m_referenceTemperature);
     ui.cb_labelPeaks->setChecked(settings.value("spectra/Raman/labelPeaks",false).toBool());
     QString yunit = settings.value("spectra/Raman/yAxisUnits",tr("Activity")).toString();
     updateYAxis(yunit);
     if (yunit == "Intensity")
       ui.combo_yaxis->setCurrentIndex(1);
-
-    ui.combo_lineShape->setCurrentIndex(settings.value("spectra/Raman/lineShape", GAUSSIAN).toInt());
-    m_lineShape = LineShape(ui.combo_lineShape->currentIndex());
     emit plotDataChanged();
   }
 
@@ -95,6 +106,9 @@ namespace Avogadro {
     // OK, we have valid vibrations, so store them for later
     vector<double> wavenumbers = vibrations->GetFrequencies();
     vector<double> intensities = vibrations->GetRamanActivities();
+
+    const double avogadrosNumber = 6.02214076e23;
+    m_molecularMassKg = obmol.GetMolWt() / (avogadrosNumber * 1000.0);
 
     if (wavenumbers.size() == 0 || intensities.size() == 0)
       return false;
@@ -158,7 +172,7 @@ namespace Avogadro {
     AbstractIRSpectra::getCalculatedPlotObject(plotObject);
 
     // Add labels for gaussians?
-    if ((m_fwhm != 0.0) && (ui.cb_labelPeaks->isChecked())) {
+    if (ui.cb_labelPeaks->isChecked()) {
       assignGaussianLabels(plotObject, true, m_labelYThreshold);
       m_dialog->labelsUp(true);
     }

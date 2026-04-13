@@ -50,24 +50,36 @@ namespace Avogadro {
     void updateFWHMSpin(int);
     void updateFWHMSlider(double);
     void fwhmSliderPressed();
-    void fwhmSliderReleased();    
+    void fwhmSliderReleased();
+    void updateTemperature(double value);
+    void updatePressure(double value);
+    void updateGammaRef(double value);
+    void updateTemperatureExponent(double value);
+    void updateReferenceTemperature(double value);
     void changeScalingType(int);
-    void changeLineShape(int);
     void updateYAxis(QString);
     void rescaleFrequencies();
 
   protected:
     double scale(double w);
+    double instrumentSigma() const;
+    double molecularMass() const;
+    void updateBroadeningParameters();
     
     Ui::Tab_IR_Raman ui;
     double m_scale;
     double m_fwhm;
     double m_labelYThreshold;
+    double m_temperature;
+    double m_pressure;
+    double m_gammaRef;
+    double m_tempExponent;
+    double m_referenceTemperature;
     QString m_yaxis;
     QList<double> m_xList_orig;
     ScalingType m_scalingType;
-    LineShape m_lineShape;         // gaussian or lorentzian peaks
     int m_nPoints;                 // number of points of gaussian/lorentzian pulse
+    double m_molecularMassKg;
   };
 }
 
