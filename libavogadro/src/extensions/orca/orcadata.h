@@ -47,8 +47,12 @@ class OrcaExtension;
 
 namespace Avogadro {
 
-enum calculationType {SP, OPT, FREQ};
-enum methodType {RHF, DFT, MP2, CCSD};
+enum calculationType {SP, OPT, FREQ, OPTFREQ};
+enum methodType {HF, DFT, MP2, CCSD};
+enum dispersionType {DISP_NONE, DISP_D3BJ, DISP_D4};
+enum solvationModelType {SOLV_MODEL_NONE, SOLV_MODEL_CPCM, SOLV_MODEL_CPCMC, SOLV_MODEL_SMD};
+enum cpcmSurfaceType {CPCM_SURFACE_DEFAULT, CPCM_SURFACE_VDW_GAUSSIAN,
+                       CPCM_SURFACE_GEPOL_SES, CPCM_SURFACE_GEPOL_SES_GAUSSIAN};
 //enum relType {ZORA, DKH};
 enum accType {NORMALSCF, TIGHTSCF, VERYTIGHTSCF, EXTREMESCF};
 enum scfType {RKS, UKS};
@@ -121,7 +125,6 @@ public:
     void setMethod (int n) {m_methodType = methodType (n);}
     void setMethod (methodType n) {m_methodType = n;}
     methodType getMethod () {return m_methodType;}
-    QString getMethodTxt();
 
     // Basis Set
 
@@ -267,21 +270,66 @@ public:
     void setCharge (int n) {m_charge = n;}
     int getCharge () {return m_charge;}
 
-    // RijCosX
+    void setMethod(int n) { m_methodType = methodType(n); }
+    void setMethod(methodType n) { m_methodType = n; }
+    methodType getMethod() const { return m_methodType; }
+    bool dftEnabled () const {return m_methodType == DFT;}
+    bool mp2Enabled () const {return m_methodType == MP2;}
+    bool ccsdEnabled () const {return m_methodType == CCSD;}
 
-    void setCosXChecked (bool value) {m_useCosX = value;}
-    bool cosXEnabled () {return m_useCosX;}
+    void setDispersion(int n) { m_dispersion = dispersionType(n); }
+    dispersionType getDispersion() const { return m_dispersion; }
+    QString getDispersionTxt() const;
 
-    // DFT || MP2 || CCSD
+    void setSolvationModel(int n) { m_solvationModel = solvationModelType(n); }
+    solvationModelType getSolvationModel() const { return m_solvationModel; }
+    QString getSolvationModelTxt() const;
 
-    void setDFTChecked (bool value) {m_useDFT = value;}
-    bool dftEnabled () {return m_useDFT;}
+    void setSolventName(const QString& solvent) { m_solventName = solvent; }
+    QString getSolventName() const { return m_solventName; }
+    QString getSolventTokenTxt() const;
+    QString getSolvationTxt() const;
 
-    void setMP2Checked (bool value) {m_useMP2 = value;}
-    bool mp2Enabled () {return m_useMP2;}
+    bool hfEnabled() const { return m_methodType == HF; }
 
-    void setCCSDChecked (bool value) {m_useCCSD = value;}
-    bool ccsdEnabled () {return m_useCCSD;}
+    void setCpcmAdvancedEnabled(bool value) { m_useCpcmAdvanced = value; }
+    bool cpcmAdvancedEnabled() const { return m_useCpcmAdvanced; }
+
+    void setDracoEnabled(bool value) { m_useDraco = value; }
+    bool dracoEnabled() const { return m_useDraco; }
+
+    void setCpcmEpsilon(double value) { m_cpcmEpsilon = value; }
+    double getCpcmEpsilon() const { return m_cpcmEpsilon; }
+    bool usesCpcmEpsilon() const { return m_cpcmEpsilon > 0.0; }
+
+    void setCpcmRefrac(double value) { m_cpcmRefrac = value; }
+    double getCpcmRefrac() const { return m_cpcmRefrac; }
+    bool usesCpcmRefrac() const { return m_cpcmRefrac > 0.0; }
+
+    void setCpcmRSolv(double value) { m_cpcmRSolv = value; }
+    double getCpcmRSolv() const { return m_cpcmRSolv; }
+    bool usesCpcmRSolv() const { return m_cpcmRSolv > 0.0; }
+
+    void setCpcmSurfaceType(int n) { m_cpcmSurfaceType = cpcmSurfaceType(n); }
+    cpcmSurfaceType getCpcmSurfaceType() const { return m_cpcmSurfaceType; }
+    QString getCpcmSurfaceTypeTxt() const;
+
+    void setNProcs(int n) { m_nProcs = n; }
+    int getNProcs() const { return m_nProcs; }
+    bool usesNProcs() const { return m_nProcs > 1; }
+
+    void setMaxCore(int n) { m_maxCore = n; }
+    int getMaxCore() const { return m_maxCore; }
+    bool usesMaxCore() const { return m_maxCore > 0; }
+
+    void setTDDFTEnabled(bool value) { m_useTDDFT = value; }
+    bool tddftEnabled() const { return m_useTDDFT; }
+
+    void setTDDFTRoots(int n) { m_tddftRoots = n; }
+    int getTDDFTRoots() const { return m_tddftRoots; }
+
+    void setNMRShielding(bool value) { m_useNMR = value; }
+    bool nmrShieldingEnabled() const { return m_useNMR; }
 
     // reset to default values
 
@@ -291,10 +339,21 @@ private:
     calculationType m_calculationType;
     int m_multiplicity;
     int m_charge;
-    bool m_useCosX;
-    bool m_useDFT;
-    bool m_useMP2;
-    bool m_useCCSD;
+    methodType m_methodType;
+    dispersionType m_dispersion;
+    solvationModelType m_solvationModel;
+    QString m_solventName;
+    bool m_useCpcmAdvanced;
+    bool m_useDraco;
+    double m_cpcmEpsilon;
+    double m_cpcmRefrac;
+    double m_cpcmRSolv;
+    cpcmSurfaceType m_cpcmSurfaceType;
+    int m_nProcs;
+    int m_maxCore;
+    bool m_useTDDFT;
+    int m_tddftRoots;
+    bool m_useNMR;
 };
 class OrcaSCFData {
 public:
@@ -345,7 +404,6 @@ public:
     // reset to default values
 
     void reset();
-
 private:
 
     accType m_accuracy;
@@ -370,18 +428,6 @@ public:
     OrcaDFTData();
     ~OrcaDFTData() {}
 
-    void setGrid (int n) {m_grid = OrcaExtension::gridType(n);}
-    void setGrid (OrcaExtension::gridType n) {m_grid = n;}
-    OrcaExtension::gridType getGrid () {return m_grid;}
-    QString getGridTxt();
-    void setEnumGrid(QMetaEnum m){ m_enumGrid = m;}
-
-    void setFinalGrid (int n) {m_finalGrid = OrcaExtension::finalgridType (n);}
-    void setGrid (OrcaExtension::finalgridType n) {m_finalGrid = n;}
-    OrcaExtension::finalgridType getFinalGrid () {return m_finalGrid;}
-    QString getFinalGridTxt();
-    void setEnumFinalGrid(QMetaEnum m){ m_enumFinalGrid = m;}
-
     void setDFTFunctional(int n) { m_DFTFuncional = OrcaExtension::DFTFunctionalType (n);}
     void setDFTFunctional(OrcaExtension::DFTFunctionalType n) {m_DFTFuncional = n;}
     OrcaExtension::DFTFunctionalType getDFTFunctional () {return m_DFTFuncional;}
@@ -393,48 +439,8 @@ public:
     void reset();
 
 private:
-
-    OrcaExtension::gridType m_grid;
-    OrcaExtension::finalgridType m_finalGrid;
-
     OrcaExtension::DFTFunctionalType m_DFTFuncional;
     QMetaEnum m_enumDFT;
-    QMetaEnum m_enumGrid;
-    QMetaEnum m_enumFinalGrid;
-
-};
-class OrcaCosXData {
-public:
-    OrcaCosXData ();
-    ~OrcaCosXData() {}
-
-
-    void setGrid (int n) {m_gridX = OrcaExtension::gridType(n);}
-    void setGrid (OrcaExtension::gridType n) {m_gridX = n;}
-    OrcaExtension::gridType getGrid () {return m_gridX;}
-    QString getGridTxt();
-    void setEnumGridX(QMetaEnum m){ m_enumGridX = m;}
-
-    void setFinalGrid (int n) {m_finalGridX = OrcaExtension::finalgridType (n);}
-    void setGrid (OrcaExtension::finalgridType n) {m_finalGridX = n;}
-    OrcaExtension::finalgridType getFinalGrid () {return m_finalGridX;}
-    QString getFinalGridTxt();
-    void setEnumFinalGridX(QMetaEnum m){ m_enumFinalGridX = m;}
-
-    void setSFittingChecked (bool value) {m_useSFitting = value;}
-    bool sFittingEnabled () {return m_useSFitting;}
-
-    // reset to default values
-
-    void reset();
-
-private:
-     OrcaExtension::gridType m_gridX;
-     OrcaExtension::finalgridType m_finalGridX;
-
-     QMetaEnum m_enumGridX;
-     QMetaEnum m_enumFinalGridX;
-    bool m_useSFitting;
 };
 
 class OrcaDataData {

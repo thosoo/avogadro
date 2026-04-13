@@ -114,10 +114,7 @@ namespace Avogadro {
         void setControlCalculation(int n);
         void setControlMultiplicity(int n);
         void setControlCharge(int n);
-        void setControlUseCosX (bool value);
-        void setControlUseDFT (bool value);
-        void setControlUseMP2 (bool value);
-        void setControlUseCCSD (bool value);
+        void setControlMethod(int n);
 
         // Advanced SCF Slots
 
@@ -137,15 +134,21 @@ namespace Avogadro {
         // Advanced DFT Slots
 
 
-        void setDFTGrid( int n);
-        void setDFTFinalGrid( int n);
+        void setDispersion( int n);
+        void setSolvationModel(int n);
+        void setSolvation( int n);
+        void setCpcmAdvancedEnabled(bool value);
+        void setCpcmDRACO(bool value);
+        void setCpcmEpsilon(double value);
+        void setCpcmRefrac(double value);
+        void setCpcmRSolv(double value);
+        void setCpcmSurfaceType(int n);
         void setDFTFunctional (int n);
 
-        // Advanced CosX Slots
-
-        void setCosXGrid( int n);
-        void setCosXFinalGrid( int n);
-        void setCosXSFitting (bool value);
+        // Advanced resource / excited-state slots
+        void setResourcesNProcs(int n);
+        void setResourcesMaxCore(int n);
+        void setTDDFTEnabled(bool value);
 
         // Advanced MP2 Slots - not yet implemented
 
@@ -155,6 +158,8 @@ namespace Avogadro {
         void setPrintLevel(int n);
         void setMOPrint(bool value);
         void setBasisPrint(bool value);
+        void setTDDFTRoots(int n);
+        void setNMRShielding(bool value);
 
 
   protected:
@@ -175,6 +180,7 @@ namespace Avogadro {
         // This member provides access to all ui elements
 
         Ui::OrcaInputDialog ui;
+        void applyMoleculeToUi();
 
         void initComboboxes();
 
@@ -184,12 +190,18 @@ namespace Avogadro {
         void initBasisData();
         void initControlData();
         void initSCFData();
-        void initCosXData();
+        void initResourcesData();
         void initDFTData ();
+        void initSolvationData();
         void initDataData();
 
-        bool checkDFTforRijCosX();
-        void enableAllDFTFunctionals();
+        bool shouldEmitSCFBlock() const;
+        bool needsAuxCBasis() const;
+        bool shouldEmitPalBlock() const;
+        bool shouldEmitMaxCore() const;
+        bool shouldEmitSolvationBlock() const;
+        bool shouldEmitDracoToken() const;
+        QString safeHFReference(int multiplicity) const;
         // Internal data structure for the input dialog
 
         QPointer<Molecule>  m_molecule;
@@ -204,12 +216,6 @@ namespace Avogadro {
         OrcaDataData*       dataData;
         OrcaSCFData*        scfData;
         OrcaDFTData*        dftData;
-        OrcaCosXData*       cosXData;
-
-        bool m_useDFT;
-        bool m_useMP2;
-        bool m_useCosX;
-
         bool m_basic;
         bool m_advanced;
 
@@ -221,7 +227,8 @@ namespace Avogadro {
 
         bool m_dirty;
         bool m_warned;
-
+        bool m_initializing;
+        bool m_pendingMoleculeSync;
         // Generate an input deck as a string
         QString generateInputDeck();
   };

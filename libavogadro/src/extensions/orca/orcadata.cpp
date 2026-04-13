@@ -105,8 +105,8 @@ const std::vector<std::vector<Eigen::Vector3d> *>& OrcaVibrations::displacement(
 OrcaBasicData::OrcaBasicData ()
 {
     m_calculationType = SP;
-    m_methodType = RHF;
-    m_basisType = OrcaExtension::SVP;
+    m_methodType = HF;
+    m_basisType = OrcaExtension::TZVP;
     m_multiplicity = 1;
     m_charge = 0;
     m_coordsType = CARTESIAN;
@@ -114,8 +114,8 @@ OrcaBasicData::OrcaBasicData ()
 void OrcaBasicData::reset ()
 {
     m_calculationType = SP;
-    m_methodType = RHF;
-    m_basisType = OrcaExtension::SVP;
+    m_methodType = HF;
+    m_basisType = OrcaExtension::TZVP;
     m_multiplicity = 1;
     m_charge = 0;
     m_coordsType = CARTESIAN;
@@ -141,6 +141,8 @@ QString OrcaBasicData::getCalculationTxt()
       case OPT:
         return "OPT";
       case FREQ:
+        return "FREQ";
+      case OPTFREQ:
         return "OPT FREQ";
       default:
         return "";
@@ -148,32 +150,13 @@ QString OrcaBasicData::getCalculationTxt()
 }
 
 
-QString OrcaBasicData::getMethodTxt()
-{
-
-    // Translate the enum method types to normal text
-    // enum methodType{RHF, DFT, MP2, CCSD}
-    switch (m_methodType)
-    {
-    case RHF:
-        return "RHF";
-    case DFT:
-        return "BP RI";
-    case MP2:
-        return "MP2";
-    case CCSD:
-        return "CCSD";
-    default:
-        return "";
-    }
-
-}
-
 QString OrcaBasicData::getBasisTxt()
 {
     // Translate the enum basis set to normal text
     // enum basisType {SVP, TZVP, TZVPP, QZVPP }
     QString returnBasis = m_enumBasis.valueToKey(m_basisType);
+    returnBasis.replace("SV_P", "SV(P)");
+    returnBasis.replace("TZVP_F", "TZVP(-f)");
     returnBasis.prepend("def2-");
     return returnBasis;
 //    switch (m_basisType)
@@ -208,9 +191,9 @@ QString OrcaBasicData::getFormatTxt()
 
 OrcaBasisData::OrcaBasisData()
 {
-     m_basis= OrcaExtension::SVP;
-     m_auxBasis = OrcaExtension::SVP;
-     m_auxCorrBasis = OrcaExtension::SVP;
+     m_basis= OrcaExtension::TZVP;
+     m_auxBasis = OrcaExtension::TZVP;
+     m_auxCorrBasis = OrcaExtension::TZVP;
 
 //     m_useEPC = false;
 
@@ -223,9 +206,9 @@ OrcaBasisData::OrcaBasisData()
 }
 void OrcaBasisData::reset()
 {
-     m_basis= OrcaExtension::SVP;
-     m_auxBasis = OrcaExtension::SVP;
-     m_auxCorrBasis = OrcaExtension::SVP;
+     m_basis= OrcaExtension::TZVP;
+     m_auxBasis = OrcaExtension::TZVP;
+     m_auxCorrBasis = OrcaExtension::TZVP;
 //     m_useEPC = false;
 //     m_useAuxEPC = false;
 //     m_useAuxCorrEPC = false;
@@ -240,6 +223,8 @@ QString OrcaBasisData::getBasisTxt()
     // enum basisType {SVP, TZVP, TZVPP, QZVPP }
 
     QString returnBasis = m_enumBasis.valueToKey(m_basis);
+    returnBasis.replace("SV_P", "SV(P)");
+    returnBasis.replace("TZVP_F", "TZVP(-f)");
     returnBasis.prepend("def2-");
 //    if (m_useEPC && !m_useRel) {
 //        returnBasis.append("-AE");
@@ -262,7 +247,7 @@ QString OrcaBasisData::getAuxBasisTxt()
 //    }
 //    returnBasis.append("/J");
 //    return returnBasis;
-    return "def2/J";
+    return "";
 }
 
 QString OrcaBasisData::getAuxCorrBasisTxt()
@@ -272,6 +257,8 @@ QString OrcaBasisData::getAuxCorrBasisTxt()
     // enum basisType {SVP, TZVP, TZVPP, QZVPP }
 
     QString returnBasis = m_enumBasis.valueToKey(m_auxCorrBasis);
+    returnBasis.replace("SV_P", "SV(P)");
+    returnBasis.replace("TZVP_F", "TZVP(-f)");
     returnBasis.prepend("def2-");
     returnBasis.append("/C");
     return returnBasis;
@@ -296,10 +283,21 @@ OrcaControlData::OrcaControlData()
     m_multiplicity = 1;
     m_charge = 0;
     m_calculationType = SP;
-    m_useCosX = false;
-    m_useDFT = false;
-    m_useMP2 = false;
-    m_useCCSD = false;
+    m_methodType = DFT;
+    m_dispersion = DISP_D4;
+    m_solvationModel = SOLV_MODEL_NONE;
+    m_solventName = "water / h2o";
+    m_useCpcmAdvanced = false;
+    m_useDraco = false;
+    m_cpcmEpsilon = 0.0;
+    m_cpcmRefrac = 0.0;
+    m_cpcmRSolv = 0.0;
+    m_cpcmSurfaceType = CPCM_SURFACE_DEFAULT;
+    m_nProcs = 1;
+    m_maxCore = 0;
+    m_useTDDFT = false;
+    m_tddftRoots = 10;
+    m_useNMR = false;
 //    m_useMDCI = false;
 }
 void OrcaControlData::reset()
@@ -307,9 +305,21 @@ void OrcaControlData::reset()
     m_multiplicity = 1;
     m_charge = 0;
     m_calculationType = SP;
-    m_useCosX = false;
-    m_useDFT = false;
-    m_useMP2 = false;
+    m_methodType = DFT;
+    m_dispersion = DISP_D4;
+    m_solvationModel = SOLV_MODEL_NONE;
+    m_solventName = "water / h2o";
+    m_useCpcmAdvanced = false;
+    m_useDraco = false;
+    m_cpcmEpsilon = 0.0;
+    m_cpcmRefrac = 0.0;
+    m_cpcmRSolv = 0.0;
+    m_cpcmSurfaceType = CPCM_SURFACE_DEFAULT;
+    m_nProcs = 1;
+    m_maxCore = 0;
+    m_useTDDFT = false;
+    m_tddftRoots = 10;
+    m_useNMR = false;
 //    m_useMDCI = false;
 }
 QString OrcaControlData::getCalculationTxt()
@@ -323,24 +333,68 @@ QString OrcaControlData::getCalculationTxt()
       case OPT:
         return "OPT";
       case FREQ:
+        return "FREQ";
+      case OPTFREQ:
         return "OPT FREQ";
       default:
         return "";
       }
 }
+QString OrcaControlData::getDispersionTxt() const
+{
+    switch (m_dispersion) {
+    case DISP_D3BJ: return "D3BJ";
+    case DISP_D4: return "D4";
+    default: return "";
+    }
+}
+QString OrcaControlData::getSolvationModelTxt() const
+{
+    switch (m_solvationModel) {
+    case SOLV_MODEL_CPCM: return "CPCM";
+    case SOLV_MODEL_CPCMC: return "CPCMC";
+    case SOLV_MODEL_SMD: return "SMD";
+    default: return "";
+    }
+}
+
+QString OrcaControlData::getSolventTokenTxt() const
+{
+    const QStringList aliases = m_solventName.split(" / ");
+    return aliases.isEmpty() ? QString() : aliases.first().trimmed();
+}
+
+QString OrcaControlData::getSolvationTxt() const
+{
+    const QString model = getSolvationModelTxt();
+    const QString solvent = getSolventTokenTxt();
+    if (model.isEmpty() || solvent.isEmpty())
+        return "";
+    return QString("%1(%2)").arg(model, solvent);
+}
+
+QString OrcaControlData::getCpcmSurfaceTypeTxt() const
+{
+    switch (m_cpcmSurfaceType) {
+    case CPCM_SURFACE_VDW_GAUSSIAN:
+        return "vdw_gaussian";
+    case CPCM_SURFACE_GEPOL_SES:
+        return "gepol_ses";
+    case CPCM_SURFACE_GEPOL_SES_GAUSSIAN:
+        return "gepol_ses_gaussian";
+    default:
+        return "";
+    }
+}
 
 OrcaDFTData::OrcaDFTData()
 {
-    m_grid = OrcaExtension::Grid4;
-    m_finalGrid = OrcaExtension::fDefault;
-    m_DFTFuncional = OrcaExtension::BP;
+    m_DFTFuncional = OrcaExtension::PBE0;
 
 }
 void OrcaDFTData::reset()
 {
-    m_grid = OrcaExtension::Grid4;
-    m_finalGrid = OrcaExtension::fDefault;
-    m_DFTFuncional = OrcaExtension::BP;
+    m_DFTFuncional = OrcaExtension::PBE0;
 
 }
 QString OrcaDFTData::getDFTFunctionalTxt()
@@ -349,59 +403,6 @@ QString OrcaDFTData::getDFTFunctionalTxt()
 //     enum OrcaExtension::DFTFunctionalType {LDA, BP, BLYP, PW91, B3LYP, B3PW, PBEO, TPSS, TPSSH, M06L};
 
     return m_enumDFT.valueToKey(m_DFTFuncional);
-}
-QString OrcaDFTData::getGridTxt()
-{
-    QString returnGrid = m_enumGrid.valueToKey(m_grid);
-    returnGrid.replace("None", "NoGrid");
-    if (returnGrid.contains("Default")) returnGrid = "";
-    return returnGrid;
-}
-
-QString OrcaDFTData::getFinalGridTxt()
-{
-    QString returnGrid = m_enumFinalGrid.valueToKey(m_finalGrid);
-
-    returnGrid.replace("fGrid", "FinalGrid");
-    returnGrid.replace("fNone", "NoFinalGrid");
-    if (returnGrid.contains("fDefault")) returnGrid = "";
-    return returnGrid;
-}
-
-
-OrcaCosXData::OrcaCosXData()
-{
-    m_gridX = OrcaExtension::Grid4;
-    m_finalGridX = OrcaExtension::fDefault;
-
-    m_useSFitting = false;
-
-}
-void OrcaCosXData::reset()
-{
-    m_gridX = OrcaExtension::Grid4;
-    m_finalGridX = OrcaExtension::fDefault;
-
-    m_useSFitting = false;
-
-}
-QString OrcaCosXData::getGridTxt()
-{
-    QString returnGrid = m_enumGridX.valueToKey(m_gridX);
-    returnGrid.replace("Grid", "GridX");
-    returnGrid.replace("None", "NoGridX");
-    if (returnGrid.contains("Default")) returnGrid = "";
-    return returnGrid;
-}
-
-QString OrcaCosXData::getFinalGridTxt()
-{
-    QString returnGrid = m_enumFinalGridX.valueToKey(m_finalGridX);
-
-    returnGrid.replace("fGrid", "FinalGridX");
-    returnGrid.replace("fNone", "NoFinalGridX");
-    if (returnGrid.contains("fDefault")) returnGrid = "";
-    return returnGrid;
 }
 
 OrcaSCFData::OrcaSCFData()
@@ -509,15 +510,6 @@ QString OrcaDataData::getFormatTxt()
         return "";
     }
 }
-
-
-
-
-
-
-
-
-
 
 
 

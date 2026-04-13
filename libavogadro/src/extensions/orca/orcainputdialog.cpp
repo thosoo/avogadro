@@ -47,6 +47,7 @@
 #include <QTextStream>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QSignalBlocker>
 
 using namespace OpenBabel;
 using namespace Eigen;
@@ -54,9 +55,201 @@ using namespace std;
 
 namespace Avogadro {
 
+namespace {
+QStringList orcaSolventEntries()
+{
+    return QStringList()
+      << "1,1,1-trichloroethane"
+      << "1,1,2-trichloroethane"
+      << "1,2,4-trimethylbenzene"
+      << "1,2-dibromoethane"
+      << "1,2-dichloroethane"
+      << "1,2-ethanediol"
+      << "1,4-dioxane / dioxane"
+      << "1-bromo-2-methylpropane"
+      << "1-bromooctane / bromooctane"
+      << "1-bromopentane"
+      << "1-bromopropane"
+      << "1-butanol / butanol"
+      << "1-chlorohexane / chlorohexane"
+      << "1-chloropentane"
+      << "1-chloropropane"
+      << "1-decanol / decanol"
+      << "1-fluorooctane"
+      << "1-heptanol / heptanol"
+      << "1-hexanol / hexanol"
+      << "1-hexene"
+      << "1-hexyne"
+      << "1-iodobutane"
+      << "1-iodohexadecane / hexadecyliodide"
+      << "1-iodopentane"
+      << "1-iodopropane"
+      << "1-nitropropane"
+      << "1-nonanol / nonanol"
+      << "1-octanol / octanol"
+      << "1-pentanol / pentanol"
+      << "1-pentene"
+      << "1-propanol / propanol"
+      << "2,2,2-trifluoroethanol"
+      << "2,2,4-trimethylpentane / isooctane"
+      << "2,4-dimethylpentane"
+      << "2,4-dimethylpyridine"
+      << "2,6-dimethylpyridine"
+      << "2-bromopropane"
+      << "2-butanol / secbutanol"
+      << "2-chlorobutane"
+      << "2-heptanone"
+      << "2-hexanone"
+      << "2-methoxyethanol / methoxyethanol"
+      << "2-methyl-1-propanol / isobutanol"
+      << "2-methyl-2-propanol"
+      << "2-methylpentane"
+      << "2-methylpyridine / 2methylpyridine"
+      << "2-nitropropane"
+      << "2-octanone"
+      << "2-pentanone"
+      << "2-propanol / isopropanol"
+      << "2-propen-1-ol"
+      << "e-2-pentene"
+      << "3-methylpyridine"
+      << "3-pentanone"
+      << "4-heptanone"
+      << "4-methyl-2-pentanone / 4methyl2pentanone"
+      << "4-methylpyridine"
+      << "5-nonanone"
+      << "acetic acid / aceticacid"
+      << "acetone"
+      << "acetonitrile / mecn / ch3cn"
+      << "acetophenone"
+      << "ammonia"
+      << "aniline"
+      << "anisole"
+      << "benzaldehyde"
+      << "benzene"
+      << "benzonitrile"
+      << "benzyl alcohol / benzylalcohol"
+      << "bromobenzene"
+      << "bromoethane"
+      << "bromoform"
+      << "butanal"
+      << "butanoic acid"
+      << "butanone"
+      << "butanonitrile"
+      << "butyl ethanoate / butyl acetate / butylacetate"
+      << "butylamine"
+      << "n-butylbenzene / butylbenzene"
+      << "sec-butylbenzene / secbutylbenzene"
+      << "tert-butylbenzene / tbutylbenzene"
+      << "carbon disulfide / carbondisulfide / cs2"
+      << "carbon tetrachloride / ccl4"
+      << "chlorobenzene"
+      << "chloroform / chcl3"
+      << "a-chlorotoluene"
+      << "o-chlorotoluene"
+      << "conductor"
+      << "m-cresol / mcresol"
+      << "o-cresol"
+      << "cyclohexane"
+      << "cyclohexanone"
+      << "cyclopentane"
+      << "cyclopentanol"
+      << "cyclopentanone"
+      << "decalin"
+      << "cis-decalin"
+      << "n-decane / decane"
+      << "dibromomethane"
+      << "dibutylether"
+      << "o-dichlorobenzene / odichlorobenzene"
+      << "e-1,2-dichloroethene"
+      << "z-1,2-dichloroethene"
+      << "dichloromethane / ch2cl2 / dcm"
+      << "diethyl ether / diethylether"
+      << "diethyl sulfide"
+      << "diethylamine"
+      << "diiodomethane"
+      << "diisopropyl ether / diisopropylether"
+      << "cis-1,2-dimethylcyclohexane"
+      << "dimethyl disulfide"
+      << "n,n-dimethylacetamide / dimethylacetamide"
+      << "n,n-dimethylformamide / dimethylformamide / dmf"
+      << "dimethylsulfoxide / dmso"
+      << "diphenylether"
+      << "dipropylamine"
+      << "n-dodecane / dodecane"
+      << "ethanethiol"
+      << "ethanol"
+      << "ethyl acetate / ethylacetate / ethanoate"
+      << "ethyl methanoate"
+      << "ethyl phenyl ether / ethoxybenzene"
+      << "ethylbenzene"
+      << "fluorobenzene"
+      << "formamide"
+      << "formic acid"
+      << "furan / furane"
+      << "n-heptane / heptane"
+      << "n-hexadecane / hexadecane"
+      << "n-hexane / hexane"
+      << "hexanoic acid"
+      << "iodobenzene"
+      << "iodoethane"
+      << "iodomethane"
+      << "isopropylbenzene"
+      << "p-isopropyltoluene / isopropyltoluene"
+      << "mesitylene"
+      << "methanol"
+      << "methyl benzoate"
+      << "methyl butanoate"
+      << "methyl ethanoate"
+      << "methyl methanoate"
+      << "methyl propanoate"
+      << "n-methylaniline"
+      << "methylcyclohexane"
+      << "n-methylformamide / methylformamide"
+      << "nitrobenzene / phno2"
+      << "nitroethane"
+      << "nitromethane / meno2"
+      << "o-nitrotoluene / onitrotoluene"
+      << "n-nonane / nonane"
+      << "n-octane / octane"
+      << "n-pentadecane / pentadecane"
+      << "octanol(wet) / wetoctanol / woctanol"
+      << "pentanal"
+      << "n-pentane / pentane"
+      << "pentanoic acid"
+      << "pentyl ethanoate"
+      << "pentylamine"
+      << "perfluorobenzene / hexafluorobenzene"
+      << "phenol"
+      << "propanal"
+      << "propanoic acid"
+      << "propanonitrile"
+      << "propyl ethanoate"
+      << "propylamine"
+      << "pyridine"
+      << "tetrachloroethene / c2cl4"
+      << "tetrahydrofuran / thf"
+      << "tetrahydrothiophene-s,s-dioxide / tetrahydrothiophenedioxide / sulfolane"
+      << "tetralin"
+      << "thiophene"
+      << "thiophenol"
+      << "toluene"
+      << "trans-decalin"
+      << "tributylphosphate"
+      << "trichloroethene"
+      << "triethylamine"
+      << "n-undecane / undecane"
+      << "water / h2o"
+      << "xylene"
+      << "m-xylene"
+      << "o-xylene"
+      << "p-xylene";
+}
+}
+
 OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
     QDialog( parent, f ), m_molecule(NULL), m_scfConvButtons(NULL), m_scfConv2ndButtons(NULL),
-    m_output(), m_savePath(), m_dirty(false), m_warned(false)
+    m_output(), m_savePath(), m_dirty(false), m_warned(false), m_initializing(true),
+    m_pendingMoleculeSync(false)
 {
     basicData = new OrcaBasicData;
     basisData = new OrcaBasisData;
@@ -64,7 +257,6 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
     scfData = new OrcaSCFData;
     dftData = new OrcaDFTData;
     dataData = new OrcaDataData;
-    cosXData = new OrcaCosXData;
 
     // This initializes the ui member function to contain pointers to
     // all GUI elements in the orcainputdialog.ui file
@@ -74,15 +266,65 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
 
     initComboboxes();
 
-    // init dialog boxes
+    ui.basicCalculationCombo->setItemText(0, tr("Single Point"));
+    ui.basicCalculationCombo->setItemText(1, tr("Geometry Optimization"));
+    ui.basicCalculationCombo->setItemText(2, tr("Frequencies"));
+    ui.basicCalculationCombo->addItem(tr("Optimization + Frequencies"));
+    ui.label_7->setText(tr("Job type"));
+    ui.basicMethodCombo->clear();
+    ui.basicMethodCombo->addItems(QStringList() << "HF" << "DFT");
 
+    ui.controlRunTypeCombo->setItemText(0, tr("Single Point"));
+    ui.controlRunTypeCombo->setItemText(1, tr("Geometry Optimization"));
+    ui.controlRunTypeCombo->setItemText(2, tr("Frequencies"));
+    ui.controlRunTypeCombo->addItem(tr("Optimization + Frequencies"));
+    ui.label_13->setText(tr("Job type"));
+
+    ui.label_33->setText(tr("Dispersion"));
+    ui.dispersionCombo->clear();
+    ui.dispersionCombo->addItems(QStringList() << tr("None") << "D3BJ" << "D4");
+    ui.solvationModelCombo->clear();
+    ui.solvationModelCombo->addItems(QStringList() << tr("None") << "CPCM" << "CPCMC" << "SMD");
+    ui.solvationCombo->clear();
+    ui.solvationCombo->addItems(orcaSolventEntries());
+    ui.cpcmSurfaceTypeCombo->clear();
+    ui.cpcmSurfaceTypeCombo->addItems(QStringList() << tr("Default")
+                                     << "vdw_gaussian"
+                                     << "gepol_ses"
+                                     << "gepol_ses_gaussian");
+    ui.label_31->setText(tr("nprocs"));
+    ui.label_32->setText(tr("MaxCore (MB)"));
+    ui.nprocsCombo->clear();
+    ui.nprocsCombo->addItems(QStringList() << "1" << "2" << "4" << "8" << "16" << "32");
+    ui.maxCoreCombo->clear();
+    ui.maxCoreCombo->addItems(QStringList() << "0" << "500" << "1000" << "2000" << "4000");
+    ui.tddftCheck->setText(tr("Enable TD-DFT"));
+
+    // init dialog boxes
     initBasicData();
     initBasisData();
     initControlData();
     initSCFData();
     initDFTData();
-    initCosXData();
+    initResourcesData();
+    initSolvationData();
     initDataData();
+
+    ui.scfDampingGroup->hide();
+    ui.scfLevelShiftGroup->hide();
+    ui.scfDIISRadio->hide();
+    ui.scfKDIISRadio->hide();
+    ui.scfSOSCFRadio->hide();
+    ui.scfNRSCFRadio->hide();
+    ui.scfAHSCFRadio->hide();
+    ui.scfTypeCombo->hide();
+    ui.label_24->hide();
+    ui.label_10->hide();
+    ui.dataPrintCombo->hide();
+    ui.groupBox_3->hide();
+    ui.basisRelativisticGroup->hide();
+    ui.dataFormatCombo->setCurrentIndex(0);
+    ui.dataFormatCombo->setEnabled(false);
 
 
     ui.modeTabWidget->setCurrentIndex(0);
@@ -103,13 +345,7 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
 
     // Enable/Disable Widgets
 
-    bool auxNeeded;
-    if (controlData->cosXEnabled() || controlData->dftEnabled()) {
-        auxNeeded = true;
-    } else {
-        auxNeeded = false;
-    }
-    ui.basisAuxBasisSetCombo->setEnabled(auxNeeded);
+    ui.basisAuxBasisSetCombo->setEnabled(false);
 //    ui.basisAuxECPCheck->setEnabled(false);
 
     bool auxCorrNeeded;
@@ -122,6 +358,7 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
 //    ui.basisAuxCorrECPCheck->setEnabled(false);
     m_basic = true;
     m_advanced = false;
+    m_initializing = false;
 }
 
   OrcaInputDialog::~OrcaInputDialog()
@@ -134,10 +371,12 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
       delete scfData;
       delete dftData;
       delete dataData;
-      delete cosXData;
   }
-  void OrcaInputDialog::showEvent(QShowEvent *)
+  void OrcaInputDialog::showEvent(QShowEvent *event)
   {
+    QDialog::showEvent(event);
+    if (m_pendingMoleculeSync)
+      applyMoleculeToUi();
     // Generate an initial preview of the input deck
     updatePreviewText();
   }
@@ -169,13 +408,8 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
               this, SLOT(setControlMultiplicity(int)));
       connect(ui.controlChargeSpin, SIGNAL(valueChanged(int)),
               this, SLOT(setControlCharge(int)));
-
-
-
-      connect( ui.controlCosXCheck, SIGNAL( toggled( bool ) ), this, SLOT( setControlUseCosX( bool ) ) );
-      connect( ui.controlDFTCheck, SIGNAL( toggled( bool ) ), this, SLOT( setControlUseDFT( bool ) ) );
-      connect( ui.controlMP2Check, SIGNAL( toggled( bool ) ),this, SLOT( setControlUseMP2( bool ) ) );
-      connect( ui.controlCCSDCheck, SIGNAL( toggled( bool ) ),this, SLOT( setControlUseCCSD( bool ) ) );
+      connect(ui.controlMethodCombo, SIGNAL(currentIndexChanged(int)),
+              this, SLOT(setControlMethod(int)));
 
       // Advanced SCF Slots
 
@@ -195,17 +429,23 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
 
       // Advanced DFT Slots
 
-//      connect (ui.dftFinalGridcheck, SIGNAL(toggled(bool)), this, SLOT(setDFTUseFinalGrid(bool)));
-      connect (ui.dftFinalGridCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setDFTFinalGrid(int)));
-      connect (ui.dftGridCombo, SIGNAL(currentIndexChanged(int)), this,SLOT(setDFTGrid(int)));
+      connect (ui.solvationCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setSolvation(int)));
+      connect (ui.solvationModelCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setSolvationModel(int)));
+      connect (ui.cpcmGroup, SIGNAL(toggled(bool)), this, SLOT(setCpcmAdvancedEnabled(bool)));
+      connect (ui.cpcmDRACOCheck, SIGNAL(toggled(bool)), this, SLOT(setCpcmDRACO(bool)));
+      connect (ui.cpcmEpsilonSpin, SIGNAL(valueChanged(double)), this, SLOT(setCpcmEpsilon(double)));
+      connect (ui.cpcmRefracSpin, SIGNAL(valueChanged(double)), this, SLOT(setCpcmRefrac(double)));
+      connect (ui.cpcmRSolvSpin, SIGNAL(valueChanged(double)), this, SLOT(setCpcmRSolv(double)));
+      connect (ui.cpcmSurfaceTypeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setCpcmSurfaceType(int)));
+      connect (ui.dispersionCombo, SIGNAL(currentIndexChanged(int)), this,SLOT(setDispersion(int)));
       connect (ui.dftFunctionalCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setDFTFunctional(int)));
 
-      // Advanced CosX Slots
-
-//      connect (ui.cosXFinalGridCheck, SIGNAL(toggled(bool)), this, SLOT(setCosXUseFinalGrid(bool)));
-      connect (ui.cosXFinalGridCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setCosXFinalGrid(int)));
-      connect (ui.cosXGridCombo, SIGNAL(currentIndexChanged(int)), this,SLOT(setCosXGrid(int)));
-      connect (ui.cosXSFittingCheck, SIGNAL(toggled(bool)), this, SLOT(setCosXSFitting(bool)));
+      // Advanced resource / excited-state slots
+      connect (ui.maxCoreCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setResourcesMaxCore(int)));
+      connect (ui.nprocsCombo, SIGNAL(currentIndexChanged(int)), this,SLOT(setResourcesNProcs(int)));
+      connect (ui.tddftCheck, SIGNAL(toggled(bool)), this, SLOT(setTDDFTEnabled(bool)));
+      connect (ui.tddftRootsSpin, SIGNAL(valueChanged(int)), this, SLOT(setTDDFTRoots(int)));
+      connect (ui.nmrCheck, SIGNAL(toggled(bool)), this, SLOT(setNMRShielding(bool)));
 
       // Advanced Data Slots
       connect(ui.dataFormatCombo, SIGNAL(currentIndexChanged(int)), this, SLOT (setDataFormat(int)));
@@ -286,6 +526,8 @@ void  OrcaInputDialog::initComboboxes()
 
               for (int j=0; j<m.keyCount();j++) {
                   items += QLatin1String(m.valueToKey(j));
+                  items[j].replace("SV_P", "SV(P)");
+                  items[j].replace("TZVP_F", "TZVP(-f)");
                   items[j].prepend("def2-");
               }
               ui.basicBasisSetCombo->addItems(items);
@@ -300,39 +542,19 @@ void  OrcaInputDialog::initComboboxes()
               items.clear();
               items << "def2/J";
               ui.basisAuxBasisSetCombo->addItems(items);   // Only one aux-basisset available
-          } else if (enumType == "gridType") {
-
-              dftData->setEnumGrid(m);
-              cosXData->setEnumGridX(m);
-              for (int j=0; j<m.keyCount();j++) {
-                  items += QLatin1String(m.valueToKey(j));
-              }
-
-              items.replaceInStrings("Grid", "");
-
-              ui.dftGridCombo->addItems(items);
-              ui.cosXGridCombo->addItems(items);
-          } else if (enumType == "finalgridType") {
-
-              dftData->setEnumFinalGrid(m);
-              cosXData->setEnumFinalGridX(m);
-
-              for (int j=0; j<m.keyCount();j++) {
-                  items += QLatin1String(m.valueToKey(j));
-              }
-
-              items.replaceInStrings("fNone", "None");
-              items.replaceInStrings("fDefault", "Default");
-              items.replaceInStrings("fGrid", "");
-              ui.dftFinalGridCombo->addItems(items);
-              ui.cosXFinalGridCombo->addItems(items);
           }
       }
   }
   void OrcaInputDialog::initBasicData()
   {
+      const QSignalBlocker b1(ui.basicCalculationCombo);
+      const QSignalBlocker b2(ui.basicMethodCombo);
+      const QSignalBlocker b3(ui.basicBasisSetCombo);
+      const QSignalBlocker b4(ui.basicChargeSpin);
+      const QSignalBlocker b5(ui.basicMultiplicitySpin);
+      const QSignalBlocker b6(ui.basicFormatCombo);
       ui.basicCalculationCombo->setCurrentIndex(basicData->getCalculation());
-      ui.basicMethodCombo->setCurrentIndex(basicData->getMethod ());
+      ui.basicMethodCombo->setCurrentIndex(basicData->getMethod() == DFT ? 1 : 0);
       ui.basicBasisSetCombo->setCurrentIndex(basicData->getBasis ());
       ui.basicChargeSpin->setValue(basicData->getCharge());
       ui.basicMultiplicitySpin->setValue(basicData->getMultiplicity());
@@ -342,6 +564,9 @@ void  OrcaInputDialog::initComboboxes()
 
   void OrcaInputDialog::initBasisData()
   {
+      const QSignalBlocker b1(ui.basisBasisSetCombo);
+      const QSignalBlocker b2(ui.basisAuxBasisSetCombo);
+      const QSignalBlocker b3(ui.basisAuxCorrBasisSetCombo);
       ui.basisBasisSetCombo->setCurrentIndex(basisData->getBasis());
       ui.basisAuxBasisSetCombo->setCurrentIndex(basisData->getAuxBasis());
       ui.basisAuxCorrBasisSetCombo->setCurrentIndex(basisData->getAuxCorrBasis());
@@ -359,18 +584,22 @@ void  OrcaInputDialog::initComboboxes()
 
   void OrcaInputDialog::initControlData()
   {
+      const QSignalBlocker b1(ui.controlChargeSpin);
+      const QSignalBlocker b2(ui.controlMultiplicitySpin);
+      const QSignalBlocker b3(ui.controlRunTypeCombo);
+      const QSignalBlocker b4(ui.controlMethodCombo);
       ui.controlChargeSpin->setValue(controlData->getCharge());
       ui.controlMultiplicitySpin->setValue((controlData->getMultiplicity()));
 
       ui.controlRunTypeCombo->setCurrentIndex(controlData->getCalculation());
-      ui.controlCosXCheck->setChecked(controlData->cosXEnabled());
-      ui.controlDFTCheck->setChecked(controlData->dftEnabled());
-      ui.controlMP2Check->setChecked(controlData->mp2Enabled());
-      ui.controlCCSDCheck->setChecked(controlData->ccsdEnabled());
+      ui.controlMethodCombo->setCurrentIndex(controlData->getMethod());
   }
 
   void OrcaInputDialog::initSCFData()
   {
+      const QSignalBlocker b1(ui.scfAccCombo);
+      const QSignalBlocker b2(ui.scfTypeCombo);
+      const QSignalBlocker b3(ui.scfMaxIterSpin);
       ui.scfAccCombo->setCurrentIndex(scfData->getAccuracy());
       ui.scfTypeCombo->setCurrentIndex(scfData->getType());
       ui.scfMaxIterSpin->setValue(scfData->getMaxIter());
@@ -413,25 +642,63 @@ void  OrcaInputDialog::initComboboxes()
 
   void OrcaInputDialog::initDFTData()
   {
-      ui.dftGridCombo->setCurrentIndex(dftData->getGrid());
-      ui.dftFinalGridCombo->setCurrentIndex(dftData->getFinalGrid());
+      const QSignalBlocker b1(ui.dispersionCombo);
+      const QSignalBlocker b2(ui.dftFunctionalCombo);
+      const QSignalBlocker b3(ui.tddftRootsSpin);
+      const QSignalBlocker b4(ui.nmrCheck);
+      ui.dispersionCombo->setCurrentIndex(controlData->getDispersion());
       ui.dftFunctionalCombo->setCurrentIndex(dftData->getDFTFunctional());
+      ui.tddftRootsSpin->setValue(controlData->getTDDFTRoots());
+      ui.nmrCheck->setChecked(controlData->nmrShieldingEnabled());
+      ui.tddftRootsSpin->setEnabled(controlData->dftEnabled() && controlData->tddftEnabled());
 
   }
 
-  void OrcaInputDialog::initCosXData()
+  void OrcaInputDialog::initSolvationData()
   {
-      ui.cosXGridCombo->setCurrentIndex(cosXData->getGrid());
-      ui.cosXFinalGridCombo->setCurrentIndex(cosXData->getFinalGrid());
+      const QSignalBlocker b1(ui.solvationModelCombo);
+      const QSignalBlocker b2(ui.solvationCombo);
+      const QSignalBlocker b3(ui.cpcmGroup);
+      const QSignalBlocker b4(ui.cpcmDRACOCheck);
+      const QSignalBlocker b5(ui.cpcmEpsilonSpin);
+      const QSignalBlocker b6(ui.cpcmRefracSpin);
+      const QSignalBlocker b7(ui.cpcmRSolvSpin);
+      const QSignalBlocker b8(ui.cpcmSurfaceTypeCombo);
+      ui.solvationModelCombo->setCurrentIndex(controlData->getSolvationModel());
+      const int solventIndex =
+        qMax(0, ui.solvationCombo->findText(controlData->getSolventName()));
+      ui.solvationCombo->setCurrentIndex(solventIndex);
+      ui.cpcmGroup->setChecked(controlData->cpcmAdvancedEnabled());
+      ui.cpcmDRACOCheck->setChecked(controlData->dracoEnabled());
+      ui.cpcmEpsilonSpin->setValue(controlData->getCpcmEpsilon());
+      ui.cpcmRefracSpin->setValue(controlData->getCpcmRefrac());
+      ui.cpcmRSolvSpin->setValue(controlData->getCpcmRSolv());
+      ui.cpcmSurfaceTypeCombo->setCurrentIndex(controlData->getCpcmSurfaceType());
+      ui.cpcmDRACOCheck->setEnabled(controlData->cpcmAdvancedEnabled());
+      ui.cpcmEpsilonSpin->setEnabled(controlData->cpcmAdvancedEnabled());
+      ui.cpcmRefracSpin->setEnabled(controlData->cpcmAdvancedEnabled());
+      ui.cpcmRSolvSpin->setEnabled(controlData->cpcmAdvancedEnabled());
+      ui.cpcmSurfaceTypeCombo->setEnabled(controlData->cpcmAdvancedEnabled());
+  }
 
-      if (cosXData->sFittingEnabled()) {
-          ui.cosXSFittingCheck->setChecked(true);
-      }
+  void OrcaInputDialog::initResourcesData()
+  {
+      const QSignalBlocker b1(ui.nprocsCombo);
+      const QSignalBlocker b2(ui.maxCoreCombo);
+      const QSignalBlocker b3(ui.tddftCheck);
+      const int nProcIndex = qMax(0, ui.nprocsCombo->findText(QString::number(controlData->getNProcs())));
+      ui.nprocsCombo->setCurrentIndex(nProcIndex);
+      const int maxCoreIndex = qMax(0, ui.maxCoreCombo->findText(QString::number(controlData->getMaxCore())));
+      ui.maxCoreCombo->setCurrentIndex(maxCoreIndex);
+      ui.tddftCheck->setChecked(controlData->tddftEnabled());
 
   }
 
   void OrcaInputDialog::initDataData()
   {
+      const QSignalBlocker b1(ui.dataPrintCombo);
+      const QSignalBlocker b2(ui.MOPrintCheck);
+      const QSignalBlocker b3(ui.basisPrintCheck);
       ui.dataPrintCombo->setCurrentIndex(dataData->getPrintLevel());
       if (dataData->MOPrintEnabled()) {
           ui.MOPrintCheck->setChecked(true);
@@ -451,18 +718,39 @@ void  OrcaInputDialog::initComboboxes()
       initControlData();
       initSCFData();
       initDFTData();
+      initSolvationData();
       initDataData();
-      initCosXData();
+      initResourcesData();
 
       QTreeWidgetItem *controlItem = ui.advancedTree->topLevelItem(1);
+      controlItem->child(1)->setText(0, tr("Resources"));
+      controlItem->child(2)->setText(0, tr("DFT"));
+      controlItem->child(3)->setText(0, tr("Solvation"));
+      controlItem->child(4)->setText(0, tr("TD-DFT"));
 
-      bool cosXEnabled = controlData->cosXEnabled();
-      ui.cosXPage->setEnabled( cosXEnabled );
-      controlItem->child(1)->setHidden(!cosXEnabled);
+      ui.resourcesPage->setEnabled(true);
+      controlItem->child(1)->setHidden(false);
 
       bool dftEnabled = controlData->dftEnabled();
-      ui.dftPage->setEnabled( dftEnabled );
+      const bool solvationEnabled = dftEnabled || controlData->hfEnabled();
+      const bool nmrCompatible = dftEnabled || controlData->hfEnabled();
+      ui.dftOptionsPage->setEnabled( dftEnabled );
       controlItem->child(2)->setHidden(!dftEnabled);
+      ui.solvationPage->setEnabled(solvationEnabled);
+      controlItem->child(3)->setHidden(false);
+      ui.tddftPage->setEnabled(dftEnabled);
+      controlItem->child(4)->setHidden(!dftEnabled);
+      ui.tddftCheck->setEnabled(dftEnabled);
+      ui.tddftRootsSpin->setEnabled(dftEnabled && ui.tddftCheck->isChecked());
+      ui.nmrCheck->setEnabled(nmrCompatible);
+      const bool cpcmEnabled = solvationEnabled && controlData->getSolvationModel() != SOLV_MODEL_NONE;
+      ui.solvationCombo->setEnabled(cpcmEnabled);
+      ui.cpcmGroup->setEnabled(cpcmEnabled);
+      ui.cpcmDRACOCheck->setEnabled(cpcmEnabled && controlData->cpcmAdvancedEnabled());
+      ui.cpcmEpsilonSpin->setEnabled(cpcmEnabled && controlData->cpcmAdvancedEnabled());
+      ui.cpcmRefracSpin->setEnabled(cpcmEnabled && controlData->cpcmAdvancedEnabled());
+      ui.cpcmRSolvSpin->setEnabled(cpcmEnabled && controlData->cpcmAdvancedEnabled());
+      ui.cpcmSurfaceTypeCombo->setEnabled(cpcmEnabled && controlData->cpcmAdvancedEnabled());
 
 //      bool mp2Enabled = controlData->mp2Enabled();
 //      ui.mp2Page->setEnabled( mp2Enabled );
@@ -499,20 +787,13 @@ void  OrcaInputDialog::initComboboxes()
         disconnect(m_molecule, 0, this, 0);
 
       m_molecule = molecule;
+      m_pendingMoleculeSync = true;
 
       if (!m_molecule) {
+          m_pendingMoleculeSync = false;
           updatePreviewText();
           return;
       }
-
-      // Set multiplicity to the OB value
-
-      OpenBabel::OBMol obmol = m_molecule->OBMol();
-
-      setBasicMultiplicity(obmol.GetTotalSpinMultiplicity());
-      setControlMultiplicity(obmol.GetTotalSpinMultiplicity());
-      setBasicCharge(obmol.GetTotalCharge());
-      setControlCharge(obmol.GetTotalCharge());
 
       if (m_molecule){
           // Update the preview text whenever primitives are changed
@@ -523,11 +804,39 @@ void  OrcaInputDialog::initComboboxes()
                   this, SLOT(updatePreviewText()));
           connect(m_molecule, SIGNAL(atomUpdated(Atom *)),
                   this, SLOT(updatePreviewText()));
-
-          // Add atom coordinates
-
-          updatePreviewText();
+          if (!m_initializing && isVisible()) {
+              applyMoleculeToUi();
+              updatePreviewText();
+          }
       }
+  }
+
+  void OrcaInputDialog::applyMoleculeToUi()
+  {
+      if (m_initializing || !m_molecule)
+          return;
+
+      OpenBabel::OBMol obmol = m_molecule->OBMol();
+      const int multiplicity = obmol.GetTotalSpinMultiplicity();
+      const int charge = obmol.GetTotalCharge();
+
+      basicData->setMultiplicity(multiplicity);
+      controlData->setMultiplicity(multiplicity);
+      basicData->setCharge(charge);
+      controlData->setCharge(charge);
+
+      {
+          const QSignalBlocker b1(ui.basicMultiplicitySpin);
+          const QSignalBlocker b2(ui.controlMultiplicitySpin);
+          const QSignalBlocker b3(ui.basicChargeSpin);
+          const QSignalBlocker b4(ui.controlChargeSpin);
+          ui.basicMultiplicitySpin->setValue(multiplicity);
+          ui.controlMultiplicitySpin->setValue(multiplicity);
+          ui.basicChargeSpin->setValue(charge);
+          ui.controlChargeSpin->setValue(charge);
+      }
+
+      m_pendingMoleculeSync = false;
   }
 
   void OrcaInputDialog::resetClicked()
@@ -537,7 +846,6 @@ void  OrcaInputDialog::initComboboxes()
           controlData->reset();
           scfData->reset();
           dftData->reset();
-          cosXData->reset();
           dataData->reset();
           updateAdvancedSetup();
       } else {
@@ -590,7 +898,7 @@ void  OrcaInputDialog::initComboboxes()
 
   void OrcaInputDialog::setBasicMethod(int n)
   {
-      basicData->setMethod(n);
+      basicData->setMethod(n == 1 ? DFT : HF);
       updateBasicSetup();
   }
 
@@ -719,149 +1027,20 @@ void  OrcaInputDialog::initComboboxes()
       controlData->setMultiplicity(n);
       updateAdvancedSetup();
   }
-
-  void OrcaInputDialog::setControlUseCosX(bool value )
+  void OrcaInputDialog::setControlMethod(int n)
   {
-      if (value && controlData->dftEnabled()) {
-          bool dftSuccess = checkDFTforRijCosX();
-          if (dftSuccess) {
-              controlData->setCosXChecked(value);
-          } else {
-              QMessageBox msgBox( QMessageBox::Warning, tr( " Selection failure" ),
-                                  tr( "RijCosX option not available for the selected DFT functional!" ),
-                                  QMessageBox::Ok);
-              msgBox.exec();
-          }
-          qDebug () << dftSuccess;
-      } else {
-          controlData->setCosXChecked(value);
-          enableAllDFTFunctionals();
+      controlData->setMethod(n);
+      const bool needsAuxC = controlData->mp2Enabled();
+      ui.basisAuxCorrBasisSetCombo->setEnabled(needsAuxC);
+      if (!controlData->dftEnabled()) {
+          controlData->setTDDFTEnabled(false);
       }
-      if (value || controlData->dftEnabled()) {
-          ui.basisAuxBasisSetCombo->setEnabled(true);
-      } else {
-          ui.basisAuxBasisSetCombo->setEnabled(false);
-
+      if (!(controlData->dftEnabled() || controlData->hfEnabled())) {
+          controlData->setSolvationModel(SOLV_MODEL_NONE);
+          controlData->setCpcmAdvancedEnabled(false);
       }
-      updateAdvancedSetup();
-  }
-
-  bool OrcaInputDialog::checkDFTforRijCosX()
-  {
-      // find the row numbers of all DFT functionals where NO RijCosX ist possible
-      std::vector<int> rows;
-      rows.resize(0);
-
-      QMetaObject meta = OrcaExtension::staticMetaObject;
-      QStringList noRijCosXDFT;
-      for (int i=0; i < meta.enumeratorCount(); ++i) {
-          QMetaEnum m = meta.enumerator(i);
-          QString enumType = m.name();
-          if (enumType == "DFTNoCosXType") {
-              for (int j=0; j<m.keyCount();j++) {
-                  noRijCosXDFT += QLatin1String(m.valueToKey(j));
-              }
-              break;
-          }
-      }
-      noRijCosXDFT.replaceInStrings("No","");
-//      noRijCosXDFT << "BP" << "TPSS";
-      for (int i=0; i<noRijCosXDFT.size();i++) {
-          rows.push_back(ui.dftFunctionalCombo->findText(noRijCosXDFT.at(i)));
-
-          if (rows.at(i) == dftData->getDFTFunctional())
-              return false;
-      }
-      // Set the flag of the items within the combobox model
-      for (uint i=0; i<rows.size();i++)
-          if (rows.at(i) >= 0)
-              qobject_cast<QStandardItemModel *>(ui.dftFunctionalCombo->model())->item( rows.at(i) )->setEnabled( false );
-
-      return true;
-  }
-  void OrcaInputDialog::enableAllDFTFunctionals()
-  {
-      // be sure that all DFT functionals can be selected
-
-      for (int i=0; i<ui.dftFunctionalCombo->count();i++) {
-              qobject_cast<QStandardItemModel *>(ui.dftFunctionalCombo->model())->item(i)->setEnabled(true);
-      }
-
-      return;
-  }
-
-  void OrcaInputDialog::setControlUseDFT(bool value )
-  {
-      controlData->setDFTChecked(value);
-      if (value) {
-          ui.controlMP2Check->setEnabled(false);
-          ui.controlCCSDCheck->setEnabled(false);
-          ui.basisAuxCorrBasisSetCombo->setEnabled(false);
-          //          ui.basisAuxCorrECPCheck->setEnabled(false);
-          ui.basisAuxBasisSetCombo->setEnabled(value);
-          //          ui.basisAuxECPCheck->setEnabled(value);
-          if (controlData->cosXEnabled()) {
-              bool dftSuccess = checkDFTforRijCosX();
-              if (!dftSuccess) {
-                  controlData->setCosXChecked(false);
-                  QMessageBox msgBox( QMessageBox::Warning, tr( " Selection failure" ),
-                                      tr( "RijCosX not available for the selected DFT functional! \nRijCosX option reset!" ),
-                                      QMessageBox::Ok);
-                  msgBox.exec();
-              }
-          }
-      } else {
-          ui.controlMP2Check->setEnabled(true);
-          ui.controlCCSDCheck->setEnabled(true);
-          if (!controlData->cosXEnabled()) {
-              ui.basisAuxBasisSetCombo->setEnabled(value);
-              //              ui.basisAuxECPCheck->setEnabled(value);
-          }
-      }
-      updateAdvancedSetup();
-  }
-  void OrcaInputDialog::setControlUseMP2(bool value )
-  {
-      controlData->setMP2Checked(value);
-
-      if (value) {
-          ui.controlDFTCheck->setEnabled(!value);
-          ui.controlCCSDCheck->setEnabled(false);
-          ui.basisAuxCorrBasisSetCombo->setEnabled(value);
-          //          ui.basisAuxCorrECPCheck->setEnabled(value);
-
-          if (!controlData->cosXEnabled()) {
-              ui.basisAuxBasisSetCombo->setEnabled(!value);
-//              ui.basisAuxECPCheck->setEnabled(!value);
-          }
-
-      } else {
-          ui.controlDFTCheck->setEnabled(true);
-          ui.controlCCSDCheck->setEnabled(true);
-          ui.basisAuxCorrBasisSetCombo->setEnabled(value);
-      }
-      updateAdvancedSetup();
-  }
-  void OrcaInputDialog::setControlUseCCSD(bool value )
-  {
-      controlData->setCCSDChecked(value);
-
-      if (value) {
-          ui.controlDFTCheck->setEnabled(!value);
-          ui.controlMP2Check->setEnabled(!value);
-          ui.basisAuxCorrBasisSetCombo->setEnabled(value);
-//          ui.basisAuxCorrECPCheck->setEnabled(value);
-
-          if (!controlData->cosXEnabled()) {
-              ui.basisAuxBasisSetCombo->setEnabled(!value);
-//              ui.basisAuxECPCheck->setEnabled(!value);
-          }
-
-      } else {
-          ui.controlDFTCheck->setEnabled(true);
-          ui.controlMP2Check->setEnabled(true);
-          ui.basisAuxCorrBasisSetCombo->setEnabled(value);
-//          ui.basisAuxCorrECPCheck->setEnabled(value);
+      if (controlData->mp2Enabled() || controlData->ccsdEnabled()) {
+          controlData->setNMRShielding(false);
       }
       updateAdvancedSetup();
   }
@@ -940,14 +1119,54 @@ void  OrcaInputDialog::initComboboxes()
 // Advanced DFT WIdgets
 //
 
-  void OrcaInputDialog::setDFTFinalGrid(int n)
+  void OrcaInputDialog::setSolvation(int n)
   {
-      dftData->setFinalGrid(n);
+      controlData->setSolventName(ui.solvationCombo->itemText(n));
       updateAdvancedSetup();
   }
-  void OrcaInputDialog::setDFTGrid(int n)
+  void OrcaInputDialog::setSolvationModel(int n)
   {
-      dftData->setGrid(n);
+      controlData->setSolvationModel(n);
+      if (n == SOLV_MODEL_NONE) {
+          controlData->setCpcmAdvancedEnabled(false);
+      } else if (controlData->getSolventName().isEmpty()) {
+          controlData->setSolventName(ui.solvationCombo->itemText(0));
+      }
+      updateAdvancedSetup();
+  }
+  void OrcaInputDialog::setCpcmAdvancedEnabled(bool value)
+  {
+      controlData->setCpcmAdvancedEnabled(value);
+      updateAdvancedSetup();
+  }
+  void OrcaInputDialog::setCpcmDRACO(bool value)
+  {
+      controlData->setDracoEnabled(value);
+      updateAdvancedSetup();
+  }
+  void OrcaInputDialog::setCpcmEpsilon(double value)
+  {
+      controlData->setCpcmEpsilon(value);
+      updateAdvancedSetup();
+  }
+  void OrcaInputDialog::setCpcmRefrac(double value)
+  {
+      controlData->setCpcmRefrac(value);
+      updateAdvancedSetup();
+  }
+  void OrcaInputDialog::setCpcmRSolv(double value)
+  {
+      controlData->setCpcmRSolv(value);
+      updateAdvancedSetup();
+  }
+  void OrcaInputDialog::setCpcmSurfaceType(int n)
+  {
+      controlData->setCpcmSurfaceType(n);
+      updateAdvancedSetup();
+  }
+  void OrcaInputDialog::setDispersion(int n)
+  {
+      controlData->setDispersion(n);
       updateAdvancedSetup();
   }
 
@@ -957,22 +1176,33 @@ void  OrcaInputDialog::initComboboxes()
       updateAdvancedSetup();
   }
 //
-// Advanced CosX WIdgets
+// Advanced resources / excited-state widgets
 //
-  void OrcaInputDialog::setCosXFinalGrid(int n)
+  void OrcaInputDialog::setResourcesMaxCore(int n)
   {
-      cosXData->setFinalGrid(n);
+      controlData->setMaxCore(ui.maxCoreCombo->itemText(n).toInt());
       updateAdvancedSetup();
   }
-  void OrcaInputDialog::setCosXGrid(int n)
+  void OrcaInputDialog::setResourcesNProcs(int n)
   {
-      cosXData->setGrid(n);
+      controlData->setNProcs(ui.nprocsCombo->itemText(n).toInt());
       updateAdvancedSetup();
   }
 
-  void OrcaInputDialog::setCosXSFitting(bool value)
+  void OrcaInputDialog::setTDDFTEnabled(bool value)
   {
-      cosXData->setSFittingChecked(value);
+      controlData->setTDDFTEnabled(value);
+      ui.tddftRootsSpin->setEnabled(value && controlData->dftEnabled());
+      updateAdvancedSetup();
+  }
+  void OrcaInputDialog::setTDDFTRoots(int n)
+  {
+      controlData->setTDDFTRoots(n);
+      updateAdvancedSetup();
+  }
+  void OrcaInputDialog::setNMRShielding(bool value)
+  {
+      controlData->setNMRShielding(value);
       updateAdvancedSetup();
   }
 
@@ -1012,6 +1242,8 @@ void  OrcaInputDialog::initComboboxes()
 //
   void OrcaInputDialog::updatePreviewText ()
   {
+      if (m_initializing)
+          return;
       if (!isVisible())
           return;
 
@@ -1053,150 +1285,104 @@ void  OrcaInputDialog::initComboboxes()
       QTextStream mol(&buffer);
 
       int charge, multiplicity;
-
-      // start here generating the output stream for the preview text box
-
-      // here - if Basic Mode is used
+      QString comment;
+      QStringList tokens;
 
       if (m_basic){
-
           charge = basicData->getCharge();
           multiplicity = basicData->getMultiplicity();
-
-          mol << "# avogadro generated ORCA input file \n# Basic Mode\n";
-
-          // write the comment / comment
-
-          // Comment
-          mol << "# " << basicData->getComment() << "\n";
-
-          // create inline command
-
-          mol << "! " << basicData->getMethodTxt() << " " << basicData->getCalculationTxt() << " " << basicData->getBasisTxt();
+          comment = basicData->getComment();
           if (basicData->getMethod() == DFT) {
-              mol << " " <<"def2/J";
+              tokens << "PBE0";
+          } else {
+              tokens << safeHFReference(multiplicity);
           }
-          mol << " \n";
-      }
-
-      // here - if Advanced Mode is used
-
-      else {
-
+          tokens << basicData->getBasisTxt();
+          const QString calc = basicData->getCalculationTxt();
+          if (calc != "SP")
+              tokens << calc;
+          if (basicData->getMethod() == DFT) {
+              tokens << "D4";
+          }
+      } else {
           charge = controlData->getCharge();
           multiplicity = controlData->getMultiplicity();
-
-          mol << "# avogadro generated ORCA input file \n# Advanced Mode\n";
-
-          // write the comment / comment
-
-          // Comment
-          mol << "# " << dataData->getComment() << "\n";
-
-          // create inline command
-          mol << "! ";
-
-          // Method
-
+          comment = dataData->getComment();
           if (controlData->dftEnabled()) {
-              if (dftData->getDFTFunctional() == OrcaExtension::BP) {
-                  mol <<  dftData->getDFTFunctionalTxt() << " RI " ;
-              } else {
-                  mol <<  dftData->getDFTFunctionalTxt() << " " ;
-              }
+              tokens << dftData->getDFTFunctionalTxt();
           } else if ( controlData->mp2Enabled()) {
-              mol << "RI-MP2 ";
+              tokens << "RI-MP2";
           } else if ( controlData->ccsdEnabled()) {
-              mol << "CCSD ";
+              tokens << "CCSD";
           } else {
-              mol << scfData->getTypeTxt() << " ";
+              tokens << safeHFReference(multiplicity);
           }
-
-          // Calculation
-
-          mol << controlData->getCalculationTxt() << " ";
-
-          // Basis Set(s)
-
-//          if (basisData->relEnabled()) {
-//              mol <<  basisData->getRelTxt() << "-" ;
-//          }
-          mol << basisData->getBasisTxt() << " ";
-
-          if (controlData->cosXEnabled() || controlData->dftEnabled()) {
-              mol << basisData->getAuxBasisTxt() << " ";
-          }
-          if (controlData->mp2Enabled()) {
-              mol << basisData->getAuxCorrBasisTxt() << " ";
-          }
-//          if (basisData->EPCEnabled()) {
-//              mol << "EPC{" << basisData->getBasisTxt();
-//              if (controlData->cosXEnabled() || controlData->dftEnabled()) {
-//                  mol  << "," << basisData->getAuxBasisTxt();
-//              }
-//              if (controlData->mp2Enabled()) {
-//                  mol << "," << basisData->getAuxCorrBasisTxt();
-//              }
-//              mol << "} ";
-//          }
-          if (dataData->getPrintLevel() != 0) {
-              mol << dataData->getPrintLevelTxt() << " ";
-          }
+          tokens << basisData->getBasisTxt();
+          const QString calc = controlData->getCalculationTxt();
+          if (calc != "SP")
+              tokens << calc;
+          if (scfData->getAccuracy() != NORMALSCF)
+              tokens << scfData->getAccuracyTxt();
           if (controlData->dftEnabled()) {
-              mol << dftData->getGridTxt() << " " << dftData->getFinalGridTxt() << " ";
+              const QString disp = controlData->getDispersionTxt();
+              if (!disp.isEmpty())
+                  tokens << disp;
           }
-          if (controlData->cosXEnabled()) {
-              mol << "RijCosX ";
-              mol << cosXData->getGridTxt() << " " << cosXData->getFinalGridTxt() << " ";
+          const QString solv = controlData->getSolvationTxt();
+          if (!solv.isEmpty())
+              tokens << solv;
+          if (shouldEmitDracoToken())
+              tokens << "DRACO";
+          const bool nmrCompatible = controlData->dftEnabled() ||
+            (!controlData->mp2Enabled() && !controlData->ccsdEnabled());
+          if (controlData->nmrShieldingEnabled() && nmrCompatible)
+              tokens << "NMR";
+          if (needsAuxCBasis()) {
+              tokens << basisData->getAuxCorrBasisTxt();
           }
-          mol << scfData->getAccuracyTxt() << " ";
-//          if (basisData->relEnabled()) {
-////              if (basisData->dkhEnabled()){
-////                  mol << basisData->getRelTxt() << basisData->getDKHOrder() << " ";
-////              } else {
-//                  mol << basisData->getRelTxt() << " ";
-////              }
-//          }
-          // SCF Block Infos
+      }
+      mol << "# avogadro generated ORCA input file\n";
+      if (!comment.trimmed().isEmpty())
+          mol << "# " << comment << "\n";
+      mol << "! " << tokens.join(" ").trimmed() << "\n";
 
-          mol << "\n";
-          mol << "%scf\n";
-          mol << "\tMaxIter " << scfData->getMaxIter() << "\n";
-          if (scfData->dampingEnabled()){
-              mol << "\tCNVDamp 1 \n";
-              mol << "\tDampFac " << scfData->getDampFactor() << "\n";
-              mol << "\tDampErr " << scfData->getDampError() << "\n";
+      if (!m_basic) {
+          if (shouldEmitPalBlock()) {
+              mol << "%pal\n  nprocs " << controlData->getNProcs() << "\nend\n";
           }
-          if(scfData->levelShiftEnabled()){
-              mol << "\tCNVShift 1 \n";
-              mol << "\tLevelShift " << scfData->getLevelShift() << "\n";
-              mol << "\tShiftErr " << scfData->getLevelError() << "\n";
+          if (shouldEmitMaxCore()) {
+              mol << "%maxcore " << controlData->getMaxCore() << "\n";
           }
-          if (scfData->getConv() == DIIS) {
-              mol << "\tCNVDIIS 1\n";
-          } else {
-              mol << "\tCNVKDIIS 1\n";
+          if (controlData->tddftEnabled() && controlData->dftEnabled()) {
+              mol << "%tddft\n  NRoots " << controlData->getTDDFTRoots() << "\nend\n";
           }
-          if (scfData->getConv2nd() == SOSCF) {
-              mol << "\tCNVSOSCF 1 \n";
-          } else if (scfData->getConv2nd() == NRSCF) {
-              mol << "\tCNVNR 1 \n";
-          } else {
-//              mol << "\tCNVAH 1 \n";   // not yet implemented
-          }
-          mol << "end\n";
-
-//          // Output Block Info -this keyword is not working correctly
-
-          if (dataData->basisPrintEnabled() || dataData->MOPrintEnabled()) {
-              mol << "%output\n";
-              if (dataData->MOPrintEnabled())   mol << "\tprint[p_mos] true\n";
-              if (dataData->basisPrintEnabled())    mol << "\tprint[p_basis] 5\n";
-
-              //          mol << "\t PrintLevel " << dataData->getPrintLevelTxt() << "\n";
+          if (shouldEmitSolvationBlock()) {
+              mol << "%cpcm\n";
+              if (controlData->getSolvationModel() == SOLV_MODEL_SMD) {
+                  mol << "  smd true\n";
+                  mol << "  SMDsolvent \"" << controlData->getSolventTokenTxt() << "\"\n";
+              }
+              if (controlData->dracoEnabled()) {
+                  mol << "  draco true\n";
+              }
+              if (controlData->usesCpcmEpsilon()) {
+                  mol << "  epsilon " << controlData->getCpcmEpsilon() << "\n";
+              }
+              if (controlData->usesCpcmRefrac()) {
+                  mol << "  refrac " << controlData->getCpcmRefrac() << "\n";
+              }
+              if (controlData->usesCpcmRSolv()) {
+                  mol << "  rsolv " << controlData->getCpcmRSolv() << "\n";
+              }
+              const QString surfaceType = controlData->getCpcmSurfaceTypeTxt();
+              if (!surfaceType.isEmpty()) {
+                  mol << "  surfacetype " << surfaceType << "\n";
+              }
               mol << "end\n";
           }
-
+          if (shouldEmitSCFBlock()) {
+              mol << "%scf\n  MaxIter " << scfData->getMaxIter() << "\nend\n";
+          }
       }
       mol << "\n";
 
@@ -1413,6 +1599,59 @@ void  OrcaInputDialog::initComboboxes()
       mol << endl;
 
       return buffer;
+  }
+
+  bool OrcaInputDialog::needsAuxCBasis() const
+  {
+      return !m_basic && controlData->mp2Enabled();
+  }
+
+  bool OrcaInputDialog::shouldEmitSCFBlock() const
+  {
+      return !m_basic && scfData->getMaxIter() != 125;
+  }
+
+  bool OrcaInputDialog::shouldEmitPalBlock() const
+  {
+      return !m_basic && controlData->usesNProcs();
+  }
+
+  bool OrcaInputDialog::shouldEmitMaxCore() const
+  {
+      return !m_basic && controlData->usesMaxCore();
+  }
+
+  bool OrcaInputDialog::shouldEmitSolvationBlock() const
+  {
+      if (m_basic || !controlData->cpcmAdvancedEnabled())
+          return false;
+      if (controlData->getSolvationModel() == SOLV_MODEL_NONE)
+          return false;
+      return controlData->usesCpcmEpsilon() || controlData->usesCpcmRefrac() ||
+             controlData->usesCpcmRSolv() ||
+             controlData->getCpcmSurfaceType() != CPCM_SURFACE_DEFAULT ||
+             (controlData->dracoEnabled() && !shouldEmitDracoToken());
+  }
+
+  bool OrcaInputDialog::shouldEmitDracoToken() const
+  {
+      if (m_basic || !controlData->dracoEnabled())
+          return false;
+      if (controlData->getSolvationModel() == SOLV_MODEL_NONE)
+          return false;
+      if (!controlData->cpcmAdvancedEnabled())
+          return true;
+      return !(controlData->usesCpcmEpsilon() || controlData->usesCpcmRefrac() ||
+               controlData->usesCpcmRSolv() ||
+               controlData->getCpcmSurfaceType() != CPCM_SURFACE_DEFAULT);
+  }
+
+  QString OrcaInputDialog::safeHFReference(int multiplicity) const
+  {
+      if (multiplicity > 1) {
+          return "UHF";
+      }
+      return "RHF";
   }
 
   QString OrcaInputDialog::saveInputFile(QString inputDeck, QString fileType, QString ext)

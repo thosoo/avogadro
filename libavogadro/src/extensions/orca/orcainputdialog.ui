@@ -104,22 +104,12 @@
             </property>
             <item>
              <property name="text">
-              <string>RHF</string>
+              <string>HF</string>
              </property>
             </item>
             <item>
              <property name="text">
               <string>DFT</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>MP2</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>CCSD</string>
              </property>
             </item>
            </widget>
@@ -379,12 +369,22 @@
         </item>
         <item>
          <property name="text">
-          <string>RijCosX</string>
+          <string>Resources</string>
          </property>
         </item>
         <item>
          <property name="text">
           <string>DFT</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Solvation</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>TD-DFT</string>
          </property>
         </item>
        </item>
@@ -541,19 +541,6 @@
         </widget>
        </widget>
        <widget class="QWidget" name="controlPage">
-        <widget class="QCheckBox" name="controlCosXCheck">
-         <property name="geometry">
-          <rect>
-           <x>426</x>
-           <y>18</y>
-           <width>100</width>
-           <height>26</height>
-          </rect>
-         </property>
-         <property name="text">
-          <string>RijCosX</string>
-         </property>
-        </widget>
         <widget class="QGroupBox" name="groupBox_2">
          <property name="geometry">
           <rect>
@@ -577,9 +564,9 @@
           </property>
           <layout class="QHBoxLayout" name="horizontalLayout_18">
            <item>
-            <widget class="QCheckBox" name="controlDFTCheck">
+            <widget class="QLabel" name="label_35">
              <property name="text">
-              <string>DFT</string>
+              <string>Electronic structure</string>
              </property>
             </widget>
            </item>
@@ -597,10 +584,27 @@
             </spacer>
            </item>
            <item>
-            <widget class="QCheckBox" name="controlMP2Check">
-             <property name="text">
-              <string>MP2</string>
-             </property>
+            <widget class="QComboBox" name="controlMethodCombo">
+             <item>
+              <property name="text">
+               <string>HF</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>DFT</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>MP2</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>CCSD</string>
+              </property>
+             </item>
             </widget>
            </item>
            <item>
@@ -617,11 +621,17 @@
             </spacer>
            </item>
            <item>
-            <widget class="QCheckBox" name="controlCCSDCheck">
-             <property name="text">
-              <string>CCSD</string>
+            <spacer name="horizontalSpacer_22">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
              </property>
-            </widget>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
            </item>
           </layout>
          </widget>
@@ -1285,23 +1295,7 @@
          </layout>
         </widget>
        </widget>
-       <widget class="QWidget" name="cosXPage">
-        <widget class="QCheckBox" name="cosXSFittingCheck">
-         <property name="enabled">
-          <bool>true</bool>
-         </property>
-         <property name="geometry">
-          <rect>
-           <x>36</x>
-           <y>132</y>
-           <width>109</width>
-           <height>26</height>
-          </rect>
-         </property>
-         <property name="text">
-          <string>SFitting</string>
-         </property>
-        </widget>
+       <widget class="QWidget" name="resourcesPage">
         <widget class="QWidget" name="layoutWidget">
          <property name="geometry">
           <rect>
@@ -1315,7 +1309,7 @@
           <item row="0" column="0">
            <widget class="QLabel" name="label_31">
             <property name="text">
-             <string>GridX</string>
+             <string>nprocs</string>
             </property>
            </widget>
           </item>
@@ -1333,22 +1327,22 @@
            </spacer>
           </item>
           <item row="0" column="2">
-           <widget class="QComboBox" name="cosXGridCombo"/>
+           <widget class="QComboBox" name="nprocsCombo"/>
           </item>
           <item row="1" column="0" colspan="2">
            <widget class="QLabel" name="label_32">
             <property name="text">
-             <string>FinalGridX</string>
+             <string>MaxCore (MB)</string>
             </property>
            </widget>
           </item>
           <item row="1" column="2">
-           <widget class="QComboBox" name="cosXFinalGridCombo"/>
+           <widget class="QComboBox" name="maxCoreCombo"/>
           </item>
          </layout>
         </widget>
        </widget>
-       <widget class="QWidget" name="dftPage">
+       <widget class="QWidget" name="dftOptionsPage">
         <widget class="QWidget" name="layoutWidget">
          <property name="geometry">
           <rect>
@@ -1384,7 +1378,7 @@
           <item row="0" column="0">
            <widget class="QLabel" name="label_33">
             <property name="text">
-             <string>Grid</string>
+             <string>Dispersion</string>
             </property>
            </widget>
           </item>
@@ -1402,19 +1396,218 @@
            </spacer>
           </item>
           <item row="0" column="2">
-           <widget class="QComboBox" name="dftGridCombo"/>
+           <widget class="QComboBox" name="dispersionCombo"/>
           </item>
           <item row="1" column="0" colspan="2">
-           <widget class="QLabel" name="label_34">
+           <widget class="QCheckBox" name="nmrCheck">
             <property name="text">
-             <string>FinalGrid</string>
+             <string>NMR shielding</string>
             </property>
            </widget>
           </item>
-          <item row="1" column="2">
-           <widget class="QComboBox" name="dftFinalGridCombo"/>
+        </layout>
+       </widget>
+       </widget>
+       <widget class="QWidget" name="solvationPage">
+        <widget class="QWidget" name="layoutWidget">
+         <property name="geometry">
+          <rect>
+           <x>36</x>
+           <y>24</y>
+           <width>318</width>
+           <height>71</height>
+          </rect>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_8">
+          <item row="0" column="0">
+           <widget class="QLabel" name="solvationModelLabel">
+            <property name="text">
+             <string>Model</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="solvationModelCombo"/>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="solvationSolventLabel">
+            <property name="text">
+             <string>Solvent</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QComboBox" name="solvationCombo"/>
           </item>
          </layout>
+        </widget>
+        <widget class="QGroupBox" name="cpcmGroup">
+         <property name="geometry">
+          <rect>
+           <x>36</x>
+           <y>108</y>
+           <width>409</width>
+           <height>143</height>
+          </rect>
+         </property>
+         <property name="title">
+          <string>Advanced %cpcm (optional)</string>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+         <property name="checked">
+          <bool>false</bool>
+         </property>
+         <widget class="QWidget" name="layoutWidget">
+          <property name="geometry">
+           <rect>
+            <x>12</x>
+            <y>23</y>
+            <width>390</width>
+            <height>112</height>
+           </rect>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_9">
+           <item row="0" column="0">
+            <widget class="QCheckBox" name="cpcmDRACOCheck">
+             <property name="text">
+              <string>Enable DRACO</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="cpcmEpsilonLabel">
+             <property name="text">
+              <string>epsilon</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QDoubleSpinBox" name="cpcmEpsilonSpin">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="maximum">
+              <double>9999.000000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>1.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="cpcmRefracLabel">
+             <property name="text">
+              <string>refrac</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QDoubleSpinBox" name="cpcmRefracSpin">
+             <property name="decimals">
+              <number>4</number>
+             </property>
+             <property name="maximum">
+              <double>100.000000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.010000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="cpcmRSolvLabel">
+             <property name="text">
+              <string>rsolv</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QDoubleSpinBox" name="cpcmRSolvSpin">
+             <property name="decimals">
+              <number>3</number>
+             </property>
+             <property name="maximum">
+              <double>20.000000000000000</double>
+             </property>
+             <property name="singleStep">
+              <double>0.100000000000000</double>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="cpcmSurfaceTypeLabel">
+             <property name="text">
+              <string>Surface type</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QComboBox" name="cpcmSurfaceTypeCombo"/>
+           </item>
+          </layout>
+         </widget>
+        </widget>
+       </widget>
+       <widget class="QWidget" name="tddftPage">
+        <widget class="QGroupBox" name="groupBox_5">
+         <property name="geometry">
+          <rect>
+           <x>35</x>
+           <y>24</y>
+           <width>287</width>
+           <height>101</height>
+          </rect>
+         </property>
+         <property name="title">
+          <string>TD-DFT</string>
+         </property>
+         <widget class="QCheckBox" name="tddftCheck">
+          <property name="geometry">
+           <rect>
+            <x>18</x>
+            <y>28</y>
+            <width>127</width>
+            <height>26</height>
+           </rect>
+          </property>
+          <property name="text">
+           <string>Enable TD-DFT</string>
+          </property>
+         </widget>
+         <widget class="QWidget" name="layoutWidget">
+          <property name="geometry">
+           <rect>
+            <x>18</x>
+            <y>60</y>
+            <width>239</width>
+            <height>33</height>
+           </rect>
+          </property>
+          <layout class="QHBoxLayout" name="horizontalLayout_19">
+           <item>
+            <widget class="QLabel" name="label_36">
+             <property name="text">
+              <string>NRoots</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QSpinBox" name="tddftRootsSpin">
+             <property name="minimum">
+              <number>1</number>
+             </property>
+             <property name="maximum">
+              <number>100</number>
+             </property>
+             <property name="value">
+              <number>10</number>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
         </widget>
        </widget>
       </widget>
