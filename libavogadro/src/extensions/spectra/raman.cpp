@@ -268,8 +268,13 @@ namespace Avogadro {
         }
         return 1.0e7 / scatteredWavenumber;
       }
+      case ENERGY_MEV:
+        return 0.1239841984 * scaledWavenumber;
+      case ENERGY_KJMOL:
+        return 0.01196266 * scaledWavenumber;
+      case WAVENUMBER_CM1:
       default:
-        return AbstractIRSpectra::displayedXFromWavenumber(scaledWavenumber);
+        return scaledWavenumber;
     }
   }
 

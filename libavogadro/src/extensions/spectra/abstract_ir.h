@@ -87,7 +87,7 @@ namespace Avogadro {
   protected:
     double scale(double w) const;
     double scaledWavenumber(double originalWavenumber) const;
-    double displayedXFromWavenumber(double scaledWavenumber) const;
+    virtual double displayedXFromWavenumber(double scaledWavenumber) const;
     void convertPlotObjectXToDisplayUnits(PlotObject *plotObject) const;
     void updatePlotLabels();
     virtual void xAxisDefaultLimits(double &xMin, double &xMax) const;
