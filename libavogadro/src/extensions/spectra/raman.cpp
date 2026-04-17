@@ -45,8 +45,8 @@ namespace Avogadro {
     ui.combo_yaxis->addItem(tr("Activity"));// (A<sup>4</sup>/amu)"));
     ui.combo_yaxis->addItem(tr("Intensity"));
     ui.combo_xaxis->setItemText(WAVENUMBER_CM1, tr("Raman Shift (cm^-1)"));
-    ui.combo_xaxis->setItemText(WAVELENGTH_UM, tr("Equivalent Wavelength (µm)"));
-    ui.combo_xaxis->setItemText(WAVELENGTH_NM, tr("Equivalent Wavelength (nm)"));
+    ui.combo_xaxis->setItemText(WAVELENGTH_UM, tr("Scattered Wavelength (µm)"));
+    ui.combo_xaxis->setItemText(WAVELENGTH_NM, tr("Scattered Wavelength (nm)"));
     ui.combo_xaxis->setItemText(ENERGY_MEV, tr("Shift Energy (meV)"));
     ui.combo_xaxis->setItemText(ENERGY_KJMOL, tr("Shift Energy (kJ/mol)"));
     readSettings();
@@ -223,9 +223,9 @@ namespace Avogadro {
   {
     switch (xAxisUnit()) {
       case WAVELENGTH_UM:
-        return tr("Equivalent Wavelength (µm)");
+        return tr("Scattered Wavelength (µm)");
       case WAVELENGTH_NM:
-        return tr("Equivalent Wavelength (nm)");
+        return tr("Scattered Wavelength (nm)");
       case ENERGY_MEV:
         return tr("Shift Energy (meV)");
       case ENERGY_KJMOL:
@@ -240,9 +240,9 @@ namespace Avogadro {
   {
     switch (xAxisUnit()) {
       case WAVELENGTH_UM:
-        return tr("Equivalent Wavelength (µm)");
+        return tr("Scattered Wavelength (µm)");
       case WAVELENGTH_NM:
-        return tr("Equivalent Wavelength (nm)");
+        return tr("Scattered Wavelength (nm)");
       case ENERGY_MEV:
         return tr("Shift Energy (meV)");
       case ENERGY_KJMOL:
@@ -250,6 +250,26 @@ namespace Avogadro {
       case WAVENUMBER_CM1:
       default:
         return tr("Raman Shift (cm^-1)");
+    }
+  }
+
+  double RamanSpectra::displayedXFromWavenumber(double scaledWavenumber) const
+  {
+    switch (xAxisUnit()) {
+      case WAVELENGTH_UM:
+      case WAVELENGTH_NM: {
+        // Raman wavelengths are scattered-light wavelengths: 1/lambda_s = W - shift.
+        const double scatteredWavenumber = m_W - scaledWavenumber;
+        if (scatteredWavenumber <= 0.0) {
+          return 0.0;
+        }
+        if (xAxisUnit() == WAVELENGTH_UM) {
+          return 1.0e4 / scatteredWavenumber;
+        }
+        return 1.0e7 / scatteredWavenumber;
+      }
+      default:
+        return AbstractIRSpectra::displayedXFromWavenumber(scaledWavenumber);
     }
   }
 

@@ -31,6 +31,8 @@
 #include <avogadro/primitive.h>
 #include <avogadro/molecule.h>
 
+#include <cmath>
+
 namespace Avogadro {
 
   SpectraType::SpectraType( SpectraDialog *parent ) : QObject(parent), m_dialog(parent)
@@ -112,8 +114,8 @@ namespace Avogadro {
     QString format("%1");
     int xfmtsize = 2;
     int yfmtsize = 3;
-    if (abs(displayXValue(m_xList.at(0)) -
-            displayXValue(m_xList.at(m_xList.size()-1))) < 10) xfmtsize = 4;
+    if (std::abs(displayXValue(m_xList.at(0)) -
+                 displayXValue(m_xList.at(m_xList.size()-1))) < 10) xfmtsize = 4;
     yfmtsize = 6;
     for (int i = 0; i < m_yList.size(); i++) {
         if (m_yList.at(i) > 1.) {

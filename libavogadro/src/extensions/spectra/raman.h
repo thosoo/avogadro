@@ -46,6 +46,7 @@ namespace Avogadro {
   protected:
     QString xAxisLabel() const override;
     QString xAxisDataTableLabel() const override;
+    double displayedXFromWavenumber(double scaledWavenumber) const override;
     void xAxisDefaultLimits(double &xMin, double &xMax) const override;
 
   private slots:

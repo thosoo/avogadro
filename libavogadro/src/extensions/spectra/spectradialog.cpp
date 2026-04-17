@@ -66,7 +66,6 @@ namespace Avogadro {
   {
     ui.setupUi(this);
     setWindowFlags(Qt::Window);
-    ui.dataTable->horizontalHeader()->setVisible(true);
     ui.dataTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 
     // Set up spectra variables

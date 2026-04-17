@@ -241,6 +241,7 @@ namespace Avogadro {
     }
     m_xAxisUnit = unit;
     updatePlotLabels();
+    m_dialog->regenerateImportedSpectra();
     emit plotDataChanged();
   }
 
@@ -542,7 +543,7 @@ namespace Avogadro {
     }
   }
 
-  double AbstractIRSpectra::scale(double w)
+  double AbstractIRSpectra::scale(double w) const
   {
     switch(m_scalingType) {
       case LINEAR:
