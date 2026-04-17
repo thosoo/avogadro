@@ -71,7 +71,7 @@ namespace Avogadro {
   {
     plotObject->clearPoints();
     for (int i = 0; i < m_xList_imp.size(); i++) {
-      plotObject->addPoint(m_xList_imp.at(i), m_yList_imp.at(i));
+      plotObject->addPoint(displayXValue(m_xList_imp.at(i)), m_yList_imp.at(i));
     }
   }
   
@@ -101,12 +101,19 @@ namespace Avogadro {
   {
     if ((!m_dialog) || (m_xList.size()==0))
       return;
+    QTableWidget *table = m_dialog->getUi()->dataTable;
+    bool sortingEnabled = table->isSortingEnabled();
+    if (sortingEnabled) {
+      table->setSortingEnabled(false);
+    }
+    table->setHorizontalHeaderLabels(dataTableHeaders());
     //m_dialog->getUi()->dataTable->clear();
-    m_dialog->getUi()->dataTable->setRowCount(m_xList.size());
+    table->setRowCount(m_xList.size());
     QString format("%1");
     int xfmtsize = 2;
     int yfmtsize = 3;
-    if (abs(m_xList.at(0) - m_xList.at(m_xList.size()-1)) < 10) xfmtsize = 4;
+    if (abs(displayXValue(m_xList.at(0)) -
+            displayXValue(m_xList.at(m_xList.size()-1))) < 10) xfmtsize = 4;
     yfmtsize = 6;
     for (int i = 0; i < m_yList.size(); i++) {
         if (m_yList.at(i) > 1.) {
@@ -115,25 +122,36 @@ namespace Avogadro {
         }
     }
     for (int i = 0; i < m_xList.size(); i++) {
-      QString xString = format.arg(m_xList.at(i), 0, 'f', xfmtsize);
+      QString xString = format.arg(displayXValue(m_xList.at(i)), 0, 'f', xfmtsize);
       QString yString;
       if (i < m_yList.size()) {
         yString = format.arg(m_yList.at(i), 0, 'f', yfmtsize);
       } else {
         yString = "-";
       }
-      if (!m_dialog->getUi()->dataTable->item(i,0)) {
+      if (!table->item(i,0)) {
         QTableWidgetItem *newX = new QTableWidgetItem(xString);
         newX->setTextAlignment(Qt::AlignRight|Qt::AlignVCenter);
         QTableWidgetItem *newY = new QTableWidgetItem(yString);
         newY->setTextAlignment(Qt::AlignRight|Qt::AlignVCenter);
-        m_dialog->getUi()->dataTable->setItem(i, 0, newX);
-        m_dialog->getUi()->dataTable->setItem(i, 1, newY);
+        table->setItem(i, 0, newX);
+        table->setItem(i, 1, newY);
       } else {
-        m_dialog->getUi()->dataTable->item(i,0)->setText(xString);
-        m_dialog->getUi()->dataTable->item(i,1)->setText(yString);
+        table->item(i,0)->setText(xString);
+        table->item(i,1)->setText(yString);
       }      
     }
+    table->setSortingEnabled(sortingEnabled);
+  }
+
+  QStringList SpectraType::dataTableHeaders() const
+  {
+    return QStringList() << tr("X") << tr("Y");
+  }
+
+  double SpectraType::displayXValue(double x) const
+  {
+    return x;
   }
 
   QList<double> SpectraType::getXPoints(double FWHM, uint dotsPerPeak)

@@ -44,6 +44,11 @@ namespace Avogadro {
             this, SLOT(updateW(double)));
     ui.combo_yaxis->addItem(tr("Activity"));// (A<sup>4</sup>/amu)"));
     ui.combo_yaxis->addItem(tr("Intensity"));
+    ui.combo_xaxis->setItemText(WAVENUMBER_CM1, tr("Raman Shift (cm^-1)"));
+    ui.combo_xaxis->setItemText(WAVELENGTH_UM, tr("Equivalent Wavelength (µm)"));
+    ui.combo_xaxis->setItemText(WAVELENGTH_NM, tr("Equivalent Wavelength (nm)"));
+    ui.combo_xaxis->setItemText(ENERGY_MEV, tr("Shift Energy (meV)"));
+    ui.combo_xaxis->setItemText(ENERGY_KJMOL, tr("Shift Energy (kJ/mol)"));
     readSettings();
   }
 
@@ -61,7 +66,15 @@ namespace Avogadro {
     settings.setValue("spectra/Raman/laserWavenumber", m_W);
     settings.setValue("spectra/Raman/labelPeaks", ui.cb_labelPeaks->isChecked());
     settings.setValue("spectra/Raman/yAxisUnits", ui.combo_yaxis->currentText());
+    settings.setValue("spectra/Raman/xAxisUnits", static_cast<int>(xAxisUnit()));
     settings.setValue("spectra/Raman/lineShape", ui.combo_lineShape->currentIndex());
+    settings.setValue("spectra/Raman/broadeningModel", ui.combo_broadeningModel->currentIndex());
+    settings.setValue("spectra/Raman/temperature", ui.spin_temperature->value());
+    settings.setValue("spectra/Raman/referenceTemperature", ui.spin_referenceTemperature->value());
+    settings.setValue("spectra/Raman/modelExponent", ui.spin_modelExponent->value());
+    settings.setValue("spectra/Raman/baselineWidth", ui.spin_zeroWidth->value());
+    settings.setValue("spectra/Raman/anharmonicAmplitude", ui.spin_anharmonicAmplitude->value());
+    settings.setValue("spectra/Raman/voigtMix", ui.spin_voigtMix->value());
   }
 
   void RamanSpectra::readSettings() {
@@ -81,9 +94,18 @@ namespace Avogadro {
     updateYAxis(yunit);
     if (yunit == "Intensity")
       ui.combo_yaxis->setCurrentIndex(1);
+    setXAxisUnit(static_cast<XAxisUnit>(
+      settings.value("spectra/Raman/xAxisUnits", static_cast<int>(WAVENUMBER_CM1)).toInt()));
 
     ui.combo_lineShape->setCurrentIndex(settings.value("spectra/Raman/lineShape", GAUSSIAN).toInt());
     m_lineShape = LineShape(ui.combo_lineShape->currentIndex());
+    ui.combo_broadeningModel->setCurrentIndex(settings.value("spectra/Raman/broadeningModel", CONSTANT_WIDTH).toInt());
+    ui.spin_temperature->setValue(settings.value("spectra/Raman/temperature", 298.15).toDouble());
+    ui.spin_referenceTemperature->setValue(settings.value("spectra/Raman/referenceTemperature", 298.15).toDouble());
+    ui.spin_modelExponent->setValue(settings.value("spectra/Raman/modelExponent", 1.0).toDouble());
+    ui.spin_zeroWidth->setValue(settings.value("spectra/Raman/baselineWidth", m_fwhm).toDouble());
+    ui.spin_anharmonicAmplitude->setValue(settings.value("spectra/Raman/anharmonicAmplitude", 0.0).toDouble());
+    ui.spin_voigtMix->setValue(settings.value("spectra/Raman/voigtMix", 0.5).toDouble());
     emit plotDataChanged();
   }
 
@@ -139,8 +161,10 @@ namespace Avogadro {
   }
 
   void RamanSpectra::setupPlot(PlotWidget * plot) {
-    plot->setDefaultLimits( 3500.0, 0.0, 0.0, 1.0 );
-    plot->axis(PlotWidget::BottomAxis)->setLabel(tr("Wavenumber (cm<sup>-1</sup>)"));
+    double xMin, xMax;
+    xAxisDefaultLimits(xMin, xMax);
+    plot->setDefaultLimits(xMin, xMax, 0.0, 1.0);
+    plot->axis(PlotWidget::BottomAxis)->setLabel(xAxisLabel());
     plot->axis(PlotWidget::LeftAxis)->setLabel(m_yaxis);
   }
 
@@ -158,7 +182,7 @@ namespace Avogadro {
     AbstractIRSpectra::getCalculatedPlotObject(plotObject);
 
     // Add labels for gaussians?
-    if ((m_fwhm != 0.0) && (ui.cb_labelPeaks->isChecked())) {
+    if (hasEffectiveBroadening() && ui.cb_labelPeaks->isChecked()) {
       assignGaussianLabels(plotObject, true, m_labelYThreshold);
       m_dialog->labelsUp(true);
     }
@@ -192,7 +216,80 @@ namespace Avogadro {
 
   QString RamanSpectra::getDataStream(PlotObject *plotObject)
   {
-      return SpectraType::getDataStream(plotObject, "Frequencies" , "Activities");
+      return SpectraType::getDataStream(plotObject, xAxisDataTableLabel(), m_yaxis);
+  }
+
+  QString RamanSpectra::xAxisLabel() const
+  {
+    switch (xAxisUnit()) {
+      case WAVELENGTH_UM:
+        return tr("Equivalent Wavelength (µm)");
+      case WAVELENGTH_NM:
+        return tr("Equivalent Wavelength (nm)");
+      case ENERGY_MEV:
+        return tr("Shift Energy (meV)");
+      case ENERGY_KJMOL:
+        return tr("Shift Energy (kJ/mol)");
+      case WAVENUMBER_CM1:
+      default:
+        return tr("Raman Shift (cm<sup>-1</sup>)");
+    }
+  }
+
+  QString RamanSpectra::xAxisDataTableLabel() const
+  {
+    switch (xAxisUnit()) {
+      case WAVELENGTH_UM:
+        return tr("Equivalent Wavelength (µm)");
+      case WAVELENGTH_NM:
+        return tr("Equivalent Wavelength (nm)");
+      case ENERGY_MEV:
+        return tr("Shift Energy (meV)");
+      case ENERGY_KJMOL:
+        return tr("Shift Energy (kJ/mol)");
+      case WAVENUMBER_CM1:
+      default:
+        return tr("Raman Shift (cm^-1)");
+    }
+  }
+
+  void RamanSpectra::xAxisDefaultLimits(double &xMin, double &xMax) const
+  {
+    const double highShift = scaledWavenumber(3500.0);
+    const double lowShift = scaledWavenumber(0.0);
+
+    if (xAxisUnit() == WAVENUMBER_CM1) {
+      xMin = highShift;
+      xMax = lowShift;
+      return;
+    }
+
+    double lowReference = lowShift;
+    if (xAxisUnit() == WAVELENGTH_UM || xAxisUnit() == WAVELENGTH_NM) {
+      bool foundPositive = false;
+      for (int i = 0; i < m_xList.size(); ++i) {
+        double shift = m_xList.at(i);
+        if (shift > 0.0) {
+          if (!foundPositive || shift < lowReference) {
+            lowReference = shift;
+            foundPositive = true;
+          }
+        }
+      }
+      if (!foundPositive) {
+        lowReference = scaledWavenumber(1.0);
+      }
+    }
+
+    double lowDisplay = displayedXFromWavenumber(lowReference);
+    double highDisplay = displayedXFromWavenumber(highShift);
+    if (lowDisplay < highDisplay) {
+      xMin = lowDisplay;
+      xMax = highDisplay;
+    } else {
+      xMin = highDisplay;
+      xMax = lowDisplay;
+    }
   }
 
   void RamanSpectra::updateT(double T)

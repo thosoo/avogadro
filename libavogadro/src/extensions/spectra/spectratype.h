@@ -22,6 +22,7 @@
 #define SPECTRATYPE_H
 
 #include <QDialog>
+#include <QStringList>
 #include <QtCore/QHash>
 #include <QtCore/QVariant>
 #include <QtCore/QSettings>
@@ -61,6 +62,8 @@ namespace Avogadro {
     virtual void setImportedData(const QList<double> & xList, const QList<double> & yList);
     virtual void getImportedPlotObject(PlotObject *plotObject);
     virtual void updateDataTable();
+    virtual QStringList dataTableHeaders() const;
+    virtual double displayXValue(double x) const;
 
     // No need to override these functions
     QList<double> getXPoints(double FWHM, uint dotsPerPeak);
