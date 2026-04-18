@@ -91,6 +91,8 @@ namespace Avogadro {
     void convertPlotObjectXToDisplayUnits(PlotObject *plotObject) const;
     void updatePlotLabels();
     virtual void xAxisDefaultLimits(double &xMin, double &xMax) const;
+    virtual void nativeXBounds(double &xMin, double &xMax) const;
+    virtual bool isNativeXValidForCurrentAxis(double x) const;
     double modeledFwhm(double wavenumber) const;
     double effectiveMaxFwhm() const;
     bool hasEffectiveBroadening() const;

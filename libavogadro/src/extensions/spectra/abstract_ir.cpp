@@ -22,10 +22,17 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
+#include <QtGlobal>
 
 using namespace std;
 
 namespace Avogadro {
+  namespace {
+    const double kMinDenominator = 1.0e-12;
+    const double kMinPositiveWavenumber = 1.0e-8;
+  }
+
   AbstractIRSpectra::AbstractIRSpectra( SpectraDialog *parent ) :
     SpectraType( parent ), m_scale(0.0), m_fwhm(0.0), m_labelYThreshold(0.0),
     m_scalingType(LINEAR), m_broadeningModel(CONSTANT_WIDTH),
@@ -102,11 +109,17 @@ namespace Avogadro {
           maxWavenumber = m_xList.at(i);
         }
       }
-      plotObject->addPoint(minWavenumber, 0);
+      if (std::isfinite(minWavenumber)) {
+        plotObject->addPoint(minWavenumber, 0);
+      }
 
       for (int i = 0; i < m_yList.size(); i++) {
         double wavenumber = m_xList.at(i);// already scaled!
         double transmittance = m_yList.at(i);
+        if (!std::isfinite(wavenumber) || !std::isfinite(transmittance) ||
+            !isNativeXValidForCurrentAxis(wavenumber)) {
+          continue;
+        }
         plotObject->addPoint ( wavenumber, 0 );
         if (ui.cb_labelPeaks->isChecked()) {
           // %L1 uses localized number format (e.g., 1.023,4 in Europe)
@@ -117,7 +130,9 @@ namespace Avogadro {
         }
         plotObject->addPoint( wavenumber, 0 );
       }
-      plotObject->addPoint(maxWavenumber, 0);
+      if (std::isfinite(maxWavenumber)) {
+        plotObject->addPoint(maxWavenumber, 0);
+      }
     } // End singlets
 
     else { // Get broadened peaks in native wavenumber / shift space
@@ -128,20 +143,37 @@ namespace Avogadro {
       if (plotObject->points().isEmpty()) {
         return;
       }
-      min = max = plotObject->points().first()->y();
+      bool haveFinite = false;
+      min = std::numeric_limits<double>::infinity();
+      max = -std::numeric_limits<double>::infinity();
       for(int i = 0; i< plotObject->points().size(); i++) {
         double cur = plotObject->points().at(i)->y();
+        if (!std::isfinite(cur)) {
+          continue;
+        }
         if (cur < min) min = cur;
         if (cur > max) max = cur;
+        haveFinite = true;
       }
-      if (max <= min) {
+      if (!haveFinite || !std::isfinite(min) || !std::isfinite(max) ||
+          !(max > min) || !std::isfinite(max - min)) {
         for(int i = 0; i< plotObject->points().size(); i++) {
           plotObject->points().at(i)->setY(0.0);
         }
       } else {
+        const double range = max - min;
         for(int i = 0; i< plotObject->points().size(); i++) {
           double cur = plotObject->points().at(i)->y();
-          plotObject->points().at(i)->setY( (cur - min) * 100 / (max - min));
+          if (!std::isfinite(cur)) {
+            plotObject->points().at(i)->setY(0.0);
+            continue;
+          }
+          const double normalized = (cur - min) * 100.0 / range;
+          if (!std::isfinite(normalized)) {
+            plotObject->points().at(i)->setY(0.0);
+            continue;
+          }
+          plotObject->points().at(i)->setY(normalized);
         }
       }
     } // End gaussians
@@ -398,14 +430,17 @@ namespace Avogadro {
 
   double AbstractIRSpectra::displayedXFromWavenumber(double scaledWavenumber) const
   {
+    if (!std::isfinite(scaledWavenumber)) {
+      return 0.0;
+    }
     switch (m_xAxisUnit) {
       case WAVELENGTH_UM:
-        if (scaledWavenumber == 0.0) {
+        if (std::abs(scaledWavenumber) < kMinDenominator) {
           return 0.0;
         }
         return 1.0e4 / scaledWavenumber;
       case WAVELENGTH_NM:
-        if (scaledWavenumber == 0.0) {
+        if (std::abs(scaledWavenumber) < kMinDenominator) {
           return 0.0;
         }
         return 1.0e7 / scaledWavenumber;
@@ -421,11 +456,35 @@ namespace Avogadro {
 
   void AbstractIRSpectra::convertPlotObjectXToDisplayUnits(PlotObject *plotObject) const
   {
+    QList<double> xValues;
+    QList<double> yValues;
+    QStringList labels;
     for (int i = 0; i < plotObject->points().size(); ++i) {
       PlotPoint *point = plotObject->points().at(i);
-      point->setX(displayedXFromWavenumber(point->x()));
+      const double nativeX = point->x();
+      const double y = point->y();
+      if (!std::isfinite(nativeX) || !std::isfinite(y) ||
+          !isNativeXValidForCurrentAxis(nativeX)) {
+        continue;
+      }
+      const double displayX = displayedXFromWavenumber(nativeX);
+      if (!std::isfinite(displayX)) {
+        continue;
+      }
+      xValues.append(displayX);
+      yValues.append(y);
       if (!point->label().isEmpty()) {
-        point->setLabel(QString("%L1").arg(point->x(), 0, 'f', 1));
+        labels.append(QString("%L1").arg(displayX, 0, 'f', 1));
+      } else {
+        labels.append(QString());
+      }
+    }
+    plotObject->clearPoints();
+    for (int i = 0; i < xValues.size(); ++i) {
+      if (labels.at(i).isEmpty()) {
+        plotObject->addPoint(xValues.at(i), yValues.at(i));
+      } else {
+        plotObject->addPoint(xValues.at(i), yValues.at(i), labels.at(i));
       }
     }
   }
@@ -455,6 +514,32 @@ namespace Avogadro {
     } else {
       xMin = highDisplay;
       xMax = lowDisplay;
+    }
+  }
+
+  void AbstractIRSpectra::nativeXBounds(double &xMin, double &xMax) const
+  {
+    xMin = -std::numeric_limits<double>::infinity();
+    xMax = std::numeric_limits<double>::infinity();
+    if (m_xAxisUnit == WAVELENGTH_UM || m_xAxisUnit == WAVELENGTH_NM) {
+      xMin = kMinPositiveWavenumber;
+    }
+  }
+
+  bool AbstractIRSpectra::isNativeXValidForCurrentAxis(double x) const
+  {
+    if (!std::isfinite(x)) {
+      return false;
+    }
+    switch (m_xAxisUnit) {
+      case WAVELENGTH_UM:
+      case WAVELENGTH_NM:
+        return x > kMinPositiveWavenumber;
+      case ENERGY_MEV:
+      case ENERGY_KJMOL:
+      case WAVENUMBER_CM1:
+      default:
+        return true;
     }
   }
 
@@ -512,34 +597,92 @@ namespace Avogadro {
     }
 
     QList<double> xPoints = getXPoints(maxFwhm, m_nPoints);
+    double nativeMin = 0.0, nativeMax = 0.0;
+    nativeXBounds(nativeMin, nativeMax);
+    const bool useMinBound = std::isfinite(nativeMin);
+    const bool useMaxBound = std::isfinite(nativeMax);
     for (int i = 0; i < xPoints.size(); ++i) {
       double x = xPoints.at(i);
+      if (!std::isfinite(x)) {
+        continue;
+      }
+      if (useMinBound && x < nativeMin) {
+        continue;
+      }
+      if (useMaxBound && x > nativeMax) {
+        continue;
+      }
+      if (!isNativeXValidForCurrentAxis(x)) {
+        continue;
+      }
       double y = 0.0;
+      bool yValid = true;
       for (int j = 0; j < m_yList.size(); ++j) {
         const double center = m_xList.at(j);
         const double intensity = m_yList.at(j);
+        if (!std::isfinite(center) || !std::isfinite(intensity)) {
+          continue;
+        }
         const double fwhm = std::max(0.01, modeledFwhm(center));
+        if (!std::isfinite(fwhm)) {
+          continue;
+        }
         const double gaussianSigma = fwhm / (2.0 * sqrt(2.0 * log(2.0)));
+        if (!std::isfinite(gaussianSigma) || gaussianSigma <= kMinDenominator) {
+          continue;
+        }
         // Use area-normalized kernels for all shapes so width changes are
         // consistent across Gaussian/Lorentzian/Pseudo-Voigt models.
         static const double kPi = 3.14159265358979323846;
+        const double delta = x - center;
+        const double exponent = -((delta * delta) /
+                                  (2.0 * gaussianSigma * gaussianSigma));
         const double gaussian = (1.0 / (gaussianSigma * sqrt(2.0 * kPi))) *
-          exp(-(pow(x - center, 2.0)) / (2.0 * gaussianSigma * gaussianSigma));
+          exp(exponent);
         const double hwhm = fwhm * 0.5;
+        if (!std::isfinite(hwhm) || hwhm <= kMinDenominator) {
+          continue;
+        }
+        const double lorentzDenominator = (delta * delta + hwhm * hwhm);
+        if (!std::isfinite(lorentzDenominator) ||
+            lorentzDenominator <= kMinDenominator) {
+          continue;
+        }
         const double lorentz =
-          hwhm / (kPi * ((x - center) * (x - center) + hwhm * hwhm));
+          hwhm / (kPi * lorentzDenominator);
+        if (!std::isfinite(gaussian) || !std::isfinite(lorentz)) {
+          continue;
+        }
 
+        double contribution = 0.0;
         if (m_lineShape == LORENTZIAN) {
-          y += intensity * lorentz;
+          contribution = intensity * lorentz;
         } else if (m_lineShape == VOIGT) {
           // Pseudo-Voigt approximation: linear mix of normalized Gaussian and
           // Lorentzian kernels (not a full Voigt convolution).
-          y += intensity * (m_voigtMix * lorentz + (1.0 - m_voigtMix) * gaussian);
+          contribution = intensity * (m_voigtMix * lorentz +
+            (1.0 - m_voigtMix) * gaussian);
         } else {
-          y += intensity * gaussian;
+          contribution = intensity * gaussian;
+        }
+        if (!std::isfinite(contribution)) {
+          yValid = false;
+          break;
+        }
+        y += contribution;
+        if (!std::isfinite(y)) {
+          yValid = false;
+          break;
         }
       }
+      if (!yValid || !std::isfinite(y)) {
+        continue;
+      }
       plotObject->addPoint(x, y);
+#ifndef NDEBUG
+      Q_ASSERT(std::isfinite(x));
+      Q_ASSERT(std::isfinite(y));
+#endif
     }
   }
 

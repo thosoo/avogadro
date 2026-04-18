@@ -48,6 +48,8 @@ namespace Avogadro {
     QString xAxisDataTableLabel() const override;
     double displayedXFromWavenumber(double scaledWavenumber) const override;
     void xAxisDefaultLimits(double &xMin, double &xMax) const override;
+    void nativeXBounds(double &xMin, double &xMax) const override;
+    bool isNativeXValidForCurrentAxis(double x) const override;
 
   private slots:
     void updateT(double);

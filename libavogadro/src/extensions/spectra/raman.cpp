@@ -25,6 +25,8 @@
 #include <QtCore/QDebug>
 
 #include <openbabel/mol.h>
+#include <algorithm>
+#include <cmath>
 
 const double k=1.3806504e-23,
              h=6.62606896e-34,
@@ -33,6 +35,10 @@ const double k=1.3806504e-23,
 using namespace std;
 
 namespace Avogadro {
+  namespace {
+    const double kMinDenominator = 1.0e-12;
+    const double kMinPositiveShift = 1.0e-8;
+  }
 
   RamanSpectra::RamanSpectra( SpectraDialog *parent ) :
     AbstractIRSpectra( parent )
@@ -172,8 +178,26 @@ namespace Avogadro {
     for(int i = 0; i< m_yList.size(); i++) {
       // Convert to intensities?
       if (ui.combo_yaxis->currentIndex() == 1) {
-        m_yList[i] = m_yList_orig.at(i)*1e-8/m_xList.at(i) * pow(((m_W - m_xList.at(i))),4)
-         * (1 + exp(-h*c*m_xList.at(i)/(k*m_T)));
+        const double shift = m_xList.at(i);
+        const double activity = m_yList_orig.at(i);
+        if (!std::isfinite(shift) || !std::isfinite(activity) ||
+            !std::isfinite(m_W) || !std::isfinite(m_T) ||
+            shift <= kMinPositiveShift || m_T <= kMinDenominator) {
+          m_yList[i] = 0.0;
+          continue;
+        }
+        const double scattered = m_W - shift;
+        if (!std::isfinite(scattered)) {
+          m_yList[i] = 0.0;
+          continue;
+        }
+        const double boltzArg = -h * c * shift / (k * m_T);
+        double boltz = 1.0;
+        if (std::isfinite(boltzArg) && boltzArg > -700.0 && boltzArg < 700.0) {
+          boltz += exp(boltzArg);
+        }
+        const double intensity = activity * 1e-8 / shift * pow(scattered, 4) * boltz;
+        m_yList[i] = std::isfinite(intensity) ? intensity : 0.0;
       } else {
         m_yList[i] = m_yList_orig.at(i);
       }
@@ -255,12 +279,16 @@ namespace Avogadro {
 
   double RamanSpectra::displayedXFromWavenumber(double scaledWavenumber) const
   {
+    if (!std::isfinite(scaledWavenumber)) {
+      return 0.0;
+    }
     switch (xAxisUnit()) {
       case WAVELENGTH_UM:
       case WAVELENGTH_NM: {
         // Raman wavelengths are scattered-light wavelengths: 1/lambda_s = W - shift.
         const double scatteredWavenumber = m_W - scaledWavenumber;
-        if (scatteredWavenumber <= 0.0) {
+        if (!std::isfinite(scatteredWavenumber) ||
+            scatteredWavenumber <= kMinDenominator) {
           return 0.0;
         }
         if (xAxisUnit() == WAVELENGTH_UM) {
@@ -276,6 +304,31 @@ namespace Avogadro {
       default:
         return scaledWavenumber;
     }
+  }
+
+  void RamanSpectra::nativeXBounds(double &xMin, double &xMax) const
+  {
+    AbstractIRSpectra::nativeXBounds(xMin, xMax);
+    if (xAxisUnit() == WAVELENGTH_UM || xAxisUnit() == WAVELENGTH_NM) {
+      xMin = std::max(xMin, kMinPositiveShift);
+      const double scatteredLimit = m_W - kMinDenominator;
+      if (std::isfinite(scatteredLimit)) {
+        xMax = std::min(xMax, scatteredLimit);
+      }
+    }
+  }
+
+  bool RamanSpectra::isNativeXValidForCurrentAxis(double x) const
+  {
+    if (!AbstractIRSpectra::isNativeXValidForCurrentAxis(x)) {
+      return false;
+    }
+    if (xAxisUnit() == WAVELENGTH_UM || xAxisUnit() == WAVELENGTH_NM) {
+      const double scatteredWavenumber = m_W - x;
+      return std::isfinite(scatteredWavenumber) &&
+             scatteredWavenumber > kMinDenominator;
+    }
+    return true;
   }
 
   void RamanSpectra::xAxisDefaultLimits(double &xMin, double &xMax) const
