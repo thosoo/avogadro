@@ -37,9 +37,18 @@ void NearIRSpectra::readSettings() {
     updateYAxis(yunit);
     if (yunit == "Transmittance (%)")
         ui.combo_yaxis->setCurrentIndex(0);
+    setXAxisUnit(static_cast<XAxisUnit>(
+      settings.value("spectra/NearIR/xAxisUnits", static_cast<int>(WAVENUMBER_CM1)).toInt()));
 
     ui.combo_lineShape->setCurrentIndex(settings.value("spectra/NearIR/lineShape", GAUSSIAN).toInt());
     m_lineShape = LineShape(ui.combo_lineShape->currentIndex());
+    ui.combo_broadeningModel->setCurrentIndex(settings.value("spectra/NearIR/broadeningModel", CONSTANT_WIDTH).toInt());
+    ui.spin_temperature->setValue(settings.value("spectra/NearIR/temperature", 298.15).toDouble());
+    ui.spin_referenceTemperature->setValue(settings.value("spectra/NearIR/referenceTemperature", 298.15).toDouble());
+    ui.spin_modelExponent->setValue(settings.value("spectra/NearIR/modelExponent", 1.0).toDouble());
+    ui.spin_zeroWidth->setValue(settings.value("spectra/NearIR/baselineWidth", m_fwhm).toDouble());
+    ui.spin_anharmonicAmplitude->setValue(settings.value("spectra/NearIR/anharmonicAmplitude", 0.0).toDouble());
+    ui.spin_voigtMix->setValue(settings.value("spectra/NearIR/voigtMix", 0.5).toDouble());
     ui.spin_nPoints->setValue(settings.value("spectra/NearIR/nPoints",10).toInt());
     emit plotDataChanged();
 }
@@ -51,7 +60,15 @@ void NearIRSpectra::writeSettings()
     settings.setValue("spectra/NearIR/gaussianWidth", m_fwhm);
     settings.setValue("spectra/NearIR/labelPeaks", ui.cb_labelPeaks->isChecked());
     settings.setValue("spectra/NearIR/yAxisUnits", ui.combo_yaxis->currentText());
+    settings.setValue("spectra/NearIR/xAxisUnits", static_cast<int>(xAxisUnit()));
     settings.setValue("spectra/NearIR/lineShape", ui.combo_lineShape->currentIndex());
+    settings.setValue("spectra/NearIR/broadeningModel", ui.combo_broadeningModel->currentIndex());
+    settings.setValue("spectra/NearIR/temperature", ui.spin_temperature->value());
+    settings.setValue("spectra/NearIR/referenceTemperature", ui.spin_referenceTemperature->value());
+    settings.setValue("spectra/NearIR/modelExponent", ui.spin_modelExponent->value());
+    settings.setValue("spectra/NearIR/baselineWidth", ui.spin_zeroWidth->value());
+    settings.setValue("spectra/NearIR/anharmonicAmplitude", ui.spin_anharmonicAmplitude->value());
+    settings.setValue("spectra/NearIR/voigtMix", ui.spin_voigtMix->value());
     settings.setValue("spectra/NearIR/nPoints", ui.spin_nPoints->value());
 }
 
@@ -109,8 +126,10 @@ bool NearIRSpectra::checkForData(Molecule * mol) {
     return true;
 }
 void NearIRSpectra::setupPlot(PlotWidget * plot) {
-  plot->setDefaultLimits( 3500.0, 400.0, 0.0, 100.0 );
-  plot->axis(PlotWidget::BottomAxis)->setLabel(tr("Wavenumber (cm<sup>-1</sup>)"));
+  double xMin, xMax;
+  xAxisDefaultLimits(xMin, xMax);
+  plot->setDefaultLimits(xMin, xMax, 0.0, 100.0);
+  plot->axis(PlotWidget::BottomAxis)->setLabel(xAxisLabel());
   plot->axis(PlotWidget::LeftAxis)->setLabel(m_yaxis);
 }
 
@@ -124,7 +143,7 @@ void NearIRSpectra::getCalculatedPlotObject(PlotObject *plotObject) {
     }
   }
   // Add labels for gaussians?
-  if ((m_fwhm != 0.0) && (ui.cb_labelPeaks->isChecked())) {
+  if (hasEffectiveBroadening() && ui.cb_labelPeaks->isChecked()) {
     if (ui.combo_yaxis->currentIndex() == 1) {
       assignGaussianLabels(plotObject, true, m_labelYThreshold);
       m_dialog->labelsUp(true);
@@ -163,6 +182,6 @@ QString NearIRSpectra::getTSV() {
 
 QString NearIRSpectra::getDataStream(PlotObject *plotObject)
 {
-    return SpectraType::getDataStream (plotObject, "Frequencies", "Intensities");
+    return SpectraType::getDataStream(plotObject, xAxisDataTableLabel(), m_yaxis);
 }
 } // namespace Avogadro

@@ -1188,6 +1188,9 @@ namespace Avogadro {
       ui.currentCoordinates->setText("");
       return;
     }
+    if (!m_time.isValid()) {
+      m_time.start();
+    }
     // Don't update coordinates more often than once in 0.1 sec
     int t = m_time.elapsed();
     if (t - m_lastUpdate > 100) {
@@ -1199,7 +1202,7 @@ namespace Avogadro {
   void SpectraDialog::showEvent ( QShowEvent * event )
   {
     m_lastUpdate = 0;
-    m_time.restart();
+    m_time.start();
     event->accept();
   }
 }
