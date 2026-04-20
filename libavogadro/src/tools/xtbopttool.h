@@ -38,6 +38,7 @@
 #include <QtWidgets/QAction>
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QSpinBox>
+#include <QtWidgets/QDoubleSpinBox>
 #include <QtWidgets/QComboBox>
 #include <QtWidgets/QUndoStack>
 #include <QtWidgets/QProgressBar>
@@ -52,7 +53,8 @@ namespace Avogadro {
       XtbOptThread(QObject *parent=0);
       ~XtbOptThread();
 
-      bool setup(Molecule *molecule, int method, int engine, int level, int steps);
+      bool setup(Molecule *molecule, int method, int engine, int level, int steps,
+                 double stepSize);
 
       void run();
       void update();
@@ -85,6 +87,7 @@ namespace Avogadro {
       int m_level;
       //double m_convergence;
       int m_steps;
+      double m_stepSize;
       bool m_stop;
       QMutex m_mutex;
   };
@@ -158,6 +161,7 @@ namespace Avogadro {
       XtbOptThread *            m_thread;
 
       QSpinBox*                 m_stepsSpinBox;
+      QDoubleSpinBox*          m_stepSizeSpinBox;
       QPushButton*              m_buttonStartStop;
       QSpinBox*                 m_threadsSpinBox;
       QComboBox*                m_comboEngine;
