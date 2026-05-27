@@ -65,15 +65,28 @@ jobs:
           $zlibDir = Join-Path $bld "install"
           $inc = Join-Path $zlibDir "include"
           $libDir = Join-Path $zlibDir "lib"
-          $static = Join-Path $libDir "zlibstatic.lib"
-          if (-not (Test-Path $static)) {
-            # zlib 1.3.2+ CMake installs the static library as zs.lib
-            $static = Join-Path $libDir "zs.lib"
+          $libCandidates = @(
+            (Join-Path $libDir "zlibstatic.lib"),
+            (Join-Path $libDir "zs.lib")
+          )
+          # Optional fallback: any obvious static zlib lib, excluding shared/import aliases.
+          $extraStatic = Get-ChildItem -Path $libDir -Filter "*.lib" -ErrorAction SilentlyContinue |
+            Where-Object {
+              $_.Name -match '^(zlib.*|zs)\.lib$' -and
+              $_.Name -notin @('z.lib', 'zlib.lib')
+            } |
+            Select-Object -ExpandProperty FullName
+          if ($extraStatic) {
+            $libCandidates += $extraStatic
           }
+          $static = $libCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
           $lib = Join-Path $libDir "zlib.lib"
           if (-not (Test-Path $static)) {
-            throw "Could not find zlib static library (tried zlibstatic.lib and zs.lib)"
+            Write-Host "Installed zlib lib directory contents:"
+            Get-ChildItem $libDir | Format-Table -AutoSize | Out-String | Write-Host
+            throw "Could not find a static zlib library. Tried: $($libCandidates -join ', ')"
           }
+          Write-Host "Using zlib static library: $static"
           Copy-Item $static $lib -Force
           "CMAKE_PREFIX_PATH=$zlibDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "CMAKE_INCLUDE_PATH=$inc;$env:CMAKE_INCLUDE_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
