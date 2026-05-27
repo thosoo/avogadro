@@ -127,10 +127,12 @@ def main() -> int:
         dll_dir_handles.append(os.add_dll_directory(str(plugin_dir)))
 
     _print_header("ctypes direct-load probes")
-    load_targets: list[Path] = [openbabel_dll]
+    # Load known OpenBabel runtime dependencies first, then openbabel-3.dll.
+    load_targets: list[Path] = []
     load_targets.extend(libxml_dlls[:1])
     load_targets.extend(maeparser_dlls[:1])
     load_targets.extend(coordgen_dlls[:1])
+    load_targets.append(openbabel_dll)
     # NOTE: .obf files are OpenBabel plugin descriptors/modules, not plain DLLs.
     # They should be validated through obabel runtime probes instead of ctypes.
 
@@ -180,6 +182,8 @@ def main() -> int:
     formats_list_out = cmd_results.get(formats_key, (1, "", ""))[1]
     cml_in_list = bool(re.search(r"(?im)^\s*cml(\s|$)", formats_list_out))
     formats_xml_load_ok = formats_xml.exists()
+    ctypes_all_ok = all(result[0] for result in load_results.values())
+    openbabel_dll_load_ok = load_results.get(str(openbabel_dll), (False, "not attempted"))[0]
     obabel_launch_ok = all(
         cmd_results.get(" ".join(cmd), (1, "", ""))[0] == 0
         for cmd in commands
@@ -187,6 +191,8 @@ def main() -> int:
 
     _print_header("Heuristic summary")
     print(f"obabel_launch_ok={obabel_launch_ok}")
+    print(f"ctypes_loads_ok={ctypes_all_ok}")
+    print(f"openbabel_dll_load_ok={openbabel_dll_load_ok}")
     print(f"cml_listed_by_obabel={cml_in_list}")
     print(f"formats_xml_obf_loadable={formats_xml_load_ok}")
     print(f"sample_cml_conversion_ok={conversion_ok}")
@@ -194,6 +200,8 @@ def main() -> int:
     likely = "another runtime issue"
     if not formats_xml.exists():
         likely = "plugin missing"
+    elif not ctypes_all_ok:
+        likely = "dll dependency load failure"
     elif not obabel_launch_ok:
         likely = "executable launch failure"
     elif not cml_in_list:
@@ -203,6 +211,9 @@ def main() -> int:
     print(f"likely_failure_class={likely}")
 
     fail = False
+    if not ctypes_all_ok:
+        print("FAIL: one or more packaged runtime DLL probes failed via ctypes.", file=sys.stderr)
+        fail = True
     if not obabel_launch_ok:
         print("FAIL: packaged obabel.exe command probes failed to execute successfully.", file=sys.stderr)
         fail = True
