@@ -26,7 +26,7 @@
 #include <QtCore/QHash>
 #include <QtCore/QVariant>
 #include <QtCore/QSettings>
-#include <QtCore/QTime>
+#include <QtCore/QElapsedTimer>
 
 #include <avogadro/primitive.h>
 #include <avogadro/plotwidget.h>
@@ -124,7 +124,7 @@ namespace Avogadro {
     PlotObject *m_importedSpectra;
     PlotObject *m_nullSpectra;
 
-    QTime m_time;
+    QElapsedTimer m_time;
     int m_lastUpdate;
     bool m_labelsUp;
   };

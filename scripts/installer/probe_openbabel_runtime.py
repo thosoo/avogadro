@@ -118,7 +118,14 @@ def main() -> int:
     env = os.environ.copy()
     env["BABEL_LIBDIR"] = str(plugin_dir)
     env["BABEL_DATADIR"] = str(data_dir)
-    env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", "")
+    system_root = env.get("SystemRoot", r"C:\Windows")
+    restricted_path_parts = [
+        str(bin_dir),
+        str(Path(system_root) / "System32"),
+        system_root,
+        str(Path(system_root) / "System32" / "Wbem"),
+    ]
+    env["PATH"] = os.pathsep.join(restricted_path_parts)
 
     dll_dir_handles = []
     if hasattr(os, "add_dll_directory"):
@@ -127,13 +134,14 @@ def main() -> int:
         dll_dir_handles.append(os.add_dll_directory(str(plugin_dir)))
 
     _print_header("ctypes direct-load probes")
-    load_targets: list[Path] = [openbabel_dll]
+    # Load known OpenBabel runtime dependencies first, then openbabel-3.dll.
+    load_targets: list[Path] = []
     load_targets.extend(libxml_dlls[:1])
     load_targets.extend(maeparser_dlls[:1])
     load_targets.extend(coordgen_dlls[:1])
-    if formats_common.exists():
-        load_targets.append(formats_common)
-    load_targets.extend([formats_xml, plugin_descriptors])
+    load_targets.append(openbabel_dll)
+    # NOTE: .obf files are OpenBabel plugin descriptors/modules, not plain DLLs.
+    # They should be validated through obabel runtime probes instead of ctypes.
 
     load_results: dict[str, tuple[bool, str]] = {}
     for target in load_targets:
@@ -180,7 +188,15 @@ def main() -> int:
     formats_key = f"{obabel_exe} -L formats"
     formats_list_out = cmd_results.get(formats_key, (1, "", ""))[1]
     cml_in_list = bool(re.search(r"(?im)^\s*cml(\s|$)", formats_list_out))
-    formats_xml_load_ok = load_results.get(str(formats_xml), (False, "not attempted"))[0]
+    formats_xml_load_ok = formats_xml.exists()
+    ctypes_all_ok = all(result[0] for result in load_results.values())
+    openbabel_dll_load_ok = load_results.get(str(openbabel_dll), (False, "not attempted"))[0]
+    print(f"subprocess_probe_PATH={env['PATH']}")
+    if not openbabel_dll_load_ok:
+        _list_paths(sorted(bin_dir.glob("*.dll")), "dist/bin DLLs")
+        for name in ("z.dll", "zlib.dll", "zlib1.dll"):
+            candidate = bin_dir / name
+            print(f"{name}: exists={candidate.exists()} path={candidate}")
     obabel_launch_ok = all(
         cmd_results.get(" ".join(cmd), (1, "", ""))[0] == 0
         for cmd in commands
@@ -188,6 +204,8 @@ def main() -> int:
 
     _print_header("Heuristic summary")
     print(f"obabel_launch_ok={obabel_launch_ok}")
+    print(f"ctypes_loads_ok={ctypes_all_ok}")
+    print(f"openbabel_dll_load_ok={openbabel_dll_load_ok}")
     print(f"cml_listed_by_obabel={cml_in_list}")
     print(f"formats_xml_obf_loadable={formats_xml_load_ok}")
     print(f"sample_cml_conversion_ok={conversion_ok}")
@@ -195,8 +213,8 @@ def main() -> int:
     likely = "another runtime issue"
     if not formats_xml.exists():
         likely = "plugin missing"
-    elif not formats_xml_load_ok:
-        likely = "plugin dependency load failure"
+    elif not ctypes_all_ok:
+        likely = "dll dependency load failure"
     elif not obabel_launch_ok:
         likely = "executable launch failure"
     elif not cml_in_list:
@@ -206,8 +224,8 @@ def main() -> int:
     print(f"likely_failure_class={likely}")
 
     fail = False
-    if not formats_xml_load_ok:
-        print("FAIL: formats_xml.obf is not loadable via ctypes.", file=sys.stderr)
+    if not ctypes_all_ok:
+        print("FAIL: one or more packaged runtime DLL probes failed via ctypes.", file=sys.stderr)
         fail = True
     if not obabel_launch_ok:
         print("FAIL: packaged obabel.exe command probes failed to execute successfully.", file=sys.stderr)

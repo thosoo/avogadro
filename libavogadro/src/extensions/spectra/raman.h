@@ -42,6 +42,15 @@ namespace Avogadro {
     void getCalculatedPlotObject(PlotObject *plotObject);
     QString getTSV();
     QString getDataStream(PlotObject *plotObject);
+
+  protected:
+    QString xAxisLabel() const override;
+    QString xAxisDataTableLabel() const override;
+    double displayedXFromWavenumber(double scaledWavenumber) const override;
+    void xAxisDefaultLimits(double &xMin, double &xMax) const override;
+    void nativeXBounds(double &xMin, double &xMax) const override;
+    bool isNativeXValidForCurrentAxis(double x) const override;
+
   private slots:
     void updateT(double);
     void updateW(double);

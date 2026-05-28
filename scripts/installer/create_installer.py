@@ -163,15 +163,52 @@ def main():
     zlib_lib = os.environ.get("ZLIB_LIBRARY")
     zlib_dir = os.environ.get("ZLIB_LIBRARY_DIR")
     candidates = []
-    if zlib_lib:
-        candidates.append(Path(zlib_lib).with_suffix('.dll'))
     if zlib_dir:
-        candidates.append(Path(zlib_dir) / 'zlib1.dll')
-        candidates.append(Path(zlib_dir) / 'zlib.dll')
-    for dll in candidates:
+        zdir = Path(zlib_dir)
+        candidates.extend([
+            zdir.parent / "bin" / "z.dll",
+            zdir.parent / "bin" / "zlib.dll",
+            zdir.parent / "bin" / "zlib1.dll",
+        ])
+    if zlib_lib:
+        zlib_path = Path(zlib_lib)
+        candidates.extend([
+            zlib_path.parent.parent / "bin" / "z.dll",
+            zlib_path.parent.parent / "bin" / "zlib.dll",
+            zlib_path.parent.parent / "bin" / "zlib1.dll",
+            zlib_path.with_suffix(".dll"),
+        ])
+    if zlib_dir:
+        zdir = Path(zlib_dir)
+        candidates.extend([
+            zdir / "zlib1.dll",
+            zdir / "zlib.dll",
+        ])
+
+    # preserve order while deduplicating
+    seen = set()
+    zlib_candidates = []
+    for c in candidates:
+        key = str(c)
+        if key not in seen:
+            seen.add(key)
+            zlib_candidates.append(c)
+
+    zlib_runtime = None
+    for dll in zlib_candidates:
         if dll.exists():
-            copy(dll, dist / 'bin')
+            zlib_runtime = dll
             break
+
+    if zlib_runtime:
+        print(f"Using zlib runtime DLL: {zlib_runtime}")
+        copy(zlib_runtime, dist / "bin")
+    elif zlib_lib or zlib_dir:
+        attempted = "\n".join(str(p) for p in zlib_candidates) or "<none>"
+        raise FileNotFoundError(
+            "Could not locate zlib runtime DLL from provided ZLIB variables. "
+            f"Tried:\n{attempted}"
+        )
 
     glew_bin = os.environ.get("GLEW_BIN_DIR")
     if glew_bin:
