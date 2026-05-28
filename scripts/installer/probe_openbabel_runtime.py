@@ -118,7 +118,14 @@ def main() -> int:
     env = os.environ.copy()
     env["BABEL_LIBDIR"] = str(plugin_dir)
     env["BABEL_DATADIR"] = str(data_dir)
-    env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", "")
+    system_root = env.get("SystemRoot", r"C:\Windows")
+    restricted_path_parts = [
+        str(bin_dir),
+        str(Path(system_root) / "System32"),
+        system_root,
+        str(Path(system_root) / "System32" / "Wbem"),
+    ]
+    env["PATH"] = os.pathsep.join(restricted_path_parts)
 
     dll_dir_handles = []
     if hasattr(os, "add_dll_directory"):
@@ -184,6 +191,12 @@ def main() -> int:
     formats_xml_load_ok = formats_xml.exists()
     ctypes_all_ok = all(result[0] for result in load_results.values())
     openbabel_dll_load_ok = load_results.get(str(openbabel_dll), (False, "not attempted"))[0]
+    print(f"subprocess_probe_PATH={env['PATH']}")
+    if not openbabel_dll_load_ok:
+        _list_paths(sorted(bin_dir.glob("*.dll")), "dist/bin DLLs")
+        for name in ("z.dll", "zlib.dll", "zlib1.dll"):
+            candidate = bin_dir / name
+            print(f"{name}: exists={candidate.exists()} path={candidate}")
     obabel_launch_ok = all(
         cmd_results.get(" ".join(cmd), (1, "", ""))[0] == 0
         for cmd in commands
