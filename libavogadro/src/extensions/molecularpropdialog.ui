@@ -30,21 +30,21 @@
        </property>
       </widget>
      </item>
-     <item row="5" column="0">
+     <item row="6" column="0">
       <widget class="QLabel" name="atomsLabel">
        <property name="text">
         <string>Number of Atoms:</string>
        </property>
       </widget>
      </item>
-     <item row="6" column="0">
+     <item row="7" column="0">
       <widget class="QLabel" name="bondsLabel">
        <property name="text">
         <string>Number of Bonds:</string>
        </property>
       </widget>
      </item>
-     <item row="7" column="0">
+     <item row="8" column="0">
       <widget class="QLabel" name="residuesLabel">
        <property name="text">
         <string>Number of Residues:</string>
@@ -93,21 +93,41 @@
        </property>
       </widget>
      </item>
+     <item row="5" column="0">
+      <widget class="QLabel" name="vdwRadiusLabel">
+       <property name="toolTip">
+        <string>Maximum distance from the selected atoms’ geometric center to their van der Waals surfaces. No selection means whole molecule.</string>
+       </property>
+       <property name="text">
+        <string>vdW Enclosing Radius (Å):</string>
+       </property>
+      </widget>
+     </item>
      <item row="5" column="1">
-      <widget class="QLabel" name="atomsLine">
+      <widget class="QLabel" name="vdwRadiusLine">
+       <property name="toolTip">
+        <string>Maximum distance from the selected atoms’ geometric center to their van der Waals surfaces. No selection means whole molecule.</string>
+       </property>
        <property name="readOnly" stdset="0">
         <bool>true</bool>
        </property>
       </widget>
      </item>
      <item row="6" column="1">
-      <widget class="QLabel" name="bondsLine">
+      <widget class="QLabel" name="atomsLine">
        <property name="readOnly" stdset="0">
         <bool>true</bool>
        </property>
       </widget>
      </item>
      <item row="7" column="1">
+      <widget class="QLabel" name="bondsLine">
+       <property name="readOnly" stdset="0">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item row="8" column="1">
       <widget class="QLabel" name="residuesLine">
        <property name="readOnly" stdset="0">
         <bool>true</bool>
