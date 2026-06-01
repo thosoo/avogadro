@@ -882,6 +882,11 @@ namespace Avogadro {
       void namedSelectionsChanged();
 
       /**
+       * Signal that the selected primitives have changed.
+       */
+      void selectionChanged();
+
+      /**
        * Signal that this GLWidget was activated.
        */
       void activated(GLWidget *);

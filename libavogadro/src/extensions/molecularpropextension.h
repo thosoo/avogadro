@@ -71,6 +71,7 @@ namespace Avogadro {
     public Q_SLOTS:
       // Slots to take signals from Molecules, and GLWidget
       void update();
+      void updateVdwRadius();
       void updatePrimitives(Primitive*);
       void updateAtoms(Atom*);
       void updateBonds(Bond*);

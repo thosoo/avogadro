@@ -2031,7 +2031,10 @@ namespace Avogadro {
     d->molecule = molecule;
 
     // Clear the selection list
+    bool selectionDidChange = !d->selectedPrimitives.isEmpty();
     d->selectedPrimitives.clear();
+    if (selectionDidChange)
+      emit selectionChanged();
 
     // compute the molecule's geometric info
     updateGeometry();
@@ -2059,9 +2062,12 @@ namespace Avogadro {
 
   void GLWidget::unselectPrimitive(Primitive *p)
   {
+    bool selectionDidChange = d->selectedPrimitives.contains(p);
     d->selectedPrimitives.removeAll( p );
     // The engine caches must be invalidated
     d->updateCache = true;
+    if (selectionDidChange)
+      emit selectionChanged();
 
     // TODO: remove also from named selections
   }
@@ -2477,15 +2483,22 @@ namespace Avogadro {
 
   void GLWidget::setSelected(PrimitiveList primitives, bool select)
   {
+    bool selectionDidChange = false;
     foreach(Primitive *item, primitives) {
-      if (select && !d->selectedPrimitives.contains(item))
-          d->selectedPrimitives.append( item );
-      else if (!select)
+      if (select && !d->selectedPrimitives.contains(item)) {
+        d->selectedPrimitives.append( item );
+        selectionDidChange = true;
+      }
+      else if (!select && d->selectedPrimitives.contains(item)) {
         d->selectedPrimitives.removeAll( item );
+        selectionDidChange = true;
+      }
       // The engine caches must be invalidated
       d->updateCache = true;
       //      item->update();
     }
+    if (selectionDidChange)
+      emit selectionChanged();
   }
 
   PrimitiveList GLWidget::selectedPrimitives() const
@@ -2495,44 +2508,65 @@ namespace Avogadro {
 
   void GLWidget::toggleSelected( PrimitiveList primitives )
   {
+    bool selectionDidChange = false;
     foreach(Primitive *item, primitives)
     {
-      if (d->selectedPrimitives.contains(item))
+      if (d->selectedPrimitives.contains(item)) {
         d->selectedPrimitives.removeAll( item );
-      else
+        selectionDidChange = true;
+      }
+      else {
         d->selectedPrimitives.append(item);
+        selectionDidChange = true;
+      }
     }
     // The engine caches must be invalidated
     d->updateCache = true;
+    if (selectionDidChange)
+      emit selectionChanged();
   }
 
   void GLWidget::toggleSelected()
   {
     if (!d->molecule) return;
+    bool selectionDidChange = false;
     // Currently handle atoms and bonds
     foreach(Atom *a, d->molecule->atoms()) {
       Primitive *p = static_cast<Primitive *>(a);
-      if (d->selectedPrimitives.contains(p))
+      if (d->selectedPrimitives.contains(p)) {
         d->selectedPrimitives.removeAll(p);
-      else
+        selectionDidChange = true;
+      }
+      else {
         d->selectedPrimitives.append(p);
+        selectionDidChange = true;
+      }
     }
     foreach(Bond *b, d->molecule->bonds()) {
       Primitive *p = static_cast<Primitive *>(b);
-      if (d->selectedPrimitives.contains(p))
+      if (d->selectedPrimitives.contains(p)) {
         d->selectedPrimitives.removeAll(p);
-      else
+        selectionDidChange = true;
+      }
+      else {
         d->selectedPrimitives.append(p);
+        selectionDidChange = true;
+      }
     }
     // The engine caches must be invalidated
     d->updateCache = true;
+    if (selectionDidChange)
+      emit selectionChanged();
   }
 
   void GLWidget::clearSelected()
   {
+    bool selectionDidChange = !d->selectedPrimitives.isEmpty();
     d->selectedPrimitives.clear();
     // The engine caches must be invalidated
     d->updateCache = true;
+    if (selectionDidChange)
+      emit selectionChanged();
   }
 
   bool GLWidget::isSelected( const Primitive *p ) const

@@ -21,9 +21,11 @@
 
 #include "molecularpropextension.h"
 
-#include <avogadro/primitive.h>
 #include <avogadro/glwidget.h>
 #include <avogadro/molecule.h>
+#include <avogadro/primitive.h>
+
+#include "vdwradiuscalculator.h"
 
 #include <openbabel/mol.h>
 #include <openbabel/obconversion.h>
@@ -34,6 +36,7 @@
 #include <QtCore/QDebug>
 #include <QtCore/QTimer>
 
+
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkReply>
 #include <QtNetwork/QSslSocket>
@@ -43,7 +46,9 @@ using namespace OpenBabel;
 namespace Avogadro {
 
   MolecularPropertiesExtension::MolecularPropertiesExtension(QObject *parent) : Extension(parent),
-                                                                                m_molecule(0), m_dialog(0),
+                                                                                m_molecule(0),
+                                                                                m_widget(0),
+                                                                                m_dialog(0),
                                                                                 m_inchi(),
                                                                                 m_network(0),
                                                                                 m_nameRequestPending(false)
@@ -80,14 +85,16 @@ namespace Avogadro {
     if (!m_molecule)
       return 0; // nothing we can do
 
-    // Disconnect in case we're attached to a new widget
+    disconnect( m_molecule, 0, this, 0 );
     if (m_widget)
-      disconnect( m_molecule, 0, this, 0 );
+      disconnect( m_widget, 0, this, 0 );
 
-    if (widget) {
-      connect(widget, SIGNAL(moleculeChanged(Molecule *)),
+    m_widget = widget;
+    if (m_widget) {
+      connect(m_widget, SIGNAL(moleculeChanged(Molecule *)),
               this, SLOT(moleculeChanged(Molecule*)));
-      m_widget = widget;
+      connect(m_widget, SIGNAL(selectionChanged()),
+              this, SLOT(updateVdwRadius()));
     }
 
     if (!m_dialog) {
@@ -163,6 +170,9 @@ namespace Avogadro {
     m_dialog->dipoleMomentLine->setText(format.arg(m_molecule->dipoleMoment(&estimate).norm(), 0, 'f', 3));
     if (estimate)
       m_dialog->dipoleLabel->setText(tr("Estimated Dipole Moment (D):"));
+
+    updateVdwRadius();
+
     m_dialog->atomsLine->setText(format.arg(m_molecule->numAtoms()));
     m_dialog->bondsLine->setText(format.arg(m_molecule->numBonds()));
     if (m_molecule->numResidues() < 2) {
@@ -174,6 +184,20 @@ namespace Avogadro {
       m_dialog->residuesLine->show();
       m_dialog->residuesLine->setText(format.arg(m_molecule->numResidues()));
     }
+  }
+
+  void MolecularPropertiesExtension::updateVdwRadius()
+  {
+    if (!m_dialog || !m_molecule)
+      return;
+
+    QString format("%L1");
+    QList<Atom*> atoms = MolecularProperties::atomsForVdwRadius(m_molecule, m_widget);
+    if (atoms.isEmpty())
+      m_dialog->vdwRadiusLine->setText(tr("unknown"));
+    else
+      m_dialog->vdwRadiusLine->setText(
+        format.arg(MolecularProperties::vdwEnclosingRadius(atoms), 0, 'f', 3));
   }
 
   void MolecularPropertiesExtension::updatePrimitives(Primitive*)
@@ -200,6 +224,8 @@ namespace Avogadro {
   {
     // don't ask for more updates
     disconnect( m_molecule, 0, this, 0 );
+    if (m_widget)
+      disconnect( m_widget, 0, this, 0 );
   }
 
   void MolecularPropertiesExtension::clearName()
