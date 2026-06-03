@@ -179,7 +179,7 @@ jobs:
           Write-Host "Selected zlib static library size: $((Get-Item $lib).Length) bytes"
           $dumpbin = Get-Command dumpbin -ErrorAction SilentlyContinue
           if ($dumpbin) {
-            Write-Host "dumpbin headers for $lib:"
+            Write-Host ("dumpbin headers for {0}:" -f $lib)
             try {
               dumpbin /headers $lib | Select-Object -First 80 | Out-String | Write-Host
             } catch {
