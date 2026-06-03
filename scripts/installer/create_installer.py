@@ -23,6 +23,47 @@ def main():
         log(f"Copying {src} -> {dst}")
         shutil.copy(src, dst)
 
+    def env_truthy(name):
+        return os.environ.get(name, "").strip().upper() in {"1", "ON", "TRUE", "YES"}
+
+    def is_zlib_runtime_name(name):
+        lower = name.lower()
+        return lower == "z.dll" or (lower.startswith("zlib") and lower.endswith(".dll"))
+
+    def check_no_missing_zlib_runtime_dependencies():
+        bin_dir = dist / "bin"
+        dumpbin = shutil.which("dumpbin")
+        if not dumpbin:
+            raise RuntimeError("dumpbin was not found; cannot verify zlib runtime DLL dependencies")
+
+        bundled_zlib = {p.name.lower() for p in bin_dir.glob("*.dll") if is_zlib_runtime_name(p.name)}
+        missing = []
+        binaries = sorted(
+            p for p in bin_dir.iterdir()
+            if p.is_file() and p.suffix.lower() in {".dll", ".exe"}
+        )
+        for binary in binaries:
+            output = subprocess.check_output(
+                [dumpbin, "/dependents", str(binary)],
+                text=True,
+                errors="replace",
+            )
+            for line in output.splitlines():
+                dep = line.strip()
+                if is_zlib_runtime_name(dep) and dep.lower() not in bundled_zlib:
+                    missing.append((binary, dep))
+
+        if missing:
+            details = "\n".join(f"{binary} depends on missing {dep}" for binary, dep in missing)
+            bundled = ", ".join(sorted(bundled_zlib)) or "<none>"
+            raise RuntimeError(
+                "Packaged binaries depend on a zlib runtime DLL that is not bundled in dist/bin. "
+                "This usually means a dependency was linked dynamically against zlib.\n"
+                f"Bundled zlib runtime DLLs: {bundled}\n{details}"
+            )
+
+        print("Verified packaged binaries do not depend on an unbundled zlib runtime DLL.")
+
     log(f"Installing build from {build_dir} into {dist}")
     subprocess.check_call(["cmake", "--install", str(build_dir), "--prefix", str(dist)])
 
@@ -162,59 +203,64 @@ def main():
 
     zlib_lib = os.environ.get("ZLIB_LIBRARY")
     zlib_dir = os.environ.get("ZLIB_LIBRARY_DIR")
-    candidates = []
-    if zlib_dir:
-        zdir = Path(zlib_dir)
-        candidates.extend([
-            zdir.parent / "bin" / "z.dll",
-            zdir.parent / "bin" / "zlib.dll",
-            zdir.parent / "bin" / "zlib1.dll",
-        ])
-    if zlib_lib:
-        zlib_path = Path(zlib_lib)
-        candidates.extend([
-            zlib_path.parent.parent / "bin" / "z.dll",
-            zlib_path.parent.parent / "bin" / "zlib.dll",
-            zlib_path.parent.parent / "bin" / "zlib1.dll",
-            zlib_path.with_suffix(".dll"),
-        ])
-    if zlib_dir:
-        zdir = Path(zlib_dir)
-        candidates.extend([
-            zdir / "zlib1.dll",
-            zdir / "zlib.dll",
-        ])
+    if env_truthy("ZLIB_IS_STATIC"):
+        print("ZLIB_IS_STATIC is set; not bundling a separate zlib runtime DLL.")
+    else:
+        candidates = []
+        if zlib_dir:
+            zdir = Path(zlib_dir)
+            candidates.extend([
+                zdir.parent / "bin" / "z.dll",
+                zdir.parent / "bin" / "zlib.dll",
+                zdir.parent / "bin" / "zlib1.dll",
+            ])
+        if zlib_lib:
+            zlib_path = Path(zlib_lib)
+            candidates.extend([
+                zlib_path.parent.parent / "bin" / "z.dll",
+                zlib_path.parent.parent / "bin" / "zlib.dll",
+                zlib_path.parent.parent / "bin" / "zlib1.dll",
+                zlib_path.with_suffix(".dll"),
+            ])
+        if zlib_dir:
+            zdir = Path(zlib_dir)
+            candidates.extend([
+                zdir / "zlib1.dll",
+                zdir / "zlib.dll",
+            ])
 
-    # preserve order while deduplicating
-    seen = set()
-    zlib_candidates = []
-    for c in candidates:
-        key = str(c)
-        if key not in seen:
-            seen.add(key)
-            zlib_candidates.append(c)
+        # preserve order while deduplicating
+        seen = set()
+        zlib_candidates = []
+        for c in candidates:
+            key = str(c)
+            if key not in seen:
+                seen.add(key)
+                zlib_candidates.append(c)
 
-    zlib_runtime = None
-    for dll in zlib_candidates:
-        if dll.exists():
-            zlib_runtime = dll
-            break
+        zlib_runtime = None
+        for dll in zlib_candidates:
+            if dll.exists():
+                zlib_runtime = dll
+                break
 
-    if zlib_runtime:
-        print(f"Using zlib runtime DLL: {zlib_runtime}")
-        copy(zlib_runtime, dist / "bin")
-    elif zlib_lib or zlib_dir:
-        attempted = "\n".join(str(p) for p in zlib_candidates) or "<none>"
-        raise FileNotFoundError(
-            "Could not locate zlib runtime DLL from provided ZLIB variables. "
-            f"Tried:\n{attempted}"
-        )
+        if zlib_runtime:
+            print(f"Using zlib runtime DLL: {zlib_runtime}")
+            copy(zlib_runtime, dist / "bin")
+        elif zlib_lib or zlib_dir:
+            attempted = "\n".join(str(p) for p in zlib_candidates) or "<none>"
+            raise FileNotFoundError(
+                "Could not locate zlib runtime DLL from provided ZLIB variables. "
+                f"Tried:\n{attempted}"
+            )
 
     glew_bin = os.environ.get("GLEW_BIN_DIR")
     if glew_bin:
         dll = Path(glew_bin) / 'glew32.dll'
         if dll.exists():
             copy(dll, dist / 'bin')
+
+    check_no_missing_zlib_runtime_dependencies()
 
     # Copy the GPLv2 license expected by NSIS
     license_src = root.parent.parent / 'COPYING'
