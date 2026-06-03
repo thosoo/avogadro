@@ -34,60 +34,161 @@ jobs:
       - name: Build zlib
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
+
           $ver = '1.3.2'
-          $zip = "$env:RUNNER_TEMP\zlib.zip"
+          $zip = Join-Path $env:RUNNER_TEMP "zlib-$ver.zip"
+          $extractRoot = Join-Path $env:RUNNER_TEMP "zlib-$ver-src"
           $zlibArchive = "zlib$($ver -replace '\.', '').zip"
           $urls = @(
             "https://zlib.net/$zlibArchive",
             "https://github.com/madler/zlib/releases/download/v$ver/$zlibArchive",
             "https://github.com/madler/zlib/archive/refs/tags/v$ver.zip"
           )
+
+          Write-Host "zlib version: $ver"
+          Write-Host "Downloaded file path: $zip"
+          Write-Host "Extraction directory: $extractRoot"
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
           $downloaded = $false
           foreach ($url in $urls) {
+            Write-Host "Trying zlib download URL: $url"
+            Remove-Item -Path $zip -Force -ErrorAction SilentlyContinue
             try {
-              Invoke-WebRequest $url -OutFile $zip
+              Invoke-WebRequest -Uri $url -OutFile $zip
+
+              if (-not (Test-Path $zip)) {
+                throw "Download did not create $zip"
+              }
+
+              $zipItem = Get-Item $zip
+              Write-Host "Downloaded file size: $($zipItem.Length) bytes"
+              if ($zipItem.Length -le 0) {
+                throw "Downloaded file is empty"
+              }
+
+              $archive = $null
+              try {
+                $archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
+                Write-Host "Validated ZIP archive entries: $($archive.Entries.Count)"
+              } finally {
+                if ($archive) {
+                  $archive.Dispose()
+                }
+              }
+
               $downloaded = $true
+              Write-Host "Selected zlib download URL: $url"
               break
             } catch {
-              Write-Host "Failed to download zlib from $url"
+              Write-Host "Failed to download or validate zlib from $url"
+              Write-Host $_.Exception.Message
+              Remove-Item -Path $zip -Force -ErrorAction SilentlyContinue
             }
           }
           if (-not $downloaded) {
-            throw "Could not download zlib archive from any known source"
+            throw "Could not download a valid zlib archive from any known source"
           }
-          Expand-Archive $zip -DestinationPath $env:RUNNER_TEMP
-          $src = Join-Path $env:RUNNER_TEMP "zlib-$ver"
+
+          Remove-Item -Path $extractRoot -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Path $extractRoot | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $extractRoot -Force
+
+          $sourceCandidates = @()
+          if ((Test-Path (Join-Path $extractRoot 'CMakeLists.txt')) -and (Test-Path (Join-Path $extractRoot 'zlib.h'))) {
+            $sourceCandidates += (Get-Item $extractRoot)
+          }
+          $sourceCandidates += Get-ChildItem -Path $extractRoot -Directory -Recurse -ErrorAction SilentlyContinue |
+            Where-Object {
+              (Test-Path (Join-Path $_.FullName 'CMakeLists.txt')) -and
+              (Test-Path (Join-Path $_.FullName 'zlib.h'))
+            }
+
+          $src = $sourceCandidates | Sort-Object FullName | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $src) {
+            Write-Host "Extracted zlib archive directory listing:"
+            Get-ChildItem -Path $extractRoot -Recurse -Depth 3 -ErrorAction SilentlyContinue |
+              Select-Object FullName, Length |
+              Format-Table -AutoSize | Out-String | Write-Host
+            throw "Could not find a zlib source directory containing CMakeLists.txt and zlib.h under $extractRoot"
+          }
+          Write-Host "Discovered zlib source directory: $src"
+
           $bld = Join-Path $src "build"
-          cmake -S "$src" -B "$bld" -G "NMake Makefiles" -DCMAKE_INSTALL_PREFIX="$bld\install" -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release
-          Push-Location $bld
-          nmake install
-          Pop-Location
           $zlibDir = Join-Path $bld "install"
+          cmake -S "$src" -B "$bld" -G "NMake Makefiles" `
+            -DCMAKE_INSTALL_PREFIX="$zlibDir" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DZLIB_BUILD_STATIC=ON `
+            -DZLIB_BUILD_SHARED=OFF `
+            -DZLIB_BUILD_TESTING=OFF `
+            -DZLIB_INSTALL=ON
+          cmake --build "$bld" --target install --config Release
+
           $inc = Join-Path $zlibDir "include"
           $libDir = Join-Path $zlibDir "lib"
+          if (-not (Test-Path $libDir)) {
+            $libDir = Join-Path $zlibDir "lib64"
+          }
+          if (-not (Test-Path $libDir)) {
+            Write-Host "Installed zlib directory contents:"
+            Get-ChildItem $zlibDir -Recurse -Depth 3 -ErrorAction SilentlyContinue |
+              Select-Object FullName, Length |
+              Format-Table -AutoSize | Out-String | Write-Host
+            throw "Could not find a zlib library directory under $zlibDir"
+          }
           $libCandidates = @(
+            (Join-Path $libDir "zlib.lib"),
             (Join-Path $libDir "zlibstatic.lib"),
             (Join-Path $libDir "zs.lib")
           )
-          # Optional fallback: any obvious static zlib lib, excluding shared/import aliases.
+          # Optional fallback: any obvious static zlib lib from this static-only build; keep excluding z.lib.
           $extraStatic = Get-ChildItem -Path $libDir -Filter "*.lib" -ErrorAction SilentlyContinue |
             Where-Object {
               $_.Name -match '^(zlib.*|zs)\.lib$' -and
-              $_.Name -notin @('z.lib', 'zlib.lib')
+              $_.Name -notin @('z.lib')
             } |
             Select-Object -ExpandProperty FullName
           if ($extraStatic) {
             $libCandidates += $extraStatic
           }
-          $static = $libCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          $static = $libCandidates | Where-Object { (Test-Path $_) -and ((Get-Item $_).Length -gt 0) } | Select-Object -First 1
           $lib = Join-Path $libDir "zlib.lib"
-          if (-not (Test-Path $static)) {
+          if (-not $static) {
             Write-Host "Installed zlib lib directory contents:"
             Get-ChildItem $libDir | Format-Table -AutoSize | Out-String | Write-Host
-            throw "Could not find a static zlib library. Tried: $($libCandidates -join ', ')"
+            throw "Could not find a nonempty static zlib library. Tried: $($libCandidates -join ', ')"
           }
-          Write-Host "Using zlib static library: $static"
-          Copy-Item $static $lib -Force
+          $staticPath = [System.IO.Path]::GetFullPath($static)
+          $libPath = [System.IO.Path]::GetFullPath($lib)
+          if (-not [String]::Equals($staticPath, $libPath, [StringComparison]::OrdinalIgnoreCase)) {
+            Copy-Item $staticPath $libPath -Force
+          }
+
+          if (-not (Test-Path (Join-Path $inc "zlib.h"))) {
+            throw "zlib.h was not installed under $inc"
+          }
+          if ((-not (Test-Path $lib)) -or ((Get-Item $lib).Length -le 0)) {
+            throw "Selected zlib library is missing or empty: $lib"
+          }
+
+          Write-Host "Final zlib include directory: $inc"
+          Write-Host "Final zlib library directory: $libDir"
+          Write-Host "Selected zlib static library: $lib"
+          Write-Host "Selected zlib static library size: $((Get-Item $lib).Length) bytes"
+          $dumpbin = Get-Command dumpbin -ErrorAction SilentlyContinue
+          if ($dumpbin) {
+            Write-Host "dumpbin headers for $lib:"
+            try {
+              dumpbin /headers $lib | Select-Object -First 80 | Out-String | Write-Host
+            } catch {
+              Write-Host "dumpbin /headers failed, continuing because this check is optional: $($_.Exception.Message)"
+            }
+          } else {
+            Write-Host "dumpbin not found; skipping optional zlib.lib header inspection"
+          }
+
           "CMAKE_PREFIX_PATH=$zlibDir;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "CMAKE_INCLUDE_PATH=$inc;$env:CMAKE_INCLUDE_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "CMAKE_LIBRARY_PATH=$libDir;$env:CMAKE_LIBRARY_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
