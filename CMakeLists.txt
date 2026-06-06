@@ -308,7 +308,15 @@ endif()
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
-find_package(OpenGL REQUIRED COMPONENTS OpenGL GLU) # find and setup OpenGL/GLU
+find_package(OpenGL REQUIRED) # find and setup OpenGL
+find_library(OPENGL_GLU_LIBRARY NAMES GLU glu REQUIRED)
+message(STATUS "Found GLU: ${OPENGL_GLU_LIBRARY}")
+if(NOT TARGET OpenGL::GLU)
+  add_library(OpenGL::GLU UNKNOWN IMPORTED)
+  set_target_properties(OpenGL::GLU PROPERTIES
+    IMPORTED_LOCATION "${OPENGL_GLU_LIBRARY}"
+    INTERFACE_LINK_LIBRARIES OpenGL::GL)
+endif()
 if(UNIX AND NOT APPLE)
   find_package(X11) # find and setup X11 on Unix platforms that may use XInitThreads
 endif()

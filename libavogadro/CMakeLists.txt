@@ -107,7 +107,7 @@ endfunction()
 
 function(avogadro_plugin plugin_name src_list)
   avogadro_plugin_nogl("${plugin_name}" "${src_list}" ${ARGN})
-  target_link_libraries(${plugin_name} PRIVATE OpenGL::OpenGL OpenGL::GLU)
+  target_link_libraries(${plugin_name} PRIVATE OpenGL::GL OpenGL::GLU)
 endfunction()
 
 # tell cmake to process CMakeLists.txt in that subdirectory

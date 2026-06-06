@@ -156,7 +156,7 @@ set(libavogadro_MOC_HDRS
 
 set(AVO_LINK_LIBRARIES
   OpenBabel3::openbabel
-  OpenGL::OpenGL
+  OpenGL::GL
   OpenGL::GLU
 )
 
