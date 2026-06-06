@@ -11,4 +11,8 @@ libglu1-mesa-dev
 libglew-dev
 libcoordgen-dev
 libboost-python-dev
+libboost-iostreams-dev
+libboost-filesystem-dev
+libboost-program-options-dev
+libboost-test-dev
 python3-dev

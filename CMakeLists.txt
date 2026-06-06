@@ -237,8 +237,22 @@ set(I18N_LANGUAGE "" CACHE STRING "Build i18n only for selected language")
 
 # Build Open Babel from our fork so CMake can find it below
 set(OPENBABEL_INSTALL_DIR "${CMAKE_BINARY_DIR}/openbabel-install")
-file(MAKE_DIRECTORY "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
+set(OPENBABEL3_INCLUDE_DIR "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
+if(WIN32)
+  set(OPENBABEL3_LIBRARY_DIRS "${OPENBABEL_INSTALL_DIR}/bin")
+  set(OPENBABEL3_LIBRARY "${OPENBABEL3_LIBRARY_DIRS}/openbabel-3.lib")
+  set(OPENBABEL3_RUNTIME_LIBRARY "${OPENBABEL3_LIBRARY_DIRS}/openbabel-3.dll")
+  set(_openbabel_build_byproducts
+    "${OPENBABEL3_LIBRARY}"
+    "${OPENBABEL3_RUNTIME_LIBRARY}")
+else()
+  set(OPENBABEL3_LIBRARY_DIRS "${OPENBABEL_INSTALL_DIR}/lib")
+  set(OPENBABEL3_LIBRARY "${OPENBABEL3_LIBRARY_DIRS}/libopenbabel.so")
+  set(_openbabel_build_byproducts "${OPENBABEL3_LIBRARY}")
+endif()
+file(MAKE_DIRECTORY "${OPENBABEL3_INCLUDE_DIR}")
 file(MAKE_DIRECTORY "${OPENBABEL_INSTALL_DIR}/bin")
+file(MAKE_DIRECTORY "${OPENBABEL3_LIBRARY_DIRS}")
 option(WITH_COORDGEN "Build OpenBabel with CoordGen support" ON)
 set(OB_OVERRIDE_ARGS "")
 macro(pass_ob_arg var)
@@ -273,10 +287,7 @@ pass_ob_arg(WITH_COORDGEN)
 ExternalProject_Add(openbabel_ext
   URL https://github.com/thosoo/openbabel/archive/d8695a2628ee7b85d88af8c4cf429626ba081f36.zip
   URL_HASH SHA256=7036bb5f3d0f7a87aa2a11ba7326742cab5d987056b94c96f4530f8ef059836a
-  BUILD_BYPRODUCTS
-    $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.lib>
-    $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.dll>
-    $<$<NOT:$<PLATFORM_ID:Windows>>:${OPENBABEL_INSTALL_DIR}/lib/libopenbabel.so>
+  BUILD_BYPRODUCTS ${_openbabel_build_byproducts}
   CMAKE_ARGS
     -DCMAKE_INSTALL_PREFIX=${OPENBABEL_INSTALL_DIR}
     -DCMAKE_BUILD_TYPE=Release
@@ -287,20 +298,11 @@ ExternalProject_Add(openbabel_ext
     ${OB_OVERRIDE_ARGS}
   UPDATE_COMMAND ""
 )
-if(WIN32)
-  set(_obdir "${OPENBABEL_INSTALL_DIR}/bin")
-  set(_oblib "${_obdir}/openbabel-3.lib")
-  set(_obdll "${_obdir}/openbabel-3.dll")
-else()
-  set(_obdir "${OPENBABEL_INSTALL_DIR}/lib")
-  set(_oblib "${_obdir}/libopenbabel.so")
-endif()
-
 set(CMAKE_PREFIX_PATH "${OPENBABEL_INSTALL_DIR};${CMAKE_PREFIX_PATH}")
-set(ENV{PKG_CONFIG_PATH} "${_obdir}/pkgconfig:$ENV{PKG_CONFIG_PATH}")
-set(ENV{OPENBABEL3_INCLUDE_DIR} "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
-set(ENV{OPENBABEL3_LIBRARIES} "${_oblib}")
-set(ENV{OPENBABEL3_LIBRARY_DIRS} "${_obdir}")
+set(ENV{PKG_CONFIG_PATH} "${OPENBABEL3_LIBRARY_DIRS}/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+set(ENV{OPENBABEL3_INCLUDE_DIR} "${OPENBABEL3_INCLUDE_DIR}")
+set(ENV{OPENBABEL3_LIBRARIES} "${OPENBABEL3_LIBRARY}")
+set(ENV{OPENBABEL3_LIBRARY_DIRS} "${OPENBABEL3_LIBRARY_DIRS}")
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets OpenGL OpenGLWidgets Network Concurrent Test LinguistTools)
 if(COMMAND qt_standard_project_setup)
@@ -331,28 +333,22 @@ find_package(Eigen3 REQUIRED) # find and setup Eigen3 if available
 find_package(ZLIB REQUIRED)
 find_package(OpenBabel3 QUIET) # find and setup OpenBabel
 if(NOT OPENBABEL3_FOUND)
-  add_library(OpenBabel3::openbabel SHARED IMPORTED)
-  if(WIN32)
-    set(_obdir "${OPENBABEL_INSTALL_DIR}/bin")
-    set(_oblib "${_obdir}/openbabel-3.lib")
-    set(_obdll "${_obdir}/openbabel-3.dll")
-    set_target_properties(OpenBabel3::openbabel PROPERTIES
-      IMPORTED_IMPLIB "${_oblib}"
-      IMPORTED_LOCATION "${_obdll}"
-      INTERFACE_INCLUDE_DIRECTORIES
-        "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
-  else()
-    set(_obdir "${OPENBABEL_INSTALL_DIR}/lib")
-    set(_oblib "${_obdir}/libopenbabel.so")
-    set_target_properties(OpenBabel3::openbabel PROPERTIES
-      IMPORTED_LOCATION "${_oblib}"
-      INTERFACE_INCLUDE_DIRECTORIES
-        "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
+  if(NOT TARGET OpenBabel3::openbabel)
+    add_library(OpenBabel3::openbabel SHARED IMPORTED GLOBAL)
   endif()
+  if(WIN32)
+    set_target_properties(OpenBabel3::openbabel PROPERTIES
+      IMPORTED_IMPLIB "${OPENBABEL3_LIBRARY}"
+      IMPORTED_LOCATION "${OPENBABEL3_RUNTIME_LIBRARY}"
+      INTERFACE_INCLUDE_DIRECTORIES "${OPENBABEL3_INCLUDE_DIR}")
+  else()
+    set_target_properties(OpenBabel3::openbabel PROPERTIES
+      IMPORTED_LOCATION "${OPENBABEL3_LIBRARY}"
+      INTERFACE_INCLUDE_DIRECTORIES "${OPENBABEL3_INCLUDE_DIR}")
+  endif()
+  add_dependencies(OpenBabel3::openbabel openbabel_ext)
   set(OPENBABEL3_FOUND TRUE)
-  set(OPENBABEL3_INCLUDE_DIR "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
-  set(OPENBABEL3_LIBRARIES "${_oblib}")
-  set(OPENBABEL3_LIBRARY_DIRS "${_obdir}")
+  set(OPENBABEL3_LIBRARIES "${OPENBABEL3_LIBRARY}")
 endif()
 
 if(UNIX AND NOT APPLE AND X11_FOUND)
