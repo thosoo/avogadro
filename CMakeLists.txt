@@ -11,7 +11,8 @@ set(Avogadro_VERSION_PATCH 0)
 set(Avogadro_VERSION "${Avogadro_VERSION_MAJOR}.${Avogadro_VERSION_MINOR}")
 set(Avogadro_VERSION_FULL "${Avogadro_VERSION}.${Avogadro_VERSION_PATCH}")
 
-set(CMAKE_MODULE_PATH ${Avogadro_SOURCE_DIR}/cmake/modules)
+set(AVOGADRO_CMAKE_MODULE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
+list(PREPEND CMAKE_MODULE_PATH "${AVOGADRO_CMAKE_MODULE_DIR}")
 
 cmake_policy(SET CMP0003 NEW)
 if(POLICY CMP0074)
@@ -497,7 +498,7 @@ endif()
 
 # Add support for an uninstall target
 configure_file(
-  "${CMAKE_MODULE_PATH}/cmake_uninstall.cmake.in"
+  "${AVOGADRO_CMAKE_MODULE_DIR}/cmake_uninstall.cmake.in"
   "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
   IMMEDIATE @ONLY)
 
@@ -507,12 +508,12 @@ add_custom_target(uninstall
 
 # Configure and install an Avogadro CMake style configuration file
 configure_file(
-  "${CMAKE_MODULE_PATH}/AvogadroConfig.cmake.in"
+  "${AVOGADRO_CMAKE_MODULE_DIR}/AvogadroConfig.cmake.in"
   "${Avogadro_BINARY_DIR}/AvogadroConfig.cmake"
   IMMEDIATE @ONLY)
 
 configure_file(
-  "${CMAKE_MODULE_PATH}/AvogadroConfigVersion.cmake.in"
+  "${AVOGADRO_CMAKE_MODULE_DIR}/AvogadroConfigVersion.cmake.in"
   "${Avogadro_BINARY_DIR}/AvogadroConfigVersion.cmake"
   IMMEDIATE @ONLY)
 
@@ -575,19 +576,19 @@ endif()
 
 # Install the configuration files to help find Avogadro
 install(FILES
-  "${CMAKE_MODULE_PATH}/AvogadroUse.cmake"
+  "${AVOGADRO_CMAKE_MODULE_DIR}/AvogadroUse.cmake"
   DESTINATION "${Avogadro_PLUGIN_INSTALL_DIR}")
 
 # Install the find modules we require to be present
 install(FILES
-  "${CMAKE_MODULE_PATH}/FindEigen2.cmake"
-  "${CMAKE_MODULE_PATH}/FindEigen3.cmake"
-  "${CMAKE_MODULE_PATH}/FindGLEW.cmake"
-  "${CMAKE_MODULE_PATH}/FindOpenBabel3.cmake"
+  "${AVOGADRO_CMAKE_MODULE_DIR}/FindEigen2.cmake"
+  "${AVOGADRO_CMAKE_MODULE_DIR}/FindEigen3.cmake"
+  "${AVOGADRO_CMAKE_MODULE_DIR}/FindGLEW.cmake"
+  "${AVOGADRO_CMAKE_MODULE_DIR}/FindOpenBabel3.cmake"
   DESTINATION "${Avogadro_PLUGIN_INSTALL_DIR}/cmake")
 
 configure_file(
-  "${CMAKE_MODULE_PATH}/CTestCustom.cmake.in"
+  "${AVOGADRO_CMAKE_MODULE_DIR}/CTestCustom.cmake.in"
   "${Avogadro_BINARY_DIR}/CTestCustom.cmake"
   IMMEDIATE @ONLY
 )
