@@ -19,6 +19,7 @@
 #include <QtCore/QFile>
 #include <QtCore/QStringList>
 #include <QtCore/QDebug>
+#include <QRegularExpression>
 
 YaehmopOut::YaehmopOut()
 {
@@ -42,7 +43,7 @@ bool YaehmopOut::readBandData(const QString& data, QVector<band>& bands,
   kpoints.clear();
   specialKPoints.clear();
 
-  QStringList lines = data.split(QRegExp("[\r\n]"), QString::SkipEmptyParts);
+  QStringList lines = data.split(QRegularExpression("[\r\n]"), Qt::SkipEmptyParts);
 
   while (!lines.isEmpty() && !lines[0].contains("#BAND_DATA"))
     lines.removeFirst();
@@ -145,11 +146,11 @@ bool YaehmopOut::readBandData(const QString& data, QVector<band>& bands,
 bool YaehmopOut::getFermiLevelFromDOSData(const QString& data,
                                           double& fermi)
 {
-  QStringList lines = data.split(QRegExp("[\r\n]"), QString::SkipEmptyParts);
+  QStringList lines = data.split(QRegularExpression("[\r\n]"), Qt::SkipEmptyParts);
 
   for (size_t i = 0; i < lines.size(); ++i) {
     if (lines[i].contains("Fermi_Energy")) {
-      QStringList lineSplit = lines[i].split(" ", QString::SkipEmptyParts);
+      QStringList lineSplit = lines[i].split(" ", Qt::SkipEmptyParts);
 
       if (lineSplit.size() != 2) {
         qDebug() << "Error obtaining Fermi level in " << __FUNCTION__;
@@ -177,7 +178,7 @@ bool YaehmopOut::readTotalDOSData(const QString& data,
   densities.clear();
   energies.clear();
 
-  QStringList lines = data.split(QRegExp("[\r\n]"), QString::SkipEmptyParts);
+  QStringList lines = data.split(QRegularExpression("[\r\n]"), Qt::SkipEmptyParts);
 
   while (!lines.isEmpty() && !lines[0].contains("TOTAL DENSITY OF STATES"))
     lines.removeFirst();
@@ -202,7 +203,7 @@ bool YaehmopOut::readTotalDOSData(const QString& data,
 
   ++ind;
   while (!lines[ind].contains("END CURVE")) {
-    QStringList splitLine = lines[ind].split(" ", QString::SkipEmptyParts);
+    QStringList splitLine = lines[ind].split(" ", Qt::SkipEmptyParts);
     if (splitLine.size() != 2)
       return printAndReturnFalse("Total DOS data is incomplete!");
 
@@ -231,7 +232,7 @@ bool YaehmopOut::readProjDOSData(const QString& data,
   densities.clear();
   energies.clear();
 
-  QStringList lines = data.split(QRegExp("[\r\n]"), QString::SkipEmptyParts);
+  QStringList lines = data.split(QRegularExpression("[\r\n]"), Qt::SkipEmptyParts);
 
   while (!lines.isEmpty() &&
          !lines[0].contains("PROJECTED DENSITY OF STATES")) {
@@ -264,7 +265,7 @@ bool YaehmopOut::readProjDOSData(const QString& data,
 
     ++ind;
     while (!lines[ind].contains("END CURVE")) {
-      QStringList splitLine = lines[ind].split(" ", QString::SkipEmptyParts);
+      QStringList splitLine = lines[ind].split(" ", Qt::SkipEmptyParts);
       if (splitLine.size() != 2)
         return printAndReturnFalse("Projected DOS data is incomplete!");
 
@@ -307,7 +308,7 @@ bool YaehmopOut::readCOOPData(const QString& data,
   coops.clear();
   energies.clear();
 
-  QStringList lines = data.split(QRegExp("[\r\n]"), QString::SkipEmptyParts);
+  QStringList lines = data.split(QRegularExpression("[\r\n]"), Qt::SkipEmptyParts);
 
   while (!lines.isEmpty() &&
          !lines[0]
@@ -325,7 +326,7 @@ bool YaehmopOut::readCOOPData(const QString& data,
   if (!lines[0].contains("curves will be generated"))
     return printAndReturnFalse("Number of curves generated is missing!");
 
-  size_t numCoops = lines[0].split(" ", QString::SkipEmptyParts)[0].toInt();
+  size_t numCoops = lines[0].split(" ", Qt::SkipEmptyParts)[0].toInt();
   size_t numCoopsSoFar = 0;
 
   while (numCoopsSoFar != numCoops && !lines.isEmpty()) {
@@ -354,7 +355,7 @@ bool YaehmopOut::readCOOPData(const QString& data,
 
     ++ind;
     while (ind != lines.size() && !lines[ind].contains("END CURVE")) {
-      QStringList splitLine = lines[ind].split(" ", QString::SkipEmptyParts);
+      QStringList splitLine = lines[ind].split(" ", Qt::SkipEmptyParts);
       if (splitLine.size() != 2)
         return printAndReturnFalse("COOP data is incomplete!");
 

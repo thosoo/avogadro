@@ -56,6 +56,7 @@
 #include <QTextStream>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QRegularExpression>
 
 using namespace OpenBabel;
 using namespace Eigen;
@@ -552,7 +553,7 @@ QString OrcaAnalyseDialog::readOutputFile()
             //
             // look for the geometry of the molecule
             //
-            infoText = outputText.split(" ", QString::SkipEmptyParts);
+            infoText = outputText.split(" ", Qt::SkipEmptyParts);
             nAtoms = 0;
             ret << "Orca Initial geometry \n";
             outputText = in.readLine(); // read comment
@@ -566,7 +567,7 @@ QString OrcaAnalyseDialog::readOutputFile()
             int i = 0;
             while (!outputText.isEmpty()) {
                 outputText.replace("\t", " ");
-                infoText = outputText.split(" ", QString::SkipEmptyParts);
+                infoText = outputText.split(" ", Qt::SkipEmptyParts);
                 if (infoText.size()==0) break;
                 if (infoText.size() >4) {
                     if (infoText.at(4) == "Fragment1") {
@@ -607,7 +608,7 @@ QString OrcaAnalyseDialog::readOutputFile()
 
                 while (!outputText.isEmpty()) {
                     outputText.replace("\t", " ");
-                    infoText = outputText.split(" ", QString::SkipEmptyParts);
+                    infoText = outputText.split(" ", Qt::SkipEmptyParts);
                     if (infoText.size()==4) {          // vectors are in angstroem
                         tmpVector = vector3(infoText.at(1).toDouble(), infoText.at(2).toDouble(),infoText.at(3).toDouble());
                         unitCellVectors.push_back(tmpVector);
@@ -650,7 +651,7 @@ QString OrcaAnalyseDialog::readOutputFile()
                 outputText = in.readLine();
                 int i = 0;
                 while (!outputText.isEmpty()) {
-                    infoText = outputText.split(" ", QString::SkipEmptyParts);
+                    infoText = outputText.split(" ", Qt::SkipEmptyParts);
                     if (infoText.size() !=4) {
                         return (tr("Somethings wrong in the file structure"));
                     }
@@ -688,7 +689,7 @@ QString OrcaAnalyseDialog::readOutputFile()
                 outputText = in.readLine();
                 int i = 0;
                 while (!outputText.isEmpty()) {
-                    infoText = outputText.split(" ", QString::SkipEmptyParts);
+                    infoText = outputText.split(" ", Qt::SkipEmptyParts);
                     if (infoText.size() !=4) {
                         return (tr("Somethings wrong in the file structure"));
                     }
@@ -718,7 +719,7 @@ QString OrcaAnalyseDialog::readOutputFile()
 
                 while (!outputText.isEmpty()) {
                     outputText.replace("\t", " ");
-                    infoText = outputText.split(" ", QString::SkipEmptyParts);
+                    infoText = outputText.split(" ", Qt::SkipEmptyParts);
                     if (infoText.size()==4) {          // vectors are in angstroem
                         tmpVector = vector3(infoText.at(1).toDouble(), infoText.at(2).toDouble(),infoText.at(3).toDouble());
                         unitCellVectors.push_back(tmpVector);
@@ -749,7 +750,7 @@ QString OrcaAnalyseDialog::readOutputFile()
                     outputText = in.readLine();
                     int i = 0;
                     while (!outputText.isEmpty() && !outputText.contains("------------------")) {
-                        infoText = outputText.split(" ", QString::SkipEmptyParts);
+                        infoText = outputText.split(" ", Qt::SkipEmptyParts);
                         if (infoText.size() < 4) {
                             return (tr("Somethings wrong in the file structure"));
                         }
@@ -779,7 +780,7 @@ QString OrcaAnalyseDialog::readOutputFile()
                 outputText = in.readLine();
                 while (!outputText.isEmpty()) {
                     outputText.replace(":","");
-                    freqText = outputText.split(" ", QString::SkipEmptyParts);
+                    freqText = outputText.split(" ", Qt::SkipEmptyParts);
                     if (freqText.size() < 2) {
                         return (tr("Somethings wrong in the file structure"));
                     }
@@ -795,7 +796,7 @@ QString OrcaAnalyseDialog::readOutputFile()
                 // look for the coordinates of the different modes
                 //
             } else if (outputText.trimmed() == "NORMAL MODES"){
-                QRegExp  rx("[0-9]-");
+                QRegularExpression  rx("[0-9]-");
                 ret << " orca normal modes \n";
                 for (int j=0;j<6;j++) {
                     QString skip = in.readLine();         // skip ---------- comments and blank lines
@@ -808,7 +809,7 @@ QString OrcaAnalyseDialog::readOutputFile()
                     QStringList headText;
                     outputText = in.readLine();
                     //                qDebug() << outputText;
-                    headText = outputText.split(" ", QString::SkipEmptyParts);
+                    headText = outputText.split(" ", Qt::SkipEmptyParts);
                     int nColumn = headText.size();
 
                     for (uint k=0; k<nAtoms; k++){
@@ -816,27 +817,36 @@ QString OrcaAnalyseDialog::readOutputFile()
 
                         outputText = in.readLine();
 
-                        while (rx.indexIn(outputText) != -1){          // avoid wrong splitting
-                            outputText.insert(rx.indexIn(outputText)+1, " ");
+                        while (true){          // avoid wrong splitting
+                            const QRegularExpressionMatch match = rx.match(outputText);
+                            if (!match.hasMatch())
+                                break;
+                            outputText.insert(match.capturedStart()+1, " ");
                         }
-                        tmpText = outputText.split(" ", QString::SkipEmptyParts);
+                        tmpText = outputText.split(" ", Qt::SkipEmptyParts);
 
                         for (int l=1;l<nColumn+1; l++) {
                             coordText += tmpText.at(l);
                         }
                         outputText = in.readLine();
-                        while (rx.indexIn(outputText) != -1){          // avoid wrong splitting
-                            outputText.insert(rx.indexIn(outputText)+1, " ");
+                        while (true){          // avoid wrong splitting
+                            const QRegularExpressionMatch match = rx.match(outputText);
+                            if (!match.hasMatch())
+                                break;
+                            outputText.insert(match.capturedStart()+1, " ");
                         }
-                        tmpText = outputText.split(" ", QString::SkipEmptyParts);
+                        tmpText = outputText.split(" ", Qt::SkipEmptyParts);
                         for (int l=1;l<nColumn+1; l++) {
                             coordText += tmpText.at(l);
                         }
                         outputText = in.readLine();
-                        while (rx.indexIn(outputText) != -1){          // avoid wrong splitting
-                            outputText.insert(rx.indexIn(outputText)+1, " ");
+                        while (true){          // avoid wrong splitting
+                            const QRegularExpressionMatch match = rx.match(outputText);
+                            if (!match.hasMatch())
+                                break;
+                            outputText.insert(match.capturedStart()+1, " ");
                         }
-                        tmpText = outputText.split(" ", QString::SkipEmptyParts);
+                        tmpText = outputText.split(" ", Qt::SkipEmptyParts);
                         for (int l=1;l<nColumn+1; l++) {
                             coordText += tmpText.at(l);
                         }
@@ -856,7 +866,7 @@ QString OrcaAnalyseDialog::readOutputFile()
                 while (!outputText.isEmpty() && !in.atEnd()) {
                     outputText.replace(":","");
                     outputText.replace ("(","");
-                    IRText = outputText.split(" ", QString::SkipEmptyParts);
+                    IRText = outputText.split(" ", Qt::SkipEmptyParts);
                     if (IRText.size() < 3) {
                         return (tr("Something is wrong in the IR output! "));
                     } else {
@@ -876,7 +886,7 @@ QString OrcaAnalyseDialog::readOutputFile()
                 outputText = in.readLine();
                 while (!outputText.isEmpty() && !in.atEnd()) {
                     outputText.replace(":","");
-                    ramanText = outputText.split(" ", QString::SkipEmptyParts);
+                    ramanText = outputText.split(" ", Qt::SkipEmptyParts);
                     if (ramanText.size() < 3) {
                         return (tr("Something is wrong in the raman output! "));
                     } else {
@@ -905,7 +915,7 @@ QString OrcaAnalyseDialog::readOutputFile()
                 outputText = in.readLine();
                 while (!outputText.contains("---------") && !outputText.isEmpty() && !in.atEnd()) {
 
-                    energyText = outputText.split(" ", QString::SkipEmptyParts);
+                    energyText = outputText.split(" ", Qt::SkipEmptyParts);
                     if (energyText.size() !=  4) {
                         return (tr("Something is wrong in the orbital energy output! "));
                     } else {
@@ -927,7 +937,7 @@ QString OrcaAnalyseDialog::readOutputFile()
                     skip = in.readLine();                 // skip headline line
                     outputText = in.readLine();
                     while (!outputText.contains("---------") && !outputText.isEmpty() && !in.atEnd()) {
-                        energyText = outputText.split(" ", QString::SkipEmptyParts);
+                        energyText = outputText.split(" ", Qt::SkipEmptyParts);
 
                         if (energyText.size() !=  4) {
                             return (tr("Something is wrong in the orbital energy output! "));

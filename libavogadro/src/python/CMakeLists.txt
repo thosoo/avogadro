@@ -1,7 +1,7 @@
 include_directories(
   ${libavogadro_SOURCE_DIR}/include
   ${CMAKE_CURRENT_BINARY_DIR}
-  ${OPENBABEL2_INCLUDE_DIR}
+  ${OPENBABEL3_INCLUDE_DIR}
   ${BOOST_PYTHON_INCLUDES}
   ${PYTHON_INCLUDE_PATH}
   ${NUMPY_INCLUDE_DIR}
@@ -11,17 +11,16 @@ include_directories(
 # use all cpp files in this directory
 file(GLOB wrapper_SRCS "*.cpp")
 
-qt4_automoc(moleculelist.cpp)
 
 add_library(python-module MODULE ${wrapper_SRCS})
 set_target_properties(python-module PROPERTIES OUTPUT_NAME Avogadro)
 set_target_properties(python-module PROPERTIES PREFIX "")
 if (WIN32)
   set_target_properties(python-module PROPERTIES SUFFIX ".pyd")
-  target_link_libraries(python-module avogadro ${PYTHON_LIBRARIES})
+  target_link_libraries(python-module PRIVATE avogadro Qt6::Core Qt6::Gui Qt6::Widgets ${PYTHON_LIBRARIES})
 else()
-  target_link_libraries(python-module stdc++ avogadro
-    ${QT_LIBRARIES} ${PYTHON_LIBRARIES} ${Boost_LIBRARIES} ${OPENBABEL2_LIBRARIES})
+  target_link_libraries(python-module PRIVATE stdc++ avogadro
+    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::OpenGL Qt6::OpenGLWidgets ${PYTHON_LIBRARIES} ${Boost_LIBRARIES} OpenBabel3::openbabel)
 endif()
 
 # Let's try to use this instead:

@@ -1,7 +1,8 @@
-cmake_minimum_required(VERSION 3.5)
-project(Avogadro) # the name of your project
-set(CMAKE_CXX_STANDARD 11)
+cmake_minimum_required(VERSION 3.16)
+project(Avogadro VERSION 1.2.0 LANGUAGES C CXX)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # The Avogadro version number, currently used by the Avogadro library too
 set(Avogadro_VERSION_MAJOR 1)
@@ -300,13 +301,20 @@ set(ENV{OPENBABEL3_INCLUDE_DIR} "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
 set(ENV{OPENBABEL3_LIBRARIES} "${_oblib}")
 set(ENV{OPENBABEL3_LIBRARY_DIRS} "${_obdir}")
 
-include(cmake/Qt5Compat.cmake)
-find_package(Qt5 REQUIRED COMPONENTS Widgets Gui OpenGL Network LinguistTools Core Concurrent Test)
-find_package(OpenGL REQUIRED) # find and setup OpenGL
-find_package(X11) # find and setup X11 (not required for Mac and Windows)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets OpenGL OpenGLWidgets Network Concurrent Test LinguistTools)
+if(COMMAND qt_standard_project_setup)
+  qt_standard_project_setup()
+endif()
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
+find_package(OpenGL REQUIRED COMPONENTS OpenGL GLU) # find and setup OpenGL/GLU
+if(UNIX AND NOT APPLE)
+  find_package(X11) # find and setup X11 on Unix platforms that may use XInitThreads
+endif()
 find_package(Linguist) # find and setup Linguist
 if(NOT Linguist_FOUND)
-  message(WARNING "Qt5 Linguist not found, please install it if you want Avogadro translations")
+  message(WARNING "Qt6 Linguist tools not found, please install them if you want Avogadro translations")
 endif()
 
 find_package(Eigen3 REQUIRED) # find and setup Eigen3 if available
@@ -336,14 +344,10 @@ if(NOT OPENBABEL3_FOUND)
   set(OPENBABEL3_INCLUDE_DIR "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
   set(OPENBABEL3_LIBRARIES "${_oblib}")
   set(OPENBABEL3_LIBRARY_DIRS "${_obdir}")
-  set(OPENBABEL2_FOUND ${OPENBABEL3_FOUND})
-  set(OPENBABEL2_INCLUDE_DIR ${OPENBABEL3_INCLUDE_DIR})
-  set(OPENBABEL2_LIBRARIES ${OPENBABEL3_LIBRARIES})
-  set(OPENBABEL2_LIBRARY_DIRS ${OPENBABEL3_LIBRARY_DIRS})
 endif()
 
-if (Q_WS_X11)
-  find_package(X11 REQUIRED) # avogadro/src/main.cpp calls XInitThread().
+if(UNIX AND NOT APPLE AND X11_FOUND)
+  set(AVO_USE_X11 TRUE)
 endif()
 
 # Check if we are building from a Git clone or a released version
@@ -387,7 +391,6 @@ endif()
 # Unit testing, mainly useful for developers and so defaults to off
 option(ENABLE_TESTS "Enable unit testing" OFF)
 if(ENABLE_TESTS)
-  set(QT_USE_QTTEST TRUE)
   enable_testing()
   include (CTest)
   message(STATUS "Unit testing enabled, run make test to run them")
@@ -548,9 +551,6 @@ if (UNIX)
 #      install(LIBRARY ${X11_LIBRARIES}
 #        DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/X11"
 #        )
-#      install(LIBRARY ${OPENGL_LIBRARIES}
-#        DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/gl"
-#        )
 #      install (LIBRARY ${ZLIB_LIBRARY}
 #        DESTINATION "${CMAKE_INSTALL_PREFIX}/lib"
 #        )
@@ -575,6 +575,7 @@ install(FILES
   "${CMAKE_MODULE_PATH}/FindEigen2.cmake"
   "${CMAKE_MODULE_PATH}/FindEigen3.cmake"
   "${CMAKE_MODULE_PATH}/FindGLEW.cmake"
+  "${CMAKE_MODULE_PATH}/FindOpenBabel3.cmake"
   DESTINATION "${Avogadro_PLUGIN_INSTALL_DIR}/cmake")
 
 configure_file(
@@ -595,7 +596,7 @@ mark_as_advanced(CMAKE_LIBRARY_OUTPUT_DIRECTORY
 add_subdirectory(libavogadro)
 add_library(avogadro-lib ALIAS avogadro)
 add_dependencies(avogadro openbabel_ext)
-target_link_libraries(avogadro OpenBabel3::openbabel)
+target_link_libraries(avogadro PRIVATE OpenBabel3::openbabel)
 add_subdirectory(avogadro)
 add_subdirectory(doc)
 
@@ -638,29 +639,14 @@ if(UNIX)
     WORLD_READ WORLD_EXECUTE)
 endif()
 
-# .prf file for QMake projects
-configure_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/avogadro.prf.in"
-  "${CMAKE_CURRENT_BINARY_DIR}/avogadro.prf" @ONLY)
-
-option(INSTALL_QMAKE_PRF "Install QMake integration files to Qt prefix" ON)
-if(QT_MKSPECS_DIR AND INSTALL_QMAKE_PRF)
-#  if ("${QT_MKSPECS_DIR}" MATCHES ^$"${CMAKE_INSTALL_PREFIX}/")
-#    string(REPLACE
-#      "${CMAKE_INSTALL_PREFIX}"
-#      ""
-#      QT_MKSPECS_RELATIVE
-#      "${QT_MKSPECS_DIR}"
-#    )
-    install(FILES
-      "${CMAKE_CURRENT_BINARY_DIR}/avogadro.prf"
-      DESTINATION "${CMAKE_INSTALL_PREFIX}/${QT_MKSPECS_RELATIVE}/features"
-    )
-#  endif ("${QT_MKSPECS_DIR}" MATCHES ^$"${CMAKE_INSTALL_PREFIX}/")
-else()
-  message(WARNING "Qt mkspecs directory not found. File 'avogadro.prf' will be installed to ${SHARE_INSTALL_PREFIX}/avogadro/qmake.")
+# qmake integration is retained for legacy consumers but disabled by default;
+# the installed CMake package and exported targets are the supported Qt6 path.
+option(INSTALL_QMAKE_PRF "Install legacy QMake integration files" OFF)
+if(INSTALL_QMAKE_PRF)
+  configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/avogadro.prf.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/avogadro.prf" @ONLY)
   install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/avogadro.prf"
-    DESTINATION "${SHARE_INSTALL_PREFIX}/avogadro/qmake"
-  )
+    DESTINATION "${SHARE_INSTALL_PREFIX}/avogadro/qmake")
 endif()

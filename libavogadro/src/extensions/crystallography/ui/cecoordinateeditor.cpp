@@ -177,7 +177,7 @@ namespace Avogadro
     QStringList list;
     QString text = ui.edit_coords->document()->toPlainText();
     QStringList lines = text.split("\n",
-                                   QString::SkipEmptyParts);
+                                   Qt::SkipEmptyParts);
     // Clean up lines
     for (QStringList::iterator
            it = lines.begin(),
@@ -195,7 +195,7 @@ namespace Avogadro
          it != it_end;
          ++it) {
       row = it->split(CE_PARSE_IGNORE_REGEXP,
-                      QString::SkipEmptyParts);
+                      Qt::SkipEmptyParts);
       if (row.size() != 4) {
         emit invalidInput();
         return;
@@ -227,7 +227,7 @@ namespace Avogadro
     QStringList list;
     QString text = ui.edit_coords->document()->toPlainText();
     QStringList lines = text.split("\n",
-                                   QString::SkipEmptyParts);
+                                   Qt::SkipEmptyParts);
 
     // Clean up lines
     for (QStringList::iterator
@@ -253,7 +253,7 @@ namespace Avogadro
          it != it_end;
          ++it) {
       row = it->split(CE_PARSE_IGNORE_REGEXP,
-                      QString::SkipEmptyParts);
+                      Qt::SkipEmptyParts);
       if (row.size() != 4) {
         emit invalidInput();
         return;

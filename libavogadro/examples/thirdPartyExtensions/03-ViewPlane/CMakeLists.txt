@@ -5,10 +5,10 @@
 project(ViewPlaneExtension)
 
 # Minimum version of CMake that can be used
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.16)
 
 # Set up Qt
-include(${CMAKE_CURRENT_SOURCE_DIR}/../../../cmake/Qt5Compat.cmake)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets OpenGL OpenGLWidgets)
 
 # Set up Avogadro
 find_package(Avogadro REQUIRED)

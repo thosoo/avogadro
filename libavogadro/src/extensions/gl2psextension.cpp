@@ -60,7 +60,7 @@ namespace Avogadro {
                                             + " (*.pdf)").toString();
     QStringList filters;
     // Omit "common image formats" on Mac
-    #ifdef Q_WS_MAC
+    #ifdef Q_OS_MAC
       filters
     #else
       filters << tr("Common vector image formats")

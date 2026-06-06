@@ -40,6 +40,7 @@
 #include <QtNetwork/QNetworkAccessManager>
 #include <QtNetwork/QNetworkReply>
 #include <QtNetwork/QSslSocket>
+#include <QRegularExpression>
 
 using namespace OpenBabel;
 
@@ -161,7 +162,7 @@ namespace Avogadro {
 
     // Copied from Kalzium
     QString formula(obmol.GetSpacedFormula(1,"").c_str());
-    formula.replace( QRegExp( "(\\d+)" ), "<sub>\\1</sub>" );
+    formula.replace( QRegularExpression( "(\\d+)" ), "<sub>\\1</sub>" );
     m_dialog->formulaLine->setText(formula);
     // we should actually handle charges with superscripts too (e.g., [SO4]-2)
 

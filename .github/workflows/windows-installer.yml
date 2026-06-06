@@ -239,9 +239,9 @@ jobs:
         run: |
           python -m pip install aqtinstall
           $qtDir = "C:\\Qt"
-          python -m aqt install-qt windows desktop 5.15.2 win64_msvc2019_64 -O $qtDir -m qtcharts qtscript
-          $qt = "$qtDir\5.15.2\msvc2019_64"
-          "Qt5_DIR=$qt" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          python -m aqt install-qt windows desktop 6.6.3 win64_msvc2019_64 -O $qtDir -m qttools
+          $qt = "$qtDir\6.6.3\msvc2019_64"
+          "Qt6_DIR=$qt" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "CMAKE_PREFIX_PATH=$qt;$env:CMAKE_PREFIX_PATH" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           "$qt\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
       - name: Build GLEW

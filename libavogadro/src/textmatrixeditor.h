@@ -32,8 +32,9 @@
 #include <QtWidgets/QTextEdit>
 
 #include <Eigen/Core>
+#include <QRegularExpression>
 
-class QRegExp;
+class QRegularExpression;
 
 namespace Avogadro
 {
@@ -49,7 +50,7 @@ namespace Avogadro
  * and setMatrix(). The delimiters used to separate columns can be set and
  * accessed through the pointer returned by delimiters(). The default
  * delimiter regexp is
- * QRegExp("\\s+|,|;|\\||\\[|\\]|\\{|\\}|\\(|\\)|\\&|/|<|>"). resetMatrix()
+ * QRegularExpression("\\s+|,|;|\\||\\[|\\]|\\{|\\}|\\(|\\)|\\&|/|<|>"). resetMatrix()
  * will replace the text with the last known good matrix.
  */
 class A_EXPORT TextMatrixEditor : public QTextEdit
@@ -62,9 +63,9 @@ public:
   virtual ~TextMatrixEditor();
 
   //! @return Allowed column separators. See class definition for default.
-  QRegExp * delimiters() {return this->m_delimiters;}
+  QRegularExpression * delimiters() {return this->m_delimiters;}
   //! @return Allowed column separators. See class definition for default
-  const QRegExp * delimiters() const {return this->m_delimiters;}
+  const QRegularExpression * delimiters() const {return this->m_delimiters;}
 
   //! @return The current matrix
   Eigen::Matrix3d matrix() const;
@@ -98,7 +99,7 @@ protected:
   //! Stores the text properties while invalid.
   QTextCharFormat *m_charFormat;
   //! Acceptable column separators. See class definition for default.
-  QRegExp *m_delimiters;
+  QRegularExpression *m_delimiters;
   //! Stores the current (or last known good) matrix.
   Eigen::Matrix3d m_matrix;
 };

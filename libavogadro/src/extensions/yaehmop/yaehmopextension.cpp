@@ -48,6 +48,7 @@
 #include "yaehmopprojecteddosdialog.h"
 #include "yaehmoptotaldosdialog.h"
 #include "yaehmopout.h"
+#include <QRegularExpression>
 
 using namespace std;
 using namespace Eigen;
@@ -270,8 +271,8 @@ namespace Avogadro
   // Returns false if an error was found
   bool YaehmopExtension::checkForErrors(const QString& output, QString& error)
   {
-    QStringList lines = output.split(QRegExp("[\r\n]"),
-                                     QString::SkipEmptyParts);
+    QStringList lines = output.split(QRegularExpression("[\r\n]"),
+                                     Qt::SkipEmptyParts);
     bool zhegvErrorFound = false;
 
     for (int i = 0; i < lines.size(); ++i) {
@@ -755,19 +756,19 @@ namespace Avogadro
       DOSDataStr += "\n# k points\n";
       DOSDataStr += "# <x> <y> <z> <weight>\n";
 
-      QStringList inputSplit = input.split(QRegExp("[\r\n]"),
-                                           QString::SkipEmptyParts);
+      QStringList inputSplit = input.split(QRegularExpression("[\r\n]"),
+                                           Qt::SkipEmptyParts);
 
       while (inputSplit.size() != 0 && !inputSplit[0].contains("k points"))
         inputSplit.removeFirst();
 
       for (size_t i = 0; i < inputSplit.size(); ++i) {
-        if (inputSplit[i].split(QRegExp(" "),
-                                QString::SkipEmptyParts).size() == 0) {
+        if (inputSplit[i].split(QRegularExpression(" "),
+                                Qt::SkipEmptyParts).size() == 0) {
           break;
         }
-        if (inputSplit[i].split(QRegExp(" "),
-                                QString::SkipEmptyParts).size() != 4) {
+        if (inputSplit[i].split(QRegularExpression(" "),
+                                Qt::SkipEmptyParts).size() != 4) {
           continue;
         }
         DOSDataStr += QString("# ") + inputSplit[i] + "\n";
@@ -1242,19 +1243,19 @@ namespace Avogadro
       DOSDataStr += "\n# k points\n";
       DOSDataStr += "# <x> <y> <z> <weight>\n";
 
-      QStringList inputSplit = input.split(QRegExp("[\r\n]"),
-                                           QString::SkipEmptyParts);
+      QStringList inputSplit = input.split(QRegularExpression("[\r\n]"),
+                                           Qt::SkipEmptyParts);
 
       while (inputSplit.size() != 0 && !inputSplit[0].contains("k points"))
         inputSplit.removeFirst();
 
       for (size_t i = 0; i < inputSplit.size(); ++i) {
-        if (inputSplit[i].split(QRegExp(" "),
-                                QString::SkipEmptyParts).size() == 0) {
+        if (inputSplit[i].split(QRegularExpression(" "),
+                                Qt::SkipEmptyParts).size() == 0) {
           break;
         }
-        if (inputSplit[i].split(QRegExp(" "),
-                                QString::SkipEmptyParts).size() != 4) {
+        if (inputSplit[i].split(QRegularExpression(" "),
+                                Qt::SkipEmptyParts).size() != 4) {
           continue;
         }
         DOSDataStr += QString("# ") + inputSplit[i] + "\n";
@@ -1698,8 +1699,8 @@ namespace Avogadro
     // This is the number of kpoints connecting each special k point
     input += (QString::number(m_bandNumKPoints) + "\n");
     // Num special k points
-    int numSK = specialKPointString.split(QRegExp("[\r\n]"),
-                                          QString::SkipEmptyParts).size();
+    int numSK = specialKPointString.split(QRegularExpression("[\r\n]"),
+                                          Qt::SkipEmptyParts).size();
     input += (QString::number(numSK) + "\n"); // num special k points
     input += specialKPointString; // Add the whole string from user input
 

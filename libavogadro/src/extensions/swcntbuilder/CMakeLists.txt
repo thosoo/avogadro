@@ -21,4 +21,4 @@ avogadro_plugin(swcntbuilderextension
 
 add_subdirectory(tubegen)
 
-target_link_libraries(swcntbuilderextension tubegen)
+target_link_libraries(swcntbuilderextension PRIVATE tubegen)

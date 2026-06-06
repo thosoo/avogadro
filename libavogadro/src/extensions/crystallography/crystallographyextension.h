@@ -27,7 +27,7 @@
 
 #include <openbabel/math/matrix3x3.h>
 
-#include <QtCore/QRegExp>
+#include <QRegularExpression>
 #include <QtCore/QString>
 
 #include <Eigen/Core>
@@ -78,7 +78,7 @@ namespace Avogadro
     Radian
   };
 
-#ifdef Q_WS_X11
+#ifdef AVO_USE_X11
   const QString CE_FONT = "Monospace";
   const int CE_FONTSIZE = 11;
 #else
@@ -107,7 +107,7 @@ namespace Avogadro
     QString::fromUtf16(&CE_SUPER_THREE_UTF16, 1);
 
   // Characters to ignore when parsing text input:
-  const QRegExp CE_PARSE_IGNORE_REGEXP
+  const QRegularExpression CE_PARSE_IGNORE_REGEXP
     ("\\s+|,|;|\\||\\[|\\]|\\{|\\}|\\(|\\)|\\&|/|<|>");
 
   class CrystallographyExtension : public Extension

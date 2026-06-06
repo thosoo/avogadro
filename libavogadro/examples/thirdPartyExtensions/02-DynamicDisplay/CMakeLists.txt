@@ -5,9 +5,9 @@
 project(DynamicDisplayExtension)
 
 # Minimum version of CMake that can be used
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.16)
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/../../../cmake/Qt5Compat.cmake)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets OpenGL OpenGLWidgets)
 find_package(Avogadro REQUIRED)
 include(${Avogadro_USE_FILE})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})

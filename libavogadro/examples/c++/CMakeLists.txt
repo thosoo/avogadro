@@ -8,23 +8,21 @@
 project(TemplateExtension)
 
 # Minimum version of CMake that can be used
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 3.16)
 
 # Find the Avogadro library if it is installed
 find_package(Avogadro REQUIRED)
  
-include(${Avogadro_DIR}/../../cmake/Qt5Compat.cmake)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets OpenGL OpenGLWidgets)
 
 # Activate this line if you need direct use of OpenBabel
-#find_package(OpenBabel2 REQUIRED)
+#find_package(OpenBabel3 REQUIRED)
 
 # Set up the build environment
 include(${Avogadro_USE_FILE})
 include_directories(
   ${CMAKE_CURRENT_BINARY_DIR}
-  ${OPENBABEL2_INCLUDE_DIR}
 )
-link_directories(${OPENBABEL2_LIBRARY_DIRS})
 
 # Build your plugin using the default options
 set (templateextension_SRCS templateextension.cpp)

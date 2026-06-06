@@ -19,4 +19,4 @@ avogadro_plugin(symmetryextension
 add_subdirectory(libmsym)
 
 set_target_properties(msym PROPERTIES POSITION_INDEPENDENT_CODE "TRUE")
-target_link_libraries(symmetryextension msym)
+target_link_libraries(symmetryextension PRIVATE msym)

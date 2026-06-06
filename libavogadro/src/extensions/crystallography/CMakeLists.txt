@@ -37,5 +37,5 @@ avogadro_plugin(crystallographyextension
   "${crystallographyextension_UIS}"
 )
 
-target_link_libraries(crystallographyextension spglib)
+target_link_libraries(crystallographyextension PRIVATE spglib)
 add_dependencies(crystallographyextension spglib)

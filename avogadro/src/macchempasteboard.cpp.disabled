@@ -19,7 +19,7 @@
 #include "macchempasteboard.h"
 #include <QDebug>
 
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
 #include <Carbon/Carbon.h>
 // global reference to the copy & paste pasteboard
 PasteboardRef gClipboard, gFindPasteboard;
@@ -32,7 +32,7 @@ namespace Avogadro {
   class MacChemPasteboardPrivate
   {
   public:
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     MacChemPasteboardPrivate()
     {
       PasteboardCreate( kPasteboardClipboard, &inPasteboard );
@@ -66,7 +66,7 @@ namespace Avogadro {
   QString MacChemPasteboard::mimeFor(QString flav)
   {
 //    qDebug() << " mimeFor " << flav;
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     // We have to use some Apple's Carbon / CoreFoundation code
     // we want to look for ChemDraw data (os code "CDIF")
     CFArrayRef flavorTypeArray;
@@ -119,7 +119,7 @@ namespace Avogadro {
   QString MacChemPasteboard::flavorFor(const QString &mime)
   {
 //		qDebug() << " flavorFor " << mime;
-#ifndef Q_WS_MAC
+#ifndef Q_OS_MAC
     return QString();
 #else
     if (mime != chemdrawMimeType)
@@ -169,5 +169,5 @@ namespace Avogadro {
 
 } // end namespace
 
-// end Q_WS_MAC
+// end Q_OS_MAC
 //#endif

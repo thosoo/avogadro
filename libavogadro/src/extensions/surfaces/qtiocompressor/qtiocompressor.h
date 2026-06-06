@@ -49,24 +49,24 @@
 
 #include <QtCore/QIODevice>
 
-#if defined(Q_WS_WIN)
-#  if !defined(QT_QTIOCOMPRESSOR_EXPORT) && !defined(QT_QTIOCOMPRESSOR_IMPORT)
-#    define QT_QTIOCOMPRESSOR_EXPORT
-#  elif defined(QT_QTIOCOMPRESSOR_IMPORT)
-#    if defined(QT_QTIOCOMPRESSOR_EXPORT)
-#      undef QT_QTIOCOMPRESSOR_EXPORT
+#if defined(Q_OS_WIN)
+#  if !defined(QTIOCOMPRESSOR_EXPORT) && !defined(QTIOCOMPRESSOR_IMPORT)
+#    define QTIOCOMPRESSOR_EXPORT
+#  elif defined(QTIOCOMPRESSOR_IMPORT)
+#    if defined(QTIOCOMPRESSOR_EXPORT)
+#      undef QTIOCOMPRESSOR_EXPORT
 #    endif
-#    define QT_QTIOCOMPRESSOR_EXPORT __declspec(dllimport)
-#  elif defined(QT_QTIOCOMPRESSOR_EXPORT)
-#    undef QT_QTIOCOMPRESSOR_EXPORT
-#    define QT_QTIOCOMPRESSOR_EXPORT __declspec(dllexport)
+#    define QTIOCOMPRESSOR_EXPORT __declspec(dllimport)
+#  elif defined(QTIOCOMPRESSOR_EXPORT)
+#    undef QTIOCOMPRESSOR_EXPORT
+#    define QTIOCOMPRESSOR_EXPORT __declspec(dllexport)
 #  endif
 #else
-#  define QT_QTIOCOMPRESSOR_EXPORT
+#  define QTIOCOMPRESSOR_EXPORT
 #endif
 
 class QtIOCompressorPrivate;
-class QT_QTIOCOMPRESSOR_EXPORT QtIOCompressor : public QIODevice
+class QTIOCOMPRESSOR_EXPORT QtIOCompressor : public QIODevice
 {
 Q_OBJECT
 public:

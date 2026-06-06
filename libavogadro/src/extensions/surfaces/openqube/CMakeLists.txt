@@ -1,4 +1,3 @@
-include(${CMAKE_CURRENT_SOURCE_DIR}/../../../../../cmake/Qt5Compat.cmake)
 find_package(Eigen3)
 if(NOT EIGEN3_FOUND)
   message(STATUS "Cannot find Eigen3, trying Eigen2")
@@ -7,7 +6,7 @@ else()
   set (EIGEN2_SUPPORT_STAGE10_FULL_EIGEN2_API TRUE)
 endif()
 
-include_directories(${Qt5Widgets_INCLUDE_DIRS} ${EIGEN2_INCLUDE_DIR})
+include_directories(${EIGEN2_INCLUDE_DIR})
 
 # Headers for our public API
 set(openqube_HDRS
@@ -41,9 +40,7 @@ set(openqube_SRCS
   slaterset.cpp
 )
 
-qt4_wrap_cpp(openqubeMocSrcs basisset.h gaussianset.h slaterset.h)
-
-add_library(OpenQube SHARED ${openqube_SRCS} ${openqubeMocSrcs})
+add_library(OpenQube SHARED ${openqube_SRCS} basisset.h gaussianset.h slaterset.h)
 
 set_target_properties(OpenQube PROPERTIES
   VERSION 0.1.0
@@ -52,13 +49,14 @@ set_target_properties(OpenQube PROPERTIES
   LABELS openqube)
 
 target_link_libraries(OpenQube
-  ${QT_QTCORE_LIBRARY}
-  ${QT_QTGUI_LIBRARY}
-  Qt5::Concurrent
-  Qt5::Widgets)
+  PUBLIC
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Concurrent)
 
 add_executable(qube qube.cpp)
-target_link_libraries(qube OpenQube ${QT_LIBRARIES})
+target_link_libraries(qube PRIVATE OpenQube Qt6::Core Qt6::Gui Qt6::Widgets)
 install(TARGETS qube DESTINATION ${BIN_INSTALL_DIR})
 
 install(TARGETS OpenQube DESTINATION ${LIB_INSTALL_DIR})

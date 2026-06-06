@@ -1,5 +1,5 @@
 /**********************************************************************
-  TextRenderer - a temporary replacement for QGLWidget::renderText until it
+  TextRenderer - a temporary replacement for QOpenGLWidget text rendering until it
   matures a bit more ;)
 
   Copyright (C) 2007 Benoit Jacob

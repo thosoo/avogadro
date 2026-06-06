@@ -18,7 +18,7 @@
 
 #include "highlighter.h"
 
-#include <QRegExp>
+#include <QRegularExpression>
 
 namespace Avogadro {
 
@@ -32,7 +32,7 @@ namespace Avogadro {
     promptPatterns << ">>>" << "\\.\\.\\.";
 
     foreach (const QString &pattern, promptPatterns) {
-        rule.pattern = QRegExp(pattern);
+        rule.pattern = QRegularExpression(pattern);
         rule.format = promptFormat;
         highlightingRules.append(rule);
     }
@@ -57,48 +57,46 @@ namespace Avogadro {
                     << "\\btry\\b";
 
     foreach (const QString &pattern, keywordPatterns) {
-        rule.pattern = QRegExp(pattern);
+        rule.pattern = QRegularExpression(pattern);
         rule.format = keywordFormat;
         highlightingRules.append(rule);
     }
 
     classFormat.setFontWeight(QFont::Bold);
     classFormat.setForeground(Qt::darkMagenta);
-    rule.pattern = QRegExp("\\bQ[A-Za-z]+\\b");
+    rule.pattern = QRegularExpression("\\bQ[A-Za-z]+\\b");
     rule.format = classFormat;
     highlightingRules.append(rule);
 
     singleLineCommentFormat.setForeground(Qt::red);
-    rule.pattern = QRegExp("#[^\n]*");
+    rule.pattern = QRegularExpression("#[^\n]*");
     rule.format = singleLineCommentFormat;
     highlightingRules.append(rule);
 
     multiLineCommentFormat.setForeground(Qt::red);
 
     quotationFormat.setForeground(Qt::darkGreen);
-    rule.pattern = QRegExp("\".*\"");
+    rule.pattern = QRegularExpression("\".*\"");
     rule.format = quotationFormat;
     highlightingRules.append(rule);
 
     functionFormat.setFontItalic(true);
     functionFormat.setForeground(Qt::blue);
-    rule.pattern = QRegExp("\\b[A-Za-z0-9_]+(?=\\()");
+    rule.pattern = QRegularExpression("\\b[A-Za-z0-9_]+(?=\\()");
     rule.format = functionFormat;
     highlightingRules.append(rule);
 
-    commentStartExpression = QRegExp("/\\*");
-    commentEndExpression = QRegExp("\\*/");
+    commentStartExpression = QRegularExpression("/\\*");
+    commentEndExpression = QRegularExpression("\\*/");
   }
 
   void Highlighter::highlightBlock(const QString &text)
   {
     foreach (const HighlightingRule &rule, highlightingRules) {
-        QRegExp expression(rule.pattern);
-        int index = text.indexOf(expression);
-        while (index >= 0) {
-            int length = expression.matchedLength();
-            setFormat(index, length, rule.format);
-            index = text.indexOf(expression, index + length);
+        QRegularExpressionMatchIterator matches = rule.pattern.globalMatch(text);
+        while (matches.hasNext()) {
+            const QRegularExpressionMatch match = matches.next();
+            setFormat(match.capturedStart(), match.capturedLength(), rule.format);
         }
     }
     setCurrentBlockState(0);
@@ -108,14 +106,13 @@ namespace Avogadro {
         startIndex = text.indexOf(commentStartExpression);
 
     while (startIndex >= 0) {
-        int endIndex = text.indexOf(commentEndExpression, startIndex);
+        QRegularExpressionMatch endMatch = commentEndExpression.match(text, startIndex);
         int commentLength;
-        if (endIndex == -1) {
+        if (!endMatch.hasMatch()) {
             setCurrentBlockState(1);
             commentLength = text.length() - startIndex;
         } else {
-            commentLength = endIndex - startIndex
-                            + commentEndExpression.matchedLength();
+            commentLength = endMatch.capturedEnd() - startIndex;
         }
         setFormat(startIndex, commentLength, multiLineCommentFormat);
         startIndex = text.indexOf(commentStartExpression,

@@ -225,7 +225,7 @@ namespace Avogadro {
   {
     // Set the cursor - this needs to be reset to Qt::ArrowCursor after
     // Currently, there's a Qt/Mac bug -- SizeAllCursor looks like a spreadsheet cursor
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     widget->setCursor(Qt::CrossCursor);
 #else
     widget->setCursor(Qt::SizeAllCursor);
@@ -298,7 +298,7 @@ namespace Avogadro {
       m_leftButtonPressed = true;
       // Set the cursor - this needs to be reset to Qt::ArrowCursor after
       // Currently, there's a Qt/Mac bug -- SizeAllCursor looks like a spreadsheet cursor
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
       widget->setCursor(Qt::CrossCursor);
 #else
       widget->setCursor(Qt::SizeAllCursor);

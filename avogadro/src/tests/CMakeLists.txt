@@ -11,14 +11,16 @@ add_executable(clipboardformatdetectortest
   ${clipboardformatdetector_test_SRCS}
 )
 set_target_properties(clipboardformatdetectortest PROPERTIES
-  AUTOMOC ON
   RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
 )
 
 target_link_libraries(clipboardformatdetectortest
-  ${QT_LIBRARIES}
-  ${QT_QTTEST_LIBRARY}
-  ${OPENBABEL2_LIBRARIES}
+  PRIVATE
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::Test
+    OpenBabel3::openbabel
 )
 
 add_test(clipboardFormatDetectorTest ${CMAKE_BINARY_DIR}/bin/clipboardformatdetectortest)

@@ -62,7 +62,7 @@ void GaussianFchk::processLine()
   key = key.trimmed();
 
   QString tmp = line.mid(43, 37);
-  QStringList list = tmp.split(' ', QString::SkipEmptyParts);
+  QStringList list = tmp.split(' ', Qt::SkipEmptyParts);
 
   // Big switch statement checking for various things we are interested in
   if (key == "Number of atoms")
@@ -225,7 +225,7 @@ vector<int> GaussianFchk::readArrayI(unsigned int n)
     if (line.isEmpty())
       return tmp;
 
-    QStringList list = line.split(' ', QString::SkipEmptyParts);
+    QStringList list = line.split(' ', Qt::SkipEmptyParts);
     for (int i = 0; i < list.size(); ++i) {
       if (tmp.size() >= n) {
         qDebug() << "Too many variables read in. File may be inconsistent."
@@ -260,7 +260,7 @@ vector<double> GaussianFchk::readArrayD(unsigned int n, int width)
       return tmp;
 
     if (width == 0) { // we can split by spaces
-      QStringList list = line.split(' ', QString::SkipEmptyParts);
+      QStringList list = line.split(' ', Qt::SkipEmptyParts);
       for (int i = 0; i < list.size(); ++i) {
         if (tmp.size() >= n) {
           qDebug() << "Too many variables read in. File may be inconsistent."
@@ -317,7 +317,7 @@ bool GaussianFchk::readDensityMatrix(unsigned int n, int width)
       return false;
 
     if (width == 0) { // we can split by spaces
-      QStringList list = line.split(' ', QString::SkipEmptyParts);
+      QStringList list = line.split(' ', Qt::SkipEmptyParts);
       for (int k = 0; k < list.size(); ++k) {
         if (cnt >= n) {
           qDebug() << "Too many variables read in. File may be inconsistent."

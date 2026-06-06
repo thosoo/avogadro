@@ -43,7 +43,8 @@
 #include <QPixmap>
 #include <QtCore/QSettings>
 #include <QListWidgetItem>
-#include <QDesktopWidget>
+#include <QGuiApplication>
+#include <QScreen>
 #include <QToolTip>
 
 #include <QtCore/QDebug>
@@ -55,6 +56,7 @@
 #include <openbabel/mol.h>
 #include <openbabel/obiter.h>
 #include <openbabel/generic.h>
+#include <QRegularExpression>
 
 using namespace OpenBabel;
 using namespace std;
@@ -612,7 +614,7 @@ namespace Avogadro {
     while (!in.atEnd()) {
       QString line = in.readLine();
       if (line.trimmed().startsWith('#')) continue; 	//discard comments
-      QStringList data = line.split(QRegExp(delim), QString::SkipEmptyParts);
+      QStringList data = line.split(QRegularExpression(delim), Qt::SkipEmptyParts);
       if (data.size() < 2) {
         qWarning() << "SpectraDialog::importSpectra Skipping invalid line in file " << filename << ":\n\t\"" << line << "\"";
         continue;
@@ -727,7 +729,7 @@ namespace Avogadro {
           QString line = in.readLine();
           if (!end.isEmpty() && line.contains(end)) break;
           if (line.trimmed().startsWith('#')) continue; 	//discard comments
-          QStringList data = line.split(QRegExp(delim), QString::SkipEmptyParts);
+          QStringList data = line.split(QRegularExpression(delim), Qt::SkipEmptyParts);
           if (data.size() < min) {
             qWarning() << "SpectraDialog::importSpectra Skipping invalid line in file " << filename
                        << ": Too few entries (need " << min << "\n\t\"" << line << "\"";
@@ -793,7 +795,7 @@ namespace Avogadro {
         QString wl_units;
         if (type.contains("Turbomole")) {
           // The cue line contains the units for turbomole.
-          QStringList sl = line.split(QRegExp("\\s+"));
+          QStringList sl = line.split(QRegularExpression("\\s+"));
           if (sl.size() < 5) {
             QMessageBox::warning(this, tr("Spectra Import"), tr("Turbomole CD file is improperly formatted  : %1").arg(filename));
             return;
@@ -807,7 +809,7 @@ namespace Avogadro {
           line = in.readLine();
           if (!end.isEmpty() && line.contains(end)) break;
           if (line.trimmed().startsWith('#')) continue; 	//discard comments
-          QStringList data = line.split(QRegExp(delim), QString::SkipEmptyParts);
+          QStringList data = line.split(QRegularExpression(delim), Qt::SkipEmptyParts);
           if (data.size() < min) {
             qWarning() << "SpectraDialog::importSpectra Skipping invalid line in file " << filename
                        << ": Too few entries (need " << min << "\n\t\"" << line << "\"";
@@ -890,7 +892,7 @@ namespace Avogadro {
         QString wl_units;
         if (type.contains("Turbomole")) {
           // The cue line contains the units for turbomole.
-          QStringList sl = line.split(QRegExp("\\s+"));
+          QStringList sl = line.split(QRegularExpression("\\s+"));
           if (sl.size() < 5) {
             QMessageBox::warning(this, tr("Spectra Import"), tr("Turbomole CD file is improperly formatted  : %1").arg(filename));
             return;
@@ -904,7 +906,7 @@ namespace Avogadro {
           line = in.readLine();
           if (!end.isEmpty() && line.contains(end)) break;
           if (line.trimmed().startsWith('#')) continue; 	//discard comments
-          QStringList data = line.split(QRegExp(delim), QString::SkipEmptyParts);
+          QStringList data = line.split(QRegularExpression(delim), Qt::SkipEmptyParts);
           if (data.size() < min) {
             qWarning() << "SpectraDialog::importSpectra Skipping invalid line in file " << filename
                        << ": Too few entries (need " << min << "\n\t\"" << line << "\"";
@@ -1054,7 +1056,7 @@ namespace Avogadro {
           QSize s = size();
           s.setWidth(s.width() + ui.dataTable->size().width());
           s.setHeight(s.height() + ui.tab_widget->size().height());
-          QRect rect = QApplication::desktop()->screenGeometry();
+          QRect rect = QGuiApplication::primaryScreen()->availableGeometry();
           if (s.width() > rect.width() || s.height() > rect.height())
               s = rect.size()*0.9;
           resize(s);
@@ -1070,7 +1072,7 @@ namespace Avogadro {
         ui.dataTable->hide();
         ui.push_exportData->hide();
         ui.push_exportDressedData->hide();
-        QRect rect = QApplication::desktop()->screenGeometry();
+        QRect rect = QGuiApplication::primaryScreen()->availableGeometry();
         move(rect.width()/2 - s.width()/2, rect.height()/2 - s.height()/2);
     }
   }

@@ -59,7 +59,7 @@ void MopacAux::processLine()
   QString line = m_in.readLine();
   QString key = line;
   key = key.trimmed();
-  //    QStringList list = tmp.split("=", QString::SkipEmptyParts);
+  //    QStringList list = tmp.split("=", Qt::SkipEmptyParts);
 
   // Big switch statement checking for various things we are interested in
   if (key.contains("ATOM_CORE")) {
@@ -158,7 +158,7 @@ vector<int> MopacAux::readArrayI(unsigned int n)
   vector<int> tmp;
   while (tmp.size() < n) {
     QString line = m_in.readLine();
-    QStringList list = line.split(' ', QString::SkipEmptyParts);
+    QStringList list = line.split(' ', Qt::SkipEmptyParts);
     for (int i = 0; i < list.size(); ++i)
       tmp.push_back(list.at(i).toInt());
   }
@@ -170,7 +170,7 @@ vector<double> MopacAux::readArrayD(unsigned int n)
   vector<double> tmp;
   while (tmp.size() < n) {
     QString line = m_in.readLine();
-    QStringList list = line.split(' ', QString::SkipEmptyParts);
+    QStringList list = line.split(' ', Qt::SkipEmptyParts);
     for (int i = 0; i < list.size(); ++i)
       tmp.push_back(list.at(i).toDouble());
   }
@@ -183,7 +183,7 @@ vector<int> MopacAux::readArraySym(unsigned int n)
   vector<int> tmp;
   while (tmp.size() < n) {
     QString line = m_in.readLine();
-    QStringList list = line.split(' ', QString::SkipEmptyParts);
+    QStringList list = line.split(' ', Qt::SkipEmptyParts);
     for (int i = 0; i < list.size(); ++i) {
       if (list.at(i) == "S") type = SlaterSet::S;
       else if (list.at(i) == "PX") type = SlaterSet::PX;
@@ -208,7 +208,7 @@ vector<Vector3d> MopacAux::readArrayVec(unsigned int n)
   unsigned int cnt = 0;
   while (cnt < n) {
     QString line = m_in.readLine();
-    QStringList list = line.split(' ', QString::SkipEmptyParts);
+    QStringList list = line.split(' ', Qt::SkipEmptyParts);
     for (int i = 0; i < list.size(); ++i) {
       ptr[cnt++] = list.at(i).toDouble();
     }
@@ -226,7 +226,7 @@ bool MopacAux::readOverlapMatrix(unsigned int n)
   m_in.readLine();
   while (cnt < n) {
     QString line = m_in.readLine();
-    QStringList list = line.split(' ', QString::SkipEmptyParts);
+    QStringList list = line.split(' ', Qt::SkipEmptyParts);
     for (int k = 0; k < list.size(); ++k) {
       //m_overlap.part<Eigen::SelfAdjoint>()(i, j) = list.at(k).toDouble();
       m_overlap(i, j) = m_overlap(j, i) = list.at(k).toDouble();
@@ -249,7 +249,7 @@ bool MopacAux::readEigenVectors(unsigned int n)
   unsigned int i = 0, j = 0;
   while (cnt < n) {
     QString line = m_in.readLine();
-    QStringList list = line.split(' ', QString::SkipEmptyParts);
+    QStringList list = line.split(' ', Qt::SkipEmptyParts);
     for (int k = 0; k < list.size(); ++k) {
       m_eigenVectors(i, j) = list.at(k).toDouble();
       ++i; ++cnt;
@@ -273,7 +273,7 @@ bool MopacAux::readDensityMatrix(unsigned int n)
   m_in.readLine();
   while (cnt < n) {
     QString line = m_in.readLine();
-    QStringList list = line.split(' ', QString::SkipEmptyParts);
+    QStringList list = line.split(' ', Qt::SkipEmptyParts);
     for (int k = 0; k < list.size(); ++k) {
       //m_overlap.part<Eigen::SelfAdjoint>()(i, j) = list.at(k).toDouble();
       m_density(i, j) = m_density(j, i) = list.at(k).toDouble();

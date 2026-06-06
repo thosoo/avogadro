@@ -1,6 +1,3 @@
-ADD_DEFINITIONS(${QT_DEFINITIONS})
-ADD_DEFINITIONS(-DQT_PLUGIN)
-ADD_DEFINITIONS(-DQT_SHARED)
 
 set(DESTINATION_DIR ${Avogadro_PLUGIN_INSTALL_DIR}/extensions)
 
@@ -8,7 +5,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}
   "${CMAKE_CURRENT_SOURCE_DIR}/gl2ps"
 )
 
-set(LINK_LIBS avogadro)
+set(LINK_LIBS)
 set(PLUGIN_LABEL extensions)
 set(PLUGIN_TARGET extensions)
 add_custom_target(extensions COMMENT "Meta target to build all Avogadro extensions.")
@@ -28,7 +25,7 @@ avogadro_plugin_nogl(cartesianextension
 avogadro_plugin_nogl(molecularpropextension
   molecularpropextension.cpp
   molecularpropdialog.ui)
-target_link_libraries(molecularpropextension ${QT_QTNETWORK_LIBRARY})
+target_link_libraries(molecularpropextension PRIVATE Qt6::Network)
 
 ### Molecular Mechanics force fields
 set(forcefieldextension_SRCS forcefieldextension.cpp forcefielddialog.cpp
@@ -73,7 +70,7 @@ if(ENABLE_PYTHON AND ALL_PYTHON_FOUND)
   avogadro_plugin_nogl(pythonterminal
     "pythonterminal.cpp;highlighter.cpp"
     pythonterminalwidget.ui)
-  target_link_libraries(pythonterminal ${PYTHON_LIBRARIES})
+  target_link_libraries(pythonterminal PRIVATE ${PYTHON_LIBRARIES})
 
   file(GLOB python_SCRIPTS "python/*.py")
   install(FILES ${python_SCRIPTS} DESTINATION ${SHARE_INSTALL_PREFIX}/libavogadro/extensionScripts)
@@ -105,7 +102,7 @@ if(GLEW_FOUND)
   avogadro_plugin(shaderextension
     shaderextension.cpp
     shaderdialog.ui)
-  target_link_libraries(shaderextension ${GLEW_LIBRARY})
+  target_link_libraries(shaderextension PRIVATE ${GLEW_LIBRARY})
   file(GLOB shader_VERT "shaders/*.vert")
   file(GLOB shader_FRAG "shaders/*.frag")
   file(GLOB shader_PARAMS "shaders/*.params")
@@ -120,7 +117,7 @@ avogadro_plugin_nogl(supercellextension
 
 # Network fetch
 avogadro_plugin_nogl(networkfetchextension networkfetchextension.cpp)
-target_link_libraries(networkfetchextension ${QT_QTNETWORK_LIBRARY})
+target_link_libraries(networkfetchextension PRIVATE Qt6::Network)
 
 # Fit view / zoom to molecule
 avogadro_plugin_nogl(fitviewextension fitviewextension.cpp)

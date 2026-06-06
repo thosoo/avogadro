@@ -1,16 +1,7 @@
-set(QT_USE_QTOPENGL true)
-set(QT_USE_QTNETWORK true)
-
-if(WIN32)
-  set(QT_USE_QTMAIN true)
-endif()
-
 configure_file(
   ${CMAKE_CURRENT_SOURCE_DIR}/config.h.in
   ${CMAKE_CURRENT_BINARY_DIR}/config.h
 )
-
-link_directories(${OPENBABEL2_LIBRARY_DIRS})
 
 # Ensure the Avogadro include directory is always first
 get_directory_property(tmp_include_dirs INCLUDE_DIRECTORIES)
@@ -18,7 +9,7 @@ set_directory_properties(PROPERTIES INCLUDE_DIRECTORIES
   "${libavogadro_BINARY_DIR}/include;${tmp_include_dirs}")
 include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
-  ${OPENBABEL2_INCLUDE_DIR}
+  ${OPENBABEL3_INCLUDE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
 )
 
@@ -72,11 +63,6 @@ file(GLOB avogadro_RCS "*.qrc")
 
 file(GLOB avogadro_UIS "*.ui")
 
-# designer has some flaws.
-qt4_automoc(${avogadro_SRCS})
-qt4_add_resources(avogadro_RC_SRCS ${avogadro_RCS})
-qt4_wrap_ui(avogadro_UIS_H ${avogadro_UIS})
-
 if(NOT WIN32)
   if(Linguist_FOUND)
     file(GLOB_RECURSE lang_PO  "${Avogadro_SOURCE_DIR}/i18n/avogadro/*.po")
@@ -84,7 +70,7 @@ if(NOT WIN32)
       string(REGEX REPLACE "(.*)/([^.]+)\\.po" "\\1/avogadro-\\2.po" po ${po})
       list(APPEND avogadro_PO ${po})
     endforeach()
-    QT4_WRAP_PO(avogadro_QM ${avogadro_PO})
+    avogadro_wrap_po(avogadro_QM ${avogadro_PO})
   endif()
 else()
   # don't attempt to create QM files on windows -- copy them from a linux build!
@@ -99,8 +85,8 @@ endif()
 
 add_executable(avogadro-app WIN32 MACOSX_BUNDLE
   ${avogadro_SRCS}
-  ${avogadro_UIS_H}
-  ${avogadro_RC_SRCS}
+  ${avogadro_UIS}
+  ${avogadro_RCS}
   ${avogadro_QM}
 )
 
@@ -111,23 +97,26 @@ set_source_files_properties(${avogadro_SRCS}
   PROPERTIES LABELS avogadro)
 
 target_link_libraries(avogadro-app
-  ${QT_LIBRARIES}
-  ${OPENBABEL2_LIBRARIES}
-  avogadro)
+  PRIVATE
+    avogadro
+    OpenBabel3::openbabel
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::OpenGL
+    Qt6::OpenGLWidgets
+    Qt6::Network
+    Qt6::Concurrent)
 if(QtTesting)
-  target_link_libraries(avogadro-app QtTesting)
+  target_link_libraries(avogadro-app PRIVATE QtTesting)
 endif()
-if(Q_WS_X11)
-  find_package(X11 REQUIRED)
-  target_link_libraries(avogadro-app ${X11_X11_LIB})
+if(AVO_USE_X11)
+  target_compile_definitions(avogadro-app PRIVATE AVO_USE_X11)
+  target_link_libraries(avogadro-app PRIVATE ${X11_X11_LIB})
 endif()
 
 if(ENABLE_PYTHON)
-  target_link_libraries(avogadro-app ${Boost_LIBRARIES})
-endif()
-
-if(ENABLE_UPDATE_CHECKER)
-  target_link_libraries(avogadro-app ${QT_QTNETWORK_LIBRARY})
+  target_link_libraries(avogadro-app PRIVATE ${Boost_LIBRARIES})
 endif()
 
 if(APPLE)

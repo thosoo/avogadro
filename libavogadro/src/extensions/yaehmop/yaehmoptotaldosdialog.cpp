@@ -21,6 +21,7 @@
 #include <QDebug>
 
 #include <QMessageBox>
+#include <QRegularExpression>
 
 namespace Avogadro {
 
@@ -70,12 +71,12 @@ namespace Avogadro {
     QString text = m_ui->edit_kpoints->toPlainText();
 
     // Let's make sure the input is valid. Split it into lines first
-    QStringList lines = text.split(QRegExp("[\r\n]"), QString::SkipEmptyParts);
+    QStringList lines = text.split(QRegularExpression("[\r\n]"), Qt::SkipEmptyParts);
 
     // Let's go through each line
     for (size_t i = 0; i < lines.size(); ++i) {
       // Split the line by spaces
-      QStringList splitLine = lines[i].split(" ", QString::SkipEmptyParts);
+      QStringList splitLine = lines[i].split(" ", Qt::SkipEmptyParts);
       // Skip it if it is of size 0
       if (splitLine.size() == 0)
         continue;
@@ -83,7 +84,7 @@ namespace Avogadro {
       // Check to see if an 'x' is in the line to indicate a grid.
       if (lines[i].contains("x")) {
         // Split it by the x values instead
-        splitLine = lines[i].split("x", QString::SkipEmptyParts);
+        splitLine = lines[i].split("x", Qt::SkipEmptyParts);
         // It must be of size 3
         if (splitLine.size() != 3) {
           displayInvalidFormatMessage();

@@ -1,42 +1,43 @@
-name: CI
-on: 
+name: Qt6 CI
+on:
   push:
-      paths-ignore:
-        - '.github/workflows/windows-installer.yml'
+    paths-ignore:
+      - '.github/workflows/windows-installer.yml'
   pull_request:
     paths-ignore:
-          - '.github/workflows/windows-installer.yml'
+      - '.github/workflows/windows-installer.yml'
+
 jobs:
   build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        xtb: [on, off]
+        python: [ON, OFF]
+        xtb: [ON, OFF]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Cache apt packages
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: /var/cache/apt/archives
-          key: ${{ runner.os }}-apt-${{ matrix.xtb }}-${{ hashFiles('.github/apt-packages.txt') }}
-          restore-keys: ${{ runner.os }}-apt-
+          key: ${{ runner.os }}-qt6-apt-${{ matrix.python }}-${{ matrix.xtb }}-${{ hashFiles('.github/apt-packages.txt') }}
+          restore-keys: ${{ runner.os }}-qt6-apt-
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo xargs -a .github/apt-packages.txt apt-get install -y
-          if [ "${{ matrix.xtb }}" = "on" ]; then
+          if [ "${{ matrix.xtb }}" = "ON" ]; then
             sudo apt-get install -y xtb libxtb-dev
           fi
       - name: Configure
         run: |
           cmake -S . -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_VERBOSE_MAKEFILE=ON \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DENABLE_TESTS=ON \
+            -DENABLE_PYTHON=${{ matrix.python }} \
             -DENABLE_XTB_OPTTOOL=${{ matrix.xtb }}
       - name: Build
-        run: |
-          cmake --build build -- -j1 VERBOSE=1
+        run: cmake --build build --parallel
       - name: Test
         run: |
           export LD_LIBRARY_PATH="$PWD/build/openbabel-install/lib:$LD_LIBRARY_PATH"

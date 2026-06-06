@@ -152,8 +152,8 @@
 				If you decide to build Avogadro from source, the following resources will be necessary:
 				<itemizedlist>
 					<listitem><para>Git, to access certain code repositories</para></listitem>
-                                        <listitem><para>CMake (>=2.8.9), the open-source build system</para></listitem>
-                                        <listitem><para>Qt5 (>=5.0), the open-source application framework</para></listitem>
+                                        <listitem><para>CMake (>=3.16), the open-source build system</para></listitem>
+                                        <listitem><para>Qt6, the open-source application framework</para></listitem>
                                         <listitem><para>Eigen3, a library for linear algebra as a compile-time dependency of Avogadro</para></listitem>
                                         <listitem><para>OpenBabel, which is downloaded and built automatically</para></listitem>
 				</itemizedlist>

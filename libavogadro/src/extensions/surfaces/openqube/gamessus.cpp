@@ -66,7 +66,7 @@ void GAMESSUSOutput::processLine(GaussianSet *basis)
   if (m_in->atEnd())
     return;
 
-  QStringList list = key.split(' ', QString::SkipEmptyParts);
+  QStringList list = key.split(' ', Qt::SkipEmptyParts);
   int numGTOs;
 
   // Big switch statement checking for various things we are interested in
@@ -129,7 +129,7 @@ void GAMESSUSOutput::processLine(GaussianSet *basis)
       // should start at the first line of shell functions
       if (key.isEmpty())
         break;
-      list = key.split(' ', QString::SkipEmptyParts);
+      list = key.split(' ', Qt::SkipEmptyParts);
       numGTOs = 0;
       while (list.size() > 1) {
         numGTOs++;
@@ -162,7 +162,7 @@ void GAMESSUSOutput::processLine(GaussianSet *basis)
           m_shelltoAtom.push_back(m_currentAtom);
           numGTOs = 0;
         }
-        list = key.split(' ', QString::SkipEmptyParts);
+        list = key.split(' ', Qt::SkipEmptyParts);
       } // end "while list > 1) -- i.e., we're on the next atom line
 
       key = m_in->readLine(); // start reading the next atom
@@ -177,7 +177,7 @@ void GAMESSUSOutput::processLine(GaussianSet *basis)
         key = m_in->readLine(); // energies
         key = m_in->readLine(); // symmetries
         key = m_in->readLine(); // now we've got coefficients
-        list = key.split(' ', QString::SkipEmptyParts);
+        list = key.split(' ', Qt::SkipEmptyParts);
         unsigned int numColumns = 0;
         unsigned int numRows = 0;
         while (list.size() > 5) {
@@ -190,7 +190,7 @@ void GAMESSUSOutput::processLine(GaussianSet *basis)
           key = m_in->readLine();
           if (key.contains(QLatin1String("END OF RHF")))
             break;
-          list = key.split(' ', QString::SkipEmptyParts);
+          list = key.split(' ', Qt::SkipEmptyParts);
         } // ok, we've finished one batch of MO coeffs
 
         // Now we need to re-order the MO coeffs, so we insert one MO at a time

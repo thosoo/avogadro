@@ -44,6 +44,7 @@
 #include <QDebug>
 #include <QSortFilterProxyModel>
 #include <QFileSystemModel>
+#include <QRegularExpression>
 
 using namespace OpenBabel;
 namespace Avogadro {
@@ -83,7 +84,7 @@ namespace Avogadro {
 
     //@todo: it would be great to allow multiple directories, but that needs our own directory model
     QString m_directory;
-#ifdef Q_WS_X11
+#ifdef AVO_USE_X11
     m_directory = QString( INSTALL_PREFIX ) + "/share/avogadro/";
 #else
     // Mac and Windows use relative path from application location
@@ -226,8 +227,9 @@ namespace Avogadro {
       return; // no dialog or proxy model to set
 
     // Allow things like "ti" to match "Ti" etc.
-    QRegExp reg(newFilter, Qt::CaseInsensitive, QRegExp::WildcardUnix);
-    d->proxy->setFilterRegExp(reg);
+    QRegularExpression reg(QRegularExpression::wildcardToRegularExpression(newFilter),
+                           QRegularExpression::CaseInsensitiveOption);
+    d->proxy->setFilterRegularExpression(reg);
 
     if (!newFilter.isEmpty()) {
       // user interface niceness -- show any file match

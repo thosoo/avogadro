@@ -190,7 +190,7 @@ namespace Avogadro {
     m_lastDraggingPosition = event->pos();
     m_movedSinceButtonPressed = false;
 
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     m_leftButtonPressed = (event->buttons() & Qt::LeftButton
         && event->modifiers() == Qt::NoModifier);
     // On the Mac, either use a three-button mouse
@@ -442,7 +442,7 @@ namespace Avogadro {
     // Mouse navigation has two modes - atom centred when an atom is clicked
     // and scene if no atom has been clicked.
 
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     if (event->buttons() & Qt::LeftButton && event->modifiers() == Qt::NoModifier)
 #else
       if (event->buttons() & Qt::LeftButton)

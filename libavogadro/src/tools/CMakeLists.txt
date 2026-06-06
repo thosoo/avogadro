@@ -1,12 +1,9 @@
-add_definitions(${QT_DEFINITIONS})
-add_definitions(-DQT_PLUGIN)
-add_definitions(-DQT_SHARED)
 
 set(DESTINATION_DIR ${Avogadro_PLUGIN_INSTALL_DIR}/tools)
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
-set(LINK_LIBS avogadro)
+set(LINK_LIBS)
 option(ENABLE_XTB_OPTTOOL "Build xTB optimization tool" ON)
 if(ENABLE_XTB_OPTTOOL)
   find_package(PkgConfig)
@@ -67,7 +64,7 @@ endif()
 ### xtbopttool
 if(ENABLE_XTB_OPTTOOL)
   avogadro_plugin(xtbopttool xtbopttool.cpp xtbopttool.qrc)
-  target_link_libraries(xtbopttool ${LINK_LIBS})
+  target_link_libraries(xtbopttool PRIVATE ${LINK_LIBS})
 endif()
 
 ### navigatetool

@@ -43,6 +43,7 @@
 #include <QtCore/QDebug>
 #include <QtCore/QStringList>
 #include <QtCore/QTextStream>
+#include <QRegularExpression>
 
 using namespace std;
 using namespace OpenBabel;
@@ -52,7 +53,7 @@ namespace Avogadro
   static const double BOHR_TO_ANGSTROM = 0.529177249;
   static const double ANGSTROM_TO_BOHR = 1.0 / 0.529177249;
 
-#ifdef Q_WS_X11
+#ifdef AVO_USE_X11
   static const QString EDITOR_FONT = "Monospace";
 #else
   // Windows and Mac
@@ -184,7 +185,7 @@ namespace Avogadro
   bool CartesianEditor::parseText(OBMol *mol)
   {
     QString coord = cartesianEdit->toPlainText();
-    QStringList coordStrings = coord.split(QRegExp("\n"));
+    QStringList coordStrings = coord.split(QRegularExpression("\n"));
 
     matrix3x3 xform;
     switch (m_unit) {
@@ -205,7 +206,7 @@ namespace Avogadro
     // Guess format
 
     // split on any non-word symbol, except '.'
-    QStringList data = coordStrings.at(0).trimmed().split(QRegExp("\\s+|,|;"));
+    QStringList data = coordStrings.at(0).trimmed().split(QRegularExpression("\\s+|,|;"));
     // Format definition, will be used for parsing
     int NameCol=-1, Xcol=-1, Ycol=-1, Zcol=-1;
     QString format("");
@@ -308,7 +309,7 @@ namespace Avogadro
       double x=0, y=0, z=0;
       int _n=0;
       OBAtom *atom  = mol->NewAtom();
-      QStringList s_data = coordStrings.at(N).trimmed().split(QRegExp("\\s+|,|;"));
+      QStringList s_data = coordStrings.at(N).trimmed().split(QRegularExpression("\\s+|,|;"));
       if (s_data.size() != data.size()) {
         return false;
       }

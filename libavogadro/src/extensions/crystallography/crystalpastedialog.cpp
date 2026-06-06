@@ -31,6 +31,7 @@
 #include <openbabel/generic.h>
 
 #include <QtWidgets/QMessageBox>
+#include <QRegularExpression>
 
 namespace Avogadro {
 
@@ -126,7 +127,7 @@ namespace Avogadro {
     // Next three lines are cell vectors, three floats
     for (int vecInd = 0; vecInd < 3; ++vecInd) {
       line = &lines[lineIndex++];
-      lineList = line->simplified().split(QRegExp("\\s+|,|;"));
+      lineList = line->simplified().split(QRegularExpression("\\s+|,|;"));
       if (lineList.size() != 3) {
         return false;
       }
@@ -140,7 +141,7 @@ namespace Avogadro {
 
     // Next line is a list of unsigned integers (composition)
     line = &lines[lineIndex++];
-    lineList = line->simplified().split(QRegExp("\\s+|,|;"));
+    lineList = line->simplified().split(QRegularExpression("\\s+|,|;"));
     int numSpecies = lineList.size();
     if (numSpecies == 0) {
       return false;
@@ -151,7 +152,7 @@ namespace Avogadro {
     // If vasp >= 5.x, skip the line containing the atomic symbols.
     if (!vaspVersionLessThan5) {
       line = &lines[lineIndex++];
-      lineList = line->simplified().split(QRegExp("\\s+|,|;"));
+      lineList = line->simplified().split(QRegularExpression("\\s+|,|;"));
       if (lineList.size() != numSpecies) {
         return false;
       }
@@ -179,7 +180,7 @@ namespace Avogadro {
     // have a POSCAR or CONTCAR!
     for (unsigned int i = 0; i < numAtoms; ++i) {
       line = &lines[lineIndex++];
-      lineList = line->simplified().split(QRegExp("\\s+|,|;"));
+      lineList = line->simplified().split(QRegularExpression("\\s+|,|;"));
       if (lineList.size() != 3) {
         return false;
       }
@@ -216,7 +217,7 @@ namespace Avogadro {
 
     // Count the number of atom types
     QString line = lines[5];
-    QStringList lineList = line.simplified().split(QRegExp("\\s+|,|;"));
+    QStringList lineList = line.simplified().split(QRegularExpression("\\s+|,|;"));
     m_numAtomTypes = lineList.size();
     // no atoms?
     if (m_numAtomTypes == 0) {
@@ -242,8 +243,8 @@ namespace Avogadro {
       const QString *title = &lines[0];
 
       // Attempt to parse a set of atomic symbols from the title
-      QStringList symbolList = title->split(QRegExp("[0-9|\\s|,|;]+"),
-                                            QString::SkipEmptyParts);
+      QStringList symbolList = title->split(QRegularExpression("[0-9|\\s|,|;]+"),
+                                            Qt::SkipEmptyParts);
 
       // Look for the first list of m_numAtomTypes consecutive strings
       // that converts cleanly into atomic numbers:
@@ -291,7 +292,7 @@ namespace Avogadro {
   {
     // Validate identities field
     QStringList idents = ui.edit_identities->text().simplified()
-      .split(QRegExp("\\s+|,|;"));
+      .split(QRegularExpression("\\s+|,|;"));
 
     if (static_cast<unsigned int>(idents.size()) != m_numAtomTypes) {
       QMessageBox::critical
@@ -342,7 +343,7 @@ namespace Avogadro {
     // Next three lines are cell vectors, three floats
     for (int vecInd = 0; vecInd < 3; ++vecInd) {
       line = &lines[lineIndex++];
-      lineList = line->simplified().split(QRegExp("\\s+|,|;"));
+      lineList = line->simplified().split(QRegularExpression("\\s+|,|;"));
       if (lineList.size() != 3) {
         return false;
       }
@@ -357,7 +358,7 @@ namespace Avogadro {
 
     // Next line is a list of unsigned integers (composition)
     line = &lines[lineIndex++];
-    lineList = line->simplified().split(QRegExp("\\s+|,|;"));
+    lineList = line->simplified().split(QRegularExpression("\\s+|,|;"));
     // If vasp >= 5.x, this may be a list of atomic symbols. Skip it if so,
     // since the user should have already specified/verified the composition
     // in the GUI by this point.
@@ -368,7 +369,7 @@ namespace Avogadro {
     lineList.first().toUInt(&vaspVersionLessThan5);
     if (!vaspVersionLessThan5) {
       line = &lines[lineIndex++];
-      lineList = line->simplified().split(QRegExp("\\s+|,|;"));
+      lineList = line->simplified().split(QRegularExpression("\\s+|,|;"));
     }
     for (QStringList::const_iterator it = lineList.constBegin(),
          it_end = lineList.constEnd(); it != it_end; ++it) {
@@ -399,7 +400,7 @@ namespace Avogadro {
     // have a POSCAR or CONTCAR!
     for (unsigned int i = 0; i < numAtoms; ++i) {
       line = &lines[lineIndex++];
-      lineList = line->simplified().split(QRegExp("\\s+|,|;"));
+      lineList = line->simplified().split(QRegularExpression("\\s+|,|;"));
       if (lineList.size() != 3) {
         return false;
       }

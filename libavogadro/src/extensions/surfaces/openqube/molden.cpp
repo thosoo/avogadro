@@ -92,7 +92,7 @@ void MoldenFile::processLine(GaussianSet* basis)
   if (m_in->atEnd())
     return;
 
-  QStringList list = key.split(' ', QString::SkipEmptyParts);
+  QStringList list = key.split(' ', Qt::SkipEmptyParts);
 
   // Big switch statement checking for various things we are interested in
   // Make sure to switch mode:
@@ -140,7 +140,7 @@ void MoldenFile::processLine(GaussianSet* basis)
 
       key = m_in->readLine().trimmed();
       while (!key.isEmpty()) { // read the shell types in this GTO
-        list = key.split(' ', QString::SkipEmptyParts);
+        list = key.split(' ', Qt::SkipEmptyParts);
         shell = list[0].toLower();
         shellType = UU;
         if (shell.contains("sp"))
@@ -168,7 +168,7 @@ void MoldenFile::processLine(GaussianSet* basis)
         // now read all the exponents and contraction coefficients
         for (int gto = 0; gto < numGTOs; ++gto) {
           key = m_in->readLine().trimmed();
-          list = key.split(' ', QString::SkipEmptyParts);
+          list = key.split(' ', Qt::SkipEmptyParts);
           m_a.push_back(list[0].replace('D','E').toDouble());
           m_c.push_back(list[1].replace('D','E').toDouble());
           if (shellType == SP && list.size() > 2)
@@ -183,14 +183,14 @@ void MoldenFile::processLine(GaussianSet* basis)
       // parse occ, spin, energy, etc.
       while (!key.isEmpty() && key.contains('=')) {
         key = m_in->readLine().trimmed();
-        list = key.split(' ', QString::SkipEmptyParts);
+        list = key.split(' ', Qt::SkipEmptyParts);
         if (key.contains("occup", Qt::CaseInsensitive))
           m_electrons += (int)list[1].toDouble();
       }
 
       // parse MO coefficients
       while (!key.isEmpty() && !key.contains('=')) {
-        list = key.split(' ', QString::SkipEmptyParts);
+        list = key.split(' ', Qt::SkipEmptyParts);
         if (list.size() < 2)
           break;
 

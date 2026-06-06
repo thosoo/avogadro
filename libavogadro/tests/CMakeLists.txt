@@ -1,5 +1,3 @@
-set(QT_USE_QTOPENGL true)
-
 # define TESTDATADIR for tests that need input files
 cmake_policy(SET CMP0005 NEW) # needed for line below (escapes value)
 add_definitions( -DTESTDATADIR="${CMAKE_SOURCE_DIR}/testfiles/" )
@@ -16,7 +14,7 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/libavogadro/src/extensions
   $<$<BOOL:${EIGEN3_FOUND}>:${EIGEN3_INCLUDE_DIR}>
   $<$<NOT:$<BOOL:${EIGEN3_FOUND}>>:${EIGEN2_INCLUDE_DIR}>
-  ${OPENBABEL2_INCLUDE_DIR}
+  ${OPENBABEL3_INCLUDE_DIR}
   $<$<BOOL:${GLEW_INCLUDE_DIR}>:${GLEW_INCLUDE_DIR}>
   $<$<BOOL:${GLEW_INCLUDE_DIRS}>:${GLEW_INCLUDE_DIRS}>
   ${BOOST_PYTHON_INCLUDES}
@@ -25,7 +23,6 @@ include_directories(
 
 link_directories(
   ${libavogadro_BINARY_DIR}/src
-  ${OPENBABEL2_LIBRARY_DIRS}
 )
 
 # Disabled hydrogenscommand test for now - needs some work. Moc issues here.
@@ -60,15 +57,16 @@ foreach (test ${tests})
       ../src/extensions/insertcommand.cpp
       ../src/extensions/sortfiltertreeproxymodel.cpp)
   endif()
-  set(test_MOC_CPPS ${test}test.cpp)
-  QT4_WRAP_CPP(test_MOC_SRCS ${test_MOC_CPPS})
-  ADD_CUSTOM_TARGET(${test}testmoc ALL DEPENDS ${test_MOC_SRCS})
   add_executable(${test}test ${test_SRCS})
-  add_dependencies(${test}test ${test}testmoc)
   target_link_libraries(${test}test
-    ${OPENBABEL2_LIBRARIES}
-    ${QT_LIBRARIES}
-    ${QT_QTTEST_LIBRARY}
+    PRIVATE
+    OpenBabel3::openbabel
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::OpenGL
+    Qt6::OpenGLWidgets
+    Qt6::Test
     avogadro)
   add_test(${test}Test ${CMAKE_BINARY_DIR}/bin/${test}test)
   set(_test_env "QT_QPA_PLATFORM=offscreen")
@@ -85,14 +83,14 @@ endforeach ()
 if(XTB_FOUND)
   include_directories(${XTB_INCLUDE_DIRS})
   link_directories(${XTB_LIBRARY_DIRS})
-  target_link_libraries(xtbopttooltest ${XTB_LIBRARIES})
-  target_link_libraries(xtbphysicstest ${XTB_LIBRARIES})
+  target_link_libraries(xtbopttooltest PRIVATE ${XTB_LIBRARIES})
+  target_link_libraries(xtbphysicstest PRIVATE ${XTB_LIBRARIES})
 endif()
 
 find_package(OpenMP)
 if(OpenMP_CXX_FOUND AND XTB_FOUND)
-  target_link_libraries(xtbopttooltest OpenMP::OpenMP_CXX)
-  target_link_libraries(xtbphysicstest OpenMP::OpenMP_CXX)
+  target_link_libraries(xtbopttooltest PRIVATE OpenMP::OpenMP_CXX)
+  target_link_libraries(xtbphysicstest PRIVATE OpenMP::OpenMP_CXX)
 endif()
 
 
@@ -100,15 +98,15 @@ endif()
 #message(STATUS "Test:  primitivemodeltest")
 #  set(primitivemodeltest_SRCS primitivemodeltest.cpp modeltest.cpp)
 #  set(primitivemodeltest_MOC_CPPS primitivemodeltest.cpp)
-#  QT4_WRAP_CPP(primitivemodeltest_MOC_SRCS ${primitivemodeltest_MOC_CPPS})
+#  automoc(primitivemodeltest_MOC_SRCS ${primitivemodeltest_MOC_CPPS})
 #  ADD_CUSTOM_TARGET(primitivemodeltestmoc ALL DEPENDS 
 #                                          ${primitivemodeltest_MOC_SRCS})
 #  add_executable(primitivemodeltest ${primitivemodeltest_SRCS})
 #  add_dependencies(primitivemodeltest primitivemodeltestmoc)
 #  target_link_libraries(primitivemodeltest
-#    ${OPENBABEL2_LIBRARIES}
-#    ${QT_LIBRARIES}
-#    ${QT_QTTEST_LIBRARY}
+#    OpenBabel3::openbabel
+#    Qt6 libraries
+#    Qt6::Test
 #    avogadro)
 #add_test(primitivemodelTest ${CMAKE_BINARY_DIR}/bin/primitivemodeltest)
 
@@ -119,15 +117,16 @@ set(benches
 foreach (bench ${benches})
   message(STATUS "Benchmark:  ${bench}")
   set(bench_SRCS ${bench}bench.cpp)
-  qt4_wrap_cpp(bench_MOC_SRCS ${bench_SRCS})
-  add_custom_target(${bench}benchmoc ALL DEPENDS
-    ${bench_MOC_SRCS})
   add_executable(${bench}bench ${bench_SRCS})
-  add_dependencies(${bench}bench ${bench}benchmoc)
   target_link_libraries(${bench}bench
-    ${OPENBABEL2_LIBRARIES}
-    ${QT_LIBRARIES}
-    ${QT_QTTEST_LIBRARY}
+    PRIVATE
+    OpenBabel3::openbabel
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::OpenGL
+    Qt6::OpenGLWidgets
+    Qt6::Test
     avogadro)
   add_test(${bench}Bench ${CMAKE_BINARY_DIR}/bin/${bench}bench)
   set_tests_properties(${bench}Bench PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

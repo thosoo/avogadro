@@ -2,13 +2,10 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
 set(DESTINATION_DIR ${Avogadro_PLUGIN_INSTALL_DIR}/engines)
 
-ADD_DEFINITIONS(${QT_DEFINITIONS})
-ADD_DEFINITIONS(-DQT_PLUGIN)
-ADD_DEFINITIONS(-DQT_SHARED)
 
 link_directories(${CMAKE_CURRENT_BINARY_DIR}/..)
 
-set(LINK_LIBS avogadro)
+set(LINK_LIBS)
 set(PLUGIN_LABEL engines)
 set(PLUGIN_TARGET engines)
 add_custom_target(engines COMMENT "Meta target to build all Avogadro engines.")
