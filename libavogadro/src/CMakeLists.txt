@@ -182,13 +182,13 @@ else()
 endif()
 
 # you have to add link_directories before you add the target
-if(ENABLE_PYTHON AND ALL_PYTHON_FOUND)
+if(PYTHON_SUPPORT_ENABLED)
   message(STATUS "Setting new boost python libraries")
   include_directories(
     ${Boost_INCLUDE_DIRS}
-    ${PYTHON_INCLUDE_PATH})
+    ${Python3_INCLUDE_DIRS})
   list(APPEND libavogadro_SRCS pythontool.qrc)
-  list(APPEND AVO_LINK_LIBRARIES ${PYTHON_LIBRARIES} ${Boost_LIBRARIES})
+  list(APPEND AVO_LINK_LIBRARIES Python3::Python ${Boost_LIBRARIES})
   list(APPEND libavogadro_HDRS
     pythoninterpreter.h
     pythonscript.h
@@ -284,7 +284,7 @@ if(AVO_USE_X11)
 endif()
 message(STATUS "Linking in static plugins: ${plugins_built_static}")
 # Add the boost python module if the boost::python was found
-if(ENABLE_PYTHON AND ALL_PYTHON_FOUND)
+if(PYTHON_SUPPORT_ENABLED)
   add_subdirectory(python)
 endif()
 

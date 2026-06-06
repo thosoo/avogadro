@@ -64,13 +64,13 @@ avogadro_plugin_nogl(insertdnaextension
 ### h->methyl
 avogadro_plugin_nogl(h2methylextension h2methylextension.cpp)
 
-if(ENABLE_PYTHON AND ALL_PYTHON_FOUND)
+if(PYTHON_SUPPORT_ENABLED)
   ### python terminal
   message(STATUS "Enabled python terminal")
   avogadro_plugin_nogl(pythonterminal
     "pythonterminal.cpp;highlighter.cpp"
     pythonterminalwidget.ui)
-  target_link_libraries(pythonterminal PRIVATE ${PYTHON_LIBRARIES})
+  target_link_libraries(pythonterminal PRIVATE Python3::Python)
 
   file(GLOB python_SCRIPTS "python/*.py")
   install(FILES ${python_SCRIPTS} DESTINATION ${SHARE_INSTALL_PREFIX}/libavogadro/extensionScripts)

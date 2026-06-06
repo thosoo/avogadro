@@ -6,7 +6,7 @@ add_definitions( -DTESTDATADIR="${CMAKE_SOURCE_DIR}/testfiles/" )
 get_directory_property(tmp_include_dirs INCLUDE_DIRECTORIES)
 set_directory_properties(PROPERTIES INCLUDE_DIRECTORIES
   "${libavogadro_BINARY_DIR}/include;${tmp_include_dirs}")
-include_directories(
+set(_avogadro_test_include_dirs
   ${CMAKE_SOURCE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
   ${libavogadro_BINARY_DIR}/src
@@ -17,9 +17,15 @@ include_directories(
   ${OPENBABEL3_INCLUDE_DIR}
   $<$<BOOL:${GLEW_INCLUDE_DIR}>:${GLEW_INCLUDE_DIR}>
   $<$<BOOL:${GLEW_INCLUDE_DIRS}>:${GLEW_INCLUDE_DIRS}>
-  ${BOOST_PYTHON_INCLUDES}
-  ${PYTHON_INCLUDE_PATH}
 )
+if(PYTHON_SUPPORT_ENABLED)
+  list(APPEND _avogadro_test_include_dirs
+    ${Boost_INCLUDE_DIRS}
+    ${Python3_INCLUDE_DIRS}
+    ${NUMPY_INCLUDE_DIR}
+    ${SIP_INCLUDE_DIR})
+endif()
+include_directories(${_avogadro_test_include_dirs})
 
 link_directories(
   ${libavogadro_BINARY_DIR}/src

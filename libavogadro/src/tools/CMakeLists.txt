@@ -81,7 +81,7 @@ avogadro_plugin(autorotatetool autorotatetool.cpp autorotatetool.qrc)
 ### aligntool
 avogadro_plugin(aligntool aligntool.cpp aligntool.qrc)
 
-if(ALL_PYTHON_FOUND)
+if(PYTHON_SUPPORT_ENABLED)
   file(GLOB python_SCRIPTS "python/*.py")
   install(FILES ${python_SCRIPTS} DESTINATION ${SHARE_INSTALL_PREFIX}/libavogadro/toolScripts)
 endif()

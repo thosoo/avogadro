@@ -115,7 +115,7 @@ if(AVO_USE_X11)
   target_link_libraries(avogadro-app PRIVATE ${X11_X11_LIB})
 endif()
 
-if(ENABLE_PYTHON)
+if(PYTHON_SUPPORT_ENABLED)
   target_link_libraries(avogadro-app PRIVATE ${Boost_LIBRARIES})
 endif()
 

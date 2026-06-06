@@ -382,12 +382,15 @@ endif()
 
 ###########################################################
 # Python Support: Detect and report all stuff here.       #
-# Subdirectories can use: ALL_PYTHON_FOUND                #
+# Subdirectories can use: PYTHON_SUPPORT_ENABLED          #
 ###########################################################
 option(ENABLE_PYTHON "Enable python support" ON)
+set(PYTHON_SUPPORT_ENABLED FALSE)
+set(ALL_PYTHON_FOUND FALSE)
 if(ENABLE_PYTHON)
   include(PythonDeps)
-  if(ALL_PYTHON_FOUND)
+  if(PYTHON_SUPPORT_ENABLED)
+    add_definitions(-DENABLE_PYTHON)
     message(STATUS "All python dependencies found - Python support enabled")
   else()
     set(ENABLE_PYTHON FALSE)

@@ -68,7 +68,7 @@ avogadro_plugin(hairengine hairengine.cpp hairsettingswidget.ui)
 # QTAIM engine - Quantum Theory of Atoms In Molecules
 avogadro_plugin(qtaimengine qtaimengine.cpp qtaimsettingswidget.ui)
 
-if(ALL_PYTHON_FOUND)
+if(PYTHON_SUPPORT_ENABLED)
   file(GLOB python_SCRIPTS "python/*.py")
   install(FILES ${python_SCRIPTS} DESTINATION ${SHARE_INSTALL_PREFIX}/libavogadro/engineScripts)
 endif()
