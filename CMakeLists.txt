@@ -235,7 +235,13 @@ endif()
 
 set(I18N_LANGUAGE "" CACHE STRING "Build i18n only for selected language")
 
-# Build Open Babel from our fork so CMake can find it below
+# Build Open Babel from our fork so CMake can find it below.
+# This Avogadro fork relies on changes in thosoo/openbabel, so CI must use
+# this bundled ExternalProject rather than Ubuntu's system OpenBabel package.
+set(OPENBABEL3_SOURCE_URL
+  "https://github.com/thosoo/openbabel/archive/d8695a2628ee7b85d88af8c4cf429626ba081f36.zip")
+set(OPENBABEL3_SOURCE_COMMIT "d8695a2628ee7b85d88af8c4cf429626ba081f36")
+set(OPENBABEL3_SOURCE_SHA256 "7036bb5f3d0f7a87aa2a11ba7326742cab5d987056b94c96f4530f8ef059836a")
 set(OPENBABEL_INSTALL_DIR "${CMAKE_BINARY_DIR}/openbabel-install")
 set(OPENBABEL3_INCLUDE_DIR "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
 if(WIN32)
@@ -284,9 +290,15 @@ pass_ob_arg(wxWidgets_LIB_DIR)
 pass_ob_arg(LIB_INSTALL_DIR)
 pass_ob_arg(ENABLE_OPENMP)
 pass_ob_arg(WITH_COORDGEN)
+message(STATUS "Bundled thosoo/openbabel source URL: ${OPENBABEL3_SOURCE_URL}")
+message(STATUS "Bundled thosoo/openbabel commit: ${OPENBABEL3_SOURCE_COMMIT}")
+message(STATUS "Bundled OpenBabel install prefix: ${OPENBABEL_INSTALL_DIR}")
+message(STATUS "Bundled OpenBabel include dir: ${OPENBABEL3_INCLUDE_DIR}")
+message(STATUS "Bundled OpenBabel library: ${OPENBABEL3_LIBRARY}")
+
 ExternalProject_Add(openbabel_ext
-  URL https://github.com/thosoo/openbabel/archive/d8695a2628ee7b85d88af8c4cf429626ba081f36.zip
-  URL_HASH SHA256=7036bb5f3d0f7a87aa2a11ba7326742cab5d987056b94c96f4530f8ef059836a
+  URL ${OPENBABEL3_SOURCE_URL}
+  URL_HASH SHA256=${OPENBABEL3_SOURCE_SHA256}
   BUILD_BYPRODUCTS ${_openbabel_build_byproducts}
   CMAKE_ARGS
     -DCMAKE_INSTALL_PREFIX=${OPENBABEL_INSTALL_DIR}
@@ -333,6 +345,7 @@ find_package(Eigen3 REQUIRED) # find and setup Eigen3 if available
 find_package(ZLIB REQUIRED)
 find_package(OpenBabel3 QUIET) # find and setup OpenBabel
 if(NOT OPENBABEL3_FOUND)
+  message(STATUS "Using bundled thosoo/openbabel via openbabel_ext")
   if(NOT TARGET OpenBabel3::openbabel)
     add_library(OpenBabel3::openbabel SHARED IMPORTED GLOBAL)
   endif()
@@ -349,6 +362,19 @@ if(NOT OPENBABEL3_FOUND)
   add_dependencies(OpenBabel3::openbabel openbabel_ext)
   set(OPENBABEL3_FOUND TRUE)
   set(OPENBABEL3_LIBRARIES "${OPENBABEL3_LIBRARY}")
+else()
+  string(FIND "${OPENBABEL3_LIBRARIES}" "${OPENBABEL_INSTALL_DIR}" _openbabel_from_bundle)
+  if(_openbabel_from_bundle EQUAL 0)
+    message(STATUS "Using bundled thosoo/openbabel from cached install via openbabel_ext")
+    message(STATUS "Cached bundled OpenBabel include dir: ${OPENBABEL3_INCLUDE_DIR}")
+    message(STATUS "Cached bundled OpenBabel library: ${OPENBABEL3_LIBRARIES}")
+    if(TARGET OpenBabel3::openbabel)
+      add_dependencies(OpenBabel3::openbabel openbabel_ext)
+    endif()
+  else()
+    message(STATUS "Using system OpenBabel3::openbabel: ${OPENBABEL3_LIBRARIES}")
+    message(STATUS "System OpenBabel include dir: ${OPENBABEL3_INCLUDE_DIR}")
+  endif()
 endif()
 
 if(UNIX AND NOT APPLE AND X11_FOUND)

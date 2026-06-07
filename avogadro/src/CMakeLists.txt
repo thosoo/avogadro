@@ -107,6 +107,9 @@ target_link_libraries(avogadro-app
     Qt6::OpenGLWidgets
     Qt6::Network
     Qt6::Concurrent)
+if(TARGET openbabel_ext)
+  add_dependencies(avogadro-app openbabel_ext)
+endif()
 if(QtTesting)
   target_link_libraries(avogadro-app PRIVATE QtTesting)
 endif()

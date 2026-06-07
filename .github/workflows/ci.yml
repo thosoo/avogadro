@@ -1,4 +1,13 @@
 name: Qt6 CI
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: false
+
+env:
+  THOSOO_OPENBABEL_COMMIT: d8695a2628ee7b85d88af8c4cf429626ba081f36
+  OPENBABEL_CMAKE_OPTIONS: BUILD_SHARED-ON-OB_USE_PREBUILT_BINARIES-OFF-OPENBABEL_USE_SYSTEM_INCHI-OFF-WITH_INCHI-ON-WITH_COORDGEN-ON
+
 on:
   push:
     paths-ignore:
@@ -24,6 +33,16 @@ jobs:
           path: /var/cache/apt/archives
           key: ${{ runner.os }}-qt6-apt-${{ matrix.python }}-${{ matrix.xtb }}-${{ hashFiles('.github/apt-packages.txt') }}
           restore-keys: ${{ runner.os }}-qt6-apt-
+      - name: Cache bundled thosoo OpenBabel
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/openbabel-install
+            build/openbabel_ext-prefix/src/openbabel_ext-build
+            build/openbabel_ext-prefix/src/openbabel_ext-stamp
+          key: ${{ runner.os }}-gcc-thosoo-openbabel-${{ env.THOSOO_OPENBABEL_COMMIT }}-${{ env.OPENBABEL_CMAKE_OPTIONS }}
+          restore-keys: |
+            ${{ runner.os }}-gcc-thosoo-openbabel-${{ env.THOSOO_OPENBABEL_COMMIT }}-
       - name: Install dependencies
         run: |
           sudo apt-get update

@@ -74,6 +74,9 @@ foreach (test ${tests})
     Qt6::OpenGLWidgets
     Qt6::Test
     avogadro)
+  if(TARGET openbabel_ext)
+    add_dependencies(${test}test openbabel_ext)
+  endif()
   add_test(${test}Test ${CMAKE_BINARY_DIR}/bin/${test}test)
   set(_test_env "QT_QPA_PLATFORM=offscreen")
   if(${test} STREQUAL "forcefield")
@@ -134,6 +137,9 @@ foreach (bench ${benches})
     Qt6::OpenGLWidgets
     Qt6::Test
     avogadro)
+  if(TARGET openbabel_ext)
+    add_dependencies(${bench}bench openbabel_ext)
+  endif()
   add_test(${bench}Bench ${CMAKE_BINARY_DIR}/bin/${bench}bench)
   set_tests_properties(${bench}Bench PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   set_property(SOURCE ${bench_SRCS} PROPERTY LABELS avogadro)

@@ -22,6 +22,9 @@ target_link_libraries(clipboardformatdetectortest
     Qt6::Test
     OpenBabel3::openbabel
 )
+if(TARGET openbabel_ext)
+  add_dependencies(clipboardformatdetectortest openbabel_ext)
+endif()
 
 add_test(clipboardFormatDetectorTest ${CMAKE_BINARY_DIR}/bin/clipboardformatdetectortest)
 set_tests_properties(clipboardFormatDetectorTest PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

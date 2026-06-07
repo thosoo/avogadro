@@ -61,6 +61,9 @@ function(avogadro_plugin_nogl plugin_name src_list)
   endforeach()
 
   add_library(${plugin_name} ${_plugin_type} ${plugin_sources})
+  if(TARGET openbabel_ext)
+    add_dependencies(${plugin_name} openbabel_ext)
+  endif()
   set_target_properties(${plugin_name} PROPERTIES
     AUTOMOC_MOC_OPTIONS "-DBOOST_TT_HAS_OPERATOR_HPP_INCLUDED")
   set(_plugin_link_libs
