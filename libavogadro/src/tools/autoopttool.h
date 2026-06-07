@@ -39,7 +39,7 @@
 #include <QtWidgets/QComboBox>
 #include <QtWidgets/QCheckBox>
 #include <QtWidgets/QSpinBox>
-#include <QtWidgets/QUndoStack>
+#include <QUndoStack>
 
 namespace Avogadro {
   enum AutoOptAlgorithm

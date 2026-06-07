@@ -39,7 +39,7 @@
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QSpinBox>
 #include <QtWidgets/QComboBox>
-#include <QtWidgets/QUndoStack>
+#include <QUndoStack>
 #include <QtWidgets/QProgressBar>
 
 namespace Avogadro {

@@ -31,7 +31,7 @@
 
 #include <Eigen/Core>
 
-#include <QtWidgets/QUndoCommand>
+#include <QUndoCommand>
 
 #include <QtCore/QStringList>
 
