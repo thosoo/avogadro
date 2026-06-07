@@ -187,7 +187,7 @@ namespace Avogadro {
     event->accept();
     Molecule *molecule = widget->molecule();
 
-    m_lastDraggingPosition = event->pos();
+    m_lastDraggingPosition = event->position().toPoint();
     m_movedSinceButtonPressed = false;
 
 #ifdef Q_OS_MAC
@@ -195,7 +195,7 @@ namespace Avogadro {
         && event->modifiers() == Qt::NoModifier);
     // On the Mac, either use a three-button mouse
     // or hold down the Shift key
-    m_midButtonPressed = ((event->buttons() & Qt::MidButton) ||
+    m_midButtonPressed = ((event->buttons() & Qt::MiddleButton) ||
         (event->buttons() & Qt::LeftButton && event->modifiers()
          & Qt::ShiftModifier));
     // Hold down the Command key (ControlModifier in Qt notation) for right button
@@ -205,7 +205,7 @@ namespace Avogadro {
           event->modifiers() == Qt::MetaModifier)));
 #else
     m_leftButtonPressed = (event->buttons() & Qt::LeftButton);
-    m_midButtonPressed = (event->buttons() & Qt::MidButton);
+    m_midButtonPressed = (event->buttons() & Qt::MiddleButton);
     m_rightButtonPressed = (event->buttons() & Qt::RightButton);
 #endif
 
@@ -215,7 +215,7 @@ namespace Avogadro {
     unsigned long oldName = m_selectedBond ? m_selectedBond->index() : FALSE_ID;
 
     // Check if the mouse clicked on any Atoms or Bonds.
-    Primitive *clickedPrim = widget->computeClickedPrimitive(event->pos());
+    Primitive *clickedPrim = widget->computeClickedPrimitive(event->position().toPoint());
 
     if (clickedPrim && clickedPrim->type() == Primitive::AtomType)
     {
@@ -433,7 +433,7 @@ namespace Avogadro {
 
     Molecule *molecule = widget->molecule();
 
-    QPoint deltaDragging = event->pos() - m_lastDraggingPosition;
+    QPoint deltaDragging = event->position().toPoint() - m_lastDraggingPosition;
 
     if (deltaDragging.manhattanLength() > 2) {
       m_movedSinceButtonPressed = true;
@@ -514,7 +514,7 @@ namespace Avogadro {
           Vector3d rotationVector = referenceVector.cross(*m_directionVector);
           rotationVector = rotationVector.normalized();
 
-          Vector3d currMouseVector = Vector3d(event->pos().x(), event->pos().y(), 0)
+          Vector3d currMouseVector = Vector3d(event->position().toPoint().x(), event->position().toPoint().y(), 0)
             - centerProj;
           if(currMouseVector.norm() > 5)
           {
@@ -590,7 +590,7 @@ namespace Avogadro {
           Vector3d centerProj = widget->camera()->project(center);
           centerProj -= Vector3d(0,0,centerProj.z());
 
-          Vector3d currMouseVector = Vector3d(event->pos().x(), event->pos().y(), 0)
+          Vector3d currMouseVector = Vector3d(event->position().toPoint().x(), event->position().toPoint().y(), 0)
             - centerProj;
 
           if(currMouseVector.norm() > 5)
@@ -647,7 +647,7 @@ namespace Avogadro {
           Vector3d direction = clicked - other;
 
           Vector3d mouseLast = widget->camera()->unProject(m_lastDraggingPosition);
-          Vector3d mouseCurr = widget->camera()->unProject(event->pos());
+          Vector3d mouseCurr = widget->camera()->unProject(event->position().toPoint());
           Vector3d mouseDir = mouseCurr - mouseLast;
 
           Vector3d component = mouseDir.dot(direction) / direction.squaredNorm()
@@ -690,7 +690,7 @@ namespace Avogadro {
           Vector3d centerProj = widget->camera()->project(center);
           centerProj -= Vector3d(0,0,centerProj.z());
 
-          Vector3d currMouseVector = Vector3d(event->pos().x(), event->pos().y(), 0)
+          Vector3d currMouseVector = Vector3d(event->position().toPoint().x(), event->position().toPoint().y(), 0)
             - centerProj;
 
           if(currMouseVector.norm() > 5)
@@ -728,7 +728,7 @@ namespace Avogadro {
         }
       }
 
-    m_lastDraggingPosition = event->pos();
+    m_lastDraggingPosition = event->position().toPoint();
     m_molecule->update();
 
     return 0;

@@ -138,13 +138,13 @@ namespace Avogadro {
                                              QMouseEvent *event)
   {
     m_glwidget = widget;
-    m_lastDraggingPosition = event->pos();
+    m_lastDraggingPosition = event->position().toPoint();
 
     m_leftButtonPressed = (event->buttons() & Qt::LeftButton
         && event->modifiers() == Qt::NoModifier);
     // On the Mac, either use a three-button mouse
     // or hold down the Shift key
-    m_midButtonPressed = ((event->buttons() & Qt::MidButton) ||
+    m_midButtonPressed = ((event->buttons() & Qt::MiddleButton) ||
         (event->buttons() & Qt::LeftButton && event->modifiers()
          & Qt::ShiftModifier));
     // Hold down the Command key (ControlModifier in Qt notation) for right button
@@ -153,7 +153,7 @@ namespace Avogadro {
          (event->modifiers() == Qt::ControlModifier ||
           event->modifiers() == Qt::MetaModifier)));
 
-    m_clickedAtom = widget->computeClickedAtom(event->pos());
+    m_clickedAtom = widget->computeClickedAtom(event->position().toPoint());
     if(m_clickedAtom != 0 && m_leftButtonPressed && m_running)
     {
       event->accept();
@@ -206,14 +206,14 @@ namespace Avogadro {
         event->accept();
         // translate the molecule following mouse movement  
         Vector3d begin = widget->camera()->project(*m_clickedAtom->pos());
-        // Both camera()->project() and event->pos() are in device pixels (GLWidget scales mouse events)
+        // Both camera()->project() and event->position().toPoint() are in device pixels (GLWidget scales mouse events)
         QPoint beginPos(static_cast<int>(begin.x()), static_cast<int>(begin.y()));
         translate(widget, *m_clickedAtom->pos(),
-                  beginPos, event->pos());
+                  beginPos, event->position().toPoint());
       }
     }
 
-    m_lastDraggingPosition = event->pos();
+    m_lastDraggingPosition = event->position().toPoint();
     widget->update();
 
     return 0;

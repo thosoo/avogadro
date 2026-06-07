@@ -648,7 +648,7 @@ namespace Avogadro {
   void PlotWidget::mouseMoveEvent(QMouseEvent *event)
   {
     if (event->buttons() & Qt::RightButton) {
-      QPointF pixelDelta = event->localPos() - mouseClickOrigin; // How far the mouse has moved in QFrame coords.
+      QPointF pixelDelta = event->position() - mouseClickOrigin; // How far the mouse has moved in QFrame coords.
       QPointF unitPerPixel (-dataRect().width() / pixRect().width(), dataRect().height() / pixRect().height()); // get conversion factor
       QPointF unitDelta (pixelDelta.x() * unitPerPixel.x(), pixelDelta.y() * unitPerPixel.y()); // How far the mouse has moved in axis coords
       // New limits
@@ -682,23 +682,23 @@ namespace Avogadro {
         }
       }
       setLimits(newX1, newX2, newY1, newY2);
-      mouseClickOrigin = event->localPos();
+      mouseClickOrigin = event->position();
     }
 
-    if (event->buttons() & Qt::MidButton) {
-      zoomPosF = event->pos();
+    if (event->buttons() & Qt::MiddleButton) {
+      zoomPosF = event->position();
       update();
     }
 
     // "mouseover" events
     if (event->button() == Qt::NoButton) {
-      QPointF p_data = mapFrameToData(event->localPos());
+      QPointF p_data = mapFrameToData(event->position());
       emit mouseOverPoint(p_data.x(), p_data.y());
     }
 
     // "Mouse follow" events
     if (event->button() == Qt::NoButton && d->objectList.size() > 0 && d->followingMouse) {
-      QPointF pF 	= mapToWidget(mapFrameToData(event->pos()));
+      QPointF pF 	= mapToWidget(mapFrameToData(event->position()));
       QPoint p_widget 	( static_cast<int>(pF.x()), static_cast<int>(pF.y()));
       PlotPoint *p 	= pointNearestPoint(p_widget);
 
@@ -715,15 +715,15 @@ namespace Avogadro {
   void PlotWidget::mousePressEvent(QMouseEvent *event)
   {
     if (event->buttons() & Qt::RightButton) {
-      mouseClickOrigin = event->localPos();
+      mouseClickOrigin = event->position();
     }
-    if (event->buttons() & Qt::MidButton) {
-      mouseClickOrigin = event->localPos();
+    if (event->buttons() & Qt::MiddleButton) {
+      mouseClickOrigin = event->position();
     }
     if (event->buttons() & Qt::LeftButton) {
-      QPointF pF ( mapToWidget(mapFrameToData(event->pos())));
+      QPointF pF ( mapToWidget(mapFrameToData(event->position())));
       QPoint p_widget ( static_cast<int>(pF.x()), static_cast<int>(pF.y()));
-      QPointF p_data = mapFrameToData(event->localPos());
+      QPointF p_data = mapFrameToData(event->position());
       PlotPoint *p_near = pointNearestPoint(p_widget);
       emit pointClicked(p_data.x(), p_data.y());
       emit pointClicked(pointsUnderPoint(p_widget));
@@ -745,9 +745,9 @@ namespace Avogadro {
 
   void PlotWidget::mouseReleaseEvent(QMouseEvent *event)
   {
-    if (event->button() & Qt::MidButton) {
+    if (event->button() & Qt::MiddleButton) {
       // map coords
-      QPointF p1 = mapFrameToData(event->localPos());
+      QPointF p1 = mapFrameToData(event->position());
       QPointF p2 = mapFrameToData(mouseClickOrigin);
 
       // get coords:
@@ -786,8 +786,8 @@ namespace Avogadro {
   void PlotWidget::wheelEvent(QWheelEvent * event)
   {
     // scroll deltas are in units of 1/8 degree
-    float delta = event->delta();
-    QPoint pos = event->pos();
+    const float delta = static_cast<float>(event->angleDelta().y());
+    const QPoint pos = event->position().toPoint();
 
     // get current limits
     double x1 = dataRect().x();
@@ -1115,7 +1115,7 @@ namespace Avogadro {
       painter->setBrush( QBrush() );
 
       //pen.setStyle( Qt::DotLine );
-      painter->drawRoundRect( bestRect );
+      painter->drawRoundedRect( bestRect, 25.0, 25.0, Qt::RelativeSize );
 
       //Now connect the label to the point with a line.
       //The line is drawn from the center of the near edge of the rectangle
@@ -1203,7 +1203,7 @@ namespace Avogadro {
       int y2 = int(mouseClickOrigin.y());
 
       // draw rectangle
-      p.resetMatrix();
+      p.resetTransform();
       p.drawLine(x1, y1, x1, y2);
       p.drawLine(x1, y2, x2, y2);
       p.drawLine(x2, y2, x2, y1);
@@ -1452,8 +1452,8 @@ namespace Avogadro {
       textLabel.setAlignment(Qt::AlignCenter);
 
       QPalette palette = textLabel.palette();
-      palette.setColor(QPalette::Foreground, foregroundColor());
-      palette.setColor(QPalette::Background, QColor(0,0,0,0)); // Transparent background
+      palette.setColor(QPalette::WindowText, foregroundColor());
+      palette.setColor(QPalette::Window, QColor(0,0,0,0)); // Transparent background
       textLabel.setPalette(palette);
 
       QPoint offset (0, imPixRect.height() + imBottomPadding/2);
@@ -1475,8 +1475,8 @@ namespace Avogadro {
             textLabel.setAlignment(Qt::AlignCenter);
 
             QPalette palette = textLabel.palette();
-            palette.setColor(QPalette::Foreground, foregroundColor());
-            palette.setColor(QPalette::Background, QColor(0,0,0,0)); // Transparent background
+            palette.setColor(QPalette::WindowText, foregroundColor());
+            palette.setColor(QPalette::Window, QColor(0,0,0,0)); // Transparent background
             textLabel.setPalette(palette);
 
             QPoint offset  (int(px) - imPixRect.width()/2, imPixRect.height());
@@ -1503,8 +1503,8 @@ namespace Avogadro {
       textLabel.setAlignment(Qt::AlignCenter);
 
       QPalette palette = textLabel.palette();
-      palette.setColor(QPalette::Foreground, foregroundColor());
-      palette.setColor(QPalette::Background, QColor(0,0,0,0)); // Transparent background
+      palette.setColor(QPalette::WindowText, foregroundColor());
+      palette.setColor(QPalette::Window, QColor(0,0,0,0)); // Transparent background
       textLabel.setPalette(palette);
 
       QPoint offset (0, 0);
@@ -1527,8 +1527,8 @@ namespace Avogadro {
             textLabel.setAlignment(Qt::AlignCenter);
 
             QPalette palette = textLabel.palette();
-            palette.setColor(QPalette::Foreground, foregroundColor());
-            palette.setColor(QPalette::Background, QColor(0,0,0,0)); // Transparent background
+            palette.setColor(QPalette::WindowText, foregroundColor());
+            palette.setColor(QPalette::Window, QColor(0,0,0,0)); // Transparent background
             textLabel.setPalette(palette);
 
             QPoint offset  (-( int(py) + imPixRect.height()/2 ), -imLeftPadding/2);
@@ -1721,8 +1721,8 @@ namespace Avogadro {
       textLabel.setAlignment(Qt::AlignCenter);
 
       QPalette palette = textLabel.palette();
-      palette.setColor(QPalette::Foreground, foregroundColor());
-      palette.setColor(QPalette::Background, QColor(0,0,0,0)); // Transparent background
+      palette.setColor(QPalette::WindowText, foregroundColor());
+      palette.setColor(QPalette::Window, QColor(0,0,0,0)); // Transparent background
       textLabel.setPalette(palette);
 
       QPoint offset (0, d->pixRect.height() + bottomPadding()/2);
@@ -1744,8 +1744,8 @@ namespace Avogadro {
             textLabel.setAlignment(Qt::AlignCenter);
 
             QPalette palette = textLabel.palette();
-            palette.setColor(QPalette::Foreground, foregroundColor());
-            palette.setColor(QPalette::Background, QColor(0,0,0,0)); // Transparent background
+            palette.setColor(QPalette::WindowText, foregroundColor());
+            palette.setColor(QPalette::Window, QColor(0,0,0,0)); // Transparent background
             textLabel.setPalette(palette);
 
             QPoint offset  (int(px) - d->pixRect.width()/2, d->pixRect.height());
@@ -1772,8 +1772,8 @@ namespace Avogadro {
       textLabel.setAlignment(Qt::AlignCenter);
 
       QPalette palette = textLabel.palette();
-      palette.setColor(QPalette::Foreground, foregroundColor());
-      palette.setColor(QPalette::Background, QColor(0,0,0,0)); // Transparent background
+      palette.setColor(QPalette::WindowText, foregroundColor());
+      palette.setColor(QPalette::Window, QColor(0,0,0,0)); // Transparent background
       textLabel.setPalette(palette);
 
       QPoint offset (0, 0);
@@ -1796,8 +1796,8 @@ namespace Avogadro {
             textLabel.setAlignment(Qt::AlignCenter);
 
             QPalette palette = textLabel.palette();
-            palette.setColor(QPalette::Foreground, foregroundColor());
-            palette.setColor(QPalette::Background, QColor(0,0,0,0)); // Transparent background
+            palette.setColor(QPalette::WindowText, foregroundColor());
+            palette.setColor(QPalette::Window, QColor(0,0,0,0)); // Transparent background
             textLabel.setPalette(palette);
 
             QPoint offset  (-( int(py) + d->pixRect.height()/2 ), -leftPadding()/2);
