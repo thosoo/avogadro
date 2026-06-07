@@ -51,7 +51,7 @@ namespace Avogadro {
     foreach(PluginFactory *factory, engineFactories)
       types.append(factory->name());
     
-    qSort(types);
+    std::sort(types.begin(), types.end());
     
     foreach(const QString &type, types)
       dialog->addType(type);
@@ -110,3 +110,4 @@ namespace Avogadro {
 } // end namespace Avogadro
 
 #include "addenginedialog.moc"
+#include <algorithm>

@@ -32,6 +32,7 @@
 #include <avogadro/molecule.h>
 
 #include <cmath>
+#include <algorithm>
 
 namespace Avogadro {
 
@@ -167,7 +168,7 @@ namespace Avogadro {
             x += 4*FWHM / (int(dotsPerPeak));
         }
     }
-    qSort(xPoints);
+    std::sort(xPoints.begin(), xPoints.end());
     return xPoints;
   }
 

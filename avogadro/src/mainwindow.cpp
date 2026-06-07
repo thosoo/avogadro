@@ -1991,7 +1991,7 @@ protected:
     if (mainWindowList.isEmpty())
       return;
 
-    qSort(mainWindowList.begin(), mainWindowList.end(), windowComparison);
+    std::sort(mainWindowList.begin(), mainWindowList.end(), windowComparison);
 
     unsigned int untitledCount = 0;
     ui.menuSettings->addSeparator();

@@ -28,6 +28,7 @@
 #include <openbabel/atom.h>
 #include <openbabel/obiter.h>
 #include <openbabel/elements.h>
+#include <algorithm>
 
 using namespace std;
 using namespace OpenBabel;
@@ -247,7 +248,7 @@ namespace Avogadro {
   void NMRSpectra::updatePlotAxes()
   {
     QList<double> tmp (m_xList);
-    qSort(tmp);
+    std::sort(tmp.begin(), tmp.end());
     double FWHM = ui.spin_FWHM->value();
     if (tmp.size() == 1) {
       double center 	= tmp.first() - m_ref;

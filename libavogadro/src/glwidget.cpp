@@ -71,7 +71,7 @@
 #include <QtCore/QPluginLoader>
 #include <QtCore/QPointer>
 #include <QtCore/QReadWriteLock>
-#include <QtCore/QTime>
+#include <QElapsedTimer>
 #include <QtCore/QMutex>
 
 #ifdef ENABLE_THREADED_GL
@@ -86,6 +86,7 @@
 #endif
 
 #include <cstdio>
+#include <algorithm>
 #include <vector>
 #include <cstdlib>
 
@@ -1091,7 +1092,7 @@ namespace Avogadro {
     // significant bits being 0. A bit == 1 indicates that the edge is
     // intersected. Initialize to all 0s.
     //
-    register quint16 intersections = 0;
+    quint16 intersections = 0;
     //
     // Define masks for the edge bits to prevent errors:
     //
@@ -1837,9 +1838,9 @@ namespace Avogadro {
     // Scale mouse event coordinates for HiDPI
     QMouseEvent scaledEvent(
       event->type(),
-      event->localPos() * devicePixelRatioF(),
-      event->windowPos() * devicePixelRatioF(),
-      event->screenPos() * devicePixelRatioF(),
+      event->position() * devicePixelRatioF(),
+      event->scenePosition() * devicePixelRatioF(),
+      event->globalPosition() * devicePixelRatioF(),
       event->button(), event->buttons(), event->modifiers()
     );
     scaledEvent.ignore();
@@ -1868,9 +1869,9 @@ namespace Avogadro {
 
     QMouseEvent scaledEvent(
       event->type(),
-      event->localPos() * devicePixelRatioF(),
-      event->windowPos() * devicePixelRatioF(),
-      event->screenPos() * devicePixelRatioF(),
+      event->position() * devicePixelRatioF(),
+      event->scenePosition() * devicePixelRatioF(),
+      event->globalPosition() * devicePixelRatioF(),
       event->button(), event->buttons(), event->modifiers()
     );
     scaledEvent.ignore();
@@ -1915,9 +1916,9 @@ namespace Avogadro {
 #endif
     QMouseEvent scaledEvent(
       event->type(),
-      event->localPos() * devicePixelRatioF(),
-      event->windowPos() * devicePixelRatioF(),
-      event->screenPos() * devicePixelRatioF(),
+      event->position() * devicePixelRatioF(),
+      event->scenePosition() * devicePixelRatioF(),
+      event->globalPosition() * devicePixelRatioF(),
       event->button(), event->buttons(), event->modifiers()
     );
     scaledEvent.ignore();
@@ -2184,7 +2185,7 @@ namespace Avogadro {
     connect(this, SIGNAL(moleculeChanged(Molecule *)),
             engine, SLOT(setMolecule(Molecule *)));
     d->engines.append(engine);
-    qSort(d->engines.begin(), d->engines.end(), engineLessThan);
+    std::sort(d->engines.begin(), d->engines.end(), engineLessThan);
     engine->setPainterDevice(d->pd);
     emit engineAdded(engine);
     update();
@@ -2392,7 +2393,7 @@ namespace Avogadro {
         }
       }
       //      printf ("\n");
-      qSort( hits );
+      std::sort(hits.begin(), hits.end());
     }
 
     return( hits );
@@ -2740,7 +2741,7 @@ namespace Avogadro {
 
   inline double GLWidget::computeFramesPerSecond()
   {
-    static QTime time;
+    static QElapsedTimer time;
     static bool firstTime = true;
     static int old_time, new_time;
     static int frames;

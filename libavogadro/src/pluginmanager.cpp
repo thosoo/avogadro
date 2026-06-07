@@ -50,6 +50,7 @@
 
 #include "staticplugins.cpp"
 #include <QRegularExpression>
+#include <algorithm>
 
 namespace Avogadro {
 
@@ -307,7 +308,7 @@ namespace Avogadro {
       d->tools.append(tool);
     }
 
-    qSort(d->tools.begin(), d->tools.end(), toolGreaterThan);
+    std::sort(d->tools.begin(), d->tools.end(), toolGreaterThan);
 
     d->toolsLoaded = true;
     return d->tools;
@@ -393,7 +394,7 @@ namespace Avogadro {
       d->colors.append(color);
     }
 
-    qSort(d->colors.begin(), d->colors.end(), colorGreaterThan);
+    std::sort(d->colors.begin(), d->colors.end(), colorGreaterThan);
 
     d->colorsLoaded = true;
     return d->colors;

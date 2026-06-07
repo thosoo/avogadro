@@ -46,6 +46,7 @@
 #include <QMessageBox>
 #include <QHeaderView>
 #include <QDebug>
+#include <algorithm>
 
 using namespace std;
 using namespace OpenBabel;
@@ -355,7 +356,7 @@ namespace Avogadro
   {
     QModelIndexList selectedIndexes = m_efpView->selectionModel()->selectedRows();
 
-    qSort(selectedIndexes.begin(), selectedIndexes.end(), qGreater<QModelIndex>());
+    std::sort(selectedIndexes.begin(), selectedIndexes.end(), [](const QModelIndex &left, const QModelIndex &right) { return right < left; });
     foreach(QModelIndex index, selectedIndexes)
     {
       QModelIndex parent = index.parent();
@@ -376,7 +377,7 @@ namespace Avogadro
     }
 
     selectedIndexes = m_efpView->selectionModel()->selectedRows();
-    qSort(selectedIndexes.begin(), selectedIndexes.end(), qGreater<QModelIndex>());
+    std::sort(selectedIndexes.begin(), selectedIndexes.end(), [](const QModelIndex &left, const QModelIndex &right) { return right < left; });
     foreach(QModelIndex index, selectedIndexes)
     {
       QModelIndex parent = index.parent();

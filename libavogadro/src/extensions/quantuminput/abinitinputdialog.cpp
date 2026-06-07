@@ -40,6 +40,7 @@
 #include <QSettings>
 #include <QDebug>
 #include <QProcess>
+#include <algorithm>
 
 using namespace OpenBabel;
 
@@ -951,7 +952,7 @@ namespace Avogadro
        Zatom.append(atom->atomicNumber());
        Zatom_sorted.append(atom->atomicNumber());
     }
-    qSort(Zatom_sorted);
+    std::sort(Zatom_sorted.begin(), Zatom_sorted.end());
 
     // number of types of atoms
     unsigned int iatom, iz;
