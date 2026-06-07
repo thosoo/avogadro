@@ -9,8 +9,10 @@ on:
 
 jobs:
   build:
+    name: build python=${{ matrix.python }} xtb=${{ matrix.xtb }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python: [ON, OFF]
         xtb: [ON, OFF]
