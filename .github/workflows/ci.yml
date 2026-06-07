@@ -58,7 +58,7 @@ jobs:
             -DENABLE_PYTHON=${{ matrix.python }} \
             -DENABLE_XTB_OPTTOOL=${{ matrix.xtb }}
       - name: Build
-        run: cmake --build build --parallel
+        run: cmake --build build
       - name: Test
         run: |
           export LD_LIBRARY_PATH="$PWD/build/openbabel-install/lib:$LD_LIBRARY_PATH"
