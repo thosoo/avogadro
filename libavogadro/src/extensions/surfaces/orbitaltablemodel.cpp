@@ -45,12 +45,12 @@ namespace Avogadro {
     if (role == Qt::TextAlignmentRole) {
       switch (Column(index.column())) {
       case C_Energy:
-        return Qt::AlignRight | Qt::AlignVCenter; // numeric alignment
+        return static_cast<int>(Qt::AlignRight | Qt::AlignVCenter); // numeric alignment
       case C_Status: // everything else can be centered
       case C_Description:
       case C_Symmetry:
       default:
-        return Qt::AlignHCenter | Qt::AlignVCenter;
+        return static_cast<int>(Qt::AlignHCenter | Qt::AlignVCenter);
       }
     }
 

@@ -160,34 +160,34 @@ namespace Avogadro {
     // handle text alignments
     if (role == Qt::TextAlignmentRole) {
       /*if (m_type == CartesianType) {
-        return Qt::AlignRight | Qt::AlignVCenter; // XYZ coordinates
+        return static_cast<int>(Qt::AlignRight | Qt::AlignVCenter); // XYZ coordinates
         }
         else*/ if (m_type == ConformerType) {
-        return Qt::AlignRight | Qt::AlignVCenter; // energies
+        return static_cast<int>(Qt::AlignRight | Qt::AlignVCenter); // energies
       }
       else if (m_type == AtomType) {
         if (index.column() == 3)
-          return Qt::AlignRight | Qt::AlignVCenter; // partial charge
+          return static_cast<int>(Qt::AlignRight | Qt::AlignVCenter); // partial charge
         else
-          return Qt::AlignHCenter | Qt::AlignVCenter;
+          return static_cast<int>(Qt::AlignHCenter | Qt::AlignVCenter);
       }
       else if (m_type == BondType) {
         if (index.column() >= 5)
-          return Qt::AlignRight | Qt::AlignVCenter; // bond length
+          return static_cast<int>(Qt::AlignRight | Qt::AlignVCenter); // bond length
         else
-          return Qt::AlignHCenter | Qt::AlignVCenter;
+          return static_cast<int>(Qt::AlignHCenter | Qt::AlignVCenter);
       }
       else if (m_type == AngleType) {
         if (index.column() >= 4)
-          return Qt::AlignRight | Qt::AlignVCenter; // angle
+          return static_cast<int>(Qt::AlignRight | Qt::AlignVCenter); // angle
         else
-          return Qt::AlignHCenter | Qt::AlignVCenter;
+          return static_cast<int>(Qt::AlignHCenter | Qt::AlignVCenter);
       }
       else if (m_type == TorsionType) {
         if (index.column() >= 5)
-          return Qt::AlignRight | Qt::AlignVCenter; // dihedral angle
+          return static_cast<int>(Qt::AlignRight | Qt::AlignVCenter); // dihedral angle
         else
-          return Qt::AlignHCenter | Qt::AlignVCenter;
+          return static_cast<int>(Qt::AlignHCenter | Qt::AlignVCenter);
       }
     }
 
@@ -382,7 +382,7 @@ namespace Avogadro {
     // handle text alignments
     if (role == Qt::TextAlignmentRole) {
       if (orientation == Qt::Vertical) {
-        return Qt::AlignHCenter; // XYZ coordinates
+        return static_cast<int>(Qt::AlignHCenter); // XYZ coordinates
       }
     }
 
