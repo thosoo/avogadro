@@ -313,10 +313,10 @@ namespace Avogadro
         mol << "geometry angstrom\n";
       QList<Atom *> atoms = m_molecule->atoms();
       foreach (Atom *atom, atoms) {
-        mol << qSetFieldWidth(12) << qSetRealNumberPrecision(8) << forcepoint << fixed << right
+        mol << qSetFieldWidth(12) << qSetRealNumberPrecision(8) << Qt::forcepoint << Qt::fixed << Qt::right
             << atom->pos()->x() << atom->pos()->y()<< atom->pos()->z()
-            << qSetFieldWidth(4) << right << atom->atomicNumber()
-            << qSetFieldWidth(4) << right << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()))
+            << qSetFieldWidth(4) << Qt::right << atom->atomicNumber()
+            << qSetFieldWidth(4) << Qt::right << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()))
             << qSetFieldWidth(0) << '\n';
       }
       // End
@@ -374,15 +374,15 @@ namespace Avogadro
           t += 360.0;
         if (atom->GetIdx() > 1)
           mol << "   r" << atom->GetIdx() << qSetFieldWidth(15)
-              << qSetRealNumberPrecision(5) << forcepoint << fixed << right
+              << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right
               << r << qSetFieldWidth(0) << '\n';
         if (atom->GetIdx() > 2)
           mol << "   a" << atom->GetIdx() << qSetFieldWidth(15)
-              << qSetRealNumberPrecision(5) << forcepoint << fixed << right
+              << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right
               << w << qSetFieldWidth(0) << '\n';
         if (atom->GetIdx() > 3)
           mol << "   d" << atom->GetIdx() << qSetFieldWidth(15)
-              << qSetRealNumberPrecision(5) << forcepoint << fixed << right
+              << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right
               << t << qSetFieldWidth(0) << '\n';
       }
       foreach (OpenBabel::OBInternalCoord *c, vic)
@@ -392,16 +392,16 @@ namespace Avogadro
     }
 
     // Basis set
-    mol << "basis  " << getBasisType(m_basisType) << endl << endl;
+    mol << "basis  " << getBasisType(m_basisType) << Qt::endl << Qt::endl;
 
     // Set runtype
-    mol << getRunType(m_calculationType) << endl;
+    mol << getRunType(m_calculationType) << Qt::endl;
 
     // Set scftype
-    mol << getScfType(m_theoryType) << endl;
+    mol << getScfType(m_theoryType) << Qt::endl;
 
-    mol << endl;
-    mol << "enter" << endl;
+    mol << Qt::endl;
+    mol << "enter" << Qt::endl;
 
     return buffer;
   }

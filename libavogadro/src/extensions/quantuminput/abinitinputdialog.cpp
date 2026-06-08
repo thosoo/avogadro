@@ -920,9 +920,9 @@ namespace Avogadro
       // positions of all atoms
       mol << "xangst\n";
       foreach (Atom *atom, atoms) {
-        mol << qSetFieldWidth(3) << left
-            << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint
-            << fixed << right << atom->pos()->x() << atom->pos()->y()
+        mol << qSetFieldWidth(3) << Qt::left
+            << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << Qt::forcepoint
+            << Qt::fixed << Qt::right << atom->pos()->x() << atom->pos()->y()
             << atom->pos()->z()
             << qSetFieldWidth(0) << '\n';
       }

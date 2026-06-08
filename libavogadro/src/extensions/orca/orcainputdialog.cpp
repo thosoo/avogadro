@@ -1405,10 +1405,10 @@ void  OrcaInputDialog::initComboboxes()
           QList<Atom *> atoms = m_molecule->atoms();
 
           foreach (Atom *atom, atoms) {
-              mol << qSetFieldWidth(4) << right
+              mol << qSetFieldWidth(4) << Qt::right
                   << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()))
-                  << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint
-                  << fixed << right << atom->pos()->x() << atom->pos()->y()
+                  << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << Qt::forcepoint
+                  << Qt::fixed << Qt::right << atom->pos()->x() << atom->pos()->y()
                   << atom->pos()->z()
                   << qSetFieldWidth(0) << '\n';
           }
@@ -1513,27 +1513,27 @@ void  OrcaInputDialog::initComboboxes()
               if (t < 0.0)
                   t += 360.0;
 
-              mol << qSetFieldWidth(4) << right
+              mol << qSetFieldWidth(4) << Qt::right
                   << QString(OpenBabel::OBElements::GetSymbol(atom->GetAtomicNum()));
 
               if (a) {
-                  mol << qSetFieldWidth(6) << right << QString::number(a->GetIdx());
+                  mol << qSetFieldWidth(6) << Qt::right << QString::number(a->GetIdx());
               } else {
-                  mol << qSetFieldWidth(6) << right << "0" ;
+                  mol << qSetFieldWidth(6) << Qt::right << "0" ;
               }
               if (b) {
-                  mol << qSetFieldWidth(6) << right << QString::number(b->GetIdx());
+                  mol << qSetFieldWidth(6) << Qt::right << QString::number(b->GetIdx());
               } else {
-                  mol << qSetFieldWidth(6) << right << "0" ;
+                  mol << qSetFieldWidth(6) << Qt::right << "0" ;
               }
               if (c) {
-                  mol << qSetFieldWidth(6) << right << QString::number(c->GetIdx());
+                  mol << qSetFieldWidth(6) << Qt::right << QString::number(c->GetIdx());
               } else {
-                  mol << qSetFieldWidth(6) << right << "0" ;
+                  mol << qSetFieldWidth(6) << Qt::right << "0" ;
               }
-              mol << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint << fixed << right << r;
-              mol << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint << fixed << right << w;
-              mol << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint << fixed << right << t;
+              mol << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right << r;
+              mol << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right << w;
+              mol << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right << t;
 
               mol << qSetFieldWidth(0) << '\n';
           }
@@ -1573,20 +1573,20 @@ void  OrcaInputDialog::initComboboxes()
               if (t < 0.0)
                   t += 360.0;
 
-              mol << qSetFieldWidth(4) << right
+              mol << qSetFieldWidth(4) << Qt::right
                   << QString(OpenBabel::OBElements::GetSymbol(atom->GetAtomicNum()));
               if (atom->GetIdx() > 1)
-                  mol << qSetFieldWidth(6) << right
+                  mol << qSetFieldWidth(6) << Qt::right
                       << QString::number(a->GetIdx()) << qSetFieldWidth(15)
-                      << qSetRealNumberPrecision(5) << forcepoint << fixed << right << r;
+                      << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right << r;
               if (atom->GetIdx() > 2)
-                  mol << qSetFieldWidth(6) << right
+                  mol << qSetFieldWidth(6) << Qt::right
                       << QString::number(b->GetIdx()) << qSetFieldWidth(15)
-                      << qSetRealNumberPrecision(5) << forcepoint << fixed << right << w;
+                      << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right << w;
               if (atom->GetIdx() > 3)
-                  mol << qSetFieldWidth(6) << right
+                  mol << qSetFieldWidth(6) << Qt::right
                       << QString::number(c->GetIdx()) << qSetFieldWidth(15)
-                      << qSetRealNumberPrecision(5) << forcepoint << fixed << right << t;
+                      << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right << t;
               mol << qSetFieldWidth(0) << '\n';
           }
           mol << "*\n";
@@ -1596,7 +1596,7 @@ void  OrcaInputDialog::initComboboxes()
       }
 
 
-      mol << endl;
+      mol << Qt::endl;
 
       return buffer;
   }

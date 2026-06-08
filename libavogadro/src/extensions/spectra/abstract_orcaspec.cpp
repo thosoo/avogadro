@@ -90,7 +90,7 @@ void AbstractOrcaSpectra::OrcaSpecTypeChanged(const QString & str)
         tmp_minIdx = m_XmaxIdx;
         tmp_maxIdx = m_XminIdx;
     }
-    qDebug() << "str = " << str << endl;
+    qDebug() << "str = " << str;
 
      if (str == "Transition Electric dipole") {
          for (int i = tmp_minIdx; i <= tmp_maxIdx; i++){

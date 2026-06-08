@@ -236,10 +236,10 @@ namespace Avogadro
     mol << m_charge << " " << m_multiplicity << "\n";
     QList<Atom *> atoms = m_molecule->atoms();
     foreach (Atom *atom, atoms) {
-      mol << qSetFieldWidth(4) << right
+      mol << qSetFieldWidth(4) << Qt::right
         << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()))
-        << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint
-        << fixed << right << atom->pos()->x() << atom->pos()->y()
+        << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << Qt::forcepoint
+        << Qt::fixed << Qt::right << atom->pos()->x() << atom->pos()->y()
         << atom->pos()->z()
         << qSetFieldWidth(0) << '\n';
     }

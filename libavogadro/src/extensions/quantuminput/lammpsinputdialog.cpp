@@ -516,14 +516,14 @@ namespace Avogadro
 
     mol << "# Settings\n";
     mol << "velocity       all create "
-      << fixed << qSetRealNumberPrecision(2) << m_velocityTemp << " "
+      << Qt::fixed << qSetRealNumberPrecision(2) << m_velocityTemp << " "
       << "4928459 "
       << "rot " << getZeroL() << " "
       << "mom " << getZeroMOM() << " "
       << "dist " << getVelocityDist(m_velocityDist) << "\n";
     mol << getEnsemble(m_ensemble) << "\n";
     mol << "timestep       "
-      << fixed << qSetRealNumberPrecision(1) << m_timeStep << "\n";
+      << Qt::fixed << qSetRealNumberPrecision(1) << m_timeStep << "\n";
     mol << "\n";
 
     mol << "# Output\n";
@@ -761,8 +761,8 @@ namespace Avogadro
           QTextStream fix(&ensembleInput);
           fix << "fix            ensemble all nvt"
             << " temp "
-            << fixed << qSetRealNumberPrecision(2) << m_temperature << " "
-            << fixed << qSetRealNumberPrecision(2) << m_temperature
+            << Qt::fixed << qSetRealNumberPrecision(2) << m_temperature << " "
+            << Qt::fixed << qSetRealNumberPrecision(2) << m_temperature
             << " 100 "
             << "tchain " << m_nhChain << "\n";
           return ensembleInput;
@@ -780,8 +780,8 @@ namespace Avogadro
           QTextStream fix(&ensembleInput);
           fix << "fix            ensemble all nvt"
             << " temp "
-            << fixed << qSetRealNumberPrecision(2) << m_temperature << " "
-            << fixed << qSetRealNumberPrecision(2) << m_temperature
+            << Qt::fixed << qSetRealNumberPrecision(2) << m_temperature << " "
+            << Qt::fixed << qSetRealNumberPrecision(2) << m_temperature
             << " 100 "
             << "tchain " << m_nhChain << "\n";
           return ensembleInput;

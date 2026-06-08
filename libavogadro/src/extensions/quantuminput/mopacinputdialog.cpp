@@ -413,10 +413,10 @@ namespace Avogadro
       {
         QList<Atom *> atoms = m_molecule->atoms();
         foreach (Atom *atom, atoms) {
-          mol << qSetFieldWidth(4) << right
+          mol << qSetFieldWidth(4) << Qt::right
               << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()))
-              << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint
-              << fixed << right
+              << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << Qt::forcepoint
+              << Qt::fixed << Qt::right
               << atom->pos()->x() << optimizationFlag
               << atom->pos()->y() << optimizationFlag
               << atom->pos()->z() << optimizationFlag
@@ -450,7 +450,7 @@ namespace Avogadro
             if (t < 0.0)
               t += 360.0;
 
-            mol << qSetFieldWidth(4) << right
+            mol << qSetFieldWidth(4) << Qt::right
                 << QString(OpenBabel::OBElements::GetSymbol(atom->GetAtomicNum()));
 
             QString buffer = QString("%1 %2 %3 %4 %5 %6")
