@@ -16,9 +16,9 @@
 
 #include "gamessus.h"
 
-#include <QtCore/QFile>
-#include <QtCore/QStringList>
-#include <QtCore/QDebug>
+#include <QFile>
+#include <QStringList>
+#include <QDebug>
 
 using Eigen::Vector3d;
 using std::vector;

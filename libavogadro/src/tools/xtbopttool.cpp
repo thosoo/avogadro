@@ -6,13 +6,13 @@
 #include <avogadro/atom.h>
 #include <avogadro/painter.h>
 
-#include <QtWidgets/QAction>
-#include <QtWidgets/QLabel>
-#include <QtWidgets/QVBoxLayout>
-#include <QtWidgets/QProgressBar>
-#include <QtCore/QElapsedTimer>
+#include <QAction>
+#include <QLabel>
+#include <QVBoxLayout>
+#include <QProgressBar>
+#include <QElapsedTimer>
 #include <Eigen/Core>
-#include <QtCore/QMutexLocker>
+#include <QMutexLocker>
 
 #include <xtb.h>
 #ifdef _OPENMP

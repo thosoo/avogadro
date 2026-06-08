@@ -17,7 +17,7 @@
 #ifndef CONFORMERPLOTDIALOG_H
 #define CONFORMERPLOTDIALOG_H
 
-#include <QtGui/QDialog>
+#include <QDialog>
 
 #include "ui_conformerplotdialog.h"
 

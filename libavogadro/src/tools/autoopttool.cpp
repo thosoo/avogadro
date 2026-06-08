@@ -39,10 +39,10 @@
 #include <openbabel/obconversion.h>
 #include <openbabel/generic.h>
 
-#include <QtCore/QDebug>
-#include <QtCore/QtPlugin>
-#include <QtWidgets/QLabel>
-#include <QtWidgets/QVBoxLayout>
+#include <QDebug>
+#include <QtPlugin>
+#include <QLabel>
+#include <QVBoxLayout>
 
 using namespace std;
 using namespace OpenBabel;

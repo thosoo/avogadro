@@ -26,7 +26,7 @@
 #define ORCAANALYSEDIALOG_H
 
 #include <QDialog>
-#include <QtCore/QSettings>
+#include <QSettings>
 #include <avogadro/glwidget.h>
 #include <avogadro/extension.h>
 #include <avogadro/fragment.h>

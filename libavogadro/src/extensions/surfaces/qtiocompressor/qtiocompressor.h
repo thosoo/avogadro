@@ -47,7 +47,7 @@
 #ifndef QTIOCOMPRESSOR_H
 #define QTIOCOMPRESSOR_H
 
-#include <QtCore/QIODevice>
+#include <QIODevice>
 
 #if defined(Q_OS_WIN)
 #  if !defined(QTIOCOMPRESSOR_EXPORT) && !defined(QTIOCOMPRESSOR_IMPORT)

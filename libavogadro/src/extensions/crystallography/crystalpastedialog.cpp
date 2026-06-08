@@ -30,7 +30,7 @@
 #include <openbabel/elements.h>
 #include <openbabel/generic.h>
 
-#include <QtWidgets/QMessageBox>
+#include <QMessageBox>
 #include <QRegularExpression>
 
 namespace Avogadro {

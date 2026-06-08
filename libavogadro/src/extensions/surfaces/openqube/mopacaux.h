@@ -19,7 +19,7 @@
 
 #include "config.h"
 
-#include <QtCore/QTextStream>
+#include <QTextStream>
 #include <Eigen/Core>
 #include <vector>
 

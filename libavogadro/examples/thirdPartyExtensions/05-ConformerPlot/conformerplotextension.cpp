@@ -25,7 +25,7 @@
 #include "conformerplotextension.h"
 #include "conformerplotdialog.h"
 
-#include <QtGui/QAction>
+#include <QAction>
 
 #include "conformerplotdialog.h"
 

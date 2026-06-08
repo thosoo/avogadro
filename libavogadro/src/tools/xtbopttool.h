@@ -32,15 +32,15 @@
 #include <xtb.h>
 #include <Eigen/Core>
 
-#include <QtCore/QMutex>
-#include <QtCore/QThread>
-#include <QtCore/QSettings>
-#include <QtWidgets/QAction>
-#include <QtWidgets/QPushButton>
-#include <QtWidgets/QSpinBox>
-#include <QtWidgets/QComboBox>
+#include <QMutex>
+#include <QThread>
+#include <QSettings>
+#include <QAction>
+#include <QPushButton>
+#include <QSpinBox>
+#include <QComboBox>
 #include <QUndoStack>
-#include <QtWidgets/QProgressBar>
+#include <QProgressBar>
 
 namespace Avogadro {
 

@@ -25,7 +25,7 @@
 #ifndef DETACHEDVIEW_H
 #define DETACHEDVIEW_H
 
-#include <QtWidgets/QWidget>
+#include <QWidget>
 
 namespace Avogadro {
 

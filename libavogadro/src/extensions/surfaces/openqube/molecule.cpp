@@ -17,7 +17,7 @@
 #include "molecule.h"
 #include "atom.h"
 
-#include <QtCore/QDebug>
+#include <QDebug>
 
 using Eigen::Vector3d;
 

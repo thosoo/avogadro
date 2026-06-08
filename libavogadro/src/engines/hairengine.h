@@ -26,8 +26,8 @@
 #include <avogadro/global.h>
 #include <avogadro/engine.h>
 
-#include <QtCore/QElapsedTimer>
-#include <QtCore/QHash>
+#include <QElapsedTimer>
+#include <QHash>
 #include <Eigen/Geometry>
 #include <vector>
 

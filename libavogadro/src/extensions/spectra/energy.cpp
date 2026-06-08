@@ -21,8 +21,8 @@
 
 #include "energy.h"
 
-#include <QtWidgets/QMessageBox>
-#include <QtCore/QDebug>
+#include <QMessageBox>
+#include <QDebug>
 
 #include <openbabel/mol.h>
 

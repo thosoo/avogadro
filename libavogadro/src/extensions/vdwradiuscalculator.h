@@ -24,9 +24,9 @@
 
 #include <Eigen/Core>
 
-#include <QtCore/QList>
-#include <QtCore/QSet>
-#include <QtCore/QtGlobal>
+#include <QList>
+#include <QSet>
+#include <QtGlobal>
 
 namespace Avogadro {
 namespace MolecularProperties {

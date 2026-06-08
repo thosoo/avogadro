@@ -19,9 +19,9 @@
 #include "molecule.h"
 #include "slaterset.h"
 
-#include <QtCore/QFile>
-#include <QtCore/QStringList>
-#include <QtCore/QDebug>
+#include <QFile>
+#include <QStringList>
+#include <QDebug>
 
 using std::vector;
 using Eigen::MatrixXd;

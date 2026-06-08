@@ -27,9 +27,9 @@
 #include <openbabel/math/vector3.h>
 #include <openbabel/mol.h>
 
-#include <QtCore/qalgorithms.h>
-#include <QtCore/QHash>
-#include <QtCore/QVector>
+#include <qalgorithms.h>
+#include <QHash>
+#include <QVector>
 
 #include "tubegen/TubuleBasis.h"
 #include "tubegen/CrystalCell.h"

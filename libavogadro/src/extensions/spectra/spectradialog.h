@@ -23,10 +23,10 @@
 #include <QDialog>
 #include <QShowEvent>
 
-#include <QtCore/QHash>
-#include <QtCore/QVariant>
-#include <QtCore/QSettings>
-#include <QtCore/QElapsedTimer>
+#include <QHash>
+#include <QVariant>
+#include <QSettings>
+#include <QElapsedTimer>
 
 #include <avogadro/primitive.h>
 #include <avogadro/plotwidget.h>

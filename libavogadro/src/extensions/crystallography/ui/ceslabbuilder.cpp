@@ -30,8 +30,8 @@
 
 #include <Eigen/Geometry>
 
-#include <QtGui/QCloseEvent>
-#include <QtGui/QHideEvent>
+#include <QCloseEvent>
+#include <QHideEvent>
 
 #include <QDebug>
 

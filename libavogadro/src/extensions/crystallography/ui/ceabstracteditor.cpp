@@ -17,9 +17,9 @@
 
 #include "ceabstracteditor.h"
 
-#include <QtWidgets/QMainWindow>
+#include <QMainWindow>
 
-#include <QtCore/QSettings>
+#include <QSettings>
 
 #include "../crystallographyextension.h"
 

@@ -33,23 +33,23 @@
 
 #include <QPen>
 #include <QColor>
-#include <QtWidgets/QColorDialog>
+#include <QColorDialog>
 #include <QButtonGroup>
 #include <QDoubleValidator>
 #include <QFileDialog>
-#include <QtWidgets/QFontDialog>
+#include <QFontDialog>
 #include <QInputDialog>
-#include <QtWidgets/QMessageBox>
+#include <QMessageBox>
 #include <QPixmap>
-#include <QtCore/QSettings>
+#include <QSettings>
 #include <QListWidgetItem>
 #include <QGuiApplication>
 #include <QScreen>
 #include <QToolTip>
 
-#include <QtCore/QDebug>
-#include <QtCore/QFile>
-#include <QtCore/QDir>
+#include <QDebug>
+#include <QFile>
+#include <QDir>
 
 #include <avogadro/molecule.h>
 

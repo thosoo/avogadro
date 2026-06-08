@@ -19,14 +19,14 @@
 #include "aboutdialog.h"
 #include "config.h" // krazy:exclude=includes
 
-#include <QtCore/QVector>
-#include <QtGui/QMouseEvent>
-#include <QtWidgets/QGridLayout>
-#include <QtWidgets/QLabel>
-#include <QtWidgets/QPushButton>
-#include <QtGui/QPainter>
-#include <QtGui/QPixmap>
-#include <QtGui/QPainterPath>
+#include <QVector>
+#include <QMouseEvent>
+#include <QGridLayout>
+#include <QLabel>
+#include <QPushButton>
+#include <QPainter>
+#include <QPixmap>
+#include <QPainterPath>
 #include <QStyleOption>
 
 #include <avogadro/global.h>

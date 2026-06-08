@@ -36,7 +36,7 @@
  *
  */
 
-#include <QtCore/qglobal.h>
+#include <qglobal.h>
 #include <QDebug>
 #include <QTemporaryFile>
 #include <QFile>

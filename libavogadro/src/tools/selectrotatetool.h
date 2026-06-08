@@ -35,9 +35,9 @@
 
 #include <Eigen/Core>
 
-#include <QtCore/QString>
-#include <QtCore/QPoint>
-#include <QtWidgets/QMenu>
+#include <QString>
+#include <QPoint>
+#include <QMenu>
 
 class QMouseEvent;
 class QWheelEvent;

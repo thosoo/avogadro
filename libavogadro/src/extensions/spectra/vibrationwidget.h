@@ -23,7 +23,7 @@
 #ifndef VIBRATIONWIDGET_H
 #define VIBRATIONWIDGET_H
 
-#include <QtWidgets/QWidget>
+#include <QWidget>
 
 #include <avogadro/primitive.h>
 #include <avogadro/glwidget.h>

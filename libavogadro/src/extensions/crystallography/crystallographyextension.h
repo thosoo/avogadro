@@ -28,7 +28,7 @@
 #include <openbabel/math/matrix3x3.h>
 
 #include <QRegularExpression>
-#include <QtCore/QString>
+#include <QString>
 
 #include <Eigen/Core>
 

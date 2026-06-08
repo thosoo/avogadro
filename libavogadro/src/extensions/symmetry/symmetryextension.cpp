@@ -27,8 +27,8 @@
 #include <avogadro/atom.h>
 
 #include <QAction>
-#include <QtWidgets/QMessageBox>
-#include <QtCore/QString>
+#include <QMessageBox>
+#include <QString>
 #include <QDebug>
 
 #include <openbabel/mol.h>

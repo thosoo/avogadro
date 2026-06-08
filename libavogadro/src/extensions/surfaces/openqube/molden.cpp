@@ -16,9 +16,9 @@
 
 #include "molden.h"
 
-#include <QtCore/QFile>
-#include <QtCore/QStringList>
-#include <QtCore/QDebug>
+#include <QFile>
+#include <QStringList>
+#include <QDebug>
 #ifdef WIN32
 #define _USE_MATH_DEFINES
 #include <math.h> // needed for M_PI

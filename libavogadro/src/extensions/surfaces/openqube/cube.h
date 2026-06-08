@@ -23,7 +23,7 @@
 
 #include <vector>
 #include <Eigen/Core>
-#include <QtCore/QString>
+#include <QString>
 
 // Forward declarations
 class QReadWriteLock;

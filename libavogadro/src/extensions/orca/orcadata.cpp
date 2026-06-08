@@ -23,7 +23,7 @@
  **********************************************************************/
 
 #include <QDialog>
-#include <QtCore/QSettings>
+#include <QSettings>
 #include <QtDebug>
 #include "orcadata.h"
 

@@ -30,9 +30,9 @@
 
 #include <openbabel/mol.h>
 
-#include <QtWidgets/QColorDialog>
+#include <QColorDialog>
 
-#include <QtCore/QDebug>
+#include <QDebug>
 
 namespace Avogadro
 {

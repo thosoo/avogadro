@@ -25,11 +25,11 @@
 #include <avogadro/glwidget.h>
 #include <avogadro/molecule.h>
 
-#include <QtCore/QStringList>
-#include <QtCore/QDebug>
+#include <QStringList>
+#include <QDebug>
 
-#include <QtWidgets/QAction>
-#include <QtWidgets/QFileDialog>
+#include <QAction>
+#include <QFileDialog>
 
 // Include the GL2PS header
 #include "gl2ps.h"

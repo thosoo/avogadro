@@ -38,11 +38,11 @@
 #include <QAction>
 #include <QDialog>
 #include <QClipboard>
-#include <QtWidgets/QMessageBox>
+#include <QMessageBox>
 
-#include <QtCore/QDebug>
-#include <QtCore/QStringList>
-#include <QtCore/QTextStream>
+#include <QDebug>
+#include <QStringList>
+#include <QTextStream>
 #include <QRegularExpression>
 
 using namespace std;

@@ -35,8 +35,8 @@
 
 #include <QAction>
 #include <QCloseEvent>
-#include <QtWidgets/QMessageBox>
-#include <QtCore/QDebug>
+#include <QMessageBox>
+#include <QDebug>
 
 using namespace std;
 using namespace OpenBabel;

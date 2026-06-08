@@ -24,8 +24,8 @@
 
 #include "moleculefile.h"
 
-#include <QtCore/QFile>
-#include <QtCore/QStringList>
+#include <QFile>
+#include <QStringList>
 
 #include <openbabel/mol.h>
 #include <openbabel/atom.h>

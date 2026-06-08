@@ -31,7 +31,7 @@
 #include <math.h>
 #include <QDebug>
 
-#include <QtGui/QActionEvent>
+#include <QActionEvent>
 #include <QHash>
 #include <QPainter>
 #include <QPixmap>

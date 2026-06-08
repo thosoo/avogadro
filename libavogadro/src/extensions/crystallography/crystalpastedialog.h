@@ -23,7 +23,7 @@
 #include <openbabel/generic.h>
 #include <openbabel/mol.h>
 
-#include <QtCore/QString>
+#include <QString>
 
 #include <QDialog>
 

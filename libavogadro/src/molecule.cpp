@@ -55,10 +55,10 @@
 #include <openbabel/obiter.h>
 #include <openbabel/elements.h>
 
-#include <QtCore/QDir>
-#include <QtCore/QDebug>
-#include <QtCore/QVariant>
-#include <QtCore/QVector>
+#include <QDir>
+#include <QDebug>
+#include <QVariant>
+#include <QVector>
 
 namespace Avogadro{
 

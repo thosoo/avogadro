@@ -34,13 +34,13 @@
 #include "glpainter_p.h"
 #include "glhit.h"
 
-#include <QtWidgets/QMessageBox>
-#include <QtGui/QPen>
-#include <QtGui/QPainter>
-#include <QtGui/QPaintEngine>
+#include <QMessageBox>
+#include <QPen>
+#include <QPainter>
+#include <QPaintEngine>
 #include <QOpenGLContext>
 #include <QUndoStack>
-#include <QtWidgets/QLabel>
+#include <QLabel>
 
 #ifdef Q_OS_MAC
 # include <OpenGL/glu.h>
@@ -66,17 +66,17 @@
 
 #include "pluginmanager.h"
 
-#include <QtCore/QDebug>
-#include <QtCore/QDir>
-#include <QtCore/QPluginLoader>
-#include <QtCore/QPointer>
-#include <QtCore/QReadWriteLock>
+#include <QDebug>
+#include <QDir>
+#include <QPluginLoader>
+#include <QPointer>
+#include <QReadWriteLock>
 #include <QElapsedTimer>
-#include <QtCore/QMutex>
+#include <QMutex>
 
 #ifdef ENABLE_THREADED_GL
-  #include <QtCore/QWaitCondition>
-  #include <QtCore/QThread>
+  #include <QWaitCondition>
+  #include <QThread>
 #endif
 
 #include <Eigen/Geometry>

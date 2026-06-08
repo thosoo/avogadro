@@ -27,14 +27,14 @@
 #include <avogadro/atom.h>
 #include <avogadro/bond.h>
 
-#include <QtWidgets/QPushButton>
-#include <QtWidgets/QButtonGroup>
-#include <QtWidgets/QMessageBox>
+#include <QPushButton>
+#include <QButtonGroup>
+#include <QMessageBox>
 //#include <QFileDialog>
 
-#include <QtCore/QDebug>
-#include <QtCore/QFile>
-#include <QtCore/QSettings>
+#include <QDebug>
+#include <QFile>
+#include <QSettings>
 
 namespace Avogadro {
 

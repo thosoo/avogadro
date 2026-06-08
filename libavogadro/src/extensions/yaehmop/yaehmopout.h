@@ -17,7 +17,7 @@
 #ifndef YAEHMOP_OUT_H
 #define YAEHMOP_OUT_H
 
-#include <QtCore/QIODevice>
+#include <QIODevice>
 #include <QVector>
 
 #include <Eigen/Dense>

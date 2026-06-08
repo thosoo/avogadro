@@ -31,15 +31,15 @@
 #include <openbabel/obconversion.h>
 
 #include <QAction>
-#include <QtWidgets/QMessageBox>
-#include <QtCore/QString>
-#include <QtCore/QDebug>
-#include <QtCore/QTimer>
+#include <QMessageBox>
+#include <QString>
+#include <QDebug>
+#include <QTimer>
 
 
-#include <QtNetwork/QNetworkAccessManager>
-#include <QtNetwork/QNetworkReply>
-#include <QtNetwork/QSslSocket>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QSslSocket>
 #include <QRegularExpression>
 
 using namespace OpenBabel;

@@ -26,9 +26,9 @@
 
 #include <avogadro/glwidget.h>
 
-#include <QtWidgets/QHBoxLayout>
+#include <QHBoxLayout>
 
-#include <QtCore/QDebug>
+#include <QDebug>
 
 namespace Avogadro {
 

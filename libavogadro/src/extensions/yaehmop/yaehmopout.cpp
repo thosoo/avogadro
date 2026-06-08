@@ -16,9 +16,9 @@
 
 #include "yaehmopout.h"
 
-#include <QtCore/QFile>
-#include <QtCore/QStringList>
-#include <QtCore/QDebug>
+#include <QFile>
+#include <QStringList>
+#include <QDebug>
 #include <QRegularExpression>
 
 YaehmopOut::YaehmopOut()

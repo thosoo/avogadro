@@ -33,7 +33,7 @@
 
 #include <QUndoCommand>
 
-#include <QtCore/QStringList>
+#include <QStringList>
 
 namespace Avogadro
 {

@@ -30,10 +30,10 @@
 #include <avogadro/engine.h>
 #include <avogadro/glwidget.h>
 
-#include <QtWidgets/QTreeView>
-#include <QtWidgets/QHeaderView>
+#include <QTreeView>
+#include <QHeaderView>
 #include <QSortFilterProxyModel>
-#include <QtWidgets/QVBoxLayout>
+#include <QVBoxLayout>
 
 namespace Avogadro {
 

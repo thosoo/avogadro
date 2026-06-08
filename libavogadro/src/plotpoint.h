@@ -31,8 +31,8 @@
 
 #include <avogadro/global.h>
 
-#include <QtCore/QString>
-#include <QtCore/QVariant>
+#include <QString>
+#include <QVariant>
 
 class QPointF;
 

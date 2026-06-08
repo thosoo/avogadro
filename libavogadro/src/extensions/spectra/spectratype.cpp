@@ -22,11 +22,11 @@
 #include "spectradialog.h"
 #include <avogadro/global.h>
 
-#include <QtCore/QList>
-#include <QtCore/QObject>
-#include <QtCore/QString>
-#include <QtCore/QTextStream>
-#include <QtCore/QDebug>
+#include <QList>
+#include <QObject>
+#include <QString>
+#include <QTextStream>
+#include <QDebug>
 
 #include <avogadro/primitive.h>
 #include <avogadro/molecule.h>

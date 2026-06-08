@@ -21,7 +21,7 @@
 
 #include <Eigen/Core>
 
-#include <QtGui/QDialog>
+#include <QDialog>
 
 #include "ui_rotateselectiondialog.h"
 

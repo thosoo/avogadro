@@ -22,8 +22,8 @@
 #ifndef SPECTRATYPE_ABSORPTION_H
 #define SPECTRATYPE_ABSORPTION_H
 
-#include <QtCore/QHash>
-#include <QtCore/QVariant>
+#include <QHash>
+#include <QVariant>
 
 #include "spectradialog.h"
 #include "abstract_orcaspec.h"

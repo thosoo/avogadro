@@ -13,9 +13,9 @@
 
 #include <Eigen/Geometry>
 
-#include <QtCore/QStringList>
-#include <QtCore/QString>
-#include <QtCore/QDebug>
+#include <QStringList>
+#include <QString>
+#include <QDebug>
 
 using std::cout;
 using std::cerr;

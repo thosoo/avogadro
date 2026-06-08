@@ -19,7 +19,7 @@
 #ifndef ORBITALWIDGET_H
 #define ORBITALWIDGET_H
 
-#include <QtWidgets/QWidget>
+#include <QWidget>
 
 #include <avogadro/primitive.h>
 #include <avogadro/glwidget.h>

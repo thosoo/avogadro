@@ -18,7 +18,7 @@
 #ifndef CEABSTRACTEDITOR_H
 #define CEABSTRACTEDITOR_H
 
-#include <QtWidgets/QDockWidget>
+#include <QDockWidget>
 #include "ceabstractdockwidget.h"
 
 class QMainWindow;

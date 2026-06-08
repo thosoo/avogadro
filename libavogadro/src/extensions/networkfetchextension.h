@@ -27,7 +27,7 @@
 
 #include <avogadro/extension.h>
 
-#include <QtCore/QUrl>
+#include <QUrl>
 
 class QNetworkAccessManager;
 class QNetworkReply;

@@ -16,11 +16,11 @@
 
 #include "orca.h"
 
-#include <QtCore/QFile>
-#include <QtCore/QStringList>
-#include <QtCore/QString>
-#include <QtCore/QDebug>
-#include <QtWidgets/QMessageBox>
+#include <QFile>
+#include <QStringList>
+#include <QString>
+#include <QDebug>
+#include <QMessageBox>
 
 #include <avogadro/fragment.h>
 #include <QRegularExpression>
