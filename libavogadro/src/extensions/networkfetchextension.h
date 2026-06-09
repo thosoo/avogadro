@@ -27,11 +27,11 @@
 
 #include <avogadro/extension.h>
 
+#include <QSslError>
 #include <QUrl>
 
 class QNetworkAccessManager;
 class QNetworkReply;
-class QSslError;
 class QString;
 
 namespace Avogadro
