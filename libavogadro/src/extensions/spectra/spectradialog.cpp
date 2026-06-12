@@ -58,6 +58,8 @@
 #include <openbabel/generic.h>
 #include <QRegularExpression>
 
+#include <vector>
+
 using namespace OpenBabel;
 using namespace std;
 
@@ -754,7 +756,9 @@ namespace Avogadro {
       OpenBabel::OBMol *obmol = new OpenBabel::OBMol (m_molecule->OBMol());
       std::vector< std::vector< OpenBabel::vector3 > > Lx;
       OpenBabel::OBVibrationData *obvib = new OpenBabel::OBVibrationData;
-      obvib->SetData(Lx, x.toVector().toStdVector(), y.toVector().toStdVector());
+      const std::vector<double> xData(x.cbegin(), x.cend());
+      const std::vector<double> yData(y.cbegin(), y.cend());
+      obvib->SetData(Lx, xData, yData);
       obmol->SetData(obvib);
       m_molecule->setOBMol(obmol);
     }
@@ -849,8 +853,10 @@ namespace Avogadro {
       else {
         forces = etd->GetForces();
       }
-      etd->SetData(x.toVector().toStdVector(), forces);
-      etd->SetRotatoryStrengthsLength(y.toVector().toStdVector());
+      const std::vector<double> xData(x.cbegin(), x.cend());
+      const std::vector<double> yData(y.cbegin(), y.cend());
+      etd->SetData(xData, forces);
+      etd->SetRotatoryStrengthsLength(yData);
       obmol->SetData(etd);
       m_molecule->setOBMol(obmol);
     }
@@ -946,8 +952,10 @@ namespace Avogadro {
       else {
         forces = etd->GetForces();
       }
-      etd->SetData(x.toVector().toStdVector(), forces);
-      etd->SetEDipole(y.toVector().toStdVector());
+      const std::vector<double> xData(x.cbegin(), x.cend());
+      const std::vector<double> yData(y.cbegin(), y.cend());
+      etd->SetData(xData, forces);
+      etd->SetEDipole(yData);
       obmol->SetData(etd);
       m_molecule->setOBMol(obmol);
     }

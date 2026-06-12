@@ -47,6 +47,7 @@
 #include <QHeaderView>
 #include <QDebug>
 #include <algorithm>
+#include <vector>
 
 using namespace std;
 using namespace OpenBabel;
@@ -496,7 +497,7 @@ namespace Avogadro
       GamessEFPGroup * efpGroup = new GamessEFPGroup();
       efpGroup->name = groupName.toStdString();
       efpGroup->type = type ? GamessEFPGroup::QMType : GamessEFPGroup::EFPType ;
-      efpGroup->atoms = group.toStdVector();
+      efpGroup->atoms = std::vector<Atom *>(group.cbegin(), group.cend());
 
       m_inputData->EFP->AddGroup(efpGroup);
 
