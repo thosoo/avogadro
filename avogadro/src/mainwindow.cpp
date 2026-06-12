@@ -89,6 +89,7 @@
 #include <fstream>
 #include <algorithm>
 
+#include <QActionGroup>
 #include <QClipboard>
 #include <QCheckBox>
 #include <QColorDialog>

@@ -39,6 +39,7 @@
 #include "ui/cecoordinateeditor.h"
 #include "ui/cematrixeditor.h"
 #include <QAction>
+#include <QActionGroup>
 #include "ui/ceparametereditor.h"
 #include "ui/ceslabbuilder.h"
 #include "ui/cetranslatewidget.h"
