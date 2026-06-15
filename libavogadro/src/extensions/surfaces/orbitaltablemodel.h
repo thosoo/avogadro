@@ -23,8 +23,12 @@
 
 #include <QApplication>
 #include <QAbstractTableModel>
+#include <QPainter>
 #include <QSortFilterProxyModel>
+#include <QStyle>
 #include <QStyledItemDelegate>
+#include <QStyleOptionProgressBar>
+#include <QWidget>
 
 namespace Avogadro {
 
@@ -49,12 +53,12 @@ namespace Avogadro {
   {
     Q_OBJECT
       public:
-    ProgressBarDelegate(QObject *parent = 0) : QStyledItemDelegate(parent) {};
+    ProgressBarDelegate(QObject *parent = nullptr) : QStyledItemDelegate(parent) {};
     QSize sizeHint(const QStyleOptionViewItem&, const QModelIndex&) const {
       return QSize(60, 30);};
 
     void paint(QPainter *p, const QStyleOptionViewItem &o, const QModelIndex &ind) const {
-      QStyleOptionProgressBarV2 opt;
+      QStyleOptionProgressBar opt;
       // Call initFrom() which will set the style based on the parent
       // GRH: This is critical to get things right on Mac
       //   otherwise the status bars always look disabled
@@ -77,7 +81,7 @@ namespace Avogadro {
     Q_OBJECT
 
       public:
-    OrbitalSortingProxyModel(QObject *parent = 0) : QSortFilterProxyModel(parent), m_HOMOFirst(false) {};
+    OrbitalSortingProxyModel(QObject *parent = nullptr) : QSortFilterProxyModel(parent), m_HOMOFirst(false) {};
 
     bool isHOMOFirst() {return m_HOMOFirst;};
     void HOMOFirst(bool b) {m_HOMOFirst = b;};
@@ -109,7 +113,7 @@ namespace Avogadro {
     };
 
     //! Constructor
-    explicit OrbitalTableModel(QWidget *parent = 0);
+    explicit OrbitalTableModel(QWidget *parent = nullptr);
     //! Deconstructor
     virtual ~OrbitalTableModel();
 

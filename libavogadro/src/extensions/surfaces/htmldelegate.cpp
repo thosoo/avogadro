@@ -22,6 +22,8 @@
 #include <QApplication>
 #include <QPainter>
 #include <QAbstractTextDocumentLayout>
+#include <QStyle>
+#include <QStyleOptionViewItem>
 
 namespace Avogadro {
 
@@ -30,7 +32,7 @@ namespace Avogadro {
 // Original code by StackOverflow users serge_gubenko and Anton
 
   QSize HTMLDelegate::sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const {
-    QStyleOptionViewItemV4 optionV4 = option;
+    QStyleOptionViewItem optionV4 = option;
     initStyleOption(&optionV4, index);
 
     QTextDocument doc;
@@ -40,7 +42,7 @@ namespace Avogadro {
   }
 
   void HTMLDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const {
-    QStyleOptionViewItemV4 optionV4 = option;
+    QStyleOptionViewItem optionV4 = option;
     initStyleOption(&optionV4, index);
 
     // if we have a widget (and style) use that, otherwise the default application style
