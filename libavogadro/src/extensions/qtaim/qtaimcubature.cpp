@@ -1358,7 +1358,7 @@ void property_v(unsigned int /* ndim */, unsigned int npts, const double *xyz, v
   dialog.setWindowTitle("QTAIM");
   dialog.setLabelText(QString("Atomic Basin Integration"));
 
-  QFutureWatcher<void> futureWatcher;
+  QFutureWatcher<QList<QVariant>> futureWatcher;
   QObject::connect(&futureWatcher, SIGNAL(finished()), &dialog, SLOT(reset()));
   QObject::connect(&dialog, SIGNAL(canceled()), &futureWatcher, SLOT(cancel()));
   QObject::connect(&futureWatcher, SIGNAL(progressRangeChanged(int,int)), &dialog, SLOT(setRange(int,int)));
@@ -1646,7 +1646,7 @@ void property_v_rtp(unsigned int /* ndim */, unsigned int npts, const double *xy
   dialog.setWindowTitle("QTAIM");
   dialog.setLabelText(QString("Atomic Basin Integration"));
 
-  QFutureWatcher<void> futureWatcher;
+  QFutureWatcher<QList<QVariant>> futureWatcher;
   QObject::connect(&futureWatcher, SIGNAL(finished()), &dialog, SLOT(reset()));
   QObject::connect(&dialog, SIGNAL(canceled()), &futureWatcher, SLOT(cancel()));
   QObject::connect(&futureWatcher, SIGNAL(progressRangeChanged(int,int)), &dialog, SLOT(setRange(int,int)));
@@ -2156,7 +2156,7 @@ void property_v_tp(unsigned int /* ndim */, unsigned int npts, const double *xyz
   dialog.setWindowTitle("QTAIM");
   dialog.setLabelText(QString("Atomic Basin Integration"));
 
-  QFutureWatcher<void> futureWatcher;
+  QFutureWatcher<QList<QVariant>> futureWatcher;
   QObject::connect(&futureWatcher, SIGNAL(finished()), &dialog, SLOT(reset()));
   QObject::connect(&dialog, SIGNAL(canceled()), &futureWatcher, SLOT(cancel()));
   QObject::connect(&futureWatcher, SIGNAL(progressRangeChanged(int,int)), &dialog, SLOT(setRange(int,int)));
