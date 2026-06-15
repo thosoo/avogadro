@@ -42,7 +42,8 @@ namespace Avogadro {
 
     public:
       //! Constructor
-      explicit VibrationWidget( QWidget *parent = 0, Qt::WindowFlags f = 0 );
+      explicit VibrationWidget(QWidget *parent = nullptr,
+                               Qt::WindowFlags f = Qt::WindowFlags());
       //! Deconstructor
       ~VibrationWidget();
 

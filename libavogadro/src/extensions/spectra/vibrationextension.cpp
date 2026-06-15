@@ -47,8 +47,9 @@ namespace Avogadro {
   class VibrationDock : public QDockWidget
   {
   public:
-    VibrationDock( const QString & title, QWidget * parent = 0,
-      Qt::WindowFlags flags = 0 ) : QDockWidget(title, parent, flags) {}
+    VibrationDock(const QString &title, QWidget *parent = nullptr,
+                  Qt::WindowFlags flags = Qt::WindowFlags())
+      : QDockWidget(title, parent, flags) {}
       
   protected: 
     void closeEvent ( QCloseEvent * event )

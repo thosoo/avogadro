@@ -265,7 +265,10 @@ namespace Avogadro
       for (vector< vector<int> >::iterator it1 = maplist.begin();
            it1 != maplist.end(); ++it1) {
 
-        QVector<int> matches = QVector<int>::fromStdVector( *it1 );
+        QVector<int> matches;
+        matches.reserve(static_cast<qsizetype>(it1->size()));
+        for (int value : *it1)
+          matches.append(value);
 
         QString text;
         bool valid = true;
