@@ -27,6 +27,7 @@
 
 #include <QVector>
 #include <QDebug>
+#include <QVariant>
 
 #include <avogadro/atom.h>
 #include <avogadro/bond.h>
@@ -283,7 +284,7 @@ namespace Avogadro {
 
       }
       else if ( role == PrimitiveItemModel::PrimitiveRole ) {
-        return qVariantFromValue(primitive);
+        return QVariant::fromValue(primitive);
       }
     }
 

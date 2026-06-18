@@ -30,6 +30,7 @@
 
 #include <QString>
 #include <QDebug>
+#include <QVariant>
 
 namespace Avogadro {
 
@@ -121,7 +122,7 @@ namespace Avogadro {
             return QVariant();
         }
         else if (role == EngineItemModel::EngineRole)
-          return qVariantFromValue(engine);
+          return QVariant::fromValue(engine);
         else
           return QVariant();
       }
@@ -136,7 +137,7 @@ namespace Avogadro {
       else if (role == Qt::ToolTipRole || role == Qt::WhatsThisRole)
         return engine->description();
       else if (role == EngineItemModel::EngineRole)
-        return qVariantFromValue(engine);
+        return QVariant::fromValue(engine);
     }
 
     return QVariant();

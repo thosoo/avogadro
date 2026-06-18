@@ -39,6 +39,7 @@
 #include <QPushButton>
 #include <QStandardItemModel>
 #include <QTreeView>
+#include <QVariant>
 #include <QVBoxLayout>
 
 #include <QFrame>
@@ -326,7 +327,7 @@ namespace Avogadro
 
           item->setText( text );
           item->setEditable( false );
-          item->setData( qVariantFromValue( atomMatches ) );
+          item->setData(QVariant::fromValue(atomMatches));
 
           model->appendRow( item );
 
@@ -494,7 +495,7 @@ namespace Avogadro
       }
 
       QStandardItem *item = new QStandardItem();
-      item->setData( qVariantFromValue( group ) );
+      item->setData(QVariant::fromValue(group));
       item->setText( groupString );
 
       GamessEFPGroup * efpGroup = new GamessEFPGroup();
