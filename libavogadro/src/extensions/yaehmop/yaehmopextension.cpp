@@ -495,9 +495,9 @@ namespace Avogadro
       for (int i = 0; i < specialKPoints.size(); ++i) {
         bandDataStr += (QString("# ") + specialKPoints[i].label + " ");
         for (int j = 0; j < 3; ++j)
-          bandDataStr += (QString().sprintf("%6.2f",
+          bandDataStr += (QString::asprintf("%6.2f",
                                             specialKPoints[i].coords[j]) + " ");
-        bandDataStr += (QString().sprintf("%6.2f", kpointlabels_x[i]) + "\n");
+        bandDataStr += (QString::asprintf("%6.2f", kpointlabels_x[i]) + "\n");
       }
 
       // Now add in the actual data
@@ -511,11 +511,11 @@ namespace Avogadro
                                           m_molecule);
         }
         double x = distanceSoFar;
-        bandDataStr += (QString().sprintf("%10.6f", x) + " ");
+        bandDataStr += (QString::asprintf("%10.6f", x) + " ");
         for (int j = 0; j < numOrbitals; ++j) {
           // Unfortunately, these are accessed out of order here...
           double energy = (m_zeroFermi ? bands[j][i] - m_fermi : bands[j][i]);
-          bandDataStr += (QString().sprintf("%10.6f", energy) + " ");
+          bandDataStr += (QString::asprintf("%10.6f", energy) + " ");
         }
         bandDataStr += "\n";
       }
@@ -777,18 +777,18 @@ namespace Avogadro
       // Now for the actual data
       DOSDataStr += "\n# <density (x)> <energy (y)>\n";
 
-      for (int i = 0; i < densities.size(), i < energies.size(); ++i) {
-        DOSDataStr += (QString().sprintf("%10.6f", densities[i]) + " " +
-                       QString().sprintf("%10.6f", energies[i]) + "\n");
+      for (int i = 0; i < densities.size() && i < energies.size(); ++i) {
+        DOSDataStr += (QString::asprintf("%10.6f", densities[i]) + " " +
+                       QString::asprintf("%10.6f", energies[i]) + "\n");
       }
 
       // If we have integration data, add that too
       if (integration.size() != 0) {
         DOSDataStr += "\n\n# Integration Data:\n";
         DOSDataStr += "\n# <integration> <energies>\n";
-        for (int i = 0; i < energies.size(), i < integration.size(); ++i) {
-          DOSDataStr += (QString().sprintf("%10.6f", integration[i]) + " " +
-                         QString().sprintf("%10.6f", energies[i]) + "\n");
+        for (int i = 0; i < energies.size() && i < integration.size(); ++i) {
+          DOSDataStr += (QString::asprintf("%10.6f", integration[i]) + " " +
+                         QString::asprintf("%10.6f", energies[i]) + "\n");
         }
       }
 
@@ -999,7 +999,7 @@ namespace Avogadro
     }
 
     // Now check to make sure all the projected DOS datas are of the same size
-    for (int i = 0; i < projDensities.size(),i < projEnergies.size(); ++i) {
+    for (int i = 0; i < projDensities.size() && i < projEnergies.size(); ++i) {
       if (projDensities[i].size() != projEnergies[i].size()) {
         qDebug() << "Error in " << __FUNCTION__
                  << ": mismatched sizes in projected DOS data!";
@@ -1027,8 +1027,8 @@ namespace Avogadro
         smoothData(totalDensities, totalEnergies, m_eStep, m_broadening);
 
       // Now smooth the projected DOS data
-      for (int i = 0; i < projDensities.size(),
-                      i < projEnergies.size(); ++i) {
+      for (int i = 0; i < projDensities.size() &&
+                   i < projEnergies.size(); ++i) {
         smoothData(projDensities[i], projEnergies[i], m_eStep, m_broadening);
       }
 
@@ -1267,34 +1267,34 @@ namespace Avogadro
         DOSDataStr += "\n# Total DOS Data\n";
         DOSDataStr += "# <density (x)> <energy (y)>\n";
 
-        for (int i = 0; i < totalDensities.size(),
-                           i < totalEnergies.size(); ++i) {
-          DOSDataStr += (QString().sprintf("%10.6f", totalDensities[i]) + " " +
-                         QString().sprintf("%10.6f", totalEnergies[i]) + "\n");
+        for (int i = 0; i < totalDensities.size() &&
+                        i < totalEnergies.size(); ++i) {
+          DOSDataStr += (QString::asprintf("%10.6f", totalDensities[i]) + " " +
+                         QString::asprintf("%10.6f", totalEnergies[i]) + "\n");
         }
 
         // If we have integration data, add that too
         if (integration.size() != 0) {
           DOSDataStr += "\n\n# Total DOS Integration Data:\n";
           DOSDataStr += "\n# <integration> <energies>\n";
-          for (int i = 0; i < totalEnergies.size(),
-                             i < integration.size(); ++i) {
-            DOSDataStr += (QString().sprintf("%10.6f", integration[i]) + " " +
-                           QString().sprintf("%10.6f",
+          for (int i = 0; i < totalEnergies.size() &&
+                          i < integration.size(); ++i) {
+            DOSDataStr += (QString::asprintf("%10.6f", integration[i]) + " " +
+                           QString::asprintf("%10.6f",
                                              totalEnergies[i]) + "\n");
           }
         }
       }
 
       DOSDataStr += "\n\n# Projected DOS Data\n";
-      for (int i = 0; i < projDensities.size(),
-                      i < projEnergies.size(); ++i) {
+      for (int i = 0; i < projDensities.size() &&
+                   i < projEnergies.size(); ++i) {
         DOSDataStr += (QString("\n# ") + m_projDOSTitles[i]);
         DOSDataStr += "\n# <density (x)> <energy (y)>\n";
-        for (int j = 0; j < projDensities[i].size(),
-                        j < projEnergies[i].size(); ++j) {
-          DOSDataStr += (QString().sprintf("%10.6f", projDensities[i][j]) +
-                         " " + QString().sprintf("%10.6f",
+        for (int j = 0; j < projDensities[i].size() &&
+                      j < projEnergies[i].size(); ++j) {
+          DOSDataStr += (QString::asprintf("%10.6f", projDensities[i][j]) +
+                         " " + QString::asprintf("%10.6f",
                                                  projEnergies[i][j]) + "\n");
         }
       }
@@ -1308,9 +1308,9 @@ namespace Avogadro
 
           DOSDataStr += "\n# <integration> <energies>\n";
           for (int j = 0; j < projIntegration[i].size(); ++j) {
-            DOSDataStr += (QString().sprintf("%10.6f", projIntegration[i][j]) +
+            DOSDataStr += (QString::asprintf("%10.6f", projIntegration[i][j]) +
                            " " +
-                           QString().sprintf("%10.6f", projEnergies[i][j]) +
+                           QString::asprintf("%10.6f", projEnergies[i][j]) +
                            "\n");
           }
         }
@@ -1435,7 +1435,7 @@ namespace Avogadro
     }
 
     // Now check to make sure all the COOP datas are of the same size
-    for (int i = 0; i < coops.size(), i < energies.size(); ++i) {
+    for (int i = 0; i < coops.size() && i < energies.size(); ++i) {
       if (coops[i].size() != energies[i].size()) {
         qDebug() << "Error in " << __FUNCTION__
                  << ": mismatched sizes in COOP data!";
@@ -1608,14 +1608,14 @@ namespace Avogadro
 
       // Now for the actual data
       COOPDataStr += "\n\n# COOP Data\n";
-      for (int i = 0; i < coops.size(),
-                      i < energies.size(); ++i) {
+      for (int i = 0; i < coops.size() &&
+                   i < energies.size(); ++i) {
         COOPDataStr += (QString("\n# ") + titles[i]);
         COOPDataStr += "\n# <COOP (x)> <energy (y)>\n";
-        for (int j = 0; j < coops[i].size(),
-                        j < energies[i].size(); ++j) {
-          COOPDataStr += (QString().sprintf("%10.6f", coops[i][j]) +
-                          " " + QString().sprintf("%10.6f",
+        for (int j = 0; j < coops[i].size() &&
+                      j < energies[i].size(); ++j) {
+          COOPDataStr += (QString::asprintf("%10.6f", coops[i][j]) +
+                          " " + QString::asprintf("%10.6f",
                                                   energies[i][j]) + "\n");
         }
       }
