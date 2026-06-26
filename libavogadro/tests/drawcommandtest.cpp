@@ -1975,4 +1975,4 @@ void DrawCommandTest::crash3()
 
 QTEST_MAIN(DrawCommandTest)
 
-#include "moc_drawcommandtest.cpp"
+#include "drawcommandtest.moc"
