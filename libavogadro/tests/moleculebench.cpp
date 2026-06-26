@@ -410,7 +410,6 @@ void MoleculeBench::destructor6()
   QCoreApplication::sendPostedEvents();
   QCoreApplication::processEvents();
   qDebug() << "Thread:" << m_molecule->thread();
-  qDebug() << "Pending events:" << QCoreApplication::hasPendingEvents();
   qDebug() << "After:" << m_molecule->children().size();
   QBENCHMARK_ONCE{
     delete m_molecule;
