@@ -568,7 +568,7 @@ protected:
     PythonError::instance()->setListening(true); // switch to 'listening mode'
 #endif
 
-    messagesVBox->setMargin( 3 );
+    messagesVBox->setContentsMargins(3, 3, 3, 3);
     messagesVBox->addWidget( d->messagesText );
     d->bottomFlat->addTab( messagesWidget, tr( "Messages" ) );
 
@@ -1393,7 +1393,7 @@ protected:
       d->allMoleculesDialog->setWindowTitle(tr("Select Molecule to View"));
 
       QVBoxLayout *layout = new QVBoxLayout( d->allMoleculesDialog );
-      layout->setMargin( 0 );
+      layout->setContentsMargins(0, 0, 0, 0);
       layout->setSpacing( 6 );
 
       d->allMoleculesTable = new QTableWidget( d->allMoleculesDialog );
@@ -2838,7 +2838,7 @@ protected:
   {
     QWidget *widget = new QWidget();
     QVBoxLayout *layout = new QVBoxLayout( widget );
-    layout->setMargin( 0 );
+    layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing( 6 );
     GLWidget *gl = newGLWidget();
     gl->loadDefaultEngines();
@@ -2860,7 +2860,7 @@ protected:
   {
     QWidget *widget = new QWidget();
     QVBoxLayout *layout = new QVBoxLayout( widget );
-    layout->setMargin( 0 );
+    layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing( 6 );
     GLWidget *gl = newGLWidget();
     layout->addWidget(gl);
@@ -3549,7 +3549,7 @@ protected:
       settings.setArrayIndex(i);
       QWidget *widget = new QWidget();
       QVBoxLayout *layout = new QVBoxLayout( widget );
-      layout->setMargin( 0 );
+      layout->setContentsMargins(0, 0, 0, 0);
       layout->setSpacing( 6 );
       GLWidget *gl = newGLWidget();
       layout->addWidget(gl);

@@ -39,7 +39,7 @@ namespace Avogadro {
     setContentsMargins(0, 0, 0, 0);
     QHBoxLayout *layout = new QHBoxLayout(this);
     layout->addWidget(m_glWidget);
-    layout->setMargin(0);
+    layout->setContentsMargins(0, 0, 0, 0);
   }
 
   DetachedView::~DetachedView()
