@@ -29,6 +29,7 @@
 #include <avogadro/primitive.h>
 #include <avogadro/engine.h>
 
+#include <QFontMetrics>
 #include <QHeaderView>
 #include <QPainter>
 #include <QPen>
@@ -151,8 +152,9 @@ namespace Avogadro
 
       // draw text
       QRect textrect = QRect(r.left() + i*2, r.top(), r.width() - ((5*i)/2), r.height());
-      QString text = elidedText(option.fontMetrics, textrect.width(), Qt::ElideMiddle,
-          model->data(index, Qt::DisplayRole).toString());
+      QString text = option.fontMetrics.elidedText(
+          model->data(index, Qt::DisplayRole).toString(), Qt::ElideMiddle,
+          textrect.width());
       d->view->style()->drawItemText(painter, textrect, Qt::AlignCenter,
           option.palette, d->view->isEnabled(), text);
 
