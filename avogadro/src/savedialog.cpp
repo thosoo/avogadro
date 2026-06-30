@@ -61,7 +61,7 @@ namespace Avogadro
     setNameFilters(filters);
     setFileMode(QFileDialog::AnyFile);
     setAcceptMode(QFileDialog::AcceptSave);
-    setConfirmOverwrite(true);
+    setOption(QFileDialog::DontConfirmOverwrite, false);
     setLabelText(QFileDialog::Accept, tr("Save"));
     connect(this, SIGNAL(filterSelected(const QString &)), this, SLOT(updateDefaultSuffix()));
     updateDefaultSuffix();
