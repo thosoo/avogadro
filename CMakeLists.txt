@@ -324,7 +324,7 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 find_package(OpenGL REQUIRED) # find and setup OpenGL
-find_library(OPENGL_GLU_LIBRARY NAMES GLU glu REQUIRED)
+find_library(OPENGL_GLU_LIBRARY NAMES GLU glu glu32 REQUIRED)
 message(STATUS "Found GLU: ${OPENGL_GLU_LIBRARY}")
 if(NOT TARGET OpenGL::GLU)
   add_library(OpenGL::GLU UNKNOWN IMPORTED)
