@@ -50,7 +50,6 @@
 #include <algorithm>
 #include <vector>
 
-using namespace std;
 using namespace OpenBabel;
 
 namespace Avogadro
@@ -238,7 +237,7 @@ namespace Avogadro
 
     // get the SMARTS pattern
     OpenBabel::OBMol obmol = selectedMolecule.OBMol();
-    string pattern = conv.WriteString( &obmol );
+    std::string pattern = conv.WriteString( &obmol );
     pattern.erase( pattern.find_first_of( " \t\n\r" ) );
 
     OBSmartsPattern sp;
@@ -261,9 +260,9 @@ namespace Avogadro
       QStandardItemModel *model = new QStandardItemModel();
       QModelIndex selectedIndex;
 
-      vector< vector<int> > maplist = sp.GetUMapList();
+      std::vector<std::vector<int> > maplist = sp.GetUMapList();
 
-      for (vector< vector<int> >::iterator it1 = maplist.begin();
+      for (std::vector<std::vector<int> >::iterator it1 = maplist.begin();
            it1 != maplist.end(); ++it1) {
 
         QVector<int> matches;

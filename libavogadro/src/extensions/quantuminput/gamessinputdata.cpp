@@ -228,7 +228,7 @@ long GamessInputData::GetNumElectrons() const
   return numElectrons;
 }
 //Prompt for a filename and then write out a valid input file for GAMESS
-long GamessInputData::WriteInputFile( ostream &buffer )
+long GamessInputData::WriteInputFile( std::ostream &buffer )
 {
 
   buffer << "!   File created by the GAMESS Input Deck Generator Plugin for Avogadro" << endl;
@@ -819,7 +819,7 @@ bool GamessControlGroup::SetNormP( bool State )
   if ( State ) Options += ( 1<<7 );
   return GetNormP();
 }
-void GamessControlGroup::WriteToFile( ostream &File, GamessInputData *IData, long NumElectrons )
+void GamessControlGroup::WriteToFile( std::ostream &File, GamessInputData *IData, long NumElectrons )
 {
   char Out[GAMESS_BUFF_LEN], textVal[GAMESS_BUFF_LEN];
 
@@ -1192,7 +1192,7 @@ void GamessSystemGroup::InitData( void )
   MemDDIUnits = megaWordsUnit;
   Flags = 0;
 }
-void GamessSystemGroup::WriteToFile( ostream &File )
+void GamessSystemGroup::WriteToFile( std::ostream &File )
 {
   char Out[GAMESS_BUFF_LEN];
 
@@ -1488,7 +1488,7 @@ short GamessBasisGroup::SetECPPotential( short NewType )
   ECPPotential = NewType;
   return ECPPotential;
 }
-long GamessBasisGroup::WriteToFile( ostream &File, GamessInputData * iData )
+long GamessBasisGroup::WriteToFile( std::ostream &File, GamessInputData * iData )
 {
   char Out[GAMESS_BUFF_LEN];
   //if a general basis set is present don't punch the $Basis group
@@ -1736,7 +1736,7 @@ short GamessDataGroup::SetNumZVar( short NewNum )
   return NumZVar;
 }
 
-void GamessDataGroup::WriteHeaderToFile( ostream &File )
+void GamessDataGroup::WriteHeaderToFile( std::ostream &File )
 {
   //Punch the group label
   File << endl << " $DATA " << endl;
@@ -1748,7 +1748,7 @@ void GamessDataGroup::WriteHeaderToFile( ostream &File )
   }
 }
 
-void GamessDataGroup::WriteToFile( ostream &File, GamessInputData *IData, Molecule * molecule )
+void GamessDataGroup::WriteToFile( std::ostream &File, GamessInputData *IData, Molecule * molecule )
 {
   char Out[GAMESS_BUFF_LEN];
 
@@ -1965,7 +1965,7 @@ void GamessGuessGroup::InitData( void )
   GuessType = 0;
   Options = 0;
 }
-void GamessGuessGroup::WriteToFile( ostream &File, GamessInputData *IData )
+void GamessGuessGroup::WriteToFile( std::ostream &File, GamessInputData *IData )
 {
   long test=false;
   char Out[GAMESS_BUFF_LEN];
@@ -2087,7 +2087,7 @@ short GamessSCFGroup::SetConvergance( short NewConv )
   if ( NewConv > 0 ) ConvCriteria = NewConv;
   return ConvCriteria;
 }
-void GamessSCFGroup::WriteToFile( ostream &File, GamessInputData *IData )
+void GamessSCFGroup::WriteToFile( std::ostream &File, GamessInputData *IData )
 {
   long test=false;
   char Out[GAMESS_BUFF_LEN];
@@ -2187,7 +2187,7 @@ bool GamessMP2Group::SetLMOMP2( bool State )
   else LMOMP2 = false;
   return LMOMP2;
 }
-void GamessMP2Group::WriteToFile( ostream &File, GamessInputData *IData )
+void GamessMP2Group::WriteToFile( std::ostream &File, GamessInputData *IData )
 {
   long test=false;
   char Out[GAMESS_BUFF_LEN];
@@ -2248,7 +2248,7 @@ void GamessHessianGroup::InitData( void )
   FrequencyScaleFactor = 1.0;
   BitOptions = 17; //bit 1 + bit 5
 }
-void GamessHessianGroup::WriteToFile( ostream &File, GamessInputData *IData )
+void GamessHessianGroup::WriteToFile( std::ostream &File, GamessInputData *IData )
 {
   bool method=false;
   char Out[GAMESS_BUFF_LEN];
@@ -2323,7 +2323,7 @@ void GamessDFTGroup::InitData( void )
   SetAuxFunctions( true );
   SetMethodGrid( true );
 }
-void GamessDFTGroup::WriteToFile( ostream &File, GamessInputData *IData )
+void GamessDFTGroup::WriteToFile( std::ostream &File, GamessInputData *IData )
 {
   char Out[GAMESS_BUFF_LEN];
 
@@ -2473,7 +2473,7 @@ void GamessStatPtGroup::InitData( void )
   nRecalcHess = 0;
   SetRadiusUpdate( true );
 }
-void GamessStatPtGroup::WriteToFile( ostream &File, GamessInputData *IData )
+void GamessStatPtGroup::WriteToFile( std::ostream &File, GamessInputData *IData )
 {
   char Out[GAMESS_BUFF_LEN];
 

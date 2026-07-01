@@ -45,8 +45,9 @@
 #include <QFile>
 #include <QDebug>
 
+#include <fstream>
+
 using namespace OpenBabel;
-using namespace std;
 
 namespace Avogadro
 {
@@ -188,7 +189,7 @@ namespace Avogadro
     }
 
     // TODO: Switch to MoleculeFile
-    ifstream ifs;
+    std::ifstream ifs;
     ifs.open(QFile::encodeName(filename));
     if (!ifs) { // shouldn't happen, already checked file above
       QApplication::restoreOverrideCursor();

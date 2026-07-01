@@ -40,7 +40,6 @@
 
 
 using namespace OpenBabel;
-using namespace std;
 
 namespace Avogadro
 {

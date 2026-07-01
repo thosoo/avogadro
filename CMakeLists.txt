@@ -352,39 +352,41 @@ endif()
 find_package(Eigen3 REQUIRED) # find and setup Eigen3 if available
 
 find_package(ZLIB REQUIRED)
-find_package(OpenBabel3 QUIET) # find and setup OpenBabel
-if(NOT OPENBABEL3_FOUND)
-  message(STATUS "Using bundled thosoo/openbabel via openbabel_ext")
-  if(NOT TARGET OpenBabel3::openbabel)
-    add_library(OpenBabel3::openbabel SHARED IMPORTED GLOBAL)
-  endif()
-  if(WIN32)
-    set_target_properties(OpenBabel3::openbabel PROPERTIES
-      IMPORTED_IMPLIB "${OPENBABEL3_LIBRARY}"
-      IMPORTED_LOCATION "${OPENBABEL3_RUNTIME_LIBRARY}"
-      INTERFACE_INCLUDE_DIRECTORIES "${OPENBABEL3_INCLUDE_DIR}")
-  else()
-    set_target_properties(OpenBabel3::openbabel PROPERTIES
-      IMPORTED_LOCATION "${OPENBABEL3_LIBRARY}"
-      INTERFACE_INCLUDE_DIRECTORIES "${OPENBABEL3_INCLUDE_DIR}")
-  endif()
-  add_dependencies(OpenBabel3::openbabel openbabel_ext)
-  set(OPENBABEL3_FOUND TRUE)
-  set(OPENBABEL3_LIBRARIES "${OPENBABEL3_LIBRARY}")
-else()
-  string(FIND "${OPENBABEL3_LIBRARIES}" "${OPENBABEL_INSTALL_DIR}" _openbabel_from_bundle)
-  if(_openbabel_from_bundle EQUAL 0)
-    message(STATUS "Using bundled thosoo/openbabel from cached install via openbabel_ext")
-    message(STATUS "Cached bundled OpenBabel include dir: ${OPENBABEL3_INCLUDE_DIR}")
-    message(STATUS "Cached bundled OpenBabel library: ${OPENBABEL3_LIBRARIES}")
-    if(TARGET OpenBabel3::openbabel)
-      add_dependencies(OpenBabel3::openbabel openbabel_ext)
-    endif()
-  else()
-    message(STATUS "Using system OpenBabel3::openbabel: ${OPENBABEL3_LIBRARIES}")
-    message(STATUS "System OpenBabel include dir: ${OPENBABEL3_INCLUDE_DIR}")
-  endif()
+# Always use the bundled thosoo/openbabel ExternalProject in this build.
+# Do not let an OpenBabel-generated package config leak a raw "openbabel"
+# link item into Avogadro's target graph; the imported target must point at
+# the absolute bundled library artifact.
+message(STATUS "Using bundled thosoo/openbabel via openbabel_ext")
+if(NOT TARGET OpenBabel3::openbabel)
+  add_library(OpenBabel3::openbabel SHARED IMPORTED GLOBAL)
 endif()
+if(WIN32)
+  set_target_properties(OpenBabel3::openbabel PROPERTIES
+    IMPORTED_IMPLIB "${OPENBABEL3_LIBRARY}"
+    IMPORTED_LOCATION "${OPENBABEL3_RUNTIME_LIBRARY}"
+    INTERFACE_INCLUDE_DIRECTORIES "${OPENBABEL3_INCLUDE_DIR}"
+    INTERFACE_LINK_LIBRARIES "")
+else()
+  set_target_properties(OpenBabel3::openbabel PROPERTIES
+    IMPORTED_LOCATION "${OPENBABEL3_LIBRARY}"
+    INTERFACE_INCLUDE_DIRECTORIES "${OPENBABEL3_INCLUDE_DIR}"
+    INTERFACE_LINK_LIBRARIES "")
+endif()
+add_dependencies(OpenBabel3::openbabel openbabel_ext)
+set(OPENBABEL3_FOUND TRUE)
+set(OPENBABEL3_LIBRARIES "${OPENBABEL3_LIBRARY}")
+set(OPENBABEL2_FOUND ${OPENBABEL3_FOUND})
+set(OPENBABEL2_INCLUDE_DIR ${OPENBABEL3_INCLUDE_DIR})
+set(OPENBABEL2_LIBRARIES ${OPENBABEL3_LIBRARIES})
+set(OPENBABEL2_LIBRARY_DIRS ${OPENBABEL3_LIBRARY_DIRS})
+
+get_target_property(_ob_imported_location OpenBabel3::openbabel IMPORTED_LOCATION)
+get_target_property(_ob_interface_link_libraries OpenBabel3::openbabel INTERFACE_LINK_LIBRARIES)
+message(STATUS "OpenBabel mode: bundled thosoo/openbabel")
+message(STATUS "OPENBABEL3_INCLUDE_DIR: ${OPENBABEL3_INCLUDE_DIR}")
+message(STATUS "OPENBABEL3_LIBRARY: ${OPENBABEL3_LIBRARY}")
+message(STATUS "OpenBabel3::openbabel IMPORTED_LOCATION: ${_ob_imported_location}")
+message(STATUS "OpenBabel3::openbabel INTERFACE_LINK_LIBRARIES: ${_ob_interface_link_libraries}")
 
 if(UNIX AND NOT APPLE AND X11_FOUND)
   set(AVO_USE_X11 TRUE)
