@@ -48,7 +48,8 @@ namespace Avogadro
   using namespace OpenBabel;
 
 #ifdef Q_OS_WIN
-  const QString MOPACInputDialog::mopacPath("C:\Program Files\MOPAC\MOPAC2009.exe");
+  const QString MOPACInputDialog::mopacPath(
+    QStringLiteral(R"(C:\Program Files\MOPAC\MOPAC2009.exe)"));
 #else
   const QString MOPACInputDialog::mopacPath("/opt/mopac/MOPAC2009.exe");
 #endif

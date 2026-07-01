@@ -36,6 +36,8 @@
 #include <QFile>
 #include <QSettings>
 
+#include <sstream>
+
 namespace Avogadro {
 
   GamessInputDialog::GamessInputDialog( GamessInputData *inputData,
@@ -352,7 +354,7 @@ namespace Avogadro {
 
   void GamessInputDialog::updatePreviewText()
   {
-    stringstream str;
+    std::stringstream str;
     m_inputData->WriteInputFile( str );
     ui.previewText->setText(QString::fromLatin1(str.str().c_str()));
   }
