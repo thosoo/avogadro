@@ -296,13 +296,19 @@ message(STATUS "Bundled OpenBabel install prefix: ${OPENBABEL_INSTALL_DIR}")
 message(STATUS "Bundled OpenBabel include dir: ${OPENBABEL3_INCLUDE_DIR}")
 message(STATUS "Bundled OpenBabel library: ${OPENBABEL3_LIBRARY}")
 
+set(_openbabel_patch_args)
+if(MSVC)
+  list(APPEND _openbabel_patch_args
+    PATCH_COMMAND ${CMAKE_COMMAND}
+      -DOPENBABEL_SOURCE_DIR=<SOURCE_DIR>
+      -P ${CMAKE_SOURCE_DIR}/cmake/PatchOpenBabelMsvcTls.cmake)
+endif()
+
 ExternalProject_Add(openbabel_ext
   URL ${OPENBABEL3_SOURCE_URL}
   URL_HASH SHA256=${OPENBABEL3_SOURCE_SHA256}
   BUILD_BYPRODUCTS ${_openbabel_build_byproducts}
-  PATCH_COMMAND ${CMAKE_COMMAND}
-    -DOPENBABEL_SOURCE_DIR=<SOURCE_DIR>
-    -P ${CMAKE_SOURCE_DIR}/cmake/PatchOpenBabelMsvcTls.cmake
+  ${_openbabel_patch_args}
   CMAKE_ARGS
     -DCMAKE_INSTALL_PREFIX=${OPENBABEL_INSTALL_DIR}
     -DCMAKE_BUILD_TYPE=Release
