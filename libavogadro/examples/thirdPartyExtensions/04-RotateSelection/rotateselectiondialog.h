@@ -38,7 +38,7 @@ namespace RotateSelection {
     Q_OBJECT
 
   public:
-    explicit RotateSelectionDialog(QWidget *parent = 0, Qt::WindowFlags f = 0 );
+    explicit RotateSelectionDialog(QWidget *parent = nullptr, Qt::WindowFlags f = Qt::WindowFlags() );
     virtual ~RotateSelectionDialog() {};
 
     void getTransform(Eigen::Vector3d *axis,

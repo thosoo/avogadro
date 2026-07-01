@@ -50,8 +50,8 @@ namespace Avogadro {
   {
   public:
     explicit FragmentDock(const QString &title,
-                          QWidget *parent = 0,
-                          Qt::WindowFlags f = 0)
+                          QWidget *parent = nullptr,
+                          Qt::WindowFlags f = Qt::WindowFlags())
       : DockWidget(title, parent, f)
     {
       setWindowFlags(windowFlags() | Qt::Tool | Qt::WindowStaysOnTopHint);

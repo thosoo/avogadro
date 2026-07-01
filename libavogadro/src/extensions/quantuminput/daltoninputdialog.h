@@ -21,7 +21,7 @@ namespace Avogadro
     Q_OBJECT
 
   public:
-    explicit DaltonInputDialog(QWidget *parent = 0, Qt::WindowFlags f = 0 );
+    explicit DaltonInputDialog(QWidget *parent = nullptr, Qt::WindowFlags f = Qt::WindowFlags() );
     ~DaltonInputDialog();
 
     void setMolecule(Molecule *molecule);
