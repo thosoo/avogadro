@@ -21,12 +21,27 @@
 #include <openbabel/mol.h>
 #include <openbabel/elements.h>
 
+#include <cmath>
+#include <ostream>
+
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
 
 
 #define GAMESS_BUFF_LEN 180
+
+namespace {
+
+double gamessDistance3(const double a[3], const double b[3])
+{
+  const double dx = a[0] - b[0];
+  const double dy = a[1] - b[1];
+  const double dz = a[2] - b[2];
+  return std::sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+} // namespace
 
 namespace Avogadro
 {
@@ -231,7 +246,7 @@ long GamessInputData::GetNumElectrons() const
 long GamessInputData::WriteInputFile( std::ostream &buffer )
 {
 
-  buffer << "!   File created by the GAMESS Input Deck Generator Plugin for Avogadro" << endl;
+  buffer << "!   File created by the GAMESS Input Deck Generator Plugin for Avogadro" << std::endl;
   if ( Basis ) Basis->WriteToFile( buffer, this );
   if ( Control ) Control->WriteToFile( buffer, this, GetNumElectrons() );
   if ( DFT ) DFT->WriteToFile( buffer, this );
@@ -933,7 +948,7 @@ void GamessControlGroup::WriteToFile( std::ostream &File, GamessInputData *IData
     }
   }
 
-  File << "$END" << endl;
+  File << "$END" << std::endl;
 }
 void GamessControlGroup::RevertControlPane( GamessControlGroup *OldData )
 {
@@ -1238,7 +1253,7 @@ void GamessSystemGroup::WriteToFile( std::ostream &File )
       sprintf( Out, "XDR=.TRUE. " );
       File << Out;
     }
-    File << "$END" << endl;
+    File << "$END" << std::endl;
   }
 }
 //#pragma mark GamessBasisGroup
@@ -1527,10 +1542,10 @@ long GamessBasisGroup::WriteToFile( std::ostream &File, GamessInputData * iData 
     sprintf( Out, "DIFFS=.TRUE. " );
     File << Out;
   }
-  File << "$END" << endl;
+  File << "$END" << std::endl;
 
   if ( WaterSolvate ) {
-    File << " $PCM SOLVNT=WATER $END" << endl;
+    File << " $PCM SOLVNT=WATER $END" << std::endl;
   }
   return 0;
 }
@@ -1739,12 +1754,12 @@ short GamessDataGroup::SetNumZVar( short NewNum )
 void GamessDataGroup::WriteHeaderToFile( std::ostream &File )
 {
   //Punch the group label
-  File << endl << " $DATA " << endl;
+  File << std::endl << " $DATA " << std::endl;
   //title
   if ( Title == NULL ) {
-    File << "Title" << endl;
+    File << "Title" << std::endl;
   } else {
-    File << Title << endl;
+    File << Title << std::endl;
   }
 }
 
@@ -1757,7 +1772,7 @@ void GamessDataGroup::WriteToFile( std::ostream &File, GamessInputData *IData, M
   //   BasisTest = BasisTest && lBasis; //Make sure there really is a basis set defined
   // if (BasisTest) File << " $CONTRL NORMP=1 $END" << endl;
   //Point Group
-  if (( PointGroup!=0 )&&( PointGroup!=1 ) ) File << "" << endl;
+  if (( PointGroup!=0 )&&( PointGroup!=1 ) ) File << "" << std::endl;
   //coordinates
   //   if (Coord == ZMTCoordType) { //"normal" style z-matrix
   //     Internals * IntCoords = molecule->GetInternalCoordinates();
@@ -1776,7 +1791,7 @@ void GamessDataGroup::WriteToFile( std::ostream &File, GamessInputData *IData, M
   } else {
     sprintf( Out, "%s", GetPointGroupText() );
   }
-  File << Out << endl;
+  File << Out << std::endl;
 
   // we need the molecule!
   if ( !molecule ) { return; }
@@ -1794,16 +1809,16 @@ void GamessDataGroup::WriteToFile( std::ostream &File, GamessInputData *IData, M
         sprintf( Out, "%s   %5.1f  %10.8f  %10.8f  %10.8f",
                   OpenBabel::OBElements::GetSymbol( atomicNumber ), ( float ) atomicNumber,
                   atom->pos()->x(), atom->pos()->y(), atom->pos()->z() );
-        File << Out << endl;
+        File << Out << std::endl;
       }
     }
 
     if ( IData->EFP->GetGroupCount( GamessEFPGroup::QMType ) ) {
-      File << " $END" << endl << endl;
+      File << " $END" << std::endl << std::endl;
     }
 
-    File << " $EFRAG" << endl;
-    File << "COORD=CART" << endl;
+    File << " $EFRAG" << std::endl;
+    File << "COORD=CART" << std::endl;
 
     for ( EFPGroupIter iter = IData->EFP->GetGroupBegin(); iter != IData->EFP->GetGroupEnd(); ++iter ) {
       if (( *iter )->type != GamessEFPGroup::EFPType ) { continue; }
@@ -1828,7 +1843,7 @@ void GamessDataGroup::WriteToFile( std::ostream &File, GamessInputData *IData, M
         atomPos[1] = atom->pos()->y();
         atomPos[2] = atom->pos()->z();
 
-        double d = distance( atomPos, com );
+        double d = gamessDistance3( atomPos, com );
 
         for ( int i=0; i<3; i++ ) {
           if ( !atomIdx[i] ) {
@@ -1852,7 +1867,7 @@ void GamessDataGroup::WriteToFile( std::ostream &File, GamessInputData *IData, M
         }
       }
 
-      File << "FRAGNAME=" << ( *iter )->name << endl;
+      File << "FRAGNAME=" << ( *iter )->name << std::endl;
 
       for ( int i=0; i<3; i++ ) {
         if ( !atomIdx[i] ) { break; }
@@ -1862,7 +1877,7 @@ void GamessDataGroup::WriteToFile( std::ostream &File, GamessInputData *IData, M
         sprintf( Out, "%s%d    %10.8f  %10.8f  %10.8f",
                   OpenBabel::OBElements::GetSymbol( atomicNumber ), i+1,
                   atomIdx[i]->pos()->x(), atomIdx[i]->pos()->y(), atomIdx[i]->pos()->z() );
-        File << Out << endl;
+        File << Out << std::endl;
       }
 
       /*      {
@@ -1874,12 +1889,12 @@ void GamessDataGroup::WriteToFile( std::ostream &File, GamessInputData *IData, M
                 sprintf(Out, "%s   %5.1f  %10.5f  %10.5f  %10.5f",
                         OpenBabel::OBElements::GetSymbol(atomicNumber), (float) atomicNumber,
                                        atom->GetX(), atom->GetY(), atom->GetZ());
-                File << Out << endl;
+                File << Out << std::endl;
               }
             }*/
     }
 
-    File << " $END" << endl << endl;
+    File << " $END" << std::endl << std::endl;
 
   } else {
     // write out normal molecule stuff
@@ -1888,11 +1903,11 @@ void GamessDataGroup::WriteToFile( std::ostream &File, GamessInputData *IData, M
       sprintf( Out, "%s   %5.1f  %10.5f  %10.5f  %10.5f",
                OpenBabel::OBElements::GetSymbol( atomicNumber ), ( float ) atomicNumber,
                atom->pos()->x(), atom->pos()->y(), atom->pos()->z() );
-      File << Out << endl;
+      File << Out << std::endl;
       //       if (BasisTest) lBasis->WriteBasis(File, iatom);
     }
 
-    File << " $END" << endl;
+    File << " $END" << std::endl;
   }
 //   }
 
@@ -2014,7 +2029,7 @@ void GamessGuessGroup::WriteToFile( std::ostream &File, GamessInputData *IData )
     sprintf( Out, "MIX=.TRUE. " );
     File << Out;
   }
-  File << "$END" << endl;
+  File << "$END" << std::endl;
 }
 
 // void GamessGuessGroup::WriteVecGroup(BufferFile *File, Molecule * lData) {
@@ -2120,7 +2135,7 @@ void GamessSCFGroup::WriteToFile( std::ostream &File, GamessInputData *IData )
     File << Out;
   }
 
-  File << "$END" << endl;
+  File << "$END" << std::endl;
 }
 //#pragma mark GamessMP2Group
 GamessMP2Group::GamessMP2Group( void )
@@ -2239,7 +2254,7 @@ void GamessMP2Group::WriteToFile( std::ostream &File, GamessInputData *IData )
     File << Out;
   }
 
-  File << "$END" << endl;
+  File << "$END" << std::endl;
 }
 //#pragma mark GamessHessianGroup
 void GamessHessianGroup::InitData( void )
@@ -2305,7 +2320,7 @@ void GamessHessianGroup::WriteToFile( std::ostream &File, GamessInputData *IData
     }
   } else File << "VIBANL=.FALSE. ";
 
-  File << "$END" << endl;
+  File << "$END" << std::endl;
 }
 //#pragma mark GamessDFTGroup
 void GamessDFTGroup::InitData( void )
@@ -2340,7 +2355,7 @@ void GamessDFTGroup::WriteToFile( std::ostream &File, GamessInputData *IData )
     File << Out;
   }
 
-  File << "$END" << endl;
+  File << "$END" << std::endl;
 }
 const char * GamessDFTGroup::GetDFTGridFuncText( DFTFunctionalsGrid type )
 {
@@ -2558,7 +2573,7 @@ void GamessStatPtGroup::WriteToFile( std::ostream &File, GamessInputData *IData 
     File << "NPRT=1 ";
   }
 
-  File << "$END" << endl;
+  File << "$END" << std::endl;
 }
 // void MOPacInternals::WriteZMATToFile(BufferFile * File) {
 //  char Out[GAMESS_BUFF_LEN];

@@ -23,6 +23,7 @@
 #ifndef GAMESSINPUTDATA_H
 #define GAMESSINPUTDATA_H
 
+#include <cmath>
 #include <iostream>
 #include <vector>
 #include <avogadro/primitive.h>
@@ -812,7 +813,7 @@ namespace Avogadro {
         yd = i[1] - j[1];
         zd = i[2] - j[2];
 
-        return sqrt(fabs(xd) + fabs(yd) + fabs(zd));
+        return std::sqrt(std::fabs(xd) + std::fabs(yd) + std::fabs(zd));
       }
 
 
