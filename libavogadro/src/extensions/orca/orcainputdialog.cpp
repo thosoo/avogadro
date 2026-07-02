@@ -247,8 +247,9 @@ QStringList orcaSolventEntries()
 }
 
 OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
-    QDialog( parent, f ), m_molecule(NULL), m_scfConvButtons(NULL), m_scfConv2ndButtons(NULL),
-    m_output(), m_savePath(), m_dirty(false), m_warned(false), m_initializing(true),
+    QDialog( parent, f ), m_molecule(NULL), m_basic(true), m_advanced(false),
+    m_scfConvButtons(NULL), m_scfConv2ndButtons(NULL), m_output(), m_savePath(),
+    m_dirty(false), m_warned(false), m_initializing(true),
     m_pendingMoleculeSync(false)
 {
     basicData = new OrcaBasicData;
@@ -332,16 +333,18 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
     ui.advancedTree->expandAll();
     ui.advancedTree->setCurrentItem(ui.advancedTree->topLevelItem(0));
 
-    // Connect the GUI elements to the correct slots
+    QSettings settings;
+    readSettings(settings);
 
+    // Connect the GUI elements to the correct slots after the widgets and
+    // backing data are fully initialized. The ORCA dialog restores state and
+    // synchronizes molecule data lazily, so constructor-time signals must not
+    // enter runtime slots before setup is complete.
     connectModes();
     connectBasic();
     connectAdvanced();
     connectPreview();
     connectButtons();
-
-    QSettings settings;
-    readSettings(settings);
 
     // Enable/Disable Widgets
 
@@ -356,8 +359,6 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
     }
     ui.basisAuxCorrBasisSetCombo->setEnabled(auxCorrNeeded);
 //    ui.basisAuxCorrECPCheck->setEnabled(false);
-    m_basic = true;
-    m_advanced = false;
     m_initializing = false;
 }
 
@@ -424,10 +425,14 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
       connect (ui.scfTypeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setSCFType(int)));
       connect (ui.scfMaxIterSpin, SIGNAL(valueChanged(int)), this , SLOT (setSCFMaxIter(int)));
 
-      connect(m_scfConvButtons, &QButtonGroup::idClicked,
-              this, &OrcaInputDialog::setSCFConverger);
-      connect(m_scfConv2ndButtons, &QButtonGroup::idClicked,
-              this, &OrcaInputDialog::setSCF2ndConverger);
+      if (m_scfConvButtons) {
+          connect(m_scfConvButtons, &QButtonGroup::idClicked,
+                  this, &OrcaInputDialog::setSCFConverger);
+      }
+      if (m_scfConv2ndButtons) {
+          connect(m_scfConv2ndButtons, &QButtonGroup::idClicked,
+                  this, &OrcaInputDialog::setSCF2ndConverger);
+      }
 
       // Advanced DFT Slots
 
@@ -616,12 +621,12 @@ void  OrcaInputDialog::initComboboxes()
       ui.scfDampErrorDSpin->setValue(scfData->getDampError());
 
       if (m_scfConvButtons == NULL) {
-          m_scfConvButtons = new QButtonGroup;
+          m_scfConvButtons = new QButtonGroup(this);
           m_scfConvButtons->addButton(ui.scfDIISRadio, 0);
           m_scfConvButtons->addButton(ui.scfKDIISRadio, 1);
       }
       if (m_scfConv2ndButtons == NULL) {
-          m_scfConv2ndButtons = new QButtonGroup;
+          m_scfConv2ndButtons = new QButtonGroup(this);
           m_scfConv2ndButtons->addButton(ui.scfSOSCFRadio, 0);
           m_scfConv2ndButtons->addButton(ui.scfNRSCFRadio, 1);
           m_scfConv2ndButtons->addButton(ui.scfAHSCFRadio, 2);
