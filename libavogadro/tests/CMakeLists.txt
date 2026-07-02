@@ -89,6 +89,119 @@ foreach (test ${tests})
   set_property(TEST ${test}Test PROPERTY LABELS avogadro)
 endforeach ()
 
+set(dialogsmoketest_SRCS
+  dialogsmoketest.cpp
+  ../src/extensions/orca/orcainputdialog.cpp
+  ../src/extensions/orca/orcaanalysedialog.cpp
+  ../src/extensions/orca/orcaspectra.cpp
+  ../src/extensions/orca/orcadata.cpp
+  ../src/extensions/orca/orcainputdialog.ui
+  ../src/extensions/orca/orcaanalysedialog.ui
+  ../src/extensions/orca/orcaspectra.ui
+  ../src/extensions/spectra/spectradialog.cpp
+  ../src/extensions/spectra/spectratype.cpp
+  ../src/extensions/spectra/abstract_ir.cpp
+  ../src/extensions/spectra/ir.cpp
+  ../src/extensions/spectra/nmr.cpp
+  ../src/extensions/spectra/dos.cpp
+  ../src/extensions/spectra/uv.cpp
+  ../src/extensions/spectra/cd.cpp
+  ../src/extensions/spectra/raman.cpp
+  ../src/extensions/spectra/abstract_orcaspec.cpp
+  ../src/extensions/spectra/energy.cpp
+  ../src/extensions/spectra/emission.cpp
+  ../src/extensions/spectra/absorption.cpp
+  ../src/extensions/spectra/nearir.cpp
+  ../src/extensions/spectra/spectradialog.ui
+  ../src/extensions/spectra/tab_ir_raman.ui
+  ../src/extensions/spectra/tab_nmr.ui
+  ../src/extensions/spectra/tab_dos.ui
+  ../src/extensions/spectra/tab_uv.ui
+  ../src/extensions/spectra/tab_cd.ui
+  ../src/extensions/spectra/tab_orcaspec.ui
+  ../src/extensions/spectra/tab_energy.ui
+  ../src/extensions/quantuminput/inputdialog.cpp
+  ../src/extensions/quantuminput/abinitinputdialog.cpp
+  ../src/extensions/quantuminput/daltoninputdialog.cpp
+  ../src/extensions/quantuminput/gamessukinputdialog.cpp
+  ../src/extensions/quantuminput/gaussianinputdialog.cpp
+  ../src/extensions/quantuminput/molproinputdialog.cpp
+  ../src/extensions/quantuminput/mopacinputdialog.cpp
+  ../src/extensions/quantuminput/nwcheminputdialog.cpp
+  ../src/extensions/quantuminput/psi4inputdialog.cpp
+  ../src/extensions/quantuminput/qcheminputdialog.cpp
+  ../src/extensions/quantuminput/teracheminputdialog.cpp
+  ../src/extensions/quantuminput/lammpsinputdialog.cpp
+  ../src/extensions/quantuminput/gamessinputdialog.cpp
+  ../src/extensions/quantuminput/gamessinputdata.cpp
+  ../src/extensions/quantuminput/gamesshighlighter.cpp
+  ../src/extensions/quantuminput/abinitinputdialog.ui
+  ../src/extensions/quantuminput/gaussianinputdialog.ui
+  ../src/extensions/quantuminput/daltoninputdialog.ui
+  ../src/extensions/quantuminput/gamessukinputdialog.ui
+  ../src/extensions/quantuminput/molproinputdialog.ui
+  ../src/extensions/quantuminput/mopacinputdialog.ui
+  ../src/extensions/quantuminput/nwcheminputdialog.ui
+  ../src/extensions/quantuminput/psi4inputdialog.ui
+  ../src/extensions/quantuminput/qcheminputdialog.ui
+  ../src/extensions/quantuminput/teracheminputdialog.ui
+  ../src/extensions/quantuminput/lammpsinputdialog.ui
+  ../src/extensions/quantuminput/gamessinputdialog.ui
+  ../src/extensions/forcefielddialog.cpp
+  ../src/extensions/constraintsdialog.cpp
+  ../src/extensions/constraintsmodel.cpp
+  ../src/extensions/conformersearchdialog.cpp
+  ../src/extensions/forcefielddialog.ui
+  ../src/extensions/constraintsdialog.ui
+  ../src/extensions/conformersearchdialog.ui
+  ../src/extensions/insertfragmentdialog.cpp
+  ../src/extensions/sortfiltertreeproxymodel.cpp
+  ../src/extensions/insertfragmentdialog.ui
+  ../../avogadro/src/addenginedialog.cpp
+  ../../avogadro/src/updatedialog.cpp
+  ../../avogadro/src/addenginedialog.ui)
+
+add_executable(dialogsmoketest ${dialogsmoketest_SRCS})
+target_include_directories(dialogsmoketest PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/orca
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/spectra
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/quantuminput
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../avogadro/src)
+set_target_properties(dialogsmoketest PROPERTIES
+  AUTOUIC_SEARCH_PATHS "${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/orca;${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/spectra;${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/quantuminput;${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions;${CMAKE_CURRENT_SOURCE_DIR}/../../avogadro/src")
+target_link_libraries(dialogsmoketest
+  PRIVATE
+  OpenBabel3::openbabel
+  Qt6::Core
+  Qt6::Gui
+  Qt6::Widgets
+  Qt6::OpenGL
+  Qt6::OpenGLWidgets
+  Qt6::Test
+  avogadro)
+if(TARGET openbabel_ext)
+  add_dependencies(dialogsmoketest openbabel_ext)
+endif()
+add_test(dialogsmokeTest ${CMAKE_BINARY_DIR}/bin/dialogsmoketest)
+set_tests_properties(dialogsmokeTest PROPERTIES
+  ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BABEL_DATADIR=${CMAKE_BINARY_DIR}/openbabel-install/share")
+set_property(SOURCE ${dialogsmoketest_SRCS} PROPERTY LABELS avogadro)
+set_property(TARGET dialogsmoketest PROPERTY LABELS avogadro)
+set_property(TEST dialogsmokeTest PROPERTY LABELS avogadro)
+
+add_executable(qt6signalpatternstest qt6signalpatternstest.cpp)
+target_compile_definitions(qt6signalpatternstest PRIVATE
+  AVOGADRO_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+target_link_libraries(qt6signalpatternstest
+  PRIVATE
+  Qt6::Core
+  Qt6::Test)
+add_test(qt6signalpatternsTest ${CMAKE_BINARY_DIR}/bin/qt6signalpatternstest)
+set_property(SOURCE qt6signalpatternstest.cpp PROPERTY LABELS avogadro)
+set_property(TARGET qt6signalpatternstest PROPERTY LABELS avogadro)
+set_property(TEST qt6signalpatternsTest PROPERTY LABELS avogadro)
+
 if(XTB_FOUND)
   include_directories(${XTB_INCLUDE_DIRS})
   link_directories(${XTB_LIBRARY_DIRS})
