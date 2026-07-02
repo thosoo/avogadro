@@ -22,6 +22,7 @@
 #include <avogadro/global.h>
 
 #include <QMessageBox>
+#include <QComboBox>
 #include <QDebug>
 
 #include <openbabel/mol.h>
@@ -52,8 +53,8 @@ AbstractOrcaSpectra::AbstractOrcaSpectra( SpectraDialog *parent ) :
             this, SIGNAL(plotDataChanged()));
     connect(ui.combo_XUnit, SIGNAL(currentIndexChanged(int)),
             this, SIGNAL(plotDataChanged()));
-    connect(ui.combo_OrcaSpecType, SIGNAL(currentIndexChanged(QString)),
-            this, SLOT(OrcaSpecTypeChanged(QString)));
+    connect(ui.combo_OrcaSpecType, &QComboBox::currentTextChanged,
+            this, &AbstractOrcaSpectra::OrcaSpecTypeChanged);
 
     connect(ui.combo_lineShape, SIGNAL(currentIndexChanged(int)),
             this, SLOT(changeLineShape(int)));

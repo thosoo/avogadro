@@ -30,6 +30,7 @@
 
 #include <openbabel/mol.h>
 
+#include <QButtonGroup>
 #include <QColorDialog>
 
 #include <QDebug>
@@ -67,8 +68,8 @@ namespace Avogadro
             this, SLOT(millerIndexChanged()));
     connect(ui.spin_mi_l, SIGNAL(valueChanged(int)),
             this, SLOT(millerIndexChanged()));
-    connect(ui.buttonGroup_camera, SIGNAL(buttonClicked(int)),
-            this, SLOT(updateCamera()));
+    connect(ui.buttonGroup_camera, &QButtonGroup::idClicked,
+            this, &CEViewOptionsWidget::updateCamera);
 
     connect(ui.combo_numCells, SIGNAL(currentIndexChanged(int)),
             this, SLOT(updateCellRenderOptions()));

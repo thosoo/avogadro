@@ -424,8 +424,10 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
       connect (ui.scfTypeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setSCFType(int)));
       connect (ui.scfMaxIterSpin, SIGNAL(valueChanged(int)), this , SLOT (setSCFMaxIter(int)));
 
-      connect (m_scfConvButtons, SIGNAL(buttonClicked (int)), this, SLOT(setSCFConverger(int)));
-      connect (m_scfConv2ndButtons, SIGNAL(buttonClicked (int)), this, SLOT(setSCF2ndConverger(int)));
+      connect(m_scfConvButtons, &QButtonGroup::idClicked,
+              this, &OrcaInputDialog::setSCFConverger);
+      connect(m_scfConv2ndButtons, &QButtonGroup::idClicked,
+              this, &OrcaInputDialog::setSCF2ndConverger);
 
       // Advanced DFT Slots
 

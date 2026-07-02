@@ -29,6 +29,7 @@
 #include <QAbstractButton>
 #include <QDialogButtonBox>
 #include <QtAlgorithms>
+#include <QComboBox>
 #include <QDebug>
 
 namespace Avogadro {
@@ -37,8 +38,8 @@ namespace Avogadro {
   {
     ui.setupUi(this);
 
-    connect( ui.typeCombo, SIGNAL(currentIndexChanged (const QString)),
-             this, SLOT(typeChanged(const QString)) );
+    connect(ui.typeCombo, &QComboBox::currentTextChanged,
+            this, &AddEngineDialog::typeChanged);
   }
 
   Engine * AddEngineDialog::getEngine(QWidget *parent, const QList<PluginFactory *> &engineFactories)

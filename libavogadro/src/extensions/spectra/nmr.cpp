@@ -21,6 +21,7 @@
 #include "spectradialog.h"
 
 #include <QMessageBox>
+#include <QComboBox>
 #include <QDebug>
 
 #include <openbabel/mol.h>
@@ -44,8 +45,8 @@ namespace Avogadro {
     // Setup signals/slots
     connect(this, SIGNAL(plotDataChanged()),
             m_dialog, SLOT(regenerateCalculatedSpectra()));
-    connect(ui.combo_type, SIGNAL(currentIndexChanged(QString)),
-            this, SLOT(setAtom(QString)));
+    connect(ui.combo_type, &QComboBox::currentTextChanged,
+            this, &NMRSpectra::setAtom);
     connect(ui.spin_ref, SIGNAL(valueChanged(double)),
             this, SLOT(setReference(double)));
     connect(ui.push_resetAxes, SIGNAL(clicked()),

@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <QComboBox>
 #include <QtGlobal>
 
 using namespace std;
@@ -67,8 +68,8 @@ namespace Avogadro {
             this, SLOT(updateFWHMSpin(int)));
     connect(ui.spin_nPoints, SIGNAL(valueChanged(int)),
             this, SIGNAL(plotDataChanged()));
-    connect(ui.combo_yaxis, SIGNAL(currentIndexChanged(QString)),
-            this, SLOT(updateYAxis(QString)));
+    connect(ui.combo_yaxis, &QComboBox::currentTextChanged,
+            this, &AbstractIRSpectra::updateYAxis);
     connect(ui.combo_xaxis, SIGNAL(currentIndexChanged(int)),
             this, SLOT(updateXAxis(int)));
     connect(ui.combo_scalingType, SIGNAL(currentIndexChanged(int)),
@@ -253,7 +254,7 @@ namespace Avogadro {
             this, SLOT(updateFWHMSlider(double)));
   }
 
-  void AbstractIRSpectra::updateYAxis(QString text) {
+  void AbstractIRSpectra::updateYAxis(const QString &text) {
     if (m_yaxis == text) {
       return;
     }

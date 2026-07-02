@@ -47,6 +47,7 @@
 #include <QScreen>
 #include <QToolTip>
 
+#include <QComboBox>
 #include <QDebug>
 #include <QFile>
 #include <QDir>
@@ -148,8 +149,8 @@ namespace Avogadro {
             this, SLOT(showCoordinates(double,double)));
 
     // Misc. connections
-    connect(ui.combo_spectra, SIGNAL(currentIndexChanged(QString)),
-            this, SLOT(updateCurrentSpectra(QString)));
+    connect(ui.combo_spectra, &QComboBox::currentTextChanged,
+            this, &SpectraDialog::updateCurrentSpectra);
     connect(ui.tab_widget, SIGNAL(currentChanged(int)),
             this, SLOT(updateComboSpectra(int)));
     connect(ui.push_advanced, SIGNAL(clicked()),

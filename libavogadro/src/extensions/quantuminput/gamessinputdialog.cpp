@@ -35,6 +35,7 @@
 #include <QDebug>
 #include <QFile>
 #include <QSettings>
+#include <QSpinBox>
 
 #include <sstream>
 
@@ -1006,26 +1007,26 @@ namespace Avogadro {
     connect( ui.controlExecCombo, SIGNAL( currentIndexChanged( int ) ),
         this, SLOT( advancedChanged() ) );
 
-    connect( ui.controlChargeSpin, SIGNAL( valueChanged( QString ) ),
-        this, SLOT( setControlCharge( QString ) ) );
-    connect( ui.controlChargeSpin, SIGNAL( valueChanged( QString ) ),
-        this, SLOT( updatePreviewText() ) );
-    connect( ui.controlChargeSpin, SIGNAL( valueChanged( QString ) ),
-        this, SLOT( advancedChanged() ) );
+    connect(ui.controlChargeSpin, &QSpinBox::textChanged,
+            this, &GamessInputDialog::setControlCharge);
+    connect(ui.controlChargeSpin, &QSpinBox::textChanged,
+            this, &GamessInputDialog::updatePreviewText);
+    connect(ui.controlChargeSpin, &QSpinBox::textChanged,
+            this, &GamessInputDialog::advancedChanged);
 
-    connect( ui.controlMultiplicitySpin, SIGNAL( valueChanged( QString ) ),
-        this, SLOT( setControlMultiplicity( QString ) ) );
-    connect( ui.controlMultiplicitySpin, SIGNAL( valueChanged( QString ) ),
-        this, SLOT( updatePreviewText() ) );
-    connect( ui.controlMultiplicitySpin, SIGNAL( valueChanged( QString ) ),
-        this, SLOT( advancedChanged() ) );
+    connect(ui.controlMultiplicitySpin, &QSpinBox::textChanged,
+            this, &GamessInputDialog::setControlMultiplicity);
+    connect(ui.controlMultiplicitySpin, &QSpinBox::textChanged,
+            this, &GamessInputDialog::updatePreviewText);
+    connect(ui.controlMultiplicitySpin, &QSpinBox::textChanged,
+            this, &GamessInputDialog::advancedChanged);
 
-    connect( ui.controlMaxSCFSpin, SIGNAL( valueChanged( QString ) ),
-        this, SLOT( setControlMaxSCF( QString ) ) );
-    connect( ui.controlMaxSCFSpin, SIGNAL( valueChanged( QString ) ),
-        this, SLOT( updatePreviewText() ) );
-    connect( ui.controlMaxSCFSpin, SIGNAL( valueChanged( QString ) ),
-        this, SLOT( advancedChanged() ) );
+    connect(ui.controlMaxSCFSpin, &QSpinBox::textChanged,
+            this, &GamessInputDialog::setControlMaxSCF);
+    connect(ui.controlMaxSCFSpin, &QSpinBox::textChanged,
+            this, &GamessInputDialog::updatePreviewText);
+    connect(ui.controlMaxSCFSpin, &QSpinBox::textChanged,
+            this, &GamessInputDialog::advancedChanged);
 
     connect( ui.controlMP2Check, SIGNAL( toggled( bool ) ),
         this, SLOT( setControlMP2( bool ) ) );

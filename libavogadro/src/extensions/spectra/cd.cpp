@@ -23,6 +23,7 @@
 #include <avogadro/global.h>
 
 #include <QMessageBox>
+#include <QComboBox>
 #include <QDebug>
 
 #include <openbabel/mol.h>
@@ -46,8 +47,8 @@ namespace Avogadro {
             this, SIGNAL(plotDataChanged()));
     connect(ui.spin_FWHM, SIGNAL(valueChanged(double)),
             this, SIGNAL(plotDataChanged()));
-    connect(ui.combo_rotatoryType, SIGNAL(currentIndexChanged(QString)),
-            this, SLOT(rotatoryTypeChanged(QString)));
+    connect(ui.combo_rotatoryType, &QComboBox::currentTextChanged,
+            this, &CDSpectra::rotatoryTypeChanged);
     connect(ui.combo_XUnit, SIGNAL(currentIndexChanged(int)),
             this, SIGNAL(plotDataChanged()));
     readSettings();
