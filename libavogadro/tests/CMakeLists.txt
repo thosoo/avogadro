@@ -98,28 +98,6 @@ set(dialogsmoketest_SRCS
   ../src/extensions/orca/orcainputdialog.ui
   ../src/extensions/orca/orcaanalysedialog.ui
   ../src/extensions/orca/orcaspectra.ui
-  ../src/extensions/spectra/spectradialog.cpp
-  ../src/extensions/spectra/spectratype.cpp
-  ../src/extensions/spectra/abstract_ir.cpp
-  ../src/extensions/spectra/ir.cpp
-  ../src/extensions/spectra/nmr.cpp
-  ../src/extensions/spectra/dos.cpp
-  ../src/extensions/spectra/uv.cpp
-  ../src/extensions/spectra/cd.cpp
-  ../src/extensions/spectra/raman.cpp
-  ../src/extensions/spectra/abstract_orcaspec.cpp
-  ../src/extensions/spectra/energy.cpp
-  ../src/extensions/spectra/emission.cpp
-  ../src/extensions/spectra/absorption.cpp
-  ../src/extensions/spectra/nearir.cpp
-  ../src/extensions/spectra/spectradialog.ui
-  ../src/extensions/spectra/tab_ir_raman.ui
-  ../src/extensions/spectra/tab_nmr.ui
-  ../src/extensions/spectra/tab_dos.ui
-  ../src/extensions/spectra/tab_uv.ui
-  ../src/extensions/spectra/tab_cd.ui
-  ../src/extensions/spectra/tab_orcaspec.ui
-  ../src/extensions/spectra/tab_energy.ui
   ../src/extensions/quantuminput/inputdialog.cpp
   ../src/extensions/quantuminput/abinitinputdialog.cpp
   ../src/extensions/quantuminput/daltoninputdialog.cpp
@@ -164,12 +142,11 @@ set(dialogsmoketest_SRCS
 add_executable(dialogsmoketest ${dialogsmoketest_SRCS})
 target_include_directories(dialogsmoketest PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/orca
-  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/spectra
   ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/quantuminput
   ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions
   ${CMAKE_CURRENT_SOURCE_DIR}/../../avogadro/src)
 set_target_properties(dialogsmoketest PROPERTIES
-  AUTOUIC_SEARCH_PATHS "${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/orca;${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/spectra;${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/quantuminput;${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions;${CMAKE_CURRENT_SOURCE_DIR}/../../avogadro/src")
+  AUTOUIC_SEARCH_PATHS "${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/orca;${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/quantuminput;${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions;${CMAKE_CURRENT_SOURCE_DIR}/../../avogadro/src")
 target_link_libraries(dialogsmoketest
   PRIVATE
   OpenBabel3::openbabel
