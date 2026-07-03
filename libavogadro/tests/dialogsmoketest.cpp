@@ -9,6 +9,7 @@
 #include <QAction>
 #include <QApplication>
 #include <QCoreApplication>
+#include <QDialog>
 #include <QEventLoop>
 #include <QWidget>
 
@@ -110,8 +111,9 @@ class DialogSmokeTest : public QObject
 
 private Q_SLOTS:
   void inventory();
-  void orcaInputDialogOpens();
+  void orcaInputDialogUiSetupOnly();
   void orcaInputDialogOpensWithoutMolecule();
+  void orcaInputDialogOpens();
   void orcaGenerateActionOpens();
   void orcaAnalyseDialogOpens();
   void quantumInputDialogsOpen();
@@ -126,7 +128,8 @@ void DialogSmokeTest::inventory()
   // Inventory-driven priority list for this smoke suite.
   //
   // P0 covered here:
-  // - ORCA analyse dialog and ORCA input generator extension action path.
+  // - ORCA input UI setup, direct input dialog construction, the input generator
+  //   extension action path, and the analyse dialog.
   // - Quantum input dialogs constructible without external programs or modal UI.
   // - Recently Qt6-touched forcefield/constraint and insert-fragment dialogs.
   //
@@ -151,11 +154,25 @@ void DialogSmokeTest::inventory()
   QVERIFY(true);
 }
 
-void DialogSmokeTest::orcaAnalyseDialogOpens()
+void DialogSmokeTest::orcaInputDialogUiSetupOnly()
 {
-  smokeShowDialog(QStringLiteral("OrcaAnalyseDialog"), []() {
-    return new OrcaAnalyseDialog;
-  });
+  qInfo() << "OrcaInputDialog UI-only: constructing raw QDialog";
+  QDialog dialog;
+  qInfo() << "OrcaInputDialog UI-only: constructing Ui object";
+  Ui::OrcaInputDialog ui;
+  qInfo() << "OrcaInputDialog UI-only: before setupUi";
+  ui.setupUi(&dialog);
+  qInfo() << "OrcaInputDialog UI-only: after setupUi";
+  smokeShowWidget(QStringLiteral("OrcaInputDialog UI-only"), &dialog);
+}
+
+void DialogSmokeTest::orcaInputDialogOpensWithoutMolecule()
+{
+  qInfo() << "Smoke-opening" << QStringLiteral("OrcaInputDialog without molecule");
+  qInfo() << "OrcaInputDialog without molecule: constructing";
+  auto dialog = std::make_unique<OrcaInputDialog>();
+  qInfo() << "OrcaInputDialog without molecule: showing";
+  smokeShowWidget(QStringLiteral("OrcaInputDialog without molecule"), dialog.get());
 }
 
 void DialogSmokeTest::orcaInputDialogOpens()
@@ -170,15 +187,6 @@ void DialogSmokeTest::orcaInputDialogOpens()
   dialog->setMolecule(&molecule);
   qInfo() << "OrcaInputDialog: showing";
   smokeShowWidget(QStringLiteral("OrcaInputDialog"), dialog.get());
-}
-
-void DialogSmokeTest::orcaInputDialogOpensWithoutMolecule()
-{
-  qInfo() << "Smoke-opening" << QStringLiteral("OrcaInputDialog without molecule");
-  qInfo() << "OrcaInputDialog without molecule: constructing";
-  auto dialog = std::make_unique<OrcaInputDialog>();
-  qInfo() << "OrcaInputDialog without molecule: showing";
-  smokeShowWidget(QStringLiteral("OrcaInputDialog without molecule"), dialog.get());
 }
 
 void DialogSmokeTest::orcaGenerateActionOpens()
@@ -218,6 +226,13 @@ void DialogSmokeTest::orcaGenerateActionOpens()
   processUiEvents();
   dialog->close();
   processUiEvents();
+}
+
+void DialogSmokeTest::orcaAnalyseDialogOpens()
+{
+  smokeShowDialog(QStringLiteral("OrcaAnalyseDialog"), []() {
+    return new OrcaAnalyseDialog;
+  });
 }
 
 void DialogSmokeTest::quantumInputDialogsOpen()

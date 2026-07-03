@@ -44,6 +44,7 @@
 #include <QButtonGroup>
 #include <QComboBox>
 #include <QDebug>
+#include <QPushButton>
 
 #include <QString>
 #include <QTextStream>
@@ -305,6 +306,7 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
 
     // This initializes the ui member function to contain pointers to
     // all GUI elements in the orcainputdialog.ui file
+    qInfo() << "OrcaInputDialog: before setupUi";
     ui.setupUi(this);
     qInfo() << "OrcaInputDialog: setupUi complete";
 
@@ -575,6 +577,8 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
               this, SLOT(generateClicked()));
       connect(ui.resetButton, SIGNAL(clicked()),
               this, SLOT(resetClicked()));
+      connect(ui.closeButton, &QPushButton::clicked,
+              this, &QDialog::close);
   }
 
   void OrcaInputDialog::connectBasic()
