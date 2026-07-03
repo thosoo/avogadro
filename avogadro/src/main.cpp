@@ -54,7 +54,7 @@
 #include "mainwindow.h"
 #include "application.h"
 
-#ifdef Q_WS_X11
+#ifdef AVO_USE_X11
   #include <X11/Xlib.h>
 #endif
 
@@ -74,21 +74,13 @@ void printHelp(const QString &appName);
 
 int main(int argc, char *argv[])
 {
-#ifdef Q_WS_X11
+#ifdef AVO_USE_X11
   if(Library::threadedGL()) {
     std::cout << "Enabling Threads" << std::endl;
     XInitThreads();
   }
 #endif
 
-#ifdef Q_WS_MACX
-    if ( QSysInfo::MacintoshVersion > QSysInfo::MV_10_8 )
-    {
-        // fix Mac OS X 10.9 (mavericks) font issue
-        // https://bugreports.qt-project.org/browse/QTBUG-32789
-        QFont::insertSubstitution(".Lucida Grande UI", "Lucida Grande");
-    }
-#endif
 
 
   // Check for --disable-hidpi-scaling flag before setting high-DPI attributes
@@ -100,8 +92,6 @@ int main(int argc, char *argv[])
     }
   }
   if (!disableHiDpi) {
-    QCoreApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
-    QCoreApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(
         Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
   }
@@ -205,7 +195,7 @@ int main(int argc, char *argv[])
   }
 
   translationPaths << QCoreApplication::applicationDirPath() + "/../share/avogadro/i18n/";
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
   translationPaths << QString(INSTALL_PREFIX) + "/share/avogadro/i18n/";
 #endif
 
@@ -231,7 +221,7 @@ int main(int argc, char *argv[])
   bool tryLoadingQtTranslations = false;
   QString qtFilename = "qt_" + translationCode + ".qm";
   QTranslator qtTranslator(0);
-  if (qtTranslator.load(qtFilename, QLibraryInfo::location(QLibraryInfo::TranslationsPath)))
+  if (qtTranslator.load(qtFilename, QLibraryInfo::path(QLibraryInfo::TranslationsPath)))
     app.installTranslator(&qtTranslator);
   else
     tryLoadingQtTranslations = true;

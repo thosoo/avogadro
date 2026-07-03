@@ -155,4 +155,4 @@ void XtbOptToolTest::convergence()
 }
 
 QTEST_MAIN(XtbOptToolTest)
-#include "moc_xtbopttooltest.cpp"
+#include "xtbopttooltest.moc"

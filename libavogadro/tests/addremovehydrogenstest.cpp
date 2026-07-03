@@ -27,4 +27,4 @@ void AddRemoveHydrogensTest::addRemove()
 }
 
 QTEST_MAIN(AddRemoveHydrogensTest)
-#include "moc_addremovehydrogenstest.cpp"
+#include "addremovehydrogenstest.moc"

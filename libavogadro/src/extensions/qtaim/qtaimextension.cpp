@@ -48,7 +48,7 @@
 #include "qtaimcriticalpointlocator.h"
 #include "qtaimcubature.h"
 
-#include <QTime>
+#include <QElapsedTimer>
 
 using namespace std;
 using namespace Eigen;
@@ -135,7 +135,7 @@ namespace Avogadro
 
     int i = action->data().toInt();
 
-    QTime timer;
+    QElapsedTimer timer;
     timer.start();
 
     QString fileName;

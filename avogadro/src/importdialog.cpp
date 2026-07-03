@@ -33,6 +33,7 @@
 #include <openbabel/babelconfig.h>
 #include <openbabel/obconversion.h>
 #include <openbabel/format.h>
+#include <algorithm>
 
 using namespace OpenBabel;
 
@@ -70,7 +71,7 @@ namespace Avogadro {
         }
       }
 
-    qSort(m_formatList.begin(), m_formatList.end(), formatCompare);
+    std::sort(m_formatList.begin(), m_formatList.end(), formatCompare);
 
     foreach(OBFormat *pFormat, m_formatList) {
       QString description(pFormat->Description());

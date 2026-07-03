@@ -30,13 +30,13 @@
 #include <QObject>
 #include <QList>
 #include <QString>
+#include <QSslError>
 #include <QUndoCommand>
 #include <QCloseEvent>
 
 // Forward declarations
 class QNetworkAccessManager;
 class QNetworkReply;
-class QSslError;
 
 namespace Avogadro {
 

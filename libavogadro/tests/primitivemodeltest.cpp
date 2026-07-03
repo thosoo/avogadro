@@ -91,5 +91,5 @@ void PrimitiveModelTest::cleanupTestCase()
 
 QTEST_MAIN(PrimitiveModelTest)
 
-#include "moc_primitivemodeltest.cpp"
+#include "primitivemodeltest.moc"
 

@@ -230,8 +230,8 @@ namespace Avogadro {
         return QString("");
       // Good to go! Find the index of val, that will be the
       // index of m_tickCustomStrings
-      int ind = -1;
-      for (size_t i = 0; i < d->m_MajorTickMarks.size(); ++i) {
+      qsizetype ind = -1;
+      for (qsizetype i = 0; i < d->m_MajorTickMarks.size(); ++i) {
         if (qFuzzyCompare(val, d->m_MajorTickMarks[i])) {
           ind = i;
           break;

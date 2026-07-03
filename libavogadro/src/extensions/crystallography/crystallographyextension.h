@@ -27,8 +27,8 @@
 
 #include <openbabel/math/matrix3x3.h>
 
-#include <QtCore/QRegExp>
-#include <QtCore/QString>
+#include <QRegularExpression>
+#include <QString>
 
 #include <Eigen/Core>
 
@@ -78,7 +78,7 @@ namespace Avogadro
     Radian
   };
 
-#ifdef Q_WS_X11
+#ifdef AVO_USE_X11
   const QString CE_FONT = "Monospace";
   const int CE_FONTSIZE = 11;
 #else
@@ -90,24 +90,13 @@ namespace Avogadro
   const QString CE_DIALOG_TITLE =
     QT_TRANSLATE_NOOP("CrystallographyExtension", "Avogadro");
 
-  const unsigned short CE_ANGSTROM_UTF16 = 0x212B;
-  const QString CE_ANGSTROM =
-    QString::fromUtf16(&CE_ANGSTROM_UTF16, 1);
-
-  const unsigned short CE_SUB_ZERO_UTF16 = 0x2080;
-  const QString CE_SUB_ZERO =
-    QString::fromUtf16(&CE_SUB_ZERO_UTF16, 1);
-
-  const unsigned short CE_DEGREE_UTF16 = 0x00B0;
-  const QString CE_DEGREE =
-    QString::fromUtf16(&CE_DEGREE_UTF16, 1);
-
-  const unsigned short CE_SUPER_THREE_UTF16 = 0x00B3;
-  const QString CE_SUPER_THREE =
-    QString::fromUtf16(&CE_SUPER_THREE_UTF16, 1);
+  const QString CE_ANGSTROM = QStringLiteral("Å");
+  const QString CE_SUB_ZERO = QStringLiteral("₀");
+  const QString CE_DEGREE = QStringLiteral("°");
+  const QString CE_SUPER_THREE = QStringLiteral("³");
 
   // Characters to ignore when parsing text input:
-  const QRegExp CE_PARSE_IGNORE_REGEXP
+  const QRegularExpression CE_PARSE_IGNORE_REGEXP
     ("\\s+|,|;|\\||\\[|\\]|\\{|\\}|\\(|\\)|\\&|/|<|>");
 
   class CrystallographyExtension : public Extension

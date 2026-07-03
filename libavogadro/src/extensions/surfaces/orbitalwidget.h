@@ -19,7 +19,7 @@
 #ifndef ORBITALWIDGET_H
 #define ORBITALWIDGET_H
 
-#include <QtWidgets/QWidget>
+#include <QWidget>
 
 #include <avogadro/primitive.h>
 #include <avogadro/glwidget.h>
@@ -47,7 +47,8 @@ namespace Avogadro {
       };
 
       //! Constructor
-      explicit OrbitalWidget( QWidget *parent = 0, Qt::WindowFlags f = 0 );
+      explicit OrbitalWidget(QWidget *parent = nullptr,
+                             Qt::WindowFlags f = Qt::WindowFlags());
       //! Deconstructor
       virtual ~OrbitalWidget();
 

@@ -267,8 +267,8 @@ namespace Avogadro {
       stereoGroup->addButton(m_dialog->lStereoButton, 1);
       stereoGroup->setExclusive(true);
 
-      connect(stereoGroup, SIGNAL(buttonClicked(int)),
-              this, SLOT(setStereo(int)));
+      connect(stereoGroup, &QButtonGroup::idClicked,
+              this, &InsertPeptideExtension::setStereo);
 
       connect(m_dialog->structureCombo, SIGNAL(currentIndexChanged(int)),
               this, SLOT(setStructureType(int)));

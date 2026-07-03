@@ -18,7 +18,7 @@
 
 #include "cube.h"
 
-#include <QtCore/QFutureWatcher>
+#include <QFutureWatcher>
 
 namespace OpenQube
 {

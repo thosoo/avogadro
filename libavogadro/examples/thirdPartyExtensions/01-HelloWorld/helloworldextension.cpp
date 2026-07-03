@@ -25,7 +25,7 @@
 #include "helloworldextension.h"
 #include "helloworlddialog.h"
 
-#include <QtGui/QAction>
+#include <QAction>
 
 #include "helloworlddialog.h"
 

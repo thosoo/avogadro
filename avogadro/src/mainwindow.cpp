@@ -50,7 +50,7 @@
   #include "updatecheck.h"
 #endif
 
-//#ifdef Q_WS_MAC
+//#ifdef Q_OS_MAC
 //#include "macchempasteboard.h"
 //#endif
 
@@ -89,6 +89,7 @@
 #include <fstream>
 #include <algorithm>
 
+#include <QActionGroup>
 #include <QClipboard>
 #include <QCheckBox>
 #include <QColorDialog>
@@ -107,8 +108,10 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QUndoStack>
-#include <QDesktopWidget>
+#include <QGuiApplication>
+#include <QScreen>
 #include <QInputDialog>
+#include <QRegularExpression>
 #include <QUrl>
 #include <QDesktopServices>
 #include <QTime>
@@ -122,7 +125,7 @@
 #include <Eigen/Geometry>
 #define USEQUAT
 // This is a "hidden" exported Qt function on the Mac for Qt-4.x.
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
  void qt_mac_set_menubar_icons(bool enable);
 #endif
 
@@ -565,7 +568,7 @@ protected:
     PythonError::instance()->setListening(true); // switch to 'listening mode'
 #endif
 
-    messagesVBox->setMargin( 3 );
+    messagesVBox->setContentsMargins(3, 3, 3, 3);
     messagesVBox->addWidget( d->messagesText );
     d->bottomFlat->addTab( messagesWidget, tr( "Messages" ) );
 
@@ -672,7 +675,7 @@ protected:
     d->projectionGroup->addAction(ui.actionPerspective);
     d->projectionGroup->addAction(ui.actionOrthographic);
 
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     // Find the Avogadro global preferences action
     // and make sure it ends up in the Mac Application menu
     ui.configureAvogadroAction->setMenuRole(QAction::PreferencesRole);
@@ -850,7 +853,7 @@ protected:
       // if we don't have a molecule then load a blank file
       d->initialized = true;
     }
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     else if(event->type() == QEvent::ActivationChange
             || event->type() == QEvent::WindowActivate) {
       updateWindowMenu();
@@ -1105,7 +1108,7 @@ protected:
 
   void MainWindow::newFile()
   {
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     unsigned int mainWindowCount = getMainWindowCount();
 
     if ( mainWindowCount == 1 && !isVisible() ) {
@@ -1116,7 +1119,7 @@ protected:
 
     writeSettings();
     MainWindow *other = new MainWindow;
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     other->move( x() + 25, y() + 25 );
 #endif
     other->show();
@@ -1160,7 +1163,7 @@ protected:
 
       // First check if we closed all the windows on Mac
       // if so, show the hidden window
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
       unsigned int mainWindowCount = getMainWindowCount();
 
       if ( mainWindowCount == 1 && isHidden() ) {
@@ -1183,7 +1186,7 @@ protected:
 
       // if we have nothing open or modified
       bool loadInNewWindow = isWindowModified();
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
       loadInNewWindow = !isDefaultFileName(d->fileName); // always load into a new window on Mac PR#2945916
 #endif
 
@@ -1199,7 +1202,7 @@ protected:
           delete other;
           return;
         }
-#if defined (Q_WS_MAC) || defined (Q_WS_WIN)
+#if defined (Q_OS_MAC) || defined (Q_OS_WIN)
         other->move( x() + 25, y() + 25 );
 #endif
         other->show();
@@ -1390,7 +1393,7 @@ protected:
       d->allMoleculesDialog->setWindowTitle(tr("Select Molecule to View"));
 
       QVBoxLayout *layout = new QVBoxLayout( d->allMoleculesDialog );
-      layout->setMargin( 0 );
+      layout->setContentsMargins(0, 0, 0, 0);
       layout->setSpacing( 6 );
 
       d->allMoleculesTable = new QTableWidget( d->allMoleculesDialog );
@@ -1431,7 +1434,7 @@ protected:
       return;
     if (d->progressDialog) {
       d->progressDialog->reset();
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
       d->progressDialog->deleteLater();
       d->progressDialog = 0;
 #endif
@@ -1503,7 +1506,7 @@ protected:
 
     setFileName( d->moleculeFile->fileName() );
     setWindowFilePath(d->moleculeFile->fileName()); // for MacOS X
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     updateWindowMenu();
 #endif
     statusBar()->showMessage( tr("File Loaded..."), 5000 );
@@ -1564,7 +1567,7 @@ protected:
   {
     raise();
 
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     //    qDebug() << " close event ";
     unsigned int mainWindowCount = getMainWindowCount();
 
@@ -1610,7 +1613,7 @@ protected:
     QStringList filters;
     filters << tr("All files") + " (* *.*)"
 // Omit these on Mac, since it doesn't match "native" save dialogs
-#ifndef Q_WS_MAC
+#ifndef Q_OS_MAC
             << tr("Common molecule formats")
                       + " (*.cml *.xyz *.ent *.pdb *.alc *.chm *.cdx *.cdxml *.c3d1 *.c3d2"
                         " *.gpr *.mdl *.mol *.sdf *.sd *.crk3d *.cht *.dmol *.bgf"
@@ -1839,7 +1842,7 @@ protected:
 
     QStringList filters;
 // Omit "common image formats" on Mac
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     filters
 #else
     filters << tr("Common image formats")
@@ -1989,7 +1992,7 @@ protected:
     if (mainWindowList.isEmpty())
       return;
 
-    qSort(mainWindowList.begin(), mainWindowList.end(), windowComparison);
+    std::sort(mainWindowList.begin(), mainWindowList.end(), windowComparison);
 
     unsigned int untitledCount = 0;
     ui.menuSettings->addSeparator();
@@ -2278,14 +2281,14 @@ protected:
 
   bool MainWindow::parseText(OBMol *mol, const QString coord)
   {
-    QStringList coordStrings = coord.split(QRegExp("\n"));
+    QStringList coordStrings = coord.split(QRegularExpression("\n"));
 
     double k = 1.0; // ANGSTROM -- set to 0.529 for Bohr
 
     // Guess format
 
     // split on any non-word symbol, except '.'
-    QStringList data = coordStrings.at(0).trimmed().split(QRegExp("\\s+|,|;"));
+    QStringList data = coordStrings.at(0).trimmed().split(QRegularExpression("\\s+|,|;"));
     //QList<double>
     // Format definition, will be used for parsing
     int NameCol=-1, Xcol=-1, Ycol=-1, Zcol=-1;
@@ -2394,7 +2397,7 @@ protected:
         if (coordStrings.at(N) == "") continue;
 
         OBAtom *atom  = mol->NewAtom();
-        QStringList s_data = coordStrings.at(N).trimmed().split(QRegExp("\\s+|,|;"));
+        QStringList s_data = coordStrings.at(N).trimmed().split(QRegularExpression("\\s+|,|;"));
         if (s_data.size() != data.size())
           return false;
         for (int i=0; i<s_data.size(); i++)
@@ -2835,7 +2838,7 @@ protected:
   {
     QWidget *widget = new QWidget();
     QVBoxLayout *layout = new QVBoxLayout( widget );
-    layout->setMargin( 0 );
+    layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing( 6 );
     GLWidget *gl = newGLWidget();
     gl->loadDefaultEngines();
@@ -2857,7 +2860,7 @@ protected:
   {
     QWidget *widget = new QWidget();
     QVBoxLayout *layout = new QVBoxLayout( widget );
-    layout->setMargin( 0 );
+    layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing( 6 );
     GLWidget *gl = newGLWidget();
     layout->addWidget(gl);
@@ -3218,7 +3221,7 @@ protected:
     connect( ui.actionNewTool, SIGNAL( triggered() ), this, SLOT( newFile() ) );
     connect( ui.actionOpen, SIGNAL( triggered() ), this, SLOT( openFile() ) );
     connect( ui.actionOpenTool, SIGNAL( triggered() ), this, SLOT( openFile() ) );
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     connect( ui.actionClose, SIGNAL( triggered() ), this, SLOT( close() ) );
     connect( ui.actionCloseTool, SIGNAL( triggered() ), this, SLOT( close() ) );
 #else
@@ -3235,7 +3238,7 @@ protected:
              this, SLOT( importFile() ) );
     connect( ui.actionExportGraphics, SIGNAL( triggered() ),
              this, SLOT( exportGraphics() ) );
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     connect( ui.actionQuit, SIGNAL( triggered() ), this, SLOT( macQuit() ) );
     connect( ui.actionQuitTool, SIGNAL( triggered() ), this, SLOT( macQuit() ) );
 #else
@@ -3503,8 +3506,7 @@ protected:
       // We'll try moving the window. If it moves off-screen, we'll move it back
       // This solves PR#1903437
       move(newPosition);
-      QDesktopWidget desktop;
-      if (desktop.screenNumber(this) == -1) // it's not on a screen
+      if (!QGuiApplication::screenAt(frameGeometry().center())) // it's not on a screen
         move(originalPosition);
     }
 
@@ -3547,7 +3549,7 @@ protected:
       settings.setArrayIndex(i);
       QWidget *widget = new QWidget();
       QVBoxLayout *layout = new QVBoxLayout( widget );
-      layout->setMargin( 0 );
+      layout->setContentsMargins(0, 0, 0, 0);
       layout->setSpacing( 6 );
       GLWidget *gl = newGLWidget();
       layout->addWidget(gl);
@@ -4076,7 +4078,7 @@ protected:
     foreach (const QString &variable, QProcess::systemEnvironment()) {
       if(variable.startsWith("AVOGADRO_PLUGINS=")) {
         QString path(variable);
-        path.remove(QRegExp("^AVOGADRO_PLUGINS="));
+        path.remove(QRegularExpression("^AVOGADRO_PLUGINS="));
         const QStringList searchDirs = path.split(':');
         if(!searchDirs.isEmpty())
           return searchDirs;
@@ -4084,7 +4086,7 @@ protected:
     }
 
     // Check if we are running in a build directory
-  #ifndef Q_WS_MAC
+  #ifndef Q_OS_MAC
     if (QFile::exists(QCoreApplication::applicationDirPath()
                       + "/../CMakeCache.txt")) {
       qDebug() << "In a build directory - loading alternative...";
@@ -4110,10 +4112,10 @@ protected:
       }
 
       // Now search for the plugins in home directories
-  #if defined(Q_WS_X11)
+  #if defined(AVO_USE_X11)
       searchDirs << QDir::homePath() + "/."
                      + QString(INSTALL_PLUGIN_DIR) + "/plugins";
-  #elif defined(Q_WS_MAC)
+  #elif defined(Q_OS_MAC)
       searchDirs << QDir::homePath() + "/Library/Application Support/"
                      + QString(INSTALL_PLUGIN_DIR) + "/Plugins";
   #elif defined(WIN32)

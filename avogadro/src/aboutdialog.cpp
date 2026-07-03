@@ -19,14 +19,14 @@
 #include "aboutdialog.h"
 #include "config.h" // krazy:exclude=includes
 
-#include <QtCore/QVector>
-#include <QtGui/QMouseEvent>
-#include <QtWidgets/QGridLayout>
-#include <QtWidgets/QLabel>
-#include <QtWidgets/QPushButton>
-#include <QtGui/QPainter>
-#include <QtGui/QPixmap>
-#include <QtGui/QPainterPath>
+#include <QVector>
+#include <QMouseEvent>
+#include <QGridLayout>
+#include <QLabel>
+#include <QPushButton>
+#include <QPainter>
+#include <QPixmap>
+#include <QPainterPath>
 #include <QStyleOption>
 
 #include <avogadro/global.h>
@@ -36,7 +36,7 @@ namespace Avogadro {
 
   AboutDialog::AboutDialog(QWidget *parent)
     : QDialog(parent
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
         , Qt::Tool
 #endif
         )

@@ -1,7 +1,8 @@
-cmake_minimum_required(VERSION 3.5)
-project(Avogadro) # the name of your project
-set(CMAKE_CXX_STANDARD 11)
+cmake_minimum_required(VERSION 3.16)
+project(Avogadro VERSION 1.2.0 LANGUAGES C CXX)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # The Avogadro version number, currently used by the Avogadro library too
 set(Avogadro_VERSION_MAJOR 1)
@@ -10,7 +11,8 @@ set(Avogadro_VERSION_PATCH 0)
 set(Avogadro_VERSION "${Avogadro_VERSION_MAJOR}.${Avogadro_VERSION_MINOR}")
 set(Avogadro_VERSION_FULL "${Avogadro_VERSION}.${Avogadro_VERSION_PATCH}")
 
-set(CMAKE_MODULE_PATH ${Avogadro_SOURCE_DIR}/cmake/modules)
+set(AVOGADRO_CMAKE_MODULE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
+list(PREPEND CMAKE_MODULE_PATH "${AVOGADRO_CMAKE_MODULE_DIR}")
 
 cmake_policy(SET CMP0003 NEW)
 if(POLICY CMP0074)
@@ -233,10 +235,30 @@ endif()
 
 set(I18N_LANGUAGE "" CACHE STRING "Build i18n only for selected language")
 
-# Build Open Babel from our fork so CMake can find it below
+# Build Open Babel from our fork so CMake can find it below.
+# This Avogadro fork relies on changes in thosoo/openbabel, so CI must use
+# this bundled ExternalProject rather than Ubuntu's system OpenBabel package.
+set(OPENBABEL3_SOURCE_URL
+  "https://github.com/thosoo/openbabel/archive/d8695a2628ee7b85d88af8c4cf429626ba081f36.zip")
+set(OPENBABEL3_SOURCE_COMMIT "d8695a2628ee7b85d88af8c4cf429626ba081f36")
+set(OPENBABEL3_SOURCE_SHA256 "7036bb5f3d0f7a87aa2a11ba7326742cab5d987056b94c96f4530f8ef059836a")
 set(OPENBABEL_INSTALL_DIR "${CMAKE_BINARY_DIR}/openbabel-install")
-file(MAKE_DIRECTORY "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
+set(OPENBABEL3_INCLUDE_DIR "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
+if(WIN32)
+  set(OPENBABEL3_LIBRARY_DIRS "${OPENBABEL_INSTALL_DIR}/bin")
+  set(OPENBABEL3_LIBRARY "${OPENBABEL3_LIBRARY_DIRS}/openbabel-3.lib")
+  set(OPENBABEL3_RUNTIME_LIBRARY "${OPENBABEL3_LIBRARY_DIRS}/openbabel-3.dll")
+  set(_openbabel_build_byproducts
+    "${OPENBABEL3_LIBRARY}"
+    "${OPENBABEL3_RUNTIME_LIBRARY}")
+else()
+  set(OPENBABEL3_LIBRARY_DIRS "${OPENBABEL_INSTALL_DIR}/lib")
+  set(OPENBABEL3_LIBRARY "${OPENBABEL3_LIBRARY_DIRS}/libopenbabel.so")
+  set(_openbabel_build_byproducts "${OPENBABEL3_LIBRARY}")
+endif()
+file(MAKE_DIRECTORY "${OPENBABEL3_INCLUDE_DIR}")
 file(MAKE_DIRECTORY "${OPENBABEL_INSTALL_DIR}/bin")
+file(MAKE_DIRECTORY "${OPENBABEL3_LIBRARY_DIRS}")
 option(WITH_COORDGEN "Build OpenBabel with CoordGen support" ON)
 set(OB_OVERRIDE_ARGS "")
 macro(pass_ob_arg var)
@@ -268,13 +290,25 @@ pass_ob_arg(wxWidgets_LIB_DIR)
 pass_ob_arg(LIB_INSTALL_DIR)
 pass_ob_arg(ENABLE_OPENMP)
 pass_ob_arg(WITH_COORDGEN)
+message(STATUS "Bundled thosoo/openbabel source URL: ${OPENBABEL3_SOURCE_URL}")
+message(STATUS "Bundled thosoo/openbabel commit: ${OPENBABEL3_SOURCE_COMMIT}")
+message(STATUS "Bundled OpenBabel install prefix: ${OPENBABEL_INSTALL_DIR}")
+message(STATUS "Bundled OpenBabel include dir: ${OPENBABEL3_INCLUDE_DIR}")
+message(STATUS "Bundled OpenBabel library: ${OPENBABEL3_LIBRARY}")
+
+set(_openbabel_patch_args)
+if(MSVC)
+  list(APPEND _openbabel_patch_args
+    PATCH_COMMAND ${CMAKE_COMMAND}
+      -DOPENBABEL_SOURCE_DIR=<SOURCE_DIR>
+      -P ${CMAKE_SOURCE_DIR}/cmake/PatchOpenBabelMsvcTls.cmake)
+endif()
+
 ExternalProject_Add(openbabel_ext
-  URL https://github.com/thosoo/openbabel/archive/d8695a2628ee7b85d88af8c4cf429626ba081f36.zip
-  URL_HASH SHA256=7036bb5f3d0f7a87aa2a11ba7326742cab5d987056b94c96f4530f8ef059836a
-  BUILD_BYPRODUCTS
-    $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.lib>
-    $<$<PLATFORM_ID:Windows>:${OPENBABEL_INSTALL_DIR}/bin/openbabel-3.dll>
-    $<$<NOT:$<PLATFORM_ID:Windows>>:${OPENBABEL_INSTALL_DIR}/lib/libopenbabel.so>
+  URL ${OPENBABEL3_SOURCE_URL}
+  URL_HASH SHA256=${OPENBABEL3_SOURCE_SHA256}
+  BUILD_BYPRODUCTS ${_openbabel_build_byproducts}
+  ${_openbabel_patch_args}
   CMAKE_ARGS
     -DCMAKE_INSTALL_PREFIX=${OPENBABEL_INSTALL_DIR}
     -DCMAKE_BUILD_TYPE=Release
@@ -285,65 +319,77 @@ ExternalProject_Add(openbabel_ext
     ${OB_OVERRIDE_ARGS}
   UPDATE_COMMAND ""
 )
-if(WIN32)
-  set(_obdir "${OPENBABEL_INSTALL_DIR}/bin")
-  set(_oblib "${_obdir}/openbabel-3.lib")
-  set(_obdll "${_obdir}/openbabel-3.dll")
-else()
-  set(_obdir "${OPENBABEL_INSTALL_DIR}/lib")
-  set(_oblib "${_obdir}/libopenbabel.so")
-endif()
-
 set(CMAKE_PREFIX_PATH "${OPENBABEL_INSTALL_DIR};${CMAKE_PREFIX_PATH}")
-set(ENV{PKG_CONFIG_PATH} "${_obdir}/pkgconfig:$ENV{PKG_CONFIG_PATH}")
-set(ENV{OPENBABEL3_INCLUDE_DIR} "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
-set(ENV{OPENBABEL3_LIBRARIES} "${_oblib}")
-set(ENV{OPENBABEL3_LIBRARY_DIRS} "${_obdir}")
+set(ENV{PKG_CONFIG_PATH} "${OPENBABEL3_LIBRARY_DIRS}/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+set(ENV{OPENBABEL3_INCLUDE_DIR} "${OPENBABEL3_INCLUDE_DIR}")
+set(ENV{OPENBABEL3_LIBRARIES} "${OPENBABEL3_LIBRARY}")
+set(ENV{OPENBABEL3_LIBRARY_DIRS} "${OPENBABEL3_LIBRARY_DIRS}")
 
-include(cmake/Qt5Compat.cmake)
-find_package(Qt5 REQUIRED COMPONENTS Widgets Gui OpenGL Network LinguistTools Core Concurrent Test)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets OpenGL OpenGLWidgets Network Concurrent Test LinguistTools)
+if(COMMAND qt_standard_project_setup)
+  qt_standard_project_setup()
+endif()
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
 find_package(OpenGL REQUIRED) # find and setup OpenGL
-find_package(X11) # find and setup X11 (not required for Mac and Windows)
+find_library(OPENGL_GLU_LIBRARY NAMES GLU glu glu32 REQUIRED)
+message(STATUS "Found GLU: ${OPENGL_GLU_LIBRARY}")
+if(NOT TARGET OpenGL::GLU)
+  add_library(OpenGL::GLU UNKNOWN IMPORTED)
+  set_target_properties(OpenGL::GLU PROPERTIES
+    IMPORTED_LOCATION "${OPENGL_GLU_LIBRARY}"
+    INTERFACE_LINK_LIBRARIES OpenGL::GL)
+endif()
+if(UNIX AND NOT APPLE)
+  find_package(X11) # find and setup X11 on Unix platforms that may use XInitThreads
+endif()
 find_package(Linguist) # find and setup Linguist
 if(NOT Linguist_FOUND)
-  message(WARNING "Qt5 Linguist not found, please install it if you want Avogadro translations")
+  message(WARNING "Qt6 Linguist tools not found, please install them if you want Avogadro translations")
 endif()
 
 find_package(Eigen3 REQUIRED) # find and setup Eigen3 if available
 
 find_package(ZLIB REQUIRED)
-find_package(OpenBabel3 QUIET) # find and setup OpenBabel
-if(NOT OPENBABEL3_FOUND)
-  add_library(OpenBabel3::openbabel SHARED IMPORTED)
-  if(WIN32)
-    set(_obdir "${OPENBABEL_INSTALL_DIR}/bin")
-    set(_oblib "${_obdir}/openbabel-3.lib")
-    set(_obdll "${_obdir}/openbabel-3.dll")
-    set_target_properties(OpenBabel3::openbabel PROPERTIES
-      IMPORTED_IMPLIB "${_oblib}"
-      IMPORTED_LOCATION "${_obdll}"
-      INTERFACE_INCLUDE_DIRECTORIES
-        "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
-  else()
-    set(_obdir "${OPENBABEL_INSTALL_DIR}/lib")
-    set(_oblib "${_obdir}/libopenbabel.so")
-    set_target_properties(OpenBabel3::openbabel PROPERTIES
-      IMPORTED_LOCATION "${_oblib}"
-      INTERFACE_INCLUDE_DIRECTORIES
-        "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
-  endif()
-  set(OPENBABEL3_FOUND TRUE)
-  set(OPENBABEL3_INCLUDE_DIR "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
-  set(OPENBABEL3_LIBRARIES "${_oblib}")
-  set(OPENBABEL3_LIBRARY_DIRS "${_obdir}")
-  set(OPENBABEL2_FOUND ${OPENBABEL3_FOUND})
-  set(OPENBABEL2_INCLUDE_DIR ${OPENBABEL3_INCLUDE_DIR})
-  set(OPENBABEL2_LIBRARIES ${OPENBABEL3_LIBRARIES})
-  set(OPENBABEL2_LIBRARY_DIRS ${OPENBABEL3_LIBRARY_DIRS})
+# Always use the bundled thosoo/openbabel ExternalProject in this build.
+# Do not let an OpenBabel-generated package config leak a raw "openbabel"
+# link item into Avogadro's target graph; the imported target must point at
+# the absolute bundled library artifact.
+message(STATUS "Using bundled thosoo/openbabel via openbabel_ext")
+if(NOT TARGET OpenBabel3::openbabel)
+  add_library(OpenBabel3::openbabel SHARED IMPORTED GLOBAL)
 endif()
+if(WIN32)
+  set_target_properties(OpenBabel3::openbabel PROPERTIES
+    IMPORTED_IMPLIB "${OPENBABEL3_LIBRARY}"
+    IMPORTED_LOCATION "${OPENBABEL3_RUNTIME_LIBRARY}"
+    INTERFACE_INCLUDE_DIRECTORIES "${OPENBABEL3_INCLUDE_DIR}"
+    INTERFACE_LINK_LIBRARIES "")
+else()
+  set_target_properties(OpenBabel3::openbabel PROPERTIES
+    IMPORTED_LOCATION "${OPENBABEL3_LIBRARY}"
+    INTERFACE_INCLUDE_DIRECTORIES "${OPENBABEL3_INCLUDE_DIR}"
+    INTERFACE_LINK_LIBRARIES "")
+endif()
+add_dependencies(OpenBabel3::openbabel openbabel_ext)
+set(OPENBABEL3_FOUND TRUE)
+set(OPENBABEL3_LIBRARIES "${OPENBABEL3_LIBRARY}")
+set(OPENBABEL2_FOUND ${OPENBABEL3_FOUND})
+set(OPENBABEL2_INCLUDE_DIR ${OPENBABEL3_INCLUDE_DIR})
+set(OPENBABEL2_LIBRARIES ${OPENBABEL3_LIBRARIES})
+set(OPENBABEL2_LIBRARY_DIRS ${OPENBABEL3_LIBRARY_DIRS})
 
-if (Q_WS_X11)
-  find_package(X11 REQUIRED) # avogadro/src/main.cpp calls XInitThread().
+get_target_property(_ob_imported_location OpenBabel3::openbabel IMPORTED_LOCATION)
+get_target_property(_ob_interface_link_libraries OpenBabel3::openbabel INTERFACE_LINK_LIBRARIES)
+message(STATUS "OpenBabel mode: bundled thosoo/openbabel")
+message(STATUS "OPENBABEL3_INCLUDE_DIR: ${OPENBABEL3_INCLUDE_DIR}")
+message(STATUS "OPENBABEL3_LIBRARY: ${OPENBABEL3_LIBRARY}")
+message(STATUS "OpenBabel3::openbabel IMPORTED_LOCATION: ${_ob_imported_location}")
+message(STATUS "OpenBabel3::openbabel INTERFACE_LINK_LIBRARIES: ${_ob_interface_link_libraries}")
+
+if(UNIX AND NOT APPLE AND X11_FOUND)
+  set(AVO_USE_X11 TRUE)
 endif()
 
 # Check if we are building from a Git clone or a released version
@@ -369,12 +415,15 @@ endif()
 
 ###########################################################
 # Python Support: Detect and report all stuff here.       #
-# Subdirectories can use: ALL_PYTHON_FOUND                #
+# Subdirectories can use: PYTHON_SUPPORT_ENABLED          #
 ###########################################################
 option(ENABLE_PYTHON "Enable python support" ON)
+set(PYTHON_SUPPORT_ENABLED FALSE)
+set(ALL_PYTHON_FOUND FALSE)
 if(ENABLE_PYTHON)
   include(PythonDeps)
-  if(ALL_PYTHON_FOUND)
+  if(PYTHON_SUPPORT_ENABLED)
+    add_definitions(-DENABLE_PYTHON)
     message(STATUS "All python dependencies found - Python support enabled")
   else()
     set(ENABLE_PYTHON FALSE)
@@ -387,7 +436,6 @@ endif()
 # Unit testing, mainly useful for developers and so defaults to off
 option(ENABLE_TESTS "Enable unit testing" OFF)
 if(ENABLE_TESTS)
-  set(QT_USE_QTTEST TRUE)
   enable_testing()
   include (CTest)
   message(STATUS "Unit testing enabled, run make test to run them")
@@ -486,7 +534,7 @@ endif()
 
 # Add support for an uninstall target
 configure_file(
-  "${CMAKE_MODULE_PATH}/cmake_uninstall.cmake.in"
+  "${AVOGADRO_CMAKE_MODULE_DIR}/cmake_uninstall.cmake.in"
   "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake"
   IMMEDIATE @ONLY)
 
@@ -496,12 +544,12 @@ add_custom_target(uninstall
 
 # Configure and install an Avogadro CMake style configuration file
 configure_file(
-  "${CMAKE_MODULE_PATH}/AvogadroConfig.cmake.in"
+  "${AVOGADRO_CMAKE_MODULE_DIR}/AvogadroConfig.cmake.in"
   "${Avogadro_BINARY_DIR}/AvogadroConfig.cmake"
   IMMEDIATE @ONLY)
 
 configure_file(
-  "${CMAKE_MODULE_PATH}/AvogadroConfigVersion.cmake.in"
+  "${AVOGADRO_CMAKE_MODULE_DIR}/AvogadroConfigVersion.cmake.in"
   "${Avogadro_BINARY_DIR}/AvogadroConfigVersion.cmake"
   IMMEDIATE @ONLY)
 
@@ -548,9 +596,6 @@ if (UNIX)
 #      install(LIBRARY ${X11_LIBRARIES}
 #        DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/X11"
 #        )
-#      install(LIBRARY ${OPENGL_LIBRARIES}
-#        DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/gl"
-#        )
 #      install (LIBRARY ${ZLIB_LIBRARY}
 #        DESTINATION "${CMAKE_INSTALL_PREFIX}/lib"
 #        )
@@ -567,18 +612,19 @@ endif()
 
 # Install the configuration files to help find Avogadro
 install(FILES
-  "${CMAKE_MODULE_PATH}/AvogadroUse.cmake"
+  "${AVOGADRO_CMAKE_MODULE_DIR}/AvogadroUse.cmake"
   DESTINATION "${Avogadro_PLUGIN_INSTALL_DIR}")
 
 # Install the find modules we require to be present
 install(FILES
-  "${CMAKE_MODULE_PATH}/FindEigen2.cmake"
-  "${CMAKE_MODULE_PATH}/FindEigen3.cmake"
-  "${CMAKE_MODULE_PATH}/FindGLEW.cmake"
+  "${AVOGADRO_CMAKE_MODULE_DIR}/FindEigen2.cmake"
+  "${AVOGADRO_CMAKE_MODULE_DIR}/FindEigen3.cmake"
+  "${AVOGADRO_CMAKE_MODULE_DIR}/FindGLEW.cmake"
+  "${AVOGADRO_CMAKE_MODULE_DIR}/FindOpenBabel3.cmake"
   DESTINATION "${Avogadro_PLUGIN_INSTALL_DIR}/cmake")
 
 configure_file(
-  "${CMAKE_MODULE_PATH}/CTestCustom.cmake.in"
+  "${AVOGADRO_CMAKE_MODULE_DIR}/CTestCustom.cmake.in"
   "${Avogadro_BINARY_DIR}/CTestCustom.cmake"
   IMMEDIATE @ONLY
 )
@@ -595,7 +641,7 @@ mark_as_advanced(CMAKE_LIBRARY_OUTPUT_DIRECTORY
 add_subdirectory(libavogadro)
 add_library(avogadro-lib ALIAS avogadro)
 add_dependencies(avogadro openbabel_ext)
-target_link_libraries(avogadro OpenBabel3::openbabel)
+target_link_libraries(avogadro PRIVATE OpenBabel3::openbabel)
 add_subdirectory(avogadro)
 add_subdirectory(doc)
 
@@ -638,29 +684,14 @@ if(UNIX)
     WORLD_READ WORLD_EXECUTE)
 endif()
 
-# .prf file for QMake projects
-configure_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/avogadro.prf.in"
-  "${CMAKE_CURRENT_BINARY_DIR}/avogadro.prf" @ONLY)
-
-option(INSTALL_QMAKE_PRF "Install QMake integration files to Qt prefix" ON)
-if(QT_MKSPECS_DIR AND INSTALL_QMAKE_PRF)
-#  if ("${QT_MKSPECS_DIR}" MATCHES ^$"${CMAKE_INSTALL_PREFIX}/")
-#    string(REPLACE
-#      "${CMAKE_INSTALL_PREFIX}"
-#      ""
-#      QT_MKSPECS_RELATIVE
-#      "${QT_MKSPECS_DIR}"
-#    )
-    install(FILES
-      "${CMAKE_CURRENT_BINARY_DIR}/avogadro.prf"
-      DESTINATION "${CMAKE_INSTALL_PREFIX}/${QT_MKSPECS_RELATIVE}/features"
-    )
-#  endif ("${QT_MKSPECS_DIR}" MATCHES ^$"${CMAKE_INSTALL_PREFIX}/")
-else()
-  message(WARNING "Qt mkspecs directory not found. File 'avogadro.prf' will be installed to ${SHARE_INSTALL_PREFIX}/avogadro/qmake.")
+# qmake integration is retained for legacy consumers but disabled by default;
+# the installed CMake package and exported targets are the supported Qt6 path.
+option(INSTALL_QMAKE_PRF "Install legacy QMake integration files" OFF)
+if(INSTALL_QMAKE_PRF)
+  configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/avogadro.prf.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/avogadro.prf" @ONLY)
   install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/avogadro.prf"
-    DESTINATION "${SHARE_INSTALL_PREFIX}/avogadro/qmake"
-  )
+    DESTINATION "${SHARE_INSTALL_PREFIX}/avogadro/qmake")
 endif()

@@ -26,8 +26,8 @@
 
 #include <avogadro/engine.h>
 
-#include <QtGui/QPainter>
-#include <QtGui/QIcon>
+#include <QPainter>
+#include <QIcon>
 
 namespace Avogadro
 {

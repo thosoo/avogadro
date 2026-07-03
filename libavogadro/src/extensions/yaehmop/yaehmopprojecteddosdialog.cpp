@@ -22,6 +22,7 @@
 #include <QDebug>
 
 #include <QMessageBox>
+#include <QRegularExpression>
 
 namespace Avogadro {
 
@@ -89,13 +90,13 @@ namespace Avogadro {
     QString kpointsText = m_ui->edit_kpoints->toPlainText();
 
     // Let's make sure the input is valid. Split it into lines first
-    QStringList lines = kpointsText.split(QRegExp("[\r\n]"),
-                                          QString::SkipEmptyParts);
+    QStringList lines = kpointsText.split(QRegularExpression("[\r\n]"),
+                                          Qt::SkipEmptyParts);
 
     // Let's go through each line in the k points
     for (size_t i = 0; i < lines.size(); ++i) {
       // Split the line by spaces
-      QStringList splitLine = lines[i].split(" ", QString::SkipEmptyParts);
+      QStringList splitLine = lines[i].split(" ", Qt::SkipEmptyParts);
       // Skip it if it is of size 0
       if (splitLine.size() == 0)
         continue;
@@ -103,7 +104,7 @@ namespace Avogadro {
       // Check to see if an 'x' is in the line to indicate a grid.
       if (lines[i].contains("x")) {
         // Split it by the x values instead
-        splitLine = lines[i].split("x", QString::SkipEmptyParts);
+        splitLine = lines[i].split("x", Qt::SkipEmptyParts);
         // It must be of size 3
         if (splitLine.size() != 3) {
           displayInvalidKPointsFormatMessage();
@@ -182,8 +183,8 @@ namespace Avogadro {
     }
 
     QString projectionsText = m_ui->edit_projections->toPlainText();
-    QStringList pLines = projectionsText.split(QRegExp("[\r\n]"),
-                                               QString::SkipEmptyParts);
+    QStringList pLines = projectionsText.split(QRegularExpression("[\r\n]"),
+                                               Qt::SkipEmptyParts);
     QStringList tmpTitles, projList;
     // Store whether or not we have a title for every projection
     bool titleFound = false;
@@ -213,7 +214,7 @@ namespace Avogadro {
       }
 
       // If we made it here, it must be a projection line
-      QString type = pLines[i].split(" ", QString::SkipEmptyParts)[0].trimmed();
+      QString type = pLines[i].split(" ", Qt::SkipEmptyParts)[0].trimmed();
 
       // 'type' must be 'atom', 'orbital', or 'FMO'
       if (type.toLower() != "atom" && type.toLower() != "orbital" &&
@@ -225,7 +226,7 @@ namespace Avogadro {
       }
 
       // Split all the types by commas
-      QStringList splitLine = pLines[i].split(",", QString::SkipEmptyParts);
+      QStringList splitLine = pLines[i].split(",", Qt::SkipEmptyParts);
 
       // Remove the type from the first item
       splitLine[0].remove(type);
@@ -233,7 +234,7 @@ namespace Avogadro {
       // The split items should now be: contributor (int) weight (double)
       for (size_t j = 0; j < splitLine.size(); ++j) {
         QStringList spaceSplit = splitLine[j].split(" ",
-                                                    QString::SkipEmptyParts);
+                                                    Qt::SkipEmptyParts);
         // This should be of size 2, no more, no less
         if (spaceSplit.size() != 2) {
           qDebug() << "Error: invalid projection was entered in"

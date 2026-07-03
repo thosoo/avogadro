@@ -27,7 +27,7 @@
 #ifndef __GLPICKER_H
 #define __GLPICKER_H
 
-#include <QGLWidget>
+#include <QOpenGLWidget>
 #include <avogadro/global.h>
 
 namespace Avogadro {

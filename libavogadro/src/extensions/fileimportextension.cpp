@@ -140,7 +140,7 @@ namespace Avogadro
       QStringList list;
       while (line[0] != '%') {
         line = in->readLine();
-        list += line.split(' ', QString::SkipEmptyParts);
+        list += line.split(' ', Qt::SkipEmptyParts);
         if (list.size() == 30) {
           for (int i = 0; i <= 27; i += 3) {
             Bond *bond = mol->addBond();

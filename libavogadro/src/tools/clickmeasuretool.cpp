@@ -81,7 +81,7 @@ namespace Avogadro {
     }
 
     //! List of hits from initial click
-    m_hits = widget->hits(event->pos().x()-2, event->pos().y()-2, 5, 5);
+    m_hits = widget->hits(event->position().toPoint().x()-2, event->position().toPoint().y()-2, 5, 5);
 
     // If there's a left button (and no modifier keys) continue adding to the list
     if(m_hits.size() && (event->buttons() & Qt::LeftButton && event->modifiers() == Qt::NoModifier))

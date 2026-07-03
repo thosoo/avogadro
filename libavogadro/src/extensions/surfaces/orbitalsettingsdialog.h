@@ -38,7 +38,8 @@ namespace Avogadro
     Q_OBJECT
 
   public:
-    explicit OrbitalSettingsDialog(OrbitalWidget* parent, Qt::WindowFlags f = 0);
+    explicit OrbitalSettingsDialog(OrbitalWidget *parent,
+                                   Qt::WindowFlags f = Qt::WindowFlags());
     ~OrbitalSettingsDialog();
 
   public slots:

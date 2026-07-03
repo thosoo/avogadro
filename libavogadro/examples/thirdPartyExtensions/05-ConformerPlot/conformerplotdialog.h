@@ -17,7 +17,7 @@
 #ifndef CONFORMERPLOTDIALOG_H
 #define CONFORMERPLOTDIALOG_H
 
-#include <QtGui/QDialog>
+#include <QDialog>
 
 #include "ui_conformerplotdialog.h"
 
@@ -38,7 +38,7 @@ namespace ConformerPlot {
     Q_OBJECT
 
   public:
-    explicit ConformerPlotDialog(QWidget *parent = 0, Qt::WindowFlags f = 0 );
+    explicit ConformerPlotDialog(QWidget *parent = nullptr, Qt::WindowFlags f = Qt::WindowFlags() );
     virtual ~ConformerPlotDialog() {};
 
   public slots:

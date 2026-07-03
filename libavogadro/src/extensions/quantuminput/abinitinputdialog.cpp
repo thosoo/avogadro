@@ -40,6 +40,7 @@
 #include <QSettings>
 #include <QDebug>
 #include <QProcess>
+#include <algorithm>
 
 using namespace OpenBabel;
 
@@ -919,9 +920,9 @@ namespace Avogadro
       // positions of all atoms
       mol << "xangst\n";
       foreach (Atom *atom, atoms) {
-        mol << qSetFieldWidth(3) << left
-            << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint
-            << fixed << right << atom->pos()->x() << atom->pos()->y()
+        mol << qSetFieldWidth(3) << Qt::left
+            << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << Qt::forcepoint
+            << Qt::fixed << Qt::right << atom->pos()->x() << atom->pos()->y()
             << atom->pos()->z()
             << qSetFieldWidth(0) << '\n';
       }
@@ -951,7 +952,7 @@ namespace Avogadro
        Zatom.append(atom->atomicNumber());
        Zatom_sorted.append(atom->atomicNumber());
     }
-    qSort(Zatom_sorted);
+    std::sort(Zatom_sorted.begin(), Zatom_sorted.end());
 
     // number of types of atoms
     unsigned int iatom, iz;

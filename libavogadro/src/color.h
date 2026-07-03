@@ -32,7 +32,7 @@
 #include <avogadro/global.h>
 #include <avogadro/plugin.h>
 
-#include <QtGui/QColor> // for returning QColor
+#include <QColor> // for returning QColor
 
 #define AVOGADRO_COLOR(i, t, d)                 \
   public: \

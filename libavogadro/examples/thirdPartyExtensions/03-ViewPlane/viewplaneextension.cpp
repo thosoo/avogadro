@@ -33,8 +33,8 @@
 
 #include <Eigen/Geometry>
 
-#include <QtGui/QAction>
-#include <QtWidgets/QMessageBox>
+#include <QAction>
+#include <QMessageBox>
 
 using namespace Avogadro;
 

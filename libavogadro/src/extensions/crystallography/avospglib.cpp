@@ -25,8 +25,8 @@
 #include <openbabel/generic.h>
 #include <openbabel/elements.h>
 
-#include <QtCore/QDebug>
-#include <QtCore/QStringList>
+#include <QDebug>
+#include <QStringList>
 
 #define SPG_DUMP_ATOMS(desc, numAtoms)                                  \
   qDebug() << desc << numAtoms << "atoms";                              \

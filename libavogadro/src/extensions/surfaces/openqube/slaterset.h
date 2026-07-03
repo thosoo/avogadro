@@ -21,7 +21,7 @@
 
 #include "basisset.h"
 
-#include <QtCore/QFuture>
+#include <QFuture>
 
 #include <Eigen/Core>
 #include <vector>

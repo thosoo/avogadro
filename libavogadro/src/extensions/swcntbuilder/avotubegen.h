@@ -18,7 +18,7 @@
 #ifndef AVOTUBEGEN_H
 #define AVOTUBEGEN_H
 
-#include <QtCore/QObject>
+#include <QObject>
 
 namespace Avogadro {
   class Molecule;

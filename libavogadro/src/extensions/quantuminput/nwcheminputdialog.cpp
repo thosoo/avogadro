@@ -278,10 +278,10 @@ namespace Avogadro
       mol << " xyz autosym\n";
       QList<Atom *> atoms = m_molecule->atoms();
       foreach (Atom *atom, atoms) {
-        mol << qSetFieldWidth(4) << right
+        mol << qSetFieldWidth(4) << Qt::right
             << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()))
-            << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint
-            << fixed << right << atom->pos()->x() << atom->pos()->y()
+            << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << Qt::forcepoint
+            << Qt::fixed << Qt::right << atom->pos()->x() << atom->pos()->y()
             << atom->pos()->z()
             << qSetFieldWidth(0) << '\n';
       }
@@ -338,15 +338,15 @@ namespace Avogadro
           t += 360.0;
         if (atom->GetIdx() > 1)
           mol << "   r" << atom->GetIdx() << qSetFieldWidth(15)
-              << qSetRealNumberPrecision(5) << forcepoint << fixed << right
+              << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right
               << r << qSetFieldWidth(0) << '\n';
         if (atom->GetIdx() > 2)
           mol << "   a" << atom->GetIdx() << qSetFieldWidth(15)
-              << qSetRealNumberPrecision(5) << forcepoint << fixed << right
+              << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right
               << w << qSetFieldWidth(0) << '\n';
         if (atom->GetIdx() > 3)
           mol << "   d" << atom->GetIdx() << qSetFieldWidth(15)
-              << qSetRealNumberPrecision(5) << forcepoint << fixed << right
+              << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right
               << t << qSetFieldWidth(0) << '\n';
       }
       mol << " end\n";
@@ -382,24 +382,24 @@ namespace Avogadro
         if (t < 0.0)
           t += 360.0;
 
-        mol << qSetFieldWidth(4) << right
+        mol << qSetFieldWidth(4) << Qt::right
             << QString(OpenBabel::OBElements::GetSymbol(atom->GetAtomicNum())
                        + QString::number(atom->GetIdx()));
         if (atom->GetIdx() > 1)
-          mol << qSetFieldWidth(6) << right
+          mol << qSetFieldWidth(6) << Qt::right
               << QString(OpenBabel::OBElements::GetSymbol(a->GetAtomicNum())
                          + QString::number(a->GetIdx())) << qSetFieldWidth(15)
-              << qSetRealNumberPrecision(5) << forcepoint << fixed << right << r;
+              << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right << r;
         if (atom->GetIdx() > 2)
-          mol << qSetFieldWidth(6) << right
+          mol << qSetFieldWidth(6) << Qt::right
                  << QString(OpenBabel::OBElements::GetSymbol(b->GetAtomicNum())
                          + QString::number(b->GetIdx())) << qSetFieldWidth(15)
-              << qSetRealNumberPrecision(5) << forcepoint << fixed << right << w;
+              << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right << w;
         if (atom->GetIdx() > 3)
-          mol << qSetFieldWidth(6) << right
+          mol << qSetFieldWidth(6) << Qt::right
               << QString(OpenBabel::OBElements::GetSymbol(c->GetAtomicNum())
                          + QString::number(c->GetIdx())) << qSetFieldWidth(15)
-              << qSetRealNumberPrecision(5) << forcepoint << fixed << right << t;
+              << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right << t;
         mol << qSetFieldWidth(0) << '\n';
       }
       foreach (OpenBabel::OBInternalCoord *c, vic)
@@ -414,7 +414,7 @@ namespace Avogadro
     if ( m_basisType == ccpVDZ || m_basisType == ccpVTZ )
       mol << " spherical";
 
-    mol << endl;
+    mol << Qt::endl;
 
     mol << "  * library " << getBasisType(m_basisType) << '\n';
     mol << "end\n\n";
@@ -463,7 +463,7 @@ namespace Avogadro
         break;
       }
 
-    mol << getCalculationType(m_calculationType) << endl;
+    mol << getCalculationType(m_calculationType) << Qt::endl;
 
     return buffer;
   }

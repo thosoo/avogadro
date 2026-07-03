@@ -6,13 +6,13 @@
 #include <avogadro/atom.h>
 #include <avogadro/painter.h>
 
-#include <QtWidgets/QAction>
-#include <QtWidgets/QLabel>
-#include <QtWidgets/QVBoxLayout>
-#include <QtWidgets/QProgressBar>
-#include <QtCore/QElapsedTimer>
+#include <QAction>
+#include <QLabel>
+#include <QVBoxLayout>
+#include <QProgressBar>
+#include <QElapsedTimer>
 #include <Eigen/Core>
-#include <QtCore/QMutexLocker>
+#include <QMutexLocker>
 
 #include <xtb.h>
 #ifdef _OPENMP
@@ -60,8 +60,8 @@ int XtbOptTool::usefulness() const
 QUndoCommand* XtbOptTool::mousePressEvent(GLWidget *widget, QMouseEvent *event)
 {
   m_glwidget = widget;
-  m_lastDraggingPosition = event->pos();
-  m_clickedAtom = widget->computeClickedAtom(event->pos());
+  m_lastDraggingPosition = event->position().toPoint();
+  m_clickedAtom = widget->computeClickedAtom(event->position().toPoint());
   return nullptr;
 }
 
@@ -77,7 +77,7 @@ QUndoCommand* XtbOptTool::mouseMoveEvent(GLWidget *widget, QMouseEvent *event)
   m_glwidget = widget;
   if (m_running && m_clickedAtom) {
     QPoint from = m_lastDraggingPosition;
-    QPoint to = event->pos();
+    QPoint to = event->position().toPoint();
     translate(widget, *m_clickedAtom->pos(), from, to);
     m_lastDraggingPosition = to;
   }

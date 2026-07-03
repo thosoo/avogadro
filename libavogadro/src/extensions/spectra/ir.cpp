@@ -20,8 +20,8 @@
 
 #include "ir.h"
 
-#include <QtWidgets/QMessageBox>
-#include <QtCore/QDebug>
+#include <QMessageBox>
+#include <QDebug>
 
 #include <openbabel/mol.h>
 #include <openbabel/generic.h>
@@ -72,10 +72,13 @@ namespace Avogadro {
     ui.spin_FWHM->setValue(m_fwhm);
     updateFWHMSlider(m_fwhm);
     ui.cb_labelPeaks->setChecked(settings.value("spectra/IR/labelPeaks",false).toBool());
-    QString yunit = settings.value("spectra/IR/yAxisUnits",tr("Transmittance (%)")).toString();
-    updateYAxis(yunit);
-    if (yunit == "Absorbance (%)")
-      ui.combo_yaxis->setCurrentIndex(1);
+    QString yunit = settings.value("spectra/IR/yAxisUnits",
+                                   tr("Transmittance (%)")).toString();
+    int yIndex = ui.combo_yaxis->findText(yunit);
+    if (yIndex < 0)
+      yIndex = 0;
+    ui.combo_yaxis->setCurrentIndex(yIndex);
+    updateYAxis(ui.combo_yaxis->currentText());
     setXAxisUnit(static_cast<XAxisUnit>(
       settings.value("spectra/IR/xAxisUnits", static_cast<int>(WAVENUMBER_CM1)).toInt()));
 

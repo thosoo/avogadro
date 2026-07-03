@@ -86,6 +86,8 @@ namespace Avogadro {
       }
   }
 
+  OrcaExtension::~OrcaExtension() = default;
+
   QList<QAction *> OrcaExtension::actions() const
   {
     return m_actions;
@@ -107,11 +109,11 @@ namespace Avogadro {
           // Create the dialog if needed
           if (!m_dialog) {
               m_dialog = new OrcaInputDialog(qobject_cast<QWidget*>(parent()));
-
-              if (m_molecule) {
-                  m_dialog->setMolecule(m_molecule);
-              }
+              connect(m_dialog, &QObject::destroyed, this, [this]() { m_dialog = nullptr; });
               m_dialog->setWindowTitle("Orca Input Parameters");
+          }
+          if (m_molecule) {
+              m_dialog->setMolecule(m_molecule);
           }
           m_dialog->show();
 
@@ -120,6 +122,7 @@ namespace Avogadro {
           // Create the dialog if needed
           if (!m_analyseDialog) {
               m_analyseDialog = new OrcaAnalyseDialog(qobject_cast<QWidget*>(parent()));
+              connect(m_analyseDialog, &QObject::destroyed, this, [this]() { m_analyseDialog = nullptr; });
               connect (m_analyseDialog, SIGNAL(moleculeChangedHere(Molecule* , int)), this, SIGNAL(moleculeChanged(Molecule*,int)));
           }
           if (m_molecule) {

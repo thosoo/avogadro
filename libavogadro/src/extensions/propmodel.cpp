@@ -39,6 +39,7 @@
 
 #include <limits>
 
+#include <QByteArray>
 #include <QDebug>
 
 namespace Avogadro {
@@ -159,34 +160,34 @@ namespace Avogadro {
     // handle text alignments
     if (role == Qt::TextAlignmentRole) {
       /*if (m_type == CartesianType) {
-        return Qt::AlignRight + Qt::AlignVCenter; // XYZ coordinates
+        return static_cast<int>(Qt::AlignRight | Qt::AlignVCenter); // XYZ coordinates
         }
         else*/ if (m_type == ConformerType) {
-        return Qt::AlignRight + Qt::AlignVCenter; // energies
+        return static_cast<int>(Qt::AlignRight | Qt::AlignVCenter); // energies
       }
       else if (m_type == AtomType) {
         if (index.column() == 3)
-          return Qt::AlignRight + Qt::AlignVCenter; // partial charge
+          return static_cast<int>(Qt::AlignRight | Qt::AlignVCenter); // partial charge
         else
-          return Qt::AlignHCenter + Qt::AlignVCenter;
+          return static_cast<int>(Qt::AlignHCenter | Qt::AlignVCenter);
       }
       else if (m_type == BondType) {
         if (index.column() >= 5)
-          return Qt::AlignRight + Qt::AlignVCenter; // bond length
+          return static_cast<int>(Qt::AlignRight | Qt::AlignVCenter); // bond length
         else
-          return Qt::AlignHCenter + Qt::AlignVCenter;
+          return static_cast<int>(Qt::AlignHCenter | Qt::AlignVCenter);
       }
       else if (m_type == AngleType) {
         if (index.column() >= 4)
-          return Qt::AlignRight + Qt::AlignVCenter; // angle
+          return static_cast<int>(Qt::AlignRight | Qt::AlignVCenter); // angle
         else
-          return Qt::AlignHCenter + Qt::AlignVCenter;
+          return static_cast<int>(Qt::AlignHCenter | Qt::AlignVCenter);
       }
       else if (m_type == TorsionType) {
         if (index.column() >= 5)
-          return Qt::AlignRight + Qt::AlignVCenter; // dihedral angle
+          return static_cast<int>(Qt::AlignRight | Qt::AlignVCenter); // dihedral angle
         else
-          return Qt::AlignHCenter + Qt::AlignVCenter;
+          return static_cast<int>(Qt::AlignHCenter | Qt::AlignVCenter);
       }
     }
 
@@ -381,7 +382,7 @@ namespace Avogadro {
     // handle text alignments
     if (role == Qt::TextAlignmentRole) {
       if (orientation == Qt::Vertical) {
-        return Qt::AlignHCenter; // XYZ coordinates
+        return static_cast<int>(Qt::AlignHCenter); // XYZ coordinates
       }
     }
 
@@ -412,13 +413,13 @@ namespace Avogadro {
           switch(remainder)
             {
             case 0:
-              CoordHeader = QString("X %1").arg("(\xC5)");
+              CoordHeader = QStringLiteral("X %1").arg(QStringLiteral("(Å)"));
               break;
             case 1:
-              CoordHeader = QString("Y %1").arg("(\xC5)");
+              CoordHeader = QStringLiteral("Y %1").arg(QStringLiteral("(Å)"));
               break;
             case 2:
-              CoordHeader = QString("Z %1").arg("(\xC5)");
+              CoordHeader = QStringLiteral("Z %1").arg(QStringLiteral("(Å)"));
               break;
             default:
               std::cerr << "AtomType remainder error in headerData: " << remainder << std::endl;
@@ -429,7 +430,8 @@ namespace Avogadro {
 
           // Seems somewhat daft to have to convert a QString to *char to pass
           // it to Qt's tr function - am I missing something?
-          return trUtf8(CoordHeader.toUtf8().data(), "in Angstrom");
+          const QByteArray coordHeaderUtf8 = CoordHeader.toUtf8();
+          return tr(coordHeaderUtf8.constData(), "in Angstrom");
 
         }
       } else
@@ -450,9 +452,9 @@ namespace Avogadro {
           return tr("Rotatable");
         default: // A bond length
           if( numConformers() > 1 )
-            return tr("Conformer %1\nLength %2", "in Angstrom").arg(column-4).arg("(\xC5)");
+            return tr("Conformer %1\nLength %2", "in Angstrom").arg(column-4).arg(QStringLiteral("(Å)"));
           else
-            return tr("Length %1", "in Angstrom").arg("(\xC5)");
+            return tr("Length %1", "in Angstrom").arg(QStringLiteral("(Å)"));
         }
       } else
         // Bond ordering starts at 0
@@ -471,9 +473,9 @@ namespace Avogadro {
           return tr("End Atom");
         default:
           if( numConformers() > 1 )
-            return tr("Conformer %1\nAngle %2", "Degree symbol").arg(column-3).arg("(\xB0)");
+            return tr("Conformer %1\nAngle %2", "Degree symbol").arg(column-3).arg(QStringLiteral("(°)"));
           else
-            return tr("Angle %1", "Degree symbol").arg("(\xB0)");
+            return tr("Angle %1", "Degree symbol").arg(QStringLiteral("(°)"));
         }
       } else
         return tr("Angle") + QString(" %1").arg(section + 1);
@@ -490,9 +492,9 @@ namespace Avogadro {
           return tr("Atom %1").arg(column);
         default:
           if( numConformers() > 1 )
-            return trUtf8("Conformer %1\nTorsion %2", "Degree symbol").arg(column-4).arg("(\xB0)");
+            return tr("Conformer %1\nTorsion %2", "Degree symbol").arg(column-4).arg(QStringLiteral("(°)"));
           else
-            return trUtf8("Torsion %1", "Degree symbol").arg("(\xB0)");
+            return tr("Torsion %1", "Degree symbol").arg(QStringLiteral("(°)"));
 
         }
       } else
@@ -501,11 +503,11 @@ namespace Avogadro {
         if (orientation == Qt::Horizontal) {
         switch (section) {
         case 0:
-        return trUtf8("X %1", "in Angstrom").arg("(\xC5)");
+        return tr("X %1", "in Angstrom").arg(QStringLiteral("(Å)"));
         case 1:
-        return trUtf8("Y %1", "in Angstrom").arg("(\xC5)");
+        return tr("Y %1", "in Angstrom").arg(QStringLiteral("(Å)"));
         case 2:
-        return trUtf8("Z  %1", "in Angstrom").arg("(\xC5)");
+        return tr("Z  %1", "in Angstrom").arg(QStringLiteral("(Å)"));
         }
         } else
         return tr("Atom %1").arg(section + 1);
@@ -936,8 +938,9 @@ namespace Avogadro {
                     tmpQVariantVector.clear();
 
                     // Element : Type : Valence : Formal Charge : Partial Charge
-                    tmpQVariantVector.push_back(QVariant(OpenBabel::OBElements::GetSymbol(obatom->GetAtomicNum())));
-                    tmpQVariantVector.push_back(QVariant(obatom->GetType()));
+                    const char *atomType = obatom->GetType();
+                    tmpQVariantVector.push_back(QString::fromUtf8(OpenBabel::OBElements::GetSymbol(obatom->GetAtomicNum())));
+                    tmpQVariantVector.push_back(QString::fromUtf8(atomType ? atomType : ""));
                     tmpQVariantVector.push_back(QVariant(obatom->GetTotalValence()));
                     tmpQVariantVector.push_back(QVariant(obatom->GetFormalCharge()));
                     tmpQVariantVector.push_back(QVariant(obatom->GetPartialCharge()));

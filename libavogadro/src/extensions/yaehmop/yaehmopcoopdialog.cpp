@@ -22,6 +22,7 @@
 #include <QDebug>
 
 #include <QMessageBox>
+#include <QRegularExpression>
 
 namespace Avogadro {
 
@@ -80,13 +81,13 @@ namespace Avogadro {
     QString kpointsText = m_ui->edit_kpoints->toPlainText();
 
     // Let's make sure the input is valid. Split it into lines first
-    QStringList lines = kpointsText.split(QRegExp("[\r\n]"),
-                                          QString::SkipEmptyParts);
+    QStringList lines = kpointsText.split(QRegularExpression("[\r\n]"),
+                                          Qt::SkipEmptyParts);
 
     // Let's go through each line in the k points
     for (size_t i = 0; i < lines.size(); ++i) {
       // Split the line by spaces
-      QStringList splitLine = lines[i].split(" ", QString::SkipEmptyParts);
+      QStringList splitLine = lines[i].split(" ", Qt::SkipEmptyParts);
       // Skip it if it is of size 0
       if (splitLine.size() == 0)
         continue;
@@ -94,7 +95,7 @@ namespace Avogadro {
       // Check to see if an 'x' is in the line to indicate a grid.
       if (lines[i].contains("x")) {
         // Split it by the x values instead
-        splitLine = lines[i].split("x", QString::SkipEmptyParts);
+        splitLine = lines[i].split("x", Qt::SkipEmptyParts);
         // It must be of size 3
         if (splitLine.size() != 3) {
           displayInvalidKPointsFormatMessage();
@@ -173,8 +174,8 @@ namespace Avogadro {
     }
 
     QString coopsText = m_ui->edit_coops->toPlainText();
-    QStringList cLines = coopsText.split(QRegExp("[\r\n]"),
-                                         QString::SkipEmptyParts);
+    QStringList cLines = coopsText.split(QRegularExpression("[\r\n]"),
+                                         Qt::SkipEmptyParts);
     QStringList coopList;
     // Now, let's go through each line in the coops
     for (size_t i = 0; i < cLines.size(); ++i) {
@@ -189,7 +190,7 @@ namespace Avogadro {
       }
 
       // If we made it here, it must be a coop line
-      QString type = cLines[i].split(" ", QString::SkipEmptyParts)[0].trimmed();
+      QString type = cLines[i].split(" ", Qt::SkipEmptyParts)[0].trimmed();
 
       // 'type' must be 'atom', 'orbital', or 'FMO', or 'h-*'
       if (type.toLower() != "atom" && type.toLower() != "orbital" &&
@@ -202,7 +203,7 @@ namespace Avogadro {
       }
 
       // Split all the types by spaces
-      QStringList splitLine = cLines[i].split(" ", QString::SkipEmptyParts);
+      QStringList splitLine = cLines[i].split(" ", Qt::SkipEmptyParts);
 
       if (splitLine.size() != 7) {
         qDebug() << "Error: invalid COOP was entered in"

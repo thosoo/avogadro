@@ -31,18 +31,22 @@ namespace Avogadro {
   inline Eigen::Matrix3d OB2Eigen(const OpenBabel::matrix3x3 &obm)
   {
     Eigen::Matrix3d mat;
-    mat(0,0)=obm.Get(0,0);mat(0,1)=obm.Get(0,1);mat(0,2)=obm.Get(0,2);
-    mat(1,0)=obm.Get(1,0);mat(1,1)=obm.Get(1,1);mat(1,2)=obm.Get(1,2);
-    mat(2,0)=obm.Get(2,0);mat(2,1)=obm.Get(2,1);mat(2,2)=obm.Get(2,2);
+    for (int row = 0; row < 3; ++row) {
+      for (int col = 0; col < 3; ++col) {
+        mat(row, col) = obm(row, col);
+      }
+    }
     return mat;
   }
 
   inline OpenBabel::matrix3x3 Eigen2OB(const Eigen::Matrix3d &mat)
   {
     OpenBabel::matrix3x3 obm;
-    obm.Set(0,0,mat(0,0));obm.Set(0,1,mat(0,1));obm.Set(0,2,mat(0,2));
-    obm.Set(1,0,mat(1,0));obm.Set(1,1,mat(1,1));obm.Set(1,2,mat(1,2));
-    obm.Set(2,0,mat(2,0));obm.Set(2,1,mat(2,1));obm.Set(2,2,mat(2,2));
+    for (int row = 0; row < 3; ++row) {
+      for (int col = 0; col < 3; ++col) {
+        obm(row, col) = mat(row, col);
+      }
+    }
     return obm;
   }
 

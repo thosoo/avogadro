@@ -1,5 +1,7 @@
 # Avogadro CMake configuration file - http://avogadro.cc/
 
+include(CMakeFindDependencyMacro)
+
 # If this file was found, then Avogadro has been found
 set(Avogadro_FOUND 1)
 
@@ -18,7 +20,13 @@ set(Avogadro_LIB_SUFFIX      "@LIB_SUFFIX@")
 set(Avogadro_PLUGIN_DIR      "@CMAKE_INSTALL_PREFIX@/@Avogadro_PLUGIN_INSTALL_DIR@")
 set(Avogadro_BIN_DIRS        "@CMAKE_INSTALL_PREFIX@/@BIN_INSTALL_DIR@")
 
-# Now for the use file, which contains useful functions, sets up the project
+list(APPEND CMAKE_MODULE_PATH "${Avogadro_PLUGIN_DIR}/cmake")
+find_dependency(Qt6 COMPONENTS Core Gui Widgets OpenGL OpenGLWidgets)
+find_dependency(Eigen3)
+find_dependency(OpenBabel3)
+
+include("${CMAKE_CURRENT_LIST_DIR}/AvogadroTargets.cmake")
+
+# Legacy use file for third-party plugin projects. Prefer exported targets.
 set(Avogadro_USE_FILE
     "${Avogadro_PLUGIN_DIR}/AvogadroUse.cmake")
-

@@ -22,8 +22,8 @@
 #ifndef SPECTRATYPE_ABSTRACTORCASPEC_H
 #define SPECTRATYPE_ABSTRACTORCASPEC_H
 
-#include <QtCore/QHash>
-#include <QtCore/QVariant>
+#include <QHash>
+#include <QVariant>
 
 #include "spectradialog.h"
 #include "spectratype.h"

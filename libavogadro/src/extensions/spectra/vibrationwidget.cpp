@@ -22,16 +22,16 @@
 
 #include "vibrationwidget.h"
 
-#include <QtCore/QFile>
-#include <QtCore/QDir>
-#include <QtCore/QDebug>
+#include <QFile>
+#include <QDir>
+#include <QDebug>
 
-#include <QtWidgets/QButtonGroup>
+#include <QButtonGroup>
 #include <QDoubleValidator>
-#include <QtWidgets/QFileDialog>
-#include <QtWidgets/QHeaderView>
-#include <QtWidgets/QProgressDialog>
-#include <QtWidgets/QPushButton>
+#include <QFileDialog>
+#include <QHeaderView>
+#include <QProgressDialog>
+#include <QPushButton>
 
 #include <avogadro/molecule.h>
 

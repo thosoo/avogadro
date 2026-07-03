@@ -21,7 +21,7 @@
 
 #include <avogadro/dockwidget.h>
 
-#include <QtCore/QSettings>
+#include <QSettings>
 #include <QApplication>
 
 #include <Eigen/Core>

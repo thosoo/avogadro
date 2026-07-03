@@ -21,7 +21,7 @@
 #include "ceabstracteditor.h"
 #include "../crystallographyextension.h"
 
-#include <QtGui/QTextCharFormat>
+#include <QTextCharFormat>
 
 #include "ui_ceparametereditor.h"
 

@@ -1123,10 +1123,10 @@ namespace Avogadro
             << natoms[natomtypes] << '\n';
         oldatomtype = newatomtype;
       }
-      mol << qSetFieldWidth(3) << left
+      mol << qSetFieldWidth(3) << Qt::left
           << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()))
-          << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint
-          << fixed << right << atom->pos()->x() << atom->pos()->y()
+          << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << Qt::forcepoint
+          << Qt::fixed << Qt::right << atom->pos()->x() << atom->pos()->y()
           << atom->pos()->z()
           << qSetFieldWidth(0) << '\n';
     }

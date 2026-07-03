@@ -26,9 +26,9 @@
 #include "orca.h"
 #include "cube.h"
 
-#include <QtCore/QDir>
-#include <QtCore/QFileInfo>
-#include <QtCore/QStringList>
+#include <QDir>
+#include <QFileInfo>
+#include <QStringList>
 
 namespace OpenQube {
 

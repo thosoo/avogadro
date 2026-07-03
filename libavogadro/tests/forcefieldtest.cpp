@@ -428,4 +428,4 @@ void ForceFieldTest::compareUffVsUff4mofOptimizedEnergy()
 
 QTEST_MAIN(ForceFieldTest)
 
-#include "moc_forcefieldtest.cpp"
+#include "forcefieldtest.moc"

@@ -55,10 +55,10 @@
 #include <openbabel/obiter.h>
 #include <openbabel/elements.h>
 
-#include <QtCore/QDir>
-#include <QtCore/QDebug>
-#include <QtCore/QVariant>
-#include <QtCore/QVector>
+#include <QDir>
+#include <QDebug>
+#include <QVariant>
+#include <QVector>
 
 namespace Avogadro{
 
@@ -1505,14 +1505,16 @@ namespace Avogadro{
     }
 
     // Copy Orca spectra data
-    qDebug() << "has Orca spectra data  = " << obmol->HasData(OpenBabel::OBGenericDataType::CustomData0) << endl;
+    qDebug() << "has Orca spectra data  = "
+             << obmol->HasData(OpenBabel::OBGenericDataType::CustomData0);
     if (obmol->HasData(OpenBabel::OBGenericDataType::CustomData0)) {
       OpenBabel::OBOrcaSpecData *specorca =
         static_cast<OpenBabel::OBOrcaSpecData*>(obmol->GetData(OpenBabel::OBGenericDataType::CustomData0));
       d->oborcaspecdata = specorca;
     }
     // Copy Orca NearIR spectra data
-    qDebug() << "has NearIR spectra data  = " << obmol->HasData(OpenBabel::OBGenericDataType::CustomData1) << endl;
+    qDebug() << "has NearIR spectra data  = "
+             << obmol->HasData(OpenBabel::OBGenericDataType::CustomData1);
     if (obmol->HasData(OpenBabel::OBGenericDataType::CustomData1)) {
       OpenBabel::OBOrcaNearIRData *nearIRData =
         static_cast<OpenBabel::OBOrcaNearIRData*>(obmol->GetData(OpenBabel::OBGenericDataType::CustomData1));
@@ -1520,7 +1522,8 @@ namespace Avogadro{
     }
 
     // Copy orbital energies, symbols, and occupations to dynamic properties (as QList<>)
-    qDebug() << "has data  = " << obmol->HasData(OpenBabel::OBGenericDataType::ElectronicData) << endl;
+    qDebug() << "has data  = "
+             << obmol->HasData(OpenBabel::OBGenericDataType::ElectronicData);
     if (obmol->HasData(OpenBabel::OBGenericDataType::ElectronicData)) {
       OpenBabel::OBOrbitalData *od =
         static_cast<OpenBabel::OBOrbitalData*>(obmol->GetData(OpenBabel::OBGenericDataType::ElectronicData));

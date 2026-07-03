@@ -32,14 +32,14 @@
 #include <openbabel/mol.h>
 #include <openbabel/forcefield.h>
 
-#include <QtCore/QMutex>
-#include <QtCore/QThread>
-#include <QtWidgets/QAction>
-#include <QtWidgets/QPushButton>
-#include <QtWidgets/QComboBox>
-#include <QtWidgets/QCheckBox>
-#include <QtWidgets/QSpinBox>
-#include <QtWidgets/QUndoStack>
+#include <QMutex>
+#include <QThread>
+#include <QAction>
+#include <QPushButton>
+#include <QComboBox>
+#include <QCheckBox>
+#include <QSpinBox>
+#include <QUndoStack>
 
 namespace Avogadro {
   enum AutoOptAlgorithm

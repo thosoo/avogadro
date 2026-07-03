@@ -28,7 +28,7 @@
 #include <avogadro/glwidget.h>
 #include <avogadro/extension.h>
 
-#include <QtCore/QHash>
+#include <QHash>
 #include <QAction>
 
 #include "inputdialog.h"

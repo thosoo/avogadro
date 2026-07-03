@@ -39,7 +39,7 @@ namespace Avogadro
 
     public:
       //! Constructor
-      explicit ConstraintsDialog( QWidget *parent = 0, Qt::WindowFlags f = 0 );
+      explicit ConstraintsDialog( QWidget *parent = nullptr, Qt::WindowFlags f = Qt::WindowFlags() );
       //! Desconstructor
       ~ConstraintsDialog();
 
@@ -55,6 +55,10 @@ namespace Avogadro
       void comboTypeChanged(int);
 
     private:
+      void connectMoleculeConstraints();
+      void resetConstraintRanges();
+      void updateConstraintRanges(int index);
+
       Ui::ConstraintsDialog ui;
       Molecule* m_molecule;
       ConstraintsModel *m_constraints;

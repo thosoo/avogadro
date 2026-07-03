@@ -1,42 +1,74 @@
-name: CI
-on: 
+name: Qt6 CI
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: false
+
+env:
+  THOSOO_OPENBABEL_COMMIT: d8695a2628ee7b85d88af8c4cf429626ba081f36
+  OPENBABEL_CMAKE_OPTIONS: BUILD_SHARED-ON-OB_USE_PREBUILT_BINARIES-OFF-OPENBABEL_USE_SYSTEM_INCHI-OFF-WITH_INCHI-ON-WITH_COORDGEN-ON
+  OPENBABEL_CACHE_LAYOUT: CACHE-LAYOUT-v2
+
+on:
   push:
-      paths-ignore:
-        - '.github/workflows/windows-installer.yml'
+    paths-ignore:
+      - '.github/workflows/windows-installer.yml'
   pull_request:
     paths-ignore:
-          - '.github/workflows/windows-installer.yml'
+      - '.github/workflows/windows-installer.yml'
+
 jobs:
   build:
+    name: build python=${{ matrix.python }} xtb=${{ matrix.xtb }}
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        xtb: [on, off]
+        python: [ON, OFF]
+        xtb: [ON, OFF]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Cache apt packages
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: /var/cache/apt/archives
-          key: ${{ runner.os }}-apt-${{ matrix.xtb }}-${{ hashFiles('.github/apt-packages.txt') }}
-          restore-keys: ${{ runner.os }}-apt-
+          key: ${{ runner.os }}-qt6-apt-${{ matrix.python }}-${{ matrix.xtb }}-${{ hashFiles('.github/apt-packages.txt') }}
+          restore-keys: ${{ runner.os }}-qt6-apt-
+      - name: Cache bundled thosoo OpenBabel
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/openbabel-install
+            build/openbabel_ext-prefix/src/openbabel_ext
+            build/openbabel_ext-prefix/src/openbabel_ext-build
+            build/openbabel_ext-prefix/src/openbabel_ext-stamp
+          key: ${{ runner.os }}-gcc-thosoo-openbabel-${{ env.THOSOO_OPENBABEL_COMMIT }}-${{ env.OPENBABEL_CACHE_LAYOUT }}-${{ env.OPENBABEL_CMAKE_OPTIONS }}
+          restore-keys: |
+            ${{ runner.os }}-gcc-thosoo-openbabel-${{ env.THOSOO_OPENBABEL_COMMIT }}-${{ env.OPENBABEL_CACHE_LAYOUT }}-
+      - name: Validate bundled thosoo OpenBabel cache
+        run: |
+          if { [ -d build/openbabel_ext-prefix/src/openbabel_ext-stamp ] || [ -d build/openbabel_ext-prefix/src/openbabel_ext-build ]; } && [ ! -f build/openbabel_ext-prefix/src/openbabel_ext/CMakeLists.txt ]; then
+            echo "Invalid OpenBabel cache: missing ExternalProject source; clearing stale source/build/stamp state"
+            rm -rf build/openbabel_ext-prefix/src/openbabel_ext \
+                   build/openbabel_ext-prefix/src/openbabel_ext-build \
+                   build/openbabel_ext-prefix/src/openbabel_ext-stamp
+          fi
       - name: Install dependencies
         run: |
           sudo apt-get update
           sudo xargs -a .github/apt-packages.txt apt-get install -y
-          if [ "${{ matrix.xtb }}" = "on" ]; then
+          if [ "${{ matrix.xtb }}" = "ON" ]; then
             sudo apt-get install -y xtb libxtb-dev
           fi
       - name: Configure
         run: |
           cmake -S . -B build \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_VERBOSE_MAKEFILE=ON \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DENABLE_TESTS=ON \
+            -DENABLE_PYTHON=${{ matrix.python }} \
             -DENABLE_XTB_OPTTOOL=${{ matrix.xtb }}
       - name: Build
-        run: |
-          cmake --build build -- -j1 VERBOSE=1
+        run: cmake --build build
       - name: Test
         run: |
           export LD_LIBRARY_PATH="$PWD/build/openbabel-install/lib:$LD_LIBRARY_PATH"

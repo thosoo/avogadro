@@ -25,7 +25,7 @@
 #ifndef UPDATEDIALOG_H
 #define UPDATEDIALOG_H
 
-#include <QtWidgets/QDialog>
+#include <QDialog>
 
 namespace Avogadro {
   class UpdateDialog : public QDialog

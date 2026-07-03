@@ -22,9 +22,9 @@
 
 #include <Eigen/Core>
 
-#include <QtCore/QList>
-#include <QtCore/QString>
-#include <QtCore/QSharedPointer>
+#include <QList>
+#include <QString>
+#include <QSharedPointer>
 
 #define AVOSPGLIB_TOL 0.1
 

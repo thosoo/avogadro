@@ -21,8 +21,9 @@
 #include "abstract_orcaspec.h"
 #include <avogadro/global.h>
 
-#include <QtWidgets/QMessageBox>
-#include <QtCore/QDebug>
+#include <QMessageBox>
+#include <QComboBox>
+#include <QDebug>
 
 #include <openbabel/mol.h>
 
@@ -52,8 +53,8 @@ AbstractOrcaSpectra::AbstractOrcaSpectra( SpectraDialog *parent ) :
             this, SIGNAL(plotDataChanged()));
     connect(ui.combo_XUnit, SIGNAL(currentIndexChanged(int)),
             this, SIGNAL(plotDataChanged()));
-    connect(ui.combo_OrcaSpecType, SIGNAL(currentIndexChanged(QString)),
-            this, SLOT(OrcaSpecTypeChanged(QString)));
+    connect(ui.combo_OrcaSpecType, &QComboBox::currentTextChanged,
+            this, &AbstractOrcaSpectra::OrcaSpecTypeChanged);
 
     connect(ui.combo_lineShape, SIGNAL(currentIndexChanged(int)),
             this, SLOT(changeLineShape(int)));
@@ -90,7 +91,7 @@ void AbstractOrcaSpectra::OrcaSpecTypeChanged(const QString & str)
         tmp_minIdx = m_XmaxIdx;
         tmp_maxIdx = m_XminIdx;
     }
-    qDebug() << "str = " << str << endl;
+    qDebug() << "str = " << str;
 
      if (str == "Transition Electric dipole") {
          for (int i = tmp_minIdx; i <= tmp_maxIdx; i++){

@@ -22,8 +22,8 @@
 
 #include "molecule.h"
 
-#include <QtCore/QObject>
-#include <QtCore/QFutureWatcher>
+#include <QObject>
+#include <QFutureWatcher>
 
 namespace OpenQube
 {

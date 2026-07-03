@@ -23,8 +23,8 @@
 #include "ceabstractdockwidget.h"
 #include "ui_cetranslatewidget.h"
 
-#include <QtCore/QTimer>
-#include <QtWidgets/QDockWidget>
+#include <QTimer>
+#include <QDockWidget>
 
 #include <Eigen/Core>
 

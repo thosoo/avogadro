@@ -29,8 +29,8 @@
 #ifndef PLOTAXIS_H
 #define PLOTAXIS_H
 
-#include <QtCore/QString>
-#include <QtCore/QList>
+#include <QString>
+#include <QList>
 
 #include <avogadro/global.h>
 

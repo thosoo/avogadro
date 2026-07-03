@@ -508,7 +508,7 @@ namespace Avogadro
     dialog.setWindowTitle("QTAIM");
     dialog.setLabelText(QString("Nuclear Critical Points Search"));
 
-    QFutureWatcher<void> futureWatcher;
+    QFutureWatcher<QList<QVariant>> futureWatcher;
     QObject::connect(&futureWatcher, SIGNAL(finished()), &dialog, SLOT(reset()));
     QObject::connect(&dialog, SIGNAL(canceled()), &futureWatcher, SLOT(cancel()));
     QObject::connect(&futureWatcher, SIGNAL(progressRangeChanged(int,int)), &dialog, SLOT(setRange(int,int)));
@@ -618,7 +618,7 @@ namespace Avogadro
     dialog.setWindowTitle("QTAIM");
     dialog.setLabelText(QString("Bond Critical Points Search"));
 
-    QFutureWatcher<void> futureWatcher;
+    QFutureWatcher<QList<QVariant>> futureWatcher;
     QObject::connect(&futureWatcher, SIGNAL(finished()), &dialog, SLOT(reset()));
     QObject::connect(&dialog, SIGNAL(canceled()), &futureWatcher, SLOT(cancel()));
     QObject::connect(&futureWatcher, SIGNAL(progressRangeChanged(int,int)), &dialog, SLOT(setRange(int,int)));
@@ -782,7 +782,7 @@ namespace Avogadro
     dialog.setWindowTitle("QTAIM");
     dialog.setLabelText(QString("Electron Density Sources Search"));
 
-    QFutureWatcher<void> futureWatcher;
+    QFutureWatcher<QList<QVariant>> futureWatcher;
     QObject::connect(&futureWatcher, SIGNAL(finished()), &dialog, SLOT(reset()));
     QObject::connect(&dialog, SIGNAL(canceled()), &futureWatcher, SLOT(cancel()));
     QObject::connect(&futureWatcher, SIGNAL(progressRangeChanged(int,int)), &dialog, SLOT(setRange(int,int)));
@@ -952,7 +952,7 @@ namespace Avogadro
     dialog.setWindowTitle("QTAIM");
     dialog.setLabelText(QString("Electron Density Sinks Search"));
 
-    QFutureWatcher<void> futureWatcher;
+    QFutureWatcher<QList<QVariant>> futureWatcher;
     QObject::connect(&futureWatcher, SIGNAL(finished()), &dialog, SLOT(reset()));
     QObject::connect(&dialog, SIGNAL(canceled()), &futureWatcher, SLOT(cancel()));
     QObject::connect(&futureWatcher, SIGNAL(progressRangeChanged(int,int)), &dialog, SLOT(setRange(int,int)));

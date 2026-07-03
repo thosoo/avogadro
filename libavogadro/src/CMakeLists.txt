@@ -1,5 +1,3 @@
-set(QT_USE_QTOPENGL true)
-
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/config.h.in
   ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
@@ -9,7 +7,7 @@ set_directory_properties(PROPERTIES INCLUDE_DIRECTORIES
   "${libavogadro_BINARY_DIR}/include;${tmp_include_dirs}")
 include_directories(
   ${CMAKE_CURRENT_BINARY_DIR}
-  ${OPENBABEL2_INCLUDE_DIR}
+  ${OPENBABEL3_INCLUDE_DIR}
 )
 
 if(EIGEN3_FOUND)
@@ -22,8 +20,6 @@ elseif(EIGEN2_FOUND)
 	)
 endif(EIGEN3_FOUND)
 
-# I think this is necessary now in order to tell the linker where openbabel is
-link_directories(${OPENBABEL2_LIBRARY_DIRS})
 
 # Only headers with exported symbols should actually be installed
 set(libavogadro_HDRS
@@ -159,9 +155,9 @@ set(libavogadro_MOC_HDRS
 )
 
 set(AVO_LINK_LIBRARIES
-  ${OPENBABEL2_LIBRARIES}
-  ${QT_LIBRARIES}
-  ${OPENGL_LIBRARIES}
+  OpenBabel3::openbabel
+  OpenGL::GL
+  OpenGL::GLU
 )
 
 if(GLEW_FOUND)
@@ -177,7 +173,7 @@ if(NOT WIN32)
       string(REGEX REPLACE "(.*)/([^.]+)\\.po" "\\1/libavogadro-\\2.po" po ${po})
       list(APPEND libavogadro_PO ${po})
     endforeach()
-    QT4_WRAP_PO(libavogadro_QM ${libavogadro_PO})
+    avogadro_wrap_po(libavogadro_QM ${libavogadro_PO})
   endif()
 else()
   # don't attempt to create QM files on windows -- copy them from a linux build!
@@ -186,13 +182,13 @@ else()
 endif()
 
 # you have to add link_directories before you add the target
-if(ENABLE_PYTHON AND ALL_PYTHON_FOUND)
+if(PYTHON_SUPPORT_ENABLED)
   message(STATUS "Setting new boost python libraries")
   include_directories(
     ${Boost_INCLUDE_DIRS}
-    ${PYTHON_INCLUDE_PATH})
-  qt4_add_resources(pythontool_RC_SRCS pythontool.qrc)
-  list(APPEND AVO_LINK_LIBRARIES ${PYTHON_LIBRARIES} ${Boost_LIBRARIES})
+    ${Python3_INCLUDE_DIRS})
+  list(APPEND libavogadro_SRCS pythontool.qrc)
+  list(APPEND AVO_LINK_LIBRARIES Python3::Python ${Boost_LIBRARIES})
   list(APPEND libavogadro_HDRS
     pythoninterpreter.h
     pythonscript.h
@@ -210,9 +206,6 @@ if(ENABLE_PYTHON AND ALL_PYTHON_FOUND)
     pythonengine_p.cpp
     pythonextension_p.cpp)
 endif()
-
-qt4_wrap_cpp(libavogadro_MOC ${libavogadro_MOC_HDRS}
-  OPTIONS -DBOOST_TT_HAS_OPERATOR_HPP_INCLUDED)
 
 # Set up the include directory and symlink/copy all headers to it.
 # Note: Windows lacks symlinks and so the files must be copied.
@@ -236,10 +229,11 @@ endforeach()
 
 add_library(avogadro SHARED
   ${libavogadro_SRCS}
-  ${libavogadro_MOC}
+  ${libavogadro_MOC_HDRS}
   ${libavogadro_QM}
-  ${pythontool_RC_SRCS})
+)
 set_target_properties(avogadro PROPERTIES
+  AUTOMOC_MOC_OPTIONS "-DBOOST_TT_HAS_OPERATOR_HPP_INCLUDED"
   VERSION ${Avogadro_VERSION_FULL}
   SOVERSION ${AVO_SOVERSION}
   LABELS avogadro)
@@ -274,10 +268,23 @@ file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/staticplugins.cpp.in
 configure_file(${CMAKE_CURRENT_BINARY_DIR}/staticplugins.cpp.in
   ${CMAKE_CURRENT_BINARY_DIR}/staticplugins.cpp)
 
-target_link_libraries(avogadro ${AVO_LINK_LIBRARIES} ${plugins_built_static})
+target_link_libraries(avogadro
+  PUBLIC
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Widgets
+    Qt6::OpenGL
+    Qt6::OpenGLWidgets
+  PRIVATE
+    ${AVO_LINK_LIBRARIES}
+    ${plugins_built_static})
+if(AVO_USE_X11)
+  target_compile_definitions(avogadro PUBLIC AVO_USE_X11)
+  target_link_libraries(avogadro PRIVATE ${X11_X11_LIB})
+endif()
 message(STATUS "Linking in static plugins: ${plugins_built_static}")
 # Add the boost python module if the boost::python was found
-if(ENABLE_PYTHON AND ALL_PYTHON_FOUND)
+if(PYTHON_SUPPORT_ENABLED)
   add_subdirectory(python)
 endif()
 

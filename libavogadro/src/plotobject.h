@@ -29,8 +29,8 @@
 #ifndef PLOTOBJECT_H
 #define PLOTOBJECT_H
 
-#include <QtCore/QString>
-#include <QtGui/QColor>
+#include <QString>
+#include <QColor>
 
 #include <avogadro/global.h>
 

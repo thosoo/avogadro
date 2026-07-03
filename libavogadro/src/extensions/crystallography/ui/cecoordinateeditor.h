@@ -20,7 +20,7 @@
 
 #include "ceabstracteditor.h"
 
-#include <QtGui/QTextCharFormat>
+#include <QTextCharFormat>
 
 #include "ui_cecoordinateeditor.h"
 

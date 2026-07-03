@@ -37,10 +37,10 @@
 #include <avogadro/residue.h>
 #include <avogadro/molecule.h>
 
-#include <QtCore/QDebug>
-#include <QtWidgets/QColorDialog>
-#include <QtWidgets/QFontDialog>
-//#include <QtGui/QPainter>
+#include <QDebug>
+#include <QColorDialog>
+#include <QFontDialog>
+//#include <QPainter>
 
 #include <openbabel/mol.h>
 #include <openbabel/elements.h>

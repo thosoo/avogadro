@@ -1,5 +1,5 @@
 /**********************************************************************
-  TextRenderer - a temporary replacement for QGLWidget::renderText until it
+  TextRenderer - a temporary replacement for QOpenGLWidget text rendering until it
   matures a bit more ;)
 
   Copyright (C) 2007 Benoit Jacob
@@ -39,12 +39,12 @@ namespace Avogadro
  * @author Benoit Jacob
  *
  * NOTE: This class is only there as a temporary replacement for
- * QGLWidget::renderText(). As of Qt 4.2.3 and Qt 4.3-beta1, this function is
+ * QOpenGLWidget text rendering(). As of Qt 4.2.3 and Qt 4.3-beta1, this function is
  * too slow and can't do outlined text. If a future version of Qt brings a
- * sufficiently improved QGLWidget::renderText(), we will of course drop this class.
+ * sufficiently improved QOpenGLWidget text rendering(), we will of course drop this class.
  *
- * This class renders text inside a QGLWidget. It replaces the functionality
- * of QGLWidget::renderText().
+ * This class renders text inside a QOpenGLWidget. It replaces the functionality
+ * of QOpenGLWidget text rendering().
  *
  * Its advantages over the renderText() in Qt 4.2.3 are that it is much faster both at
  * render-time and at startup, consumes less memory, and does outlined text. Its drawbacks are that

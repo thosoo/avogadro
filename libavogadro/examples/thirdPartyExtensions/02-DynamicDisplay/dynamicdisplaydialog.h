@@ -17,7 +17,7 @@
 #ifndef DYNAMICDISPLAYDIALOG_H
 #define DYNAMICDISPLAYDIALOG_H
 
-#include <QtGui/QDialog>
+#include <QDialog>
 
 #include "ui_dynamicdisplaydialog.h"
 

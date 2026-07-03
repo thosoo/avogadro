@@ -40,10 +40,12 @@
 
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QCoreApplication>
 #include <QDir>
 #include <QDebug>
 #include <QSortFilterProxyModel>
 #include <QFileSystemModel>
+#include <QRegularExpression>
 
 using namespace OpenBabel;
 namespace Avogadro {
@@ -51,6 +53,13 @@ namespace Avogadro {
   class InsertFragmentPrivate
   {
   public:
+    InsertFragmentPrivate()
+      : proxy(nullptr),
+        model(nullptr),
+        crystalFiles(false)
+    {
+    }
+
     Molecule     fragment;
     OBConversion conv;
     OBBuilder    builder;
@@ -61,11 +70,7 @@ namespace Avogadro {
     QString      currentFileName;
     bool         crystalFiles; // are we inserting crystals (i.e., don't center)
 
-    ~InsertFragmentPrivate()
-    {
-      if (model)
-        delete model;
-    }
+    ~InsertFragmentPrivate() = default;
 
   };
 
@@ -82,20 +87,27 @@ namespace Avogadro {
     d->currentFileName.clear();
 
     //@todo: it would be great to allow multiple directories, but that needs our own directory model
+    const QString appRelativeDirectory =
+      QCoreApplication::applicationDirPath() + "/../share/avogadro/" + directory;
     QString m_directory;
-#ifdef Q_WS_X11
-    m_directory = QString( INSTALL_PREFIX ) + "/share/avogadro/";
+#ifdef AVO_USE_X11
+    m_directory = QString( INSTALL_PREFIX ) + "/share/avogadro/" + directory;
 #else
     // Mac and Windows use relative path from application location
-    m_directory = QCoreApplication::applicationDirPath() + "/../share/avogadro/";
+    m_directory = appRelativeDirectory;
 #endif
-    m_directory += directory; // fragments or crystals or whatever
-    if ( directory.contains(QLatin1String("crystals")) )
-      d->crystalFiles = true;
-    else
-      d->crystalFiles = false;
+    d->crystalFiles = directory.contains(QLatin1String("crystals"));
 
     QDir dir(m_directory);
+#ifdef AVO_USE_X11
+    if (!dir.exists() || !dir.isReadable()) {
+      QDir fallbackDir(appRelativeDirectory);
+      if (fallbackDir.exists() && fallbackDir.isReadable()) {
+        m_directory = appRelativeDirectory;
+        dir = fallbackDir;
+      }
+    }
+#endif
     if (!dir.exists() || !dir.isReadable() ) {
       qWarning() << "Cannot find the directory: " << m_directory;
 
@@ -154,6 +166,11 @@ namespace Avogadro {
 
   const Molecule &InsertFragmentDialog::fragment()
   {
+    if (!d->model || !d->proxy || !ui.directoryTreeView->selectionModel()) {
+      d->fragment.clear();
+      return d->fragment;
+    }
+
     // The selected model index is in the proxy
     QModelIndexList selected = ui.directoryTreeView->selectionModel()->selectedIndexes();
 
@@ -226,8 +243,9 @@ namespace Avogadro {
       return; // no dialog or proxy model to set
 
     // Allow things like "ti" to match "Ti" etc.
-    QRegExp reg(newFilter, Qt::CaseInsensitive, QRegExp::WildcardUnix);
-    d->proxy->setFilterRegExp(reg);
+    QRegularExpression reg(QRegularExpression::wildcardToRegularExpression(newFilter),
+                           QRegularExpression::CaseInsensitiveOption);
+    d->proxy->setFilterRegularExpression(reg);
 
     if (!newFilter.isEmpty()) {
       // user interface niceness -- show any file match

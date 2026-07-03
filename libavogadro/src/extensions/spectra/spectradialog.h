@@ -23,10 +23,10 @@
 #include <QDialog>
 #include <QShowEvent>
 
-#include <QtCore/QHash>
-#include <QtCore/QVariant>
-#include <QtCore/QSettings>
-#include <QtCore/QElapsedTimer>
+#include <QHash>
+#include <QVariant>
+#include <QSettings>
+#include <QElapsedTimer>
 
 #include <avogadro/primitive.h>
 #include <avogadro/plotwidget.h>
@@ -60,7 +60,8 @@ namespace Avogadro {
     Q_OBJECT
 
   public:
-    explicit SpectraDialog( QWidget *parent = 0, Qt::WindowFlags f = 0 );
+    explicit SpectraDialog(QWidget *parent = nullptr,
+                           Qt::WindowFlags f = Qt::WindowFlags());
     ~SpectraDialog();
 
     void setMolecule(Molecule *molecule);

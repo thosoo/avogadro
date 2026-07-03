@@ -43,7 +43,7 @@ namespace Avogadro {
       bool childOfRoot = false;
       QModelIndex parent = sourceParent;
       for (int depth = 3; depth > 0; depth--) {
-        if (sourceModel()->data(parent).toString().contains(filterRegExp()))
+        if (sourceModel()->data(parent).toString().contains(filterRegularExpression()))
           return true; // a parent matches the pattern
 
         parent = parent.parent();
@@ -62,7 +62,7 @@ namespace Avogadro {
 
     // Check if the data for this row matches. If so, the default is to accept
     QString data = sourceModel()->data(sourceIndex).toString();
-    if (data.contains(filterRegExp()))
+    if (data.contains(filterRegularExpression()))
       return true;
 
     // Now we have to check the child nodes
@@ -76,7 +76,7 @@ namespace Avogadro {
         continue;
 
       QString rowData = sourceModel()->data(subRow).toString();
-      if (rowData.contains(filterRegExp()))
+      if (rowData.contains(filterRegularExpression()))
         return true;
     }
     return false; // nothing matched

@@ -58,7 +58,7 @@ namespace Avogadro {
 
   public:
     OrcaExtension(QObject *parent=NULL);
-    ~OrcaExtension() {}
+    ~OrcaExtension();
 
     // This tells Avogadro what actions to create
     virtual QList<QAction *> actions() const;
@@ -80,12 +80,12 @@ namespace Avogadro {
     // List of actions implemented by the extension
     QList<QAction *> m_actions;
     // Dialog from orcainputdialog.*
-    OrcaInputDialog *m_dialog;
+    QPointer<OrcaInputDialog> m_dialog;
 //    OrcaData *m_orcaData;
-    OrcaAnalyseDialog *m_analyseDialog;
+    QPointer<OrcaAnalyseDialog> m_analyseDialog;
 
     QPointer<Molecule> m_molecule;
-    GLWidget* m_widget;
+    QPointer<GLWidget> m_widget;
 
     bool m_NOAnalyse;
   };

@@ -45,7 +45,7 @@ Wolfram Research, Inc.
 tam@wri.com
 */
 
-#include <QtCore/qglobal.h>
+#include <qglobal.h>
 #include "qtaimlsodaintegrator.h"
 
 namespace Avogadro

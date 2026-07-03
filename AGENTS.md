@@ -1,8 +1,8 @@
-This repository requires Qt5 and other packages to build. Install dependencies on Ubuntu with:
+This repository requires Qt6 and other packages to build. Install dependencies on Ubuntu with:
 
 ```
 sudo apt-get update
-sudo apt-get install -y build-essential cmake qtbase5-dev qttools5-dev qttools5-dev-tools libqt5opengl5-dev libeigen3-dev zlib1g-dev libglu1-mesa-dev libglew-dev
+sudo apt-get install -y build-essential cmake qt6-base-dev qt6-base-dev-tools qt6-tools-dev qt6-tools-dev-tools libqt6opengl6-dev libeigen3-dev zlib1g-dev libglu1-mesa-dev libglew-dev
 ```
 
 OpenBabel will be downloaded automatically when configuring the build, so the
@@ -21,11 +21,11 @@ sudo xargs -a .github/apt-packages.txt apt-get install -y
 
 # Configure Avogadro (this step downloads and builds OpenBabel)
 cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DENABLE_TESTS=ON
 
 # Build and test
-cmake --build build -- -j$(nproc)
+cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 

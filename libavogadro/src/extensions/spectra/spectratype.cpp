@@ -22,16 +22,17 @@
 #include "spectradialog.h"
 #include <avogadro/global.h>
 
-#include <QtCore/QList>
-#include <QtCore/QObject>
-#include <QtCore/QString>
-#include <QtCore/QTextStream>
-#include <QtCore/QDebug>
+#include <QList>
+#include <QObject>
+#include <QString>
+#include <QTextStream>
+#include <QDebug>
 
 #include <avogadro/primitive.h>
 #include <avogadro/molecule.h>
 
 #include <cmath>
+#include <algorithm>
 
 namespace Avogadro {
 
@@ -43,8 +44,6 @@ namespace Avogadro {
   SpectraType::~SpectraType()
   {
     clear();
-    disconnect(m_dialog->getUi()->combo_spectra, SIGNAL(currentIndexChanged(QString)),
-        m_dialog, SLOT(updateCurrentSpectra(QString)));    
     delete m_tab_widget;
   }
 
@@ -167,7 +166,7 @@ namespace Avogadro {
             x += 4*FWHM / (int(dotsPerPeak));
         }
     }
-    qSort(xPoints);
+    std::sort(xPoints.begin(), xPoints.end());
     return xPoints;
   }
 

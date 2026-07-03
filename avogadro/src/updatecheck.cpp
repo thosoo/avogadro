@@ -28,11 +28,11 @@
 
 #include <avogadro/global.h>
 
-#include <QtWidgets/QMessageBox>
-#include <QtNetwork/QNetworkAccessManager>
-#include <QtNetwork/QNetworkReply>
-#include <QtCore/QSettings>
-#include <QtCore/QDebug>
+#include <QMessageBox>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QSettings>
+#include <QDebug>
 
 namespace Avogadro
 {

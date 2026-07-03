@@ -19,7 +19,7 @@
 #ifndef MACCHEMPASTEBOARD_H
 #define MACCHEMPASTEBOARD_H
 
-//#ifdef Q_WS_MAC
+//#ifdef Q_OS_MAC
 
 #include <QMacPasteboardMime>
 #include <QDebug>
@@ -60,7 +60,7 @@ namespace Avogadro {
 
 } // end namespace
 
-// endif Q_WS_MAC
+// endif Q_OS_MAC
 //#endif
 // endif MACCHEMPASTEBOARD_H
 #endif

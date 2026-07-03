@@ -18,7 +18,7 @@
 #ifndef DOCKWIDGET_H
 #define DOCKWIDGET_H
 
-#include <QtWidgets/QDockWidget>
+#include <QDockWidget>
 
 #include <avogadro/global.h> // For A_EXPORT
 
@@ -30,8 +30,10 @@ class A_EXPORT DockWidget : public QDockWidget
   Q_OBJECT
 public:
   explicit DockWidget(const QString &title,
-                      QWidget *parent = 0, Qt::WindowFlags flags = 0);
-  explicit DockWidget(QWidget *parent = 0, Qt::WindowFlags flags = 0);
+                      QWidget *parent = nullptr,
+                      Qt::WindowFlags flags = Qt::WindowFlags());
+  explicit DockWidget(QWidget *parent = nullptr,
+                      Qt::WindowFlags flags = Qt::WindowFlags());
   virtual ~DockWidget();
 
   virtual Qt::DockWidgetArea preferredWidgetDockArea();

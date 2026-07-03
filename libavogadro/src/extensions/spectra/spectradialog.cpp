@@ -33,28 +33,33 @@
 
 #include <QPen>
 #include <QColor>
-#include <QtWidgets/QColorDialog>
+#include <QColorDialog>
 #include <QButtonGroup>
 #include <QDoubleValidator>
 #include <QFileDialog>
-#include <QtWidgets/QFontDialog>
+#include <QFontDialog>
 #include <QInputDialog>
-#include <QtWidgets/QMessageBox>
+#include <QMessageBox>
 #include <QPixmap>
-#include <QtCore/QSettings>
+#include <QSettings>
 #include <QListWidgetItem>
-#include <QDesktopWidget>
+#include <QGuiApplication>
+#include <QScreen>
 #include <QToolTip>
 
-#include <QtCore/QDebug>
-#include <QtCore/QFile>
-#include <QtCore/QDir>
+#include <QComboBox>
+#include <QDebug>
+#include <QFile>
+#include <QDir>
 
 #include <avogadro/molecule.h>
 
 #include <openbabel/mol.h>
 #include <openbabel/obiter.h>
 #include <openbabel/generic.h>
+#include <QRegularExpression>
+
+#include <vector>
 
 using namespace OpenBabel;
 using namespace std;
@@ -144,8 +149,8 @@ namespace Avogadro {
             this, SLOT(showCoordinates(double,double)));
 
     // Misc. connections
-    connect(ui.combo_spectra, SIGNAL(currentIndexChanged(QString)),
-            this, SLOT(updateCurrentSpectra(QString)));
+    connect(ui.combo_spectra, &QComboBox::currentTextChanged,
+            this, &SpectraDialog::updateCurrentSpectra);
     connect(ui.tab_widget, SIGNAL(currentChanged(int)),
             this, SLOT(updateComboSpectra(int)));
     connect(ui.push_advanced, SIGNAL(clicked()),
@@ -612,7 +617,7 @@ namespace Avogadro {
     while (!in.atEnd()) {
       QString line = in.readLine();
       if (line.trimmed().startsWith('#')) continue; 	//discard comments
-      QStringList data = line.split(QRegExp(delim), QString::SkipEmptyParts);
+      QStringList data = line.split(QRegularExpression(delim), Qt::SkipEmptyParts);
       if (data.size() < 2) {
         qWarning() << "SpectraDialog::importSpectra Skipping invalid line in file " << filename << ":\n\t\"" << line << "\"";
         continue;
@@ -727,7 +732,7 @@ namespace Avogadro {
           QString line = in.readLine();
           if (!end.isEmpty() && line.contains(end)) break;
           if (line.trimmed().startsWith('#')) continue; 	//discard comments
-          QStringList data = line.split(QRegExp(delim), QString::SkipEmptyParts);
+          QStringList data = line.split(QRegularExpression(delim), Qt::SkipEmptyParts);
           if (data.size() < min) {
             qWarning() << "SpectraDialog::importSpectra Skipping invalid line in file " << filename
                        << ": Too few entries (need " << min << "\n\t\"" << line << "\"";
@@ -752,7 +757,9 @@ namespace Avogadro {
       OpenBabel::OBMol *obmol = new OpenBabel::OBMol (m_molecule->OBMol());
       std::vector< std::vector< OpenBabel::vector3 > > Lx;
       OpenBabel::OBVibrationData *obvib = new OpenBabel::OBVibrationData;
-      obvib->SetData(Lx, x.toVector().toStdVector(), y.toVector().toStdVector());
+      const std::vector<double> xData(x.cbegin(), x.cend());
+      const std::vector<double> yData(y.cbegin(), y.cend());
+      obvib->SetData(Lx, xData, yData);
       obmol->SetData(obvib);
       m_molecule->setOBMol(obmol);
     }
@@ -793,7 +800,7 @@ namespace Avogadro {
         QString wl_units;
         if (type.contains("Turbomole")) {
           // The cue line contains the units for turbomole.
-          QStringList sl = line.split(QRegExp("\\s+"));
+          QStringList sl = line.split(QRegularExpression("\\s+"));
           if (sl.size() < 5) {
             QMessageBox::warning(this, tr("Spectra Import"), tr("Turbomole CD file is improperly formatted  : %1").arg(filename));
             return;
@@ -807,7 +814,7 @@ namespace Avogadro {
           line = in.readLine();
           if (!end.isEmpty() && line.contains(end)) break;
           if (line.trimmed().startsWith('#')) continue; 	//discard comments
-          QStringList data = line.split(QRegExp(delim), QString::SkipEmptyParts);
+          QStringList data = line.split(QRegularExpression(delim), Qt::SkipEmptyParts);
           if (data.size() < min) {
             qWarning() << "SpectraDialog::importSpectra Skipping invalid line in file " << filename
                        << ": Too few entries (need " << min << "\n\t\"" << line << "\"";
@@ -847,8 +854,10 @@ namespace Avogadro {
       else {
         forces = etd->GetForces();
       }
-      etd->SetData(x.toVector().toStdVector(), forces);
-      etd->SetRotatoryStrengthsLength(y.toVector().toStdVector());
+      const std::vector<double> xData(x.cbegin(), x.cend());
+      const std::vector<double> yData(y.cbegin(), y.cend());
+      etd->SetData(xData, forces);
+      etd->SetRotatoryStrengthsLength(yData);
       obmol->SetData(etd);
       m_molecule->setOBMol(obmol);
     }
@@ -890,7 +899,7 @@ namespace Avogadro {
         QString wl_units;
         if (type.contains("Turbomole")) {
           // The cue line contains the units for turbomole.
-          QStringList sl = line.split(QRegExp("\\s+"));
+          QStringList sl = line.split(QRegularExpression("\\s+"));
           if (sl.size() < 5) {
             QMessageBox::warning(this, tr("Spectra Import"), tr("Turbomole CD file is improperly formatted  : %1").arg(filename));
             return;
@@ -904,7 +913,7 @@ namespace Avogadro {
           line = in.readLine();
           if (!end.isEmpty() && line.contains(end)) break;
           if (line.trimmed().startsWith('#')) continue; 	//discard comments
-          QStringList data = line.split(QRegExp(delim), QString::SkipEmptyParts);
+          QStringList data = line.split(QRegularExpression(delim), Qt::SkipEmptyParts);
           if (data.size() < min) {
             qWarning() << "SpectraDialog::importSpectra Skipping invalid line in file " << filename
                        << ": Too few entries (need " << min << "\n\t\"" << line << "\"";
@@ -944,8 +953,10 @@ namespace Avogadro {
       else {
         forces = etd->GetForces();
       }
-      etd->SetData(x.toVector().toStdVector(), forces);
-      etd->SetEDipole(y.toVector().toStdVector());
+      const std::vector<double> xData(x.cbegin(), x.cend());
+      const std::vector<double> yData(y.cbegin(), y.cend());
+      etd->SetData(xData, forces);
+      etd->SetEDipole(yData);
       obmol->SetData(etd);
       m_molecule->setOBMol(obmol);
     }
@@ -1054,7 +1065,7 @@ namespace Avogadro {
           QSize s = size();
           s.setWidth(s.width() + ui.dataTable->size().width());
           s.setHeight(s.height() + ui.tab_widget->size().height());
-          QRect rect = QApplication::desktop()->screenGeometry();
+          QRect rect = QGuiApplication::primaryScreen()->availableGeometry();
           if (s.width() > rect.width() || s.height() > rect.height())
               s = rect.size()*0.9;
           resize(s);
@@ -1070,7 +1081,7 @@ namespace Avogadro {
         ui.dataTable->hide();
         ui.push_exportData->hide();
         ui.push_exportDressedData->hide();
-        QRect rect = QApplication::desktop()->screenGeometry();
+        QRect rect = QGuiApplication::primaryScreen()->availableGeometry();
         move(rect.width()/2 - s.width()/2, rect.height()/2 - s.height()/2);
     }
   }
