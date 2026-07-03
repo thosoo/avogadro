@@ -42,6 +42,7 @@
 
 #include <QtGui>
 #include <QButtonGroup>
+#include <QComboBox>
 
 #include <QString>
 #include <QTextStream>
@@ -390,9 +391,15 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
   void OrcaInputDialog::connectAdvanced()
   {
       // Advanced Basis Set Slots
-      connect (ui.basisBasisSetCombo, SIGNAL(currentIndexChanged(int)), this,  SLOT (setBasisBasisSet(int )));
-      connect (ui.basisAuxBasisSetCombo, SIGNAL(currentIndexChanged(int)), this, SLOT( setBasisAuxBasisSet (int )));
-      connect (ui.basisAuxCorrBasisSetCombo, SIGNAL(currentIndexChanged(int)), this, SLOT( setBasisAuxCorrBasisSet (int )));
+      connect(ui.basisBasisSetCombo,
+              qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setBasisBasisSet);
+      connect(ui.basisAuxBasisSetCombo,
+              qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setBasisAuxBasisSet);
+      connect(ui.basisAuxCorrBasisSetCombo,
+              qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setBasisAuxCorrBasisSet);
 //      connect (ui.basisECPCheck, SIGNAL(toggled(bool)), this, SLOT(setBasisUseEPC (bool )));
 //      connect (ui.basisAuxECPCheck, SIGNAL(toggled (bool)), this, SLOT( setBasisUseAuxEPC (bool )));
 //      connect (ui.basisAuxCorrECPCheck, SIGNAL(toggled (bool)), this, SLOT( setBasisUseAuxCorrEPC (bool )));
@@ -403,14 +410,16 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
       // Advanced Control Slots
       connect(ui.advancedTree, SIGNAL(clicked(QModelIndex)), this, SLOT(advancedItemClicked(QModelIndex)));
 
-      connect(ui.controlRunTypeCombo, SIGNAL(currentIndexChanged(int)),
-              this, SLOT(setControlCalculation(int)));
+      connect(ui.controlRunTypeCombo,
+              qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setControlCalculation);
       connect(ui.controlMultiplicitySpin, SIGNAL(valueChanged(int)),
               this, SLOT(setControlMultiplicity(int)));
       connect(ui.controlChargeSpin, SIGNAL(valueChanged(int)),
               this, SLOT(setControlCharge(int)));
-      connect(ui.controlMethodCombo, SIGNAL(currentIndexChanged(int)),
-              this, SLOT(setControlMethod(int)));
+      connect(ui.controlMethodCombo,
+              qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setControlMethod);
 
       // Advanced SCF Slots
 
@@ -420,9 +429,11 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
       connect (ui.scfLevelShiftDSpin, SIGNAL(valueChanged(double)), this, SLOT(setSCFLevelShift(double)));
       connect (ui.scfDampErrorDSpin, SIGNAL(valueChanged(double)), this, SLOT(setSCFDampError (double)));
       connect (ui.scfLevelErrorDSpin, SIGNAL(valueChanged(double)), this, SLOT(setSCFLevelError(double)));
-      connect (ui.scfAccCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setSCFAccuracy(int)));
+      connect(ui.scfAccCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setSCFAccuracy);
 
-      connect (ui.scfTypeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setSCFType(int)));
+      connect(ui.scfTypeCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setSCFType);
       connect (ui.scfMaxIterSpin, SIGNAL(valueChanged(int)), this , SLOT (setSCFMaxIter(int)));
 
       if (m_scfConvButtons) {
@@ -436,28 +447,37 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
 
       // Advanced DFT Slots
 
-      connect (ui.solvationCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setSolvation(int)));
-      connect (ui.solvationModelCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setSolvationModel(int)));
+      connect(ui.solvationCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setSolvation);
+      connect(ui.solvationModelCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setSolvationModel);
       connect (ui.cpcmGroup, SIGNAL(toggled(bool)), this, SLOT(setCpcmAdvancedEnabled(bool)));
       connect (ui.cpcmDRACOCheck, SIGNAL(toggled(bool)), this, SLOT(setCpcmDRACO(bool)));
       connect (ui.cpcmEpsilonSpin, SIGNAL(valueChanged(double)), this, SLOT(setCpcmEpsilon(double)));
       connect (ui.cpcmRefracSpin, SIGNAL(valueChanged(double)), this, SLOT(setCpcmRefrac(double)));
       connect (ui.cpcmRSolvSpin, SIGNAL(valueChanged(double)), this, SLOT(setCpcmRSolv(double)));
-      connect (ui.cpcmSurfaceTypeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setCpcmSurfaceType(int)));
-      connect (ui.dispersionCombo, SIGNAL(currentIndexChanged(int)), this,SLOT(setDispersion(int)));
-      connect (ui.dftFunctionalCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setDFTFunctional(int)));
+      connect(ui.cpcmSurfaceTypeCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setCpcmSurfaceType);
+      connect(ui.dispersionCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setDispersion);
+      connect(ui.dftFunctionalCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setDFTFunctional);
 
       // Advanced resource / excited-state slots
-      connect (ui.maxCoreCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setResourcesMaxCore(int)));
-      connect (ui.nprocsCombo, SIGNAL(currentIndexChanged(int)), this,SLOT(setResourcesNProcs(int)));
+      connect(ui.maxCoreCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setResourcesMaxCore);
+      connect(ui.nprocsCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setResourcesNProcs);
       connect (ui.tddftCheck, SIGNAL(toggled(bool)), this, SLOT(setTDDFTEnabled(bool)));
       connect (ui.tddftRootsSpin, SIGNAL(valueChanged(int)), this, SLOT(setTDDFTRoots(int)));
       connect (ui.nmrCheck, SIGNAL(toggled(bool)), this, SLOT(setNMRShielding(bool)));
 
       // Advanced Data Slots
-      connect(ui.dataFormatCombo, SIGNAL(currentIndexChanged(int)), this, SLOT (setDataFormat(int)));
+      connect(ui.dataFormatCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setDataFormat);
       connect(ui.dataCommentLine, SIGNAL(editingFinished()), this, SLOT(setDataComment()));
-      connect(ui.dataPrintCombo, SIGNAL(currentIndexChanged(int)), this, SLOT (setPrintLevel(int)));
+      connect(ui.dataPrintCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setPrintLevel);
       connect(ui.MOPrintCheck, SIGNAL(toggled(bool)), this, SLOT(setMOPrint(bool)));
       connect(ui.basisPrintCheck, SIGNAL(toggled(bool)),this, SLOT(setBasisPrint(bool)));
   }
@@ -484,20 +504,24 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
   {
       connect(ui.basicCommentLine, SIGNAL(editingFinished()),
               this, SLOT(setBasicComment()));
-      connect(ui.basicCalculationCombo, SIGNAL(currentIndexChanged(int)),
-              this, SLOT(setBasicCalculation(int)));
-      connect(ui.basicMethodCombo, SIGNAL(currentIndexChanged(int)),
-              this, SLOT(setBasicMethod(int)));
-      connect(ui.basicBasisSetCombo, SIGNAL(currentIndexChanged(int)),
-              this, SLOT(setBasicBasis(int)));
+      connect(ui.basicCalculationCombo,
+              qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setBasicCalculation);
+      connect(ui.basicMethodCombo,
+              qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setBasicMethod);
+      connect(ui.basicBasisSetCombo,
+              qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setBasicBasis);
       connect(ui.basicMultiplicitySpin, SIGNAL(valueChanged(int)),
               this, SLOT(setBasicMultiplicity(int)));
 
       connect(ui.basicChargeSpin, SIGNAL(valueChanged(int)),
               this, SLOT(setBasicCharge(int)));
 
-      connect(ui.basicFormatCombo, SIGNAL(currentIndexChanged(int)),
-              this, SLOT(setBasicCoordsFormat(int)));
+      connect(ui.basicFormatCombo,
+              qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setBasicCoordsFormat);
   }
 
   void OrcaInputDialog::advancedItemClicked(const QModelIndex &index )
