@@ -34,9 +34,55 @@
 
 
 #include <QString>
+#include <QStringList>
 #include <QTextStream>
 
 using namespace Avogadro;
+
+namespace {
+
+QString fallbackBasisText(int index)
+{
+    static const QStringList basisNames = QStringList()
+        << "def2-SVP"
+        << "def2-SV(P)"
+        << "def2-TZVP"
+        << "def2-TZVP(-f)"
+        << "def2-TZVPP"
+        << "def2-QZVPP";
+    if (index < 0 || index >= basisNames.size())
+        return basisNames.at(OrcaExtension::TZVP);
+    return basisNames.at(index);
+}
+
+QString fallbackDFTFunctionalText(int index)
+{
+    static const QStringList functionals = QStringList()
+        << "PBE"
+        << "r2SCAN"
+        << "B3LYP"
+        << "PBE0"
+        << "TPSSh"
+        << "M06L";
+    if (index < 0 || index >= functionals.size())
+        return functionals.at(OrcaExtension::PBE0);
+    return functionals.at(index);
+}
+
+QString basisTextFromEnum(const QMetaEnum &metaEnum, int index)
+{
+    const char *key = metaEnum.isValid() ? metaEnum.valueToKey(index) : nullptr;
+    if (!key)
+        return fallbackBasisText(index);
+
+    QString basis = QLatin1String(key);
+    basis.replace("SV_P", "SV(P)");
+    basis.replace("TZVP_F", "TZVP(-f)");
+    basis.prepend("def2-");
+    return basis;
+}
+
+} // namespace
 
 OrcaVibrations::OrcaVibrations ()
 {
@@ -154,11 +200,7 @@ QString OrcaBasicData::getBasisTxt()
 {
     // Translate the enum basis set to normal text
     // enum basisType {SVP, TZVP, TZVPP, QZVPP }
-    QString returnBasis = m_enumBasis.valueToKey(m_basisType);
-    returnBasis.replace("SV_P", "SV(P)");
-    returnBasis.replace("TZVP_F", "TZVP(-f)");
-    returnBasis.prepend("def2-");
-    return returnBasis;
+    return basisTextFromEnum(m_enumBasis, m_basisType);
 //    switch (m_basisType)
 //    {
 //    case SVP:
@@ -222,10 +264,7 @@ QString OrcaBasisData::getBasisTxt()
     // Translate the enum basis set to normal text
     // enum basisType {SVP, TZVP, TZVPP, QZVPP }
 
-    QString returnBasis = m_enumBasis.valueToKey(m_basis);
-    returnBasis.replace("SV_P", "SV(P)");
-    returnBasis.replace("TZVP_F", "TZVP(-f)");
-    returnBasis.prepend("def2-");
+    QString returnBasis = basisTextFromEnum(m_enumBasis, m_basis);
 //    if (m_useEPC && !m_useRel) {
 //        returnBasis.append("-AE");
 //    }
@@ -256,10 +295,7 @@ QString OrcaBasisData::getAuxCorrBasisTxt()
     // used as correlation auxilary basis
     // enum basisType {SVP, TZVP, TZVPP, QZVPP }
 
-    QString returnBasis = m_enumBasis.valueToKey(m_auxCorrBasis);
-    returnBasis.replace("SV_P", "SV(P)");
-    returnBasis.replace("TZVP_F", "TZVP(-f)");
-    returnBasis.prepend("def2-");
+    QString returnBasis = basisTextFromEnum(m_enumBasis, m_auxCorrBasis);
     returnBasis.append("/C");
     return returnBasis;
 
@@ -402,7 +438,8 @@ QString OrcaDFTData::getDFTFunctionalTxt()
     // Translate the enum DFTFunctional Type to normal text
 //     enum OrcaExtension::DFTFunctionalType {LDA, BP, BLYP, PW91, B3LYP, B3PW, PBEO, TPSS, TPSSH, M06L};
 
-    return m_enumDFT.valueToKey(m_DFTFuncional);
+    const char *key = m_enumDFT.isValid() ? m_enumDFT.valueToKey(m_DFTFuncional) : nullptr;
+    return key ? QLatin1String(key) : fallbackDFTFunctionalText(m_DFTFuncional);
 }
 
 OrcaSCFData::OrcaSCFData()
@@ -510,9 +547,6 @@ QString OrcaDataData::getFormatTxt()
         return "";
     }
 }
-
-
-
 
 
 

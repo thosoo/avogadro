@@ -110,9 +110,10 @@ class DialogSmokeTest : public QObject
 
 private Q_SLOTS:
   void inventory();
-  void orcaAnalyseDialogOpens();
   void orcaInputDialogOpens();
+  void orcaInputDialogOpensWithoutMolecule();
   void orcaGenerateActionOpens();
+  void orcaAnalyseDialogOpens();
   void quantumInputDialogsOpen();
   void coreAppDialogsOpen();
   void forceFieldDialogOpens();
@@ -163,9 +164,21 @@ void DialogSmokeTest::orcaInputDialogOpens()
   populateSmokeMolecule(molecule);
 
   qInfo() << "Smoke-opening" << QStringLiteral("OrcaInputDialog");
+  qInfo() << "OrcaInputDialog: constructing";
   auto dialog = std::make_unique<OrcaInputDialog>();
+  qInfo() << "OrcaInputDialog: setting molecule";
   dialog->setMolecule(&molecule);
+  qInfo() << "OrcaInputDialog: showing";
   smokeShowWidget(QStringLiteral("OrcaInputDialog"), dialog.get());
+}
+
+void DialogSmokeTest::orcaInputDialogOpensWithoutMolecule()
+{
+  qInfo() << "Smoke-opening" << QStringLiteral("OrcaInputDialog without molecule");
+  qInfo() << "OrcaInputDialog without molecule: constructing";
+  auto dialog = std::make_unique<OrcaInputDialog>();
+  qInfo() << "OrcaInputDialog without molecule: showing";
+  smokeShowWidget(QStringLiteral("OrcaInputDialog without molecule"), dialog.get());
 }
 
 void DialogSmokeTest::orcaGenerateActionOpens()
