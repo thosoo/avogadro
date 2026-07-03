@@ -49,6 +49,7 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QSignalBlocker>
+#include <QTimer>
 
 using namespace OpenBabel;
 using namespace Eigen;
@@ -248,7 +249,9 @@ QStringList orcaSolventEntries()
 }
 
 OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
-    QDialog( parent, f ), m_molecule(NULL), m_basic(true), m_advanced(false),
+    QDialog( parent, f ), m_molecule(NULL), basicData(NULL), basisData(NULL),
+    controlData(NULL), dataData(NULL), scfData(NULL), dftData(NULL),
+    m_basic(true), m_advanced(false),
     m_scfConvButtons(NULL), m_scfConv2ndButtons(NULL), m_output(), m_savePath(),
     m_dirty(false), m_warned(false), m_initializing(true),
     m_pendingMoleculeSync(false)
@@ -380,7 +383,7 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
     if (m_pendingMoleculeSync)
       applyMoleculeToUi();
     // Generate an initial preview of the input deck
-    updatePreviewText();
+    QTimer::singleShot(0, this, &OrcaInputDialog::updatePreviewText);
   }
 
   void OrcaInputDialog::connectModes()
@@ -539,11 +542,11 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
 
 void  OrcaInputDialog::initComboboxes()
   {
-      meta = new QMetaObject (OrcaExtension::staticMetaObject);
+      const QMetaObject &metaObject = OrcaExtension::staticMetaObject;
       QStringList items;
-      for (int i=0; i < meta->enumeratorCount(); ++i) {
+      for (int i=0; i < metaObject.enumeratorCount(); ++i) {
           items.clear();
-          QMetaEnum m = meta->enumerator(i);
+          QMetaEnum m = metaObject.enumerator(i);
           QString enumType = m.name();
           if (enumType == "DFTFunctionalType") {
               dftData->setEnumDFT(m);
@@ -845,6 +848,8 @@ void  OrcaInputDialog::initComboboxes()
   void OrcaInputDialog::applyMoleculeToUi()
   {
       if (m_initializing || !m_molecule)
+          return;
+      if (!basicData || !controlData)
           return;
 
       OpenBabel::OBMol obmol = m_molecule->OBMol();
@@ -1277,6 +1282,9 @@ void  OrcaInputDialog::initComboboxes()
           return;
       if (!isVisible())
           return;
+      if (!basicData || !basisData || !controlData || !dataData || !scfData ||
+          !dftData)
+          return;
 
       // Generate the input deck and display it
 
@@ -1314,6 +1322,10 @@ void  OrcaInputDialog::initComboboxes()
 
       QString buffer;
       QTextStream mol(&buffer);
+
+      if (!basicData || !basisData || !controlData || !dataData || !scfData ||
+          !dftData)
+          return buffer;
 
       int charge, multiplicity;
       QString comment;

@@ -206,9 +206,6 @@ namespace Avogadro {
 
         QPointer<Molecule>  m_molecule;
 
-        QMetaObject*        meta;
-
-
         OrcaBasicData*      basicData;
 
         OrcaBasisData*      basisData;

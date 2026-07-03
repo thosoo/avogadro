@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include <QAction>
 #include <QApplication>
 #include <QCoreApplication>
 #include <QEventLoop>
@@ -20,6 +21,8 @@
 #include "../src/extensions/forcefielddialog.h"
 #include "../src/extensions/insertfragmentdialog.h"
 #include "../src/extensions/orca/orcaanalysedialog.h"
+#include "../src/extensions/orca/orcaextension.h"
+#include "../src/extensions/orca/orcainputdialog.h"
 #include "../src/extensions/quantuminput/abinitinputdialog.h"
 #include "../src/extensions/quantuminput/daltoninputdialog.h"
 #include "../src/extensions/quantuminput/gamessinputdata.h"
@@ -53,6 +56,8 @@ using Avogadro::Molecule;
 using Avogadro::MOPACInputDialog;
 using Avogadro::NWChemInputDialog;
 using Avogadro::OrcaAnalyseDialog;
+using Avogadro::OrcaExtension;
+using Avogadro::OrcaInputDialog;
 using Avogadro::Psi4InputDialog;
 using Avogadro::QChemInputDialog;
 using Avogadro::TeraChemInputDialog;
@@ -106,6 +111,8 @@ class DialogSmokeTest : public QObject
 private Q_SLOTS:
   void inventory();
   void orcaAnalyseDialogOpens();
+  void orcaInputDialogOpens();
+  void orcaGenerateActionOpens();
   void quantumInputDialogsOpen();
   void coreAppDialogsOpen();
   void forceFieldDialogOpens();
@@ -118,7 +125,7 @@ void DialogSmokeTest::inventory()
   // Inventory-driven priority list for this smoke suite.
   //
   // P0 covered here:
-  // - ORCA analyse dialog.
+  // - ORCA analyse dialog and ORCA input generator extension action path.
   // - Quantum input dialogs constructible without external programs or modal UI.
   // - Recently Qt6-touched forcefield/constraint and insert-fragment dialogs.
   //
@@ -129,10 +136,6 @@ void DialogSmokeTest::inventory()
   //   spectra bases, not user-facing smoke factories.
   //
   // Skipped for now:
-  // - OrcaInputDialog requires OrcaExtension::staticMetaObject. It should be
-  //   covered later with a complete plugin harness or a small enum/metaobject
-  //   refactor that removes the dialog's dependency on the plugin extension
-  //   metaobject.
   // - ConformerSearchDialog references ForceFieldCommand from the forcefield
   //   extension implementation. It is inventory-only until a complete, stable
   //   force-field plugin test closure is added.
@@ -152,6 +155,56 @@ void DialogSmokeTest::orcaAnalyseDialogOpens()
   smokeShowDialog(QStringLiteral("OrcaAnalyseDialog"), []() {
     return new OrcaAnalyseDialog;
   });
+}
+
+void DialogSmokeTest::orcaInputDialogOpens()
+{
+  Molecule molecule;
+  populateSmokeMolecule(molecule);
+
+  qInfo() << "Smoke-opening" << QStringLiteral("OrcaInputDialog");
+  auto dialog = std::make_unique<OrcaInputDialog>();
+  dialog->setMolecule(&molecule);
+  smokeShowWidget(QStringLiteral("OrcaInputDialog"), dialog.get());
+}
+
+void DialogSmokeTest::orcaGenerateActionOpens()
+{
+  QWidget parent;
+  OrcaExtension extension(&parent);
+  Molecule molecule;
+  populateSmokeMolecule(molecule);
+  extension.setMolecule(&molecule);
+
+  QAction *generateAction = nullptr;
+  const QList<QAction *> actions = extension.actions();
+  for (QAction *action : actions) {
+    if (action && action->text().contains(QStringLiteral("Generate Orca Input"))) {
+      generateAction = action;
+      break;
+    }
+  }
+
+  QVERIFY2(generateAction, "ORCA generate action was not registered");
+  qInfo() << "Smoke-opening" << QStringLiteral("OrcaExtension Generate Orca Input action");
+  extension.performAction(generateAction, nullptr);
+  processUiEvents();
+
+  OrcaInputDialog *dialog = parent.findChild<OrcaInputDialog *>();
+  if (!dialog) {
+    const QWidgetList widgets = QApplication::topLevelWidgets();
+    for (QWidget *widget : widgets) {
+      dialog = qobject_cast<OrcaInputDialog *>(widget);
+      if (dialog)
+        break;
+    }
+  }
+
+  QVERIFY2(dialog, "ORCA generate action did not open OrcaInputDialog");
+  QVERIFY2(dialog->isVisible(), "ORCA generate action dialog is not visible");
+  processUiEvents();
+  dialog->close();
+  processUiEvents();
 }
 
 void DialogSmokeTest::quantumInputDialogsOpen()

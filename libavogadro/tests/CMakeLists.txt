@@ -92,13 +92,21 @@ endforeach ()
 set(dialogsmoketest_SRCS
   dialogsmoketest.cpp
 
-  # ORCA analyse smoke coverage. OrcaInputDialog is intentionally skipped in
-  # dialogsmoketest.cpp because it depends on OrcaExtension::staticMetaObject,
-  # and adding plugin extension sources with Q_PLUGIN_METADATA would make this
-  # standalone test target fragile.
+  # ORCA input/analyse smoke coverage. OrcaInputDialog uses
+  # OrcaExtension::staticMetaObject, and the real input-generator regression is
+  # reached through OrcaExtension::performAction(), so the extension source and
+  # header are included explicitly to provide the generated metaobject and the
+  # menu/action path under test.
+  ../src/extensions/orca/orcaextension.cpp
+  ../src/extensions/orca/orcaextension.h
+  ../src/extensions/orca/orcainputdialog.cpp
+  ../src/extensions/orca/orcainputdialog.h
   ../src/extensions/orca/orcaanalysedialog.cpp
+  ../src/extensions/orca/orcaanalysedialog.h
   ../src/extensions/orca/orcaspectra.cpp
   ../src/extensions/orca/orcadata.cpp
+  ../src/extensions/orca/orcadata.h
+  ../src/extensions/orca/orcainputdialog.ui
   ../src/extensions/orca/orcaanalysedialog.ui
   ../src/extensions/orca/orcaspectra.ui
 
