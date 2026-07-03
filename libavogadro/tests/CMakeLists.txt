@@ -91,13 +91,19 @@ endforeach ()
 
 set(dialogsmoketest_SRCS
   dialogsmoketest.cpp
-  ../src/extensions/orca/orcainputdialog.cpp
+
+  # ORCA analyse smoke coverage. OrcaInputDialog is intentionally skipped in
+  # dialogsmoketest.cpp because it depends on OrcaExtension::staticMetaObject,
+  # and adding plugin extension sources with Q_PLUGIN_METADATA would make this
+  # standalone test target fragile.
   ../src/extensions/orca/orcaanalysedialog.cpp
   ../src/extensions/orca/orcaspectra.cpp
   ../src/extensions/orca/orcadata.cpp
-  ../src/extensions/orca/orcainputdialog.ui
   ../src/extensions/orca/orcaanalysedialog.ui
   ../src/extensions/orca/orcaspectra.ui
+
+  # Concrete quantum input dialogs. inputdialog.cpp provides the abstract base
+  # implementation, but InputDialog itself is not instantiated.
   ../src/extensions/quantuminput/inputdialog.cpp
   ../src/extensions/quantuminput/abinitinputdialog.cpp
   ../src/extensions/quantuminput/daltoninputdialog.cpp
@@ -125,16 +131,21 @@ set(dialogsmoketest_SRCS
   ../src/extensions/quantuminput/teracheminputdialog.ui
   ../src/extensions/quantuminput/lammpsinputdialog.ui
   ../src/extensions/quantuminput/gamessinputdialog.ui
+
+  # Simple force-field dialogs. ConformerSearchDialog is skipped because it
+  # references ForceFieldCommand from forcefieldextension.cpp.
   ../src/extensions/forcefielddialog.cpp
   ../src/extensions/constraintsdialog.cpp
   ../src/extensions/constraintsmodel.cpp
-  ../src/extensions/conformersearchdialog.cpp
   ../src/extensions/forcefielddialog.ui
   ../src/extensions/constraintsdialog.ui
-  ../src/extensions/conformersearchdialog.ui
+
+  # Insert-fragment dialog and model helper.
   ../src/extensions/insertfragmentdialog.cpp
   ../src/extensions/sortfiltertreeproxymodel.cpp
   ../src/extensions/insertfragmentdialog.ui
+
+  # Simple core application dialogs.
   ../../avogadro/src/addenginedialog.cpp
   ../../avogadro/src/updatedialog.cpp
   ../../avogadro/src/addenginedialog.ui)
