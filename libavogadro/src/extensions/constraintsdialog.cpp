@@ -34,7 +34,11 @@
 
 namespace Avogadro {
 
-  ConstraintsDialog::ConstraintsDialog( QWidget *parent, Qt::WindowFlags f ) : QDialog( parent, f )
+  ConstraintsDialog::ConstraintsDialog( QWidget *parent, Qt::WindowFlags f ) :
+    QDialog( parent, f ),
+    m_molecule(nullptr),
+    m_constraints(nullptr),
+    m_forceField(nullptr)
   {
     ui.setupUi(this);
 
@@ -59,127 +63,8 @@ namespace Avogadro {
 
   void ConstraintsDialog::showEvent(QShowEvent *event)
   {
-    Q_UNUSED(event);
-
-    switch (ui.comboType->currentIndex()) {
-    case 0:
-    case 1:
-    case 2:
-    case 3:
-    case 4:
-      if (m_molecule->numAtoms() >= 1) {
-        ui.editA->setMinimum(1);
-        ui.editB->setMinimum(0);
-        ui.editC->setMinimum(0);
-        ui.editD->setMinimum(0);
-        ui.editA->setMaximum(m_molecule->numAtoms());
-        ui.editB->setMaximum(0);
-        ui.editC->setMaximum(0);
-        ui.editD->setMaximum(0);
-        ui.editValue->setMinimum(0.0);
-        ui.editValue->setMaximum(0.0);
-      } else {
-        ui.editA->setMinimum(0);
-        ui.editB->setMinimum(0);
-        ui.editC->setMinimum(0);
-        ui.editD->setMinimum(0);
-        ui.editA->setMaximum(0);
-        ui.editB->setMaximum(0);
-        ui.editC->setMaximum(0);
-        ui.editD->setMaximum(0);
-        ui.editValue->setMinimum(0.0);
-        ui.editValue->setMaximum(0.0);
-      }
-      break;
-    case 5:
-      if (m_molecule->numAtoms() >= 2) {
-        ui.editA->setMinimum(1);
-        ui.editB->setMinimum(1);
-        ui.editC->setMinimum(0);
-        ui.editD->setMinimum(0);
-        ui.editA->setMaximum(m_molecule->numAtoms() - 1);
-        ui.editB->setMaximum(m_molecule->numAtoms());
-        ui.editC->setMaximum(0);
-        ui.editD->setMaximum(0);
-        ui.editB->setValue(2);
-        ui.editValue->setMinimum(0.0);
-        ui.editValue->setMaximum(5.0);
-        ui.editValue->setSingleStep(0.05);
-        ui.editValue->setValue(1.5);
-      } else {
-        ui.editA->setMinimum(0);
-        ui.editB->setMinimum(0);
-        ui.editC->setMinimum(0);
-        ui.editD->setMinimum(0);
-        ui.editA->setMaximum(0);
-        ui.editB->setMaximum(0);
-        ui.editC->setMaximum(0);
-        ui.editD->setMaximum(0);
-        ui.editValue->setMinimum(0.0);
-        ui.editValue->setMaximum(0.0);
-      }
-      break;
-    case 6:
-      if (m_molecule->numAtoms() >= 3) {
-        ui.editA->setMinimum(1);
-        ui.editB->setMinimum(1);
-        ui.editC->setMinimum(1);
-        ui.editD->setMinimum(0);
-        ui.editA->setMaximum(m_molecule->numAtoms() - 2);
-        ui.editB->setMaximum(m_molecule->numAtoms() - 1);
-        ui.editC->setMaximum(m_molecule->numAtoms());
-        ui.editD->setMaximum(0);
-        ui.editB->setValue(2);
-        ui.editC->setValue(3);
-        ui.editValue->setMinimum(0.0);
-        ui.editValue->setMaximum(180.0);
-        ui.editValue->setSingleStep(1.0);
-        ui.editValue->setValue(109.0);	
-      } else {
-        ui.editA->setMinimum(0);
-        ui.editB->setMinimum(0);
-        ui.editC->setMinimum(0);
-        ui.editD->setMinimum(0);
-        ui.editA->setMaximum(0);
-        ui.editB->setMaximum(0);
-        ui.editC->setMaximum(0);
-        ui.editD->setMaximum(0);
-        ui.editValue->setMinimum(0.0);
-        ui.editValue->setMaximum(0.0);
-      }
-      break;
-    case 7:
-      if (m_molecule->numAtoms() >= 4) {
-        ui.editA->setMinimum(1);
-        ui.editB->setMinimum(1);
-        ui.editC->setMinimum(1);
-        ui.editD->setMinimum(1);
-        ui.editA->setMaximum(m_molecule->numAtoms() - 3);
-        ui.editB->setMaximum(m_molecule->numAtoms() - 2);
-        ui.editC->setMaximum(m_molecule->numAtoms() - 1);
-        ui.editD->setMaximum(m_molecule->numAtoms());
-        ui.editB->setValue(2);
-        ui.editC->setValue(3);
-        ui.editD->setValue(4);
-        ui.editValue->setMinimum(-180.0);
-        ui.editValue->setMaximum(180.0);
-        ui.editValue->setSingleStep(10.0);
-        ui.editValue->setValue(0.0);
-      } else {
-        ui.editA->setMinimum(0);
-        ui.editB->setMinimum(0);
-        ui.editC->setMinimum(0);
-        ui.editD->setMinimum(0);
-        ui.editA->setMaximum(0);
-        ui.editB->setMaximum(0);
-        ui.editC->setMaximum(0);
-        ui.editD->setMaximum(0);
-        ui.editValue->setMinimum(0.0);
-        ui.editValue->setMaximum(0.0);
-      }
-      break;
-    }
- 
+    QDialog::showEvent(event);
+    updateConstraintRanges(ui.comboType->currentIndex());
   }
 
   ConstraintsDialog::~ConstraintsDialog()
@@ -188,18 +73,62 @@ namespace Avogadro {
 
   void ConstraintsDialog::setModel(ConstraintsModel *model)
   {
+    if (m_molecule && m_constraints) {
+      disconnect(m_molecule, SIGNAL( primitiveRemoved(Primitive *) ),
+                 m_constraints, SLOT( primitiveRemoved(Primitive *) ));
+    }
     m_constraints = model;
     ui.ConstraintsTableView->setModel(m_constraints);
+    connectMoleculeConstraints();
   }
   
   void ConstraintsDialog::setMolecule(Molecule *molecule)
   {
+    if (m_molecule && m_constraints) {
+      disconnect(m_molecule, SIGNAL( primitiveRemoved(Primitive *) ),
+                 m_constraints, SLOT( primitiveRemoved(Primitive *) ));
+    }
     m_molecule = molecule;
-    connect(m_molecule, SIGNAL( primitiveRemoved(Primitive *) ), m_constraints, SLOT( primitiveRemoved(Primitive *) ));
+    connectMoleculeConstraints();
+    updateConstraintRanges(ui.comboType->currentIndex());
   }
   
   void ConstraintsDialog::comboTypeChanged(int index)
   {
+    updateConstraintRanges(index);
+  }
+
+  void ConstraintsDialog::connectMoleculeConstraints()
+  {
+    if (!m_molecule || !m_constraints)
+      return;
+
+    connect(m_molecule, SIGNAL( primitiveRemoved(Primitive *) ),
+            m_constraints, SLOT( primitiveRemoved(Primitive *) ),
+            Qt::UniqueConnection);
+  }
+
+  void ConstraintsDialog::resetConstraintRanges()
+  {
+    ui.editA->setMinimum(0);
+    ui.editB->setMinimum(0);
+    ui.editC->setMinimum(0);
+    ui.editD->setMinimum(0);
+    ui.editA->setMaximum(0);
+    ui.editB->setMaximum(0);
+    ui.editC->setMaximum(0);
+    ui.editD->setMaximum(0);
+    ui.editValue->setMinimum(0.0);
+    ui.editValue->setMaximum(0.0);
+  }
+
+  void ConstraintsDialog::updateConstraintRanges(int index)
+  {
+    if (!m_molecule) {
+      resetConstraintRanges();
+      return;
+    }
+
     switch (index) {
     case 0:
     case 1:
@@ -318,7 +247,6 @@ namespace Avogadro {
       }
       break;
     }
-  
   }
 
   void ConstraintsDialog::acceptConstraints()
@@ -400,4 +328,3 @@ namespace Avogadro {
 
 
 }
-

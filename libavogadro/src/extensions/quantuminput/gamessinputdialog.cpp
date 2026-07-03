@@ -1252,12 +1252,12 @@ namespace Avogadro {
     m_miscForceButtons->addButton(ui.miscGamessRadio, 3);
     m_miscForceButtons->addButton(ui.miscGaussianRadio, 4);
     m_miscForceButtons->addButton(ui.miscAllRadio, 5);
-    connect( m_miscForceButtons, SIGNAL( buttonClicked( int ) ),
-        this, SLOT( setMiscForce( int ) ) );
-    connect( m_miscForceButtons, SIGNAL( buttonClicked( int ) ),
-        this, SLOT( updatePreviewText() ) );
-    connect( m_miscForceButtons, SIGNAL( buttonClicked( int ) ),
-        this, SLOT( advancedChanged() ) );
+    connect(m_miscForceButtons, &QButtonGroup::idClicked,
+        this, &GamessInputDialog::setMiscForce);
+    connect(m_miscForceButtons, &QButtonGroup::idClicked,
+        this, [this](int) { updatePreviewText(); });
+    connect(m_miscForceButtons, &QButtonGroup::idClicked,
+        this, [this](int) { advancedChanged(); });
 
     connect( ui.miscWaterCheck, SIGNAL( toggled( bool ) ),
         this, SLOT( setMiscWater( bool ) ) );
@@ -1467,12 +1467,12 @@ namespace Avogadro {
     m_statPointHessianButtons->addButton(ui.statPointGuessButton, 0);
     m_statPointHessianButtons->addButton(ui.statPointReadButton, 1);
     m_statPointHessianButtons->addButton(ui.statPointCalculateButton, 2);
-    connect( m_statPointHessianButtons, SIGNAL( buttonClicked( int ) ),
-        this, SLOT( setStatPointHessian( int ) ) );
-    connect( m_statPointHessianButtons, SIGNAL( buttonClicked( int ) ),
-        this, SLOT( updatePreviewText() ) );
-    connect( m_statPointHessianButtons, SIGNAL( buttonClicked( int ) ),
-        this, SLOT( advancedChanged() ) );
+    connect(m_statPointHessianButtons, &QButtonGroup::idClicked,
+        this, &GamessInputDialog::setStatPointHessian);
+    connect(m_statPointHessianButtons, &QButtonGroup::idClicked,
+        this, [this](int) { updatePreviewText(); });
+    connect(m_statPointHessianButtons, &QButtonGroup::idClicked,
+        this, [this](int) { advancedChanged(); });
 
     connect( ui.statPointJumpDouble, SIGNAL( valueChanged( double ) ),
         this, SLOT( setStatPointJump( double ) ) );
@@ -2420,4 +2420,3 @@ namespace Avogadro {
     settings.setValue("gamess/savepath", m_savePath);
   }
 }
-

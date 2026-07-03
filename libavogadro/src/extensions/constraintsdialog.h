@@ -55,6 +55,10 @@ namespace Avogadro
       void comboTypeChanged(int);
 
     private:
+      void connectMoleculeConstraints();
+      void resetConstraintRanges();
+      void updateConstraintRanges(int index);
+
       Ui::ConstraintsDialog ui;
       Molecule* m_molecule;
       ConstraintsModel *m_constraints;

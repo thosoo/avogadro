@@ -38,6 +38,7 @@
 using Avogadro::AbinitInputDialog;
 using Avogadro::AddEngineDialog;
 using Avogadro::ConstraintsDialog;
+using Avogadro::ConstraintsModel;
 using Avogadro::DaltonInputDialog;
 using Avogadro::ForceFieldDialog;
 using Avogadro::GAMESSUKInputDialog;
@@ -107,7 +108,9 @@ private Q_SLOTS:
   void orcaAnalyseDialogOpens();
   void quantumInputDialogsOpen();
   void coreAppDialogsOpen();
-  void recentExtensionDialogsOpen();
+  void forceFieldDialogOpens();
+  void constraintsDialogOpens();
+  void insertFragmentDialogOpens();
 };
 
 void DialogSmokeTest::inventory()
@@ -190,10 +193,26 @@ void DialogSmokeTest::coreAppDialogsOpen()
   });
 }
 
-void DialogSmokeTest::recentExtensionDialogsOpen()
+void DialogSmokeTest::forceFieldDialogOpens()
 {
   smokeShowDialog(QStringLiteral("ForceFieldDialog"), []() { return new ForceFieldDialog; });
-  smokeShowDialog(QStringLiteral("ConstraintsDialog"), []() { return new ConstraintsDialog; });
+}
+
+void DialogSmokeTest::constraintsDialogOpens()
+{
+  Molecule molecule;
+  populateSmokeMolecule(molecule);
+  ConstraintsModel constraints;
+
+  qInfo() << "Smoke-opening" << QStringLiteral("ConstraintsDialog");
+  auto dialog = std::make_unique<ConstraintsDialog>();
+  dialog->setModel(&constraints);
+  dialog->setMolecule(&molecule);
+  smokeShowWidget(QStringLiteral("ConstraintsDialog"), dialog.get());
+}
+
+void DialogSmokeTest::insertFragmentDialogOpens()
+{
   smokeShowDialog(QStringLiteral("InsertFragmentDialog"), []() { return new InsertFragmentDialog; });
 }
 
