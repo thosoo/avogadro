@@ -1,6 +1,6 @@
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
-set(LINK_LIBS avogadro)
+set(LINK_LIBS Qt6::Concurrent)
 set(PLUGIN_LABEL extensions)
 set(PLUGIN_TARGET extensions)
 

@@ -19,7 +19,7 @@
 
 #include <QStringList>
 
-#include <QtCore/QIODevice>
+#include <QIODevice>
 #include <Eigen/Core>
 #include <vector>
 

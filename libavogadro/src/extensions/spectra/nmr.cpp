@@ -20,14 +20,16 @@
 #include "nmr.h"
 #include "spectradialog.h"
 
-#include <QtWidgets/QMessageBox>
-#include <QtCore/QDebug>
+#include <QMessageBox>
+#include <QComboBox>
+#include <QDebug>
 
 #include <openbabel/mol.h>
 #include <openbabel/generic.h>
 #include <openbabel/atom.h>
 #include <openbabel/obiter.h>
 #include <openbabel/elements.h>
+#include <algorithm>
 
 using namespace std;
 using namespace OpenBabel;
@@ -43,8 +45,8 @@ namespace Avogadro {
     // Setup signals/slots
     connect(this, SIGNAL(plotDataChanged()),
             m_dialog, SLOT(regenerateCalculatedSpectra()));
-    connect(ui.combo_type, SIGNAL(currentIndexChanged(QString)),
-            this, SLOT(setAtom(QString)));
+    connect(ui.combo_type, &QComboBox::currentTextChanged,
+            this, &NMRSpectra::setAtom);
     connect(ui.spin_ref, SIGNAL(valueChanged(double)),
             this, SLOT(setReference(double)));
     connect(ui.push_resetAxes, SIGNAL(clicked()),
@@ -247,7 +249,7 @@ namespace Avogadro {
   void NMRSpectra::updatePlotAxes()
   {
     QList<double> tmp (m_xList);
-    qSort(tmp);
+    std::sort(tmp.begin(), tmp.end());
     double FWHM = ui.spin_FWHM->value();
     if (tmp.size() == 1) {
       double center 	= tmp.first() - m_ref;

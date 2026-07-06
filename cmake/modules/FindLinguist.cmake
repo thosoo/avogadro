@@ -1,140 +1,88 @@
-# check for lupdate and lrelease: we can't
-# do it using qmake as it doesn't have
-# QMAKE_LUPDATE and QMAKE_LRELEASE variables :(
+# Locate Qt6 Linguist command line tools and provide Avogadro translation helpers.
 #
-#  I18N_LANGUAGE - if not empty, wraps only chosen language
-#
+# I18N_LANGUAGE - when set, only matching language PO/TS files are wrapped.
 
-# One problem is that FindQt4.cmake will look for these and cache the results
-# If users have lrelease from Qt3 (e.g., Debian, Ubuntu)
-#  then we will fail.
+if(TARGET Qt6::lupdate)
+  set(AVOGADRO_LUPDATE_COMMAND Qt6::lupdate)
+else()
+  find_program(AVOGADRO_LUPDATE_COMMAND NAMES lupdate-qt6 lupdate)
+endif()
 
-# First remove these from cache
-set(QT_LUPDATE_EXECUTABLE NOTFOUND CACHE FILEPATH "" FORCE)
-set(QT_LRELEASE_EXECUTABLE NOTFOUND CACHE FILEPATH "" FORCE)
-set(QT_LCONVERT_EXECUTABLE NOTFOUND CACHE FILEPATH "" FORCE)
+if(TARGET Qt6::lrelease)
+  set(AVOGADRO_LRELEASE_COMMAND Qt6::lrelease)
+else()
+  find_program(AVOGADRO_LRELEASE_COMMAND NAMES lrelease-qt6 lrelease)
+endif()
 
-FIND_PROGRAM(QT_LUPDATE_EXECUTABLE NAMES lupdate-qt5 lupdate PATHS
-  "[HKEY_CURRENT_USER\\Software\\Trolltech\\Qt3Versions\\4.0.0;InstallDir]/bin"
-  "[HKEY_CURRENT_USER\\Software\\Trolltech\\Versions\\4.0.0;InstallDir]/bin"
-  $ENV{QTDIR}/bin
-)
+if(TARGET Qt6::lconvert)
+  set(AVOGADRO_LCONVERT_COMMAND Qt6::lconvert)
+else()
+  find_program(AVOGADRO_LCONVERT_COMMAND NAMES lconvert-qt6 lconvert)
+endif()
 
-if(QT_LUPDATE_EXECUTABLE)
-  message(STATUS "Found lupdate: ${QT_LUPDATE_EXECUTABLE}")
-else(QT_LUPDATE_EXECUTABLE)
-  if(Linguist_FIND_REQUIRED)
-    message(FATAL_ERROR "Could NOT find lupdate")
-  endif(Linguist_FIND_REQUIRED)
-endif(QT_LUPDATE_EXECUTABLE)
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(Linguist
+  REQUIRED_VARS AVOGADRO_LUPDATE_COMMAND AVOGADRO_LRELEASE_COMMAND AVOGADRO_LCONVERT_COMMAND)
 
-FIND_PROGRAM(QT_LRELEASE_EXECUTABLE NAMES lrelease-qt5 lrelease PATHS
-  "[HKEY_CURRENT_USER\\Software\\Trolltech\\Qt3Versions\\4.0.0;InstallDir]/bin"
-  "[HKEY_CURRENT_USER\\Software\\Trolltech\\Versions\\4.0.0;InstallDir]/bin"
-  $ENV{QTDIR}/bin
-)
+mark_as_advanced(AVOGADRO_LUPDATE_COMMAND AVOGADRO_LRELEASE_COMMAND AVOGADRO_LCONVERT_COMMAND)
 
-if(QT_LRELEASE_EXECUTABLE)
-  message(STATUS "Found lrelease: ${QT_LRELEASE_EXECUTABLE}")
-else(QT_LRELEASE_EXECUTABLE)
-  if(Linguist_FIND_REQUIRED)
-    message(FATAL_ERROR "Could NOT find lrelease")
-  endif(Linguist_FIND_REQUIRED)
-endif(QT_LRELEASE_EXECUTABLE)
+function(_avogadro_should_wrap_translation out_var file_stem)
+  if(NOT I18N_LANGUAGE)
+    set(${out_var} ON PARENT_SCOPE)
+    return()
+  endif()
 
-FIND_PROGRAM(QT_LCONVERT_EXECUTABLE NAMES lconvert-qt5 lconvert PATHS
-  "[HKEY_CURRENT_USER\\Software\\Trolltech\\Qt3Versions\\4.0.0;InstallDir]/bin"
-  "[HKEY_CURRENT_USER\\Software\\Trolltech\\Versions\\4.0.0;InstallDir]/bin"
-  $ENV{QTDIR}/bin
-)
+  string(REGEX MATCH "${I18N_LANGUAGE}" _match "${file_stem}")
+  if(_match)
+    set(${out_var} ON PARENT_SCOPE)
+  else()
+    set(${out_var} OFF PARENT_SCOPE)
+  endif()
+endfunction()
 
-if(QT_LCONVERT_EXECUTABLE)
-  message(STATUS "Found lconvert: ${QT_LCONVERT_EXECUTABLE}")
-else(QT_LCONVERT_EXECUTABLE)
-  if(Linguist_FIND_REQUIRED)
-    message(FATAL_ERROR "Could NOT find lconvert")
-  endif(Linguist_FIND_REQUIRED)
-endif(QT_LCONVERT_EXECUTABLE)
+macro(avogadro_wrap_ts outfiles)
+  foreach(it ${ARGN})
+    get_filename_component(_ts_file "${it}" ABSOLUTE)
+    get_filename_component(_ts_stem "${_ts_file}" NAME_WE)
+    _avogadro_should_wrap_translation(_do_wrap "${_ts_stem}")
+    if(_do_wrap)
+      set(_qm_file "${CMAKE_CURRENT_BINARY_DIR}/${_ts_stem}.qm")
+      add_custom_command(OUTPUT "${_qm_file}"
+        COMMAND ${AVOGADRO_LRELEASE_COMMAND}
+        ARGS -compress -removeidentical -silent "${_ts_file}" -qm "${_qm_file}"
+        DEPENDS "${_ts_file}"
+        VERBATIM)
+      list(APPEND ${outfiles} "${_qm_file}")
+    endif()
+  endforeach()
+endmacro()
 
-mark_as_advanced(QT_LUPDATE_EXECUTABLE QT_LRELEASE_EXECUTABLE QT_LCONVERT_EXECUTABLE)
+macro(avogadro_wrap_po outfiles)
+  foreach(it ${ARGN})
+    get_filename_component(_po_file "${it}" ABSOLUTE)
+    get_filename_component(_po_stem_with_dash "${_po_file}" NAME_WE)
+    _avogadro_should_wrap_translation(_do_wrap "${_po_stem_with_dash}")
+    if(_do_wrap)
+      string(REPLACE "-" "_" _po_stem "${_po_stem_with_dash}")
+      set(_ts_file "${CMAKE_CURRENT_BINARY_DIR}/${_po_stem}.ts")
+      set(_qm_file "${CMAKE_CURRENT_BINARY_DIR}/${_po_stem}.qm")
 
-if(QT_LUPDATE_EXECUTABLE AND QT_LRELEASE_EXECUTABLE AND QT_LCONVERT_EXECUTABLE)
-  set(Linguist_FOUND TRUE)
+      if(NOT EXISTS "${_po_file}")
+        get_filename_component(_po_path "${_po_file}" DIRECTORY)
+        string(REGEX MATCH "[^-]+$" _lang "${_po_stem_with_dash}")
+        set(_po_file "${_po_path}/${_lang}.po")
+      endif()
 
-# QT4_WRAP_TS(outfiles infiles ...)
-# outfiles receives .qm generated files from
-# .ts files in arguments
-# a target lupdate is created for you
-# update/generate your translations files
-# example: QT4_WRAP_TS(foo_QM ${foo_TS})
-MACRO (QT4_WRAP_TS outfiles)
-  # a target to manually run lupdate
-  #ADD_CUSTOM_TARGET(lupdate
-                    #COMMAND ${QT_LUPDATE_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR} -ts ${ARGN}
-                    #WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-  #)
-  FOREACH (it ${ARGN})
-    GET_FILENAME_COMPONENT(it ${it} ABSOLUTE)
-    GET_FILENAME_COMPONENT(outfile ${it} NAME_WE)
-
-    SET(outfile ${CMAKE_CURRENT_BINARY_DIR}/${outfile}.qm)
-    ADD_CUSTOM_COMMAND(OUTPUT ${outfile}
-                       COMMAND ${QT_LRELEASE_EXECUTABLE}
-                       ARGS -compress -removeidentical -silent ${it} -qm ${outfile}
-                       DEPENDS ${it}
-    )
-
-    SET(${outfiles} ${${outfiles}} ${outfile})
-  ENDFOREACH (it)
-ENDMACRO (QT4_WRAP_TS)
-
-# QT_WRAP_PO(outfiles infiles ...)
-# outfiles receives .qm generated files from
-# .po files in arguments
-# example: QT4_WRAP_PO(foo_TS ${foo_PO})
-MACRO (QT4_WRAP_PO outfiles)
-   FOREACH (it ${ARGN})
-      GET_FILENAME_COMPONENT(it ${it} ABSOLUTE)
-      # PO files are foo-en_GB.po not foo_en_GB.po like Qt expects
-      GET_FILENAME_COMPONENT(fileWithDash ${it} NAME_WE)
-      if(NOT I18N_LANGUAGE)
-        set(do_wrap ON)
-      else(NOT I18N_LANGUAGE)
-        string(REGEX MATCH "${I18N_LANGUAGE}" ln ${fileWithDash})
-        if(ln)
-          set(do_wrap ON)
-        else(ln)
-          set(do_wrap OFF)
-        endif(ln)
-      endif(NOT I18N_LANGUAGE)      
-      if(do_wrap)
-        STRING(REPLACE "-" "_" filenameBase "${fileWithDash}")
-        SET(tsfile ${CMAKE_CURRENT_BINARY_DIR}/${filenameBase}.ts)
-        SET(qmfile ${CMAKE_CURRENT_BINARY_DIR}/${filenameBase}.qm)
-
-        if (NOT EXISTS "${it}")
-           GET_FILENAME_COMPONENT(path ${it} PATH)
-           STRING(REGEX MATCH "[^-]+$" lang "${fileWithDash}")
-           set (it "${path}/${lang}.po")
-        endif (NOT EXISTS "${it}")
-
-        # lconvert from PO to TS and then run lupdate to generate the correct strings
-        # finally run lrelease as used above
-        ADD_CUSTOM_COMMAND(OUTPUT ${qmfile}
-                         COMMAND ${QT_LCONVERT_EXECUTABLE}
-                         ARGS -i ${it} -o ${tsfile}
-                         COMMAND ${QT_LUPDATE_EXECUTABLE}
-                         ARGS ${CMAKE_CURRENT_SOURCE_DIR} -silent -noobsolete -ts ${tsfile}
-                         COMMAND ${QT_LRELEASE_EXECUTABLE}
-                         ARGS -compress -removeidentical -silent ${tsfile} -qm ${qmfile}
-                         DEPENDS ${it}
-                         )
-
-        SET(${outfiles} ${${outfiles}} ${qmfile})
-      endif(do_wrap)
-   ENDFOREACH (it)
-ENDMACRO (QT4_WRAP_PO)
-
-else(QT_LUPDATE_EXECUTABLE AND QT_LRELEASE_EXECUTABLE AND QT_LCONVERT_EXECUTABLE)
-  set(Linguist_FOUND FALSE)
-endif(QT_LUPDATE_EXECUTABLE AND QT_LRELEASE_EXECUTABLE AND QT_LCONVERT_EXECUTABLE)
+      add_custom_command(OUTPUT "${_qm_file}"
+        COMMAND ${AVOGADRO_LCONVERT_COMMAND}
+        ARGS -i "${_po_file}" -o "${_ts_file}"
+        COMMAND ${AVOGADRO_LUPDATE_COMMAND}
+        ARGS "${CMAKE_CURRENT_SOURCE_DIR}" -silent -noobsolete -ts "${_ts_file}"
+        COMMAND ${AVOGADRO_LRELEASE_COMMAND}
+        ARGS -compress -removeidentical -silent "${_ts_file}" -qm "${_qm_file}"
+        DEPENDS "${_po_file}"
+        VERBATIM)
+      list(APPEND ${outfiles} "${_qm_file}")
+    endif()
+  endforeach()
+endmacro()

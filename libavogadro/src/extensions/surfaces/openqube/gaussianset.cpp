@@ -28,10 +28,10 @@
 #include <cmath>
 
 #include <QtConcurrent/QtConcurrentMap>
-#include <QtCore/QFuture>
-#include <QtCore/QFutureWatcher>
-#include <QtCore/QReadWriteLock>
-#include <QtCore/QDebug>
+#include <QFuture>
+#include <QFutureWatcher>
+#include <QReadWriteLock>
+#include <QDebug>
 
 using std::vector;
 using Eigen::Vector3d;

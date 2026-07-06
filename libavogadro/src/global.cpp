@@ -50,7 +50,7 @@ namespace Avogadro
     }
     
     translationPaths << QCoreApplication::applicationDirPath() + "/../share/avogadro/i18n/";
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     translationPaths << QString(INSTALL_PREFIX) + "/share/avogadro/i18n/";
 #endif
     

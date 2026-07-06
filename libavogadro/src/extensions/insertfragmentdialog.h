@@ -42,7 +42,7 @@ namespace Avogadro {
 
   public:
     //! Constructor
-    explicit InsertFragmentDialog(QWidget *parent = 0, QString directory = "fragments", Qt::WindowFlags f = 0);
+    explicit InsertFragmentDialog(QWidget *parent = nullptr, QString directory = "fragments", Qt::WindowFlags f = Qt::WindowFlags());
     //! Destructor
     ~InsertFragmentDialog();
 

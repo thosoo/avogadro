@@ -20,7 +20,7 @@
 #ifndef SPECTRATYPE_NMR_H
 #define SPECTRATYPE_NMR_H
 
-#include <QtCore/QHash>
+#include <QHash>
 
 #include "spectradialog.h"
 #include "spectratype.h"

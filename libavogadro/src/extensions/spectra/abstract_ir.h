@@ -73,7 +73,7 @@ namespace Avogadro {
     void changeScalingType(int);
     void changeLineShape(int);
     void changeBroadeningModel(int);
-    void updateYAxis(QString);
+    void updateYAxis(const QString &text);
     void updateXAxis(int);
     void rescaleFrequencies();
     void updateTemperature(double);

@@ -351,4 +351,4 @@ void MoleculeFileTest::appendMolecule()
 
 QTEST_MAIN(MoleculeFileTest)
 
-#include "moc_moleculefiletest.cpp"
+#include "moleculefiletest.moc"

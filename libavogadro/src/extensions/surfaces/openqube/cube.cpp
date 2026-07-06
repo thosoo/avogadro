@@ -18,8 +18,8 @@
 
 #include "molecule.h"
 
-#include <QtCore/QReadWriteLock>
-#include <QtCore/QDebug>
+#include <QReadWriteLock>
+#include <QDebug>
 
 namespace OpenQube {
 

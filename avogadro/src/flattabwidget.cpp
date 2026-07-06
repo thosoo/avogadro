@@ -208,10 +208,10 @@ namespace Avogadro {
 
   QSize FlatHandle::sizeHint() const
   {
-    QStyleOption opt(0);
+    QStyleOption opt;
 
-    int hw = parentWidget()->style()->pixelMetric(QStyle::PM_SplitterWidth, 0, parentWidget());
-    opt.init(parentWidget());
+    int hw = parentWidget()->style()->pixelMetric(QStyle::PM_SplitterWidth, nullptr, parentWidget());
+    opt.initFrom(parentWidget());
     opt.state = QStyle::State_None;
     return parentWidget()->style()->sizeFromContents(QStyle::CT_Splitter, &opt, QSize(hw, hw), parentWidget());
     //     .expandedTo(QApplication::globalStrut());
@@ -270,10 +270,10 @@ namespace Avogadro {
   void FlatHandle::paintEvent(QPaintEvent *)
   {
     QPainter p(this);
-    QStyleOption opt(0);
+    QStyleOption opt;
     opt.rect = rect();
     opt.palette = palette();
-    opt.state = 0;
+    opt.state = QStyle::State_None;
     //     opt.state = QStyle::State_Horizontal;
     if (hover)
       opt.state |= QStyle::State_MouseOver;

@@ -26,7 +26,7 @@
       <attribute name="title">
        <string>Basic</string>
       </attribute>
-      <widget class="QWidget" name="layoutWidget">
+      <widget class="QWidget" name="basicSetupLayoutWidget">
        <property name="geometry">
         <rect>
          <x>30</x>
@@ -486,7 +486,7 @@
          <property name="checked">
           <bool>false</bool>
          </property>
-         <widget class="QWidget" name="layoutWidget">
+         <widget class="QWidget" name="basisRelativisticLayoutWidget">
           <property name="geometry">
            <rect>
             <x>12</x>
@@ -553,7 +553,7 @@
          <property name="title">
           <string>Method</string>
          </property>
-         <widget class="QWidget" name="layoutWidget">
+         <widget class="QWidget" name="controlMethodLayoutWidget">
           <property name="geometry">
            <rect>
             <x>18</x>
@@ -677,7 +677,7 @@
           <string>Run type</string>
          </property>
         </widget>
-        <widget class="QWidget" name="layoutWidget">
+        <widget class="QWidget" name="controlChargeLayoutWidget">
          <property name="geometry">
           <rect>
            <x>18</x>
@@ -706,7 +706,7 @@
           </item>
          </layout>
         </widget>
-        <widget class="QWidget" name="layoutWidget">
+        <widget class="QWidget" name="controlMultiplicityLayoutWidget">
          <property name="geometry">
           <rect>
            <x>180</x>
@@ -769,7 +769,7 @@
           </property>
          </widget>
         </widget>
-        <widget class="QWidget" name="layoutWidget">
+        <widget class="QWidget" name="dataCommentLayoutWidget">
          <property name="geometry">
           <rect>
            <x>12</x>
@@ -791,7 +791,7 @@
           </item>
          </layout>
         </widget>
-        <widget class="QWidget" name="layoutWidget">
+        <widget class="QWidget" name="dataFormatLayoutWidget">
          <property name="geometry">
           <rect>
            <x>264</x>
@@ -829,7 +829,7 @@
           </item>
          </layout>
         </widget>
-        <widget class="QWidget" name="layoutWidget">
+        <widget class="QWidget" name="dataPrintLayoutWidget">
          <property name="geometry">
           <rect>
            <x>13</x>
@@ -877,10 +877,6 @@
           </item>
          </layout>
         </widget>
-        <zorder>layoutWidget</zorder>
-        <zorder>layoutWidget</zorder>
-        <zorder>layoutWidget</zorder>
-        <zorder>groupBox_3</zorder>
        </widget>
        <widget class="QWidget" name="scfPage">
         <widget class="QGroupBox" name="scfDampingGroup">
@@ -948,7 +944,7 @@
            <double>0.100000000000000</double>
           </property>
          </widget>
-         <widget class="QLabel" name="label_36">
+         <widget class="QLabel" name="scfDampFactorLabel">
           <property name="geometry">
            <rect>
             <x>162</x>
@@ -1253,7 +1249,7 @@
           </item>
          </layout>
         </widget>
-        <widget class="QWidget" name="layoutWidget">
+        <widget class="QWidget" name="scfTypeLayoutWidget">
          <property name="geometry">
           <rect>
            <x>294</x>
@@ -1296,7 +1292,7 @@
         </widget>
        </widget>
        <widget class="QWidget" name="resourcesPage">
-        <widget class="QWidget" name="layoutWidget">
+        <widget class="QWidget" name="resourcesLayoutWidget">
          <property name="geometry">
           <rect>
            <x>36</x>
@@ -1343,7 +1339,7 @@
         </widget>
        </widget>
        <widget class="QWidget" name="dftOptionsPage">
-        <widget class="QWidget" name="layoutWidget">
+        <widget class="QWidget" name="dftFunctionalLayoutWidget">
          <property name="geometry">
           <rect>
            <x>258</x>
@@ -1365,7 +1361,7 @@
           </item>
          </layout>
         </widget>
-        <widget class="QWidget" name="layoutWidget">
+        <widget class="QWidget" name="dftDispersionLayoutWidget">
          <property name="geometry">
           <rect>
            <x>35</x>
@@ -1409,7 +1405,7 @@
        </widget>
        </widget>
        <widget class="QWidget" name="solvationPage">
-        <widget class="QWidget" name="layoutWidget">
+        <widget class="QWidget" name="solvationLayoutWidget">
          <property name="geometry">
           <rect>
            <x>36</x>
@@ -1459,7 +1455,7 @@
          <property name="checked">
           <bool>false</bool>
          </property>
-         <widget class="QWidget" name="layoutWidget">
+         <widget class="QWidget" name="cpcmLayoutWidget">
           <property name="geometry">
            <rect>
             <x>12</x>
@@ -1576,7 +1572,7 @@
            <string>Enable TD-DFT</string>
           </property>
          </widget>
-         <widget class="QWidget" name="layoutWidget">
+         <widget class="QWidget" name="tddftRootsLayoutWidget">
           <property name="geometry">
            <rect>
             <x>18</x>
@@ -1587,7 +1583,7 @@
           </property>
           <layout class="QHBoxLayout" name="horizontalLayout_19">
            <item>
-            <widget class="QLabel" name="label_36">
+            <widget class="QLabel" name="tddftRootsLabel">
              <property name="text">
               <string>NRoots</string>
              </property>
@@ -1678,39 +1674,5 @@
   </layout>
  </widget>
  <resources/>
- <connections>
-  <connection>
-   <sender>closeButton</sender>
-   <signal>clicked()</signal>
-   <receiver>OrcaInputDialog</receiver>
-   <slot>close()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>517</x>
-     <y>382</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>284</x>
-     <y>203</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
- <designerdata>
-  <property name="gridDeltaX">
-   <number>6</number>
-  </property>
-  <property name="gridDeltaY">
-   <number>6</number>
-  </property>
-  <property name="gridSnapX">
-   <bool>true</bool>
-  </property>
-  <property name="gridSnapY">
-   <bool>true</bool>
-  </property>
-  <property name="gridVisible">
-   <bool>true</bool>
-  </property>
- </designerdata>
+ <connections/>
 </ui>

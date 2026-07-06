@@ -88,7 +88,7 @@ namespace Avogadro {
       return 0;
 
     //! List of hits from initial click
-    QList<GLHit> m_hits = widget->hits(event->pos().x()-2, event->pos().y()-2, 5, 5);
+    QList<GLHit> m_hits = widget->hits(event->position().toPoint().x()-2, event->position().toPoint().y()-2, 5, 5);
 
     // If there's a left button (and no modifier keys) continue adding to the list
     if(m_hits.size() && (event->buttons() & Qt::LeftButton && event->modifiers() == Qt::NoModifier))
@@ -135,7 +135,7 @@ namespace Avogadro {
       return 0;
 
     //! List of hits from initial click
-    QList<GLHit> m_hits = widget->hits(event->pos().x()-2, event->pos().y()-2, 5, 5);
+    QList<GLHit> m_hits = widget->hits(event->position().toPoint().x()-2, event->position().toPoint().y()-2, 5, 5);
 
     if(m_hits.size())
     {

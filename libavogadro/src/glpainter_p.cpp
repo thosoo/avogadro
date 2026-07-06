@@ -52,7 +52,7 @@
 #  define M_PI 3.1415926535897932384626433832795
 #endif
 
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
 # include <OpenGL/glu.h>
 #else
 # include <GL/glu.h>

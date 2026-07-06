@@ -34,9 +34,9 @@
 
 #include <Eigen/Geometry>
 
-#include <QtCore/QDebug>
-#include <QtGui/QAction>
-#include <QtWidgets/QMessageBox>
+#include <QDebug>
+#include <QAction>
+#include <QMessageBox>
 
 #include "rotateselectiondialog.h"
 

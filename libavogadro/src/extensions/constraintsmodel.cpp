@@ -182,7 +182,7 @@ namespace Avogadro
  
   void ConstraintsModel::clear()
   {
-    qDebug() << "ConstraintsModel::clear()" << endl;
+    qDebug() << "ConstraintsModel::clear()";
     if (m_constraints.Size()) {
       beginRemoveRows(QModelIndex(), 0, m_constraints.Size() - 1); 
       m_constraints.Clear();
@@ -192,7 +192,7 @@ namespace Avogadro
   
   void ConstraintsModel::deleteConstraint(int index)
   { 
-    qDebug() << "ConstraintsModel::deleteConstraint(" << index << ")" << endl;
+    qDebug() << "ConstraintsModel::deleteConstraint(" << index << ")";
     if (m_constraints.Size() && (index >= 0)) {
       beginRemoveRows(QModelIndex(), index, index); 
       m_constraints.DeleteConstraint(index);
@@ -203,7 +203,7 @@ namespace Avogadro
   // remove all constraints in which the atom occurs
   void ConstraintsModel::primitiveRemoved(Primitive *primitive)
   {
-    qDebug() << "ConstraintsModel::primitiveRemoved(...)" << endl;
+    qDebug() << "ConstraintsModel::primitiveRemoved(...)";
     if (primitive->type() == Primitive::AtomType) {
       int index = static_cast<Atom*>(primitive)->index() + 1;
       for (int i = 0; i < m_constraints.Size(); ++i) {

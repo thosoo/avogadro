@@ -39,6 +39,7 @@
 #include <QPushButton>
 #include <QStandardItemModel>
 #include <QTreeView>
+#include <QVariant>
 #include <QVBoxLayout>
 
 #include <QFrame>
@@ -46,8 +47,9 @@
 #include <QMessageBox>
 #include <QHeaderView>
 #include <QDebug>
+#include <algorithm>
+#include <vector>
 
-using namespace std;
 using namespace OpenBabel;
 
 namespace Avogadro
@@ -235,7 +237,7 @@ namespace Avogadro
 
     // get the SMARTS pattern
     OpenBabel::OBMol obmol = selectedMolecule.OBMol();
-    string pattern = conv.WriteString( &obmol );
+    std::string pattern = conv.WriteString( &obmol );
     pattern.erase( pattern.find_first_of( " \t\n\r" ) );
 
     OBSmartsPattern sp;
@@ -258,12 +260,15 @@ namespace Avogadro
       QStandardItemModel *model = new QStandardItemModel();
       QModelIndex selectedIndex;
 
-      vector< vector<int> > maplist = sp.GetUMapList();
+      std::vector<std::vector<int> > maplist = sp.GetUMapList();
 
-      for (vector< vector<int> >::iterator it1 = maplist.begin();
+      for (std::vector<std::vector<int> >::iterator it1 = maplist.begin();
            it1 != maplist.end(); ++it1) {
 
-        QVector<int> matches = QVector<int>::fromStdVector( *it1 );
+        QVector<int> matches;
+        matches.reserve(static_cast<qsizetype>(it1->size()));
+        for (int value : *it1)
+          matches.append(value);
 
         QString text;
         bool valid = true;
@@ -321,7 +326,7 @@ namespace Avogadro
 
           item->setText( text );
           item->setEditable( false );
-          item->setData( qVariantFromValue( atomMatches ) );
+          item->setData(QVariant::fromValue(atomMatches));
 
           model->appendRow( item );
 
@@ -355,7 +360,7 @@ namespace Avogadro
   {
     QModelIndexList selectedIndexes = m_efpView->selectionModel()->selectedRows();
 
-    qSort(selectedIndexes.begin(), selectedIndexes.end(), qGreater<QModelIndex>());
+    std::sort(selectedIndexes.begin(), selectedIndexes.end(), [](const QModelIndex &left, const QModelIndex &right) { return right < left; });
     foreach(QModelIndex index, selectedIndexes)
     {
       QModelIndex parent = index.parent();
@@ -376,7 +381,7 @@ namespace Avogadro
     }
 
     selectedIndexes = m_efpView->selectionModel()->selectedRows();
-    qSort(selectedIndexes.begin(), selectedIndexes.end(), qGreater<QModelIndex>());
+    std::sort(selectedIndexes.begin(), selectedIndexes.end(), [](const QModelIndex &left, const QModelIndex &right) { return right < left; });
     foreach(QModelIndex index, selectedIndexes)
     {
       QModelIndex parent = index.parent();
@@ -489,13 +494,13 @@ namespace Avogadro
       }
 
       QStandardItem *item = new QStandardItem();
-      item->setData( qVariantFromValue( group ) );
+      item->setData(QVariant::fromValue(group));
       item->setText( groupString );
 
       GamessEFPGroup * efpGroup = new GamessEFPGroup();
       efpGroup->name = groupName.toStdString();
       efpGroup->type = type ? GamessEFPGroup::QMType : GamessEFPGroup::EFPType ;
-      efpGroup->atoms = group.toStdVector();
+      efpGroup->atoms = std::vector<Atom *>(group.cbegin(), group.cend());
 
       m_inputData->EFP->AddGroup(efpGroup);
 

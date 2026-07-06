@@ -122,7 +122,7 @@ namespace Avogadro {
   {
     event->accept();
     m_drawEyeCandy = false;
-    m_lastDraggingPosition = event->pos();
+    m_lastDraggingPosition = event->position().toPoint();
     // Make sure there aren't modifier keys clicked with the left button
     // If the user has a Mac and only a one-button mouse, everything
     // looks like a left button
@@ -135,7 +135,7 @@ namespace Avogadro {
     }
 
     // On a Mac, click and hold the Shift key
-    if (event->buttons() & Qt::MidButton ||
+    if (event->buttons() & Qt::MiddleButton ||
         (event->buttons() & Qt::LeftButton &&
          event->modifiers() == Qt::ShiftModifier))
     {
@@ -154,14 +154,14 @@ namespace Avogadro {
       m_rightButtonPressed = true;
       // Set the cursor - this needs to be reset to Qt::ArrowCursor after
       // Currently, there's a Qt/Mac bug -- SizeAllCursor looks like a spreadsheet cursor
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
           widget->setCursor(Qt::CrossCursor);
 #else
           widget->setCursor(Qt::SizeAllCursor);
 #endif
     }
 
-    m_clickedAtom = widget->computeClickedAtom(event->pos());
+    m_clickedAtom = widget->computeClickedAtom(event->position().toPoint());
     computeReferencePoint(widget);
 
     // Initialise the angle variables on any new mouse press
@@ -220,10 +220,10 @@ namespace Avogadro {
 
     QPoint deltaDragging;
     if (m_draggingInitialized) {
-      deltaDragging = event->pos() - m_lastDraggingPosition;
+      deltaDragging = event->position().toPoint() - m_lastDraggingPosition;
     }
     else {
-      m_lastDraggingPosition = event->pos();
+      m_lastDraggingPosition = event->position().toPoint();
       m_draggingInitialized = true;
     }
 
@@ -242,7 +242,7 @@ namespace Avogadro {
     }
     // On the Mac, either use a three-button mouse
     // or hold down the Shift key
-    else if ( (event->buttons() & Qt::MidButton) ||
+    else if ( (event->buttons() & Qt::MiddleButton) ||
         (event->buttons() & Qt::LeftButton && event->modifiers() & Qt::ShiftModifier) )
     {
       // Perform the rotation
@@ -257,10 +257,10 @@ namespace Avogadro {
         (event->buttons() & Qt::LeftButton && (event->modifiers() == Qt::ControlModifier || event->modifiers() == Qt::MetaModifier) ) )
     {
       // translate the molecule following mouse movement
-      Navigate::translate(widget, m_referencePoint, m_lastDraggingPosition, event->pos());
+      Navigate::translate(widget, m_referencePoint, m_lastDraggingPosition, event->position().toPoint());
     }
 
-    m_lastDraggingPosition = event->pos();
+    m_lastDraggingPosition = event->position().toPoint();
     widget->update();
 
     return 0;
@@ -274,7 +274,7 @@ namespace Avogadro {
                        // on large molecules doing a gl selection on every
                        // mousewheel event is too expensive.
     computeReferencePoint(widget); // needs m_clickedAtom to be set.
-    Navigate::zoom(widget, m_referencePoint, - MOUSE_WHEEL_SPEED * event->delta());
+    Navigate::zoom(widget, m_referencePoint, - MOUSE_WHEEL_SPEED * event->angleDelta().y());
     widget->update();
 
     return 0;

@@ -24,7 +24,7 @@
 
 #include <Eigen/Core>
 
-#include <QtGui/QTextCharFormat>
+#include <QTextCharFormat>
 
 #include "ui_cematrixeditor.h"
 

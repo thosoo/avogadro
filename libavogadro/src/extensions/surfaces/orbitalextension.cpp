@@ -45,6 +45,7 @@
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QAction>
+#include <algorithm>
 
 using OpenQube::BasisSet;
 using OpenQube::GaussianSet;
@@ -800,7 +801,7 @@ namespace Avogadro
     }
 
     QList<int> priorities = hash.keys();
-    qSort(priorities);
+    std::sort(priorities.begin(), priorities.end());
     startCalculation(hash.value(priorities.first()));
   }
 

@@ -24,7 +24,7 @@
 
 #include "textmatrixeditor.h"
 
-#include <QtCore/QRegExp>
+#include <QRegularExpression>
 
 #include <stdio.h> // for snprintf
 
@@ -38,7 +38,7 @@ namespace Avogadro {
 
 TextMatrixEditor::TextMatrixEditor(QWidget *parent) :
   QTextEdit(parent), m_charFormat(0),
-  m_delimiters(new QRegExp("\\s+|,|;|\\||\\[|\\]|\\{|\\}|\\(|\\)|\\&|/|<|>"))
+  m_delimiters(new QRegularExpression("\\s+|,|;|\\||\\[|\\]|\\{|\\}|\\(|\\)|\\&|/|<|>"))
 {
   this->m_matrix.fill(0.0);
 
@@ -99,7 +99,7 @@ bool TextMatrixEditor::validate()
   this->setTextCursor(tc);
 
   QString text = this->document()->toPlainText();
-  QStringList lines = text.split("\n", QString::SkipEmptyParts);
+  QStringList lines = text.split("\n", Qt::SkipEmptyParts);
   if (lines.size() != 3) {
     emit this->isInvalid();
     return false;
@@ -109,7 +109,7 @@ bool TextMatrixEditor::validate()
   Eigen::Matrix3d mat;
   for (int row = 0; row < 3; ++row) {
     stringVecs.append(lines.at(row).simplified()
-                      .split(*(this->m_delimiters), QString::SkipEmptyParts));
+                      .split(*(this->m_delimiters), Qt::SkipEmptyParts));
     QStringList &stringVec = stringVecs[row];
     if (stringVec.size() != 3) {
       emit this->isInvalid();

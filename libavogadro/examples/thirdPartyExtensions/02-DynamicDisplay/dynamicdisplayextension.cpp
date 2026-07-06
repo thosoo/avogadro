@@ -27,7 +27,7 @@
 
 #include <avogadro/molecule.h>
 
-#include <QtGui/QAction>
+#include <QAction>
 
 #include "dynamicdisplaydialog.h"
 

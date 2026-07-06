@@ -1,36 +1,38 @@
 Requirements
 ============
- -- CMake 2.8.9 or later (3.0 or later recommended)
- -- Qt 5.0 or later
+ -- CMake 3.16 or later
+ -- A C++17-capable compiler
+ -- Qt 6 development packages, including Core, Gui, Widgets, OpenGL,
+    OpenGLWidgets, Network, Concurrent, Test, and LinguistTools
  -- OpenBabel 3.1 or later (downloaded automatically from
-  https://github.com/thosoo/openbabel if not found)
+    https://github.com/thosoo/openbabel if not found)
  -- Eigen 3.x
-
+ -- OpenGL and GLU development packages
+ -- zlib
 
 Basic Installation
 ==================
-These instructions give a very basic overview of how to configure, compile and
-install Avogadro on most systems.  If you are using unique install locations
-and/or libraries are not automatically detected please consult the 'Advanced'
-section.
+These instructions give a basic overview of how to configure, compile, and
+install Avogadro on most systems. If you are using unique install locations
+and/or libraries are not automatically detected, consult the Advanced section.
 
-1. Create a 'build' directory in the package source directory.
+Configure:
 
-   mkdir build
-   cd build
+   cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
-2. Configure the build system
+Build:
 
-   cmake ../
+   cmake --build build --parallel
 
-3. Compile
+Install:
 
-   make -j2
+   cmake --install build
 
-4. Install
+To configure, build, and test in the same shape used by CI:
 
-   sudo make install
-
+   cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_TESTS=ON
+   cmake --build build --parallel
+   ctest --test-dir build --output-on-failure
 
 Advanced
 ========
@@ -43,12 +45,12 @@ installation locations.
    -DLIB_INSTALL_DIR : specify the install location for libraries
                        (default ${CMAKE_INSTALL_PREFIX}/lib)
 
-   OpenBabel will be downloaded and built automatically unless these variables
-   or `OpenBabel3_DIR` are set to use an existing installation.
+   OpenBabel will be downloaded and built automatically unless variables such
+   as `OpenBabel3_DIR` are set to use an existing installation.
 
-   -DOPENBABEL2_LIBRARIES : specify the OpenBabel2 libraries (optional)
+   -DOPENBABEL3_LIBRARIES : specify the OpenBabel 3 libraries (optional)
 
-   -DOPENBABEL2_INCLUDE_DIR : specify the OpenBabel2 include directory (optional)
+   -DOPENBABEL3_INCLUDE_DIR : specify the OpenBabel 3 include directory (optional)
 
    -DEIGEN3_INCLUDE_DIR : specify the Eigen include directory (also forwarded
                           to the bundled Open Babel build)
@@ -60,16 +62,22 @@ installation locations.
      RAPIDJSON_INCLUDE_DIRS
      MAEPARSER_DIR (with maeparser_INCLUDE_DIRS/maeparser_LIBRARIES)
      coordgen_DIR (with coordgen_INCLUDE_DIRS/coordgen_LIBRARIES)
-    LIBXML2_INCLUDE_DIR / LIBXML2_LIBRARIES
-    ZLIB_INCLUDE_DIR / ZLIB_LIBRARY
-    wxWidgets_LIB_DIR
-    LIB_INSTALL_DIR
+     LIBXML2_INCLUDE_DIR / LIBXML2_LIBRARIES
+     ZLIB_INCLUDE_DIR / ZLIB_LIBRARY
+     wxWidgets_LIB_DIR
+     LIB_INSTALL_DIR
 
-   -DENABLE_PYTHON : specify whether to build Boost.Python interpreter
-                    (default = TRUE)
+Useful options:
 
-   -DENABLE_UPDATE_CHECKER : Enable checking for new Avogadro versions over the
-                             network - Linux distributions may want to disable.
+   -DENABLE_PYTHON=ON/OFF      Enable or disable Boost.Python integration
+                               (default ON when dependencies are found)
+   -DENABLE_TESTS=ON/OFF       Enable or disable unit tests (default OFF)
+   -DENABLE_GLSL=ON/OFF        Enable or disable GLSL shader support (default OFF)
+   -DENABLE_THREADEDGL=ON/OFF  Enable or disable threaded OpenGL rendering
+                               (default OFF)
+   -DENABLE_UPDATE_CHECKER=ON/OFF
+                               Enable or disable network update checks
+                               (default OFF)
 
 For more information please consult the CMake documentation.
 

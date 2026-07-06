@@ -25,7 +25,7 @@
 #ifndef DETACHEDVIEW_H
 #define DETACHEDVIEW_H
 
-#include <QtWidgets/QWidget>
+#include <QWidget>
 
 namespace Avogadro {
 
@@ -47,7 +47,8 @@ namespace Avogadro {
     Q_OBJECT
 
   public:
-    DetachedView(GLWidget *glWidget, QWidget *parent = 0, Qt::WindowFlags f = 0);
+    DetachedView(GLWidget *glWidget, QWidget *parent = nullptr,
+                 Qt::WindowFlags f = Qt::WindowFlags());
     ~DetachedView();
 
   public slots:

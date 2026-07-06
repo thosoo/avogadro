@@ -117,3 +117,10 @@ if(OPENBABEL3_FOUND)
   endif()
 endif()
 
+
+if(OPENBABEL3_FOUND AND NOT TARGET OpenBabel3::openbabel)
+  add_library(OpenBabel3::openbabel UNKNOWN IMPORTED)
+  set_target_properties(OpenBabel3::openbabel PROPERTIES
+    IMPORTED_LOCATION "${OPENBABEL3_LIBRARIES}"
+    INTERFACE_INCLUDE_DIRECTORIES "${OPENBABEL3_INCLUDE_DIR}")
+endif()

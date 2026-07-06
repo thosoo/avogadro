@@ -24,7 +24,7 @@
 #define CARTESIANEXTENSION_H
 
 #include <avogadro/extension.h>
-#include <QtWidgets/QUndoCommand>
+#include <QUndoCommand>
 #include <openbabel/mol.h>
 using namespace OpenBabel;
 

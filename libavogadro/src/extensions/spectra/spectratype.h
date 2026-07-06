@@ -23,9 +23,9 @@
 
 #include <QDialog>
 #include <QStringList>
-#include <QtCore/QHash>
-#include <QtCore/QVariant>
-#include <QtCore/QSettings>
+#include <QHash>
+#include <QVariant>
+#include <QSettings>
 
 #include <avogadro/primitive.h>
 #include <avogadro/plotwidget.h>

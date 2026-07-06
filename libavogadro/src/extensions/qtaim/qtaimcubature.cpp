@@ -36,7 +36,7 @@
  *
  */
 
-#include <QtCore/qglobal.h>
+#include <qglobal.h>
 #include <QDebug>
 #include <QTemporaryFile>
 #include <QFile>
@@ -45,6 +45,7 @@
 #include <QDir>
 
 #include <QPair>
+#include <QSet>
 #include <QVariantList>
 #include <QVector3D>
 
@@ -65,6 +66,20 @@
 #include <cmath>
 #include <climits>
 #include <cfloat>
+
+namespace {
+
+QSet<qint64> toQSet(const QList<qint64> &values)
+{
+  QSet<qint64> result;
+  result.reserve(values.size());
+  for (qint64 value : values) {
+    result.insert(value);
+  }
+  return result;
+}
+
+} // namespace
 
 /* Adaptive multidimensional integration on hypercubes (or, really,
    hyper-rectangles) using cubature rules.
@@ -1181,7 +1196,7 @@ QList<QVariant> QTAIMEvaluateProperty(QList<QVariant> variantList)
     qint64 basin=variantList.at(counter).toLongLong(); counter++;
     basinList.append(basin);
   }
-  QSet<qint64> basinSet=basinList.toSet();
+  QSet<qint64> basinSet = toQSet(basinList);
 
   Avogadro::QTAIMWavefunction wfn;
   wfn.loadFromBinaryFile(wfnFileName);
@@ -1358,7 +1373,7 @@ void property_v(unsigned int /* ndim */, unsigned int npts, const double *xyz, v
   dialog.setWindowTitle("QTAIM");
   dialog.setLabelText(QString("Atomic Basin Integration"));
 
-  QFutureWatcher<void> futureWatcher;
+  QFutureWatcher<QList<QVariant>> futureWatcher;
   QObject::connect(&futureWatcher, SIGNAL(finished()), &dialog, SLOT(reset()));
   QObject::connect(&dialog, SIGNAL(canceled()), &futureWatcher, SLOT(cancel()));
   QObject::connect(&futureWatcher, SIGNAL(progressRangeChanged(int,int)), &dialog, SLOT(setRange(int,int)));
@@ -1450,7 +1465,7 @@ QList<QVariant> QTAIMEvaluatePropertyRTP(QList<QVariant> variantList)
     qint64 basin=variantList.at(counter).toLongLong(); counter++;
     basinList.append(basin);
   }
-  QSet<qint64> basinSet=basinList.toSet();
+  QSet<qint64> basinSet = toQSet(basinList);
 
   Matrix<qreal,3,1> r0t0p0;
   r0t0p0 << r0, t0, p0;
@@ -1646,7 +1661,7 @@ void property_v_rtp(unsigned int /* ndim */, unsigned int npts, const double *xy
   dialog.setWindowTitle("QTAIM");
   dialog.setLabelText(QString("Atomic Basin Integration"));
 
-  QFutureWatcher<void> futureWatcher;
+  QFutureWatcher<QList<QVariant>> futureWatcher;
   QObject::connect(&futureWatcher, SIGNAL(finished()), &dialog, SLOT(reset()));
   QObject::connect(&dialog, SIGNAL(canceled()), &futureWatcher, SLOT(cancel()));
   QObject::connect(&futureWatcher, SIGNAL(progressRangeChanged(int,int)), &dialog, SLOT(setRange(int,int)));
@@ -1801,7 +1816,7 @@ QList<QVariant> QTAIMEvaluatePropertyTP(QList<QVariant> variantList)
     qint64 basin=variantList.at(counter).toLongLong(); counter++;
     basinList.append(basin);
   }
-  QSet<qint64> basinSet=basinList.toSet();
+  QSet<qint64> basinSet = toQSet(basinList);
 
   Avogadro::QTAIMWavefunction wfn;
   wfn.loadFromBinaryFile(wfnFileName);
@@ -2156,7 +2171,7 @@ void property_v_tp(unsigned int /* ndim */, unsigned int npts, const double *xyz
   dialog.setWindowTitle("QTAIM");
   dialog.setLabelText(QString("Atomic Basin Integration"));
 
-  QFutureWatcher<void> futureWatcher;
+  QFutureWatcher<QList<QVariant>> futureWatcher;
   QObject::connect(&futureWatcher, SIGNAL(finished()), &dialog, SLOT(reset()));
   QObject::connect(&dialog, SIGNAL(canceled()), &futureWatcher, SLOT(cancel()));
   QObject::connect(&futureWatcher, SIGNAL(progressRangeChanged(int,int)), &dialog, SLOT(setRange(int,int)));

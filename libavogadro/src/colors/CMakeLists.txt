@@ -1,12 +1,9 @@
-ADD_DEFINITIONS(${QT_DEFINITIONS})
-ADD_DEFINITIONS(-DQT_PLUGIN)
-ADD_DEFINITIONS(-DQT_SHARED)
 
 set(DESTINATION_DIR ${Avogadro_PLUGIN_INSTALL_DIR}/colors)
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
-set(LINK_LIBS avogadro)
+set(LINK_LIBS)
 set(PLUGIN_LABEL colors)
 set(PLUGIN_TARGET colors)
 add_custom_target(colors COMMENT "Meta target to build all Avogadro colors.")

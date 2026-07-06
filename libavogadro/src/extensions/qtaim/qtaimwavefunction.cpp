@@ -148,7 +148,7 @@ namespace Avogadro
     while( fileContentsByLine.first().startsWith("TYPE ASSIGNMENTS")  )
     {
       QString line( fileContentsByLine.first().mid(20,-1) );
-      QStringList splitLine( line.split(" ", QString::SkipEmptyParts) );
+      QStringList splitLine( line.split(" ", Qt::SkipEmptyParts) );
 
       for( qint64 i=0 ; i < splitLine.length() ; ++i )
       {
@@ -280,7 +280,7 @@ namespace Avogadro
     while( fileContentsByLine.first().startsWith("EXPONENTS")  )
     {
       QString line( fileContentsByLine.first().mid(9,-1) );
-      QStringList splitLine( line.split(" ", QString::SkipEmptyParts) );
+      QStringList splitLine( line.split(" ", Qt::SkipEmptyParts) );
 
       for( qint64 i=0 ; i < splitLine.length() ; ++i )
       {
@@ -342,7 +342,7 @@ namespace Avogadro
     for( qint64 i=0; i < m_numberOfMolecularOrbitals ; ++i )
       m_molecularOrbitalEigenvalues[i]=molecularOrbitalEigenvaluesList.at(i);
 
-    moCoefficientsStringList=moCoefficientsStringList.join(" ").split(" ", QString::SkipEmptyParts);
+    moCoefficientsStringList=moCoefficientsStringList.join(" ").split(" ", Qt::SkipEmptyParts);
 
     for( qint64 i=0; i < moCoefficientsStringList.length() ; ++i)
     {

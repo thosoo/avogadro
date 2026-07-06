@@ -225,7 +225,7 @@ namespace Avogadro {
   {
     // Set the cursor - this needs to be reset to Qt::ArrowCursor after
     // Currently, there's a Qt/Mac bug -- SizeAllCursor looks like a spreadsheet cursor
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     widget->setCursor(Qt::CrossCursor);
 #else
     widget->setCursor(Qt::SizeAllCursor);
@@ -288,7 +288,7 @@ namespace Avogadro {
   QUndoCommand* ManipulateTool::mousePressEvent(GLWidget *widget, QMouseEvent *event)
   {
     event->accept();
-    m_lastDraggingPosition = event->pos();
+    m_lastDraggingPosition = event->position().toPoint();
     // Make sure there aren't modifier keys clicked with the left button
     // If the user has a Mac and only a one-button mouse, everything
     // looks like a left button
@@ -298,7 +298,7 @@ namespace Avogadro {
       m_leftButtonPressed = true;
       // Set the cursor - this needs to be reset to Qt::ArrowCursor after
       // Currently, there's a Qt/Mac bug -- SizeAllCursor looks like a spreadsheet cursor
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
       widget->setCursor(Qt::CrossCursor);
 #else
       widget->setCursor(Qt::SizeAllCursor);
@@ -306,7 +306,7 @@ namespace Avogadro {
     }
 
     // On a Mac, click and hold the Shift key
-    if (event->buttons() & Qt::MidButton ||
+    if (event->buttons() & Qt::MiddleButton ||
         (event->buttons() & Qt::LeftButton &&
          event->modifiers() == Qt::ShiftModifier))
     {
@@ -327,7 +327,7 @@ namespace Avogadro {
       widget->setCursor(Qt::ClosedHandCursor);
     }
 
-    m_clickedAtom = widget->computeClickedAtom(event->pos());
+    m_clickedAtom = widget->computeClickedAtom(event->position().toPoint());
 
     // update eyecandy angle
     m_xAngleEyecandy = 0;
@@ -363,7 +363,7 @@ namespace Avogadro {
     // Get the currently selected atoms from the view
     PrimitiveList currentSelection = widget->selectedPrimitives();
 
-    QPoint deltaDragging = event->pos() - m_lastDraggingPosition;
+    QPoint deltaDragging = event->position().toPoint() - m_lastDraggingPosition;
 
     // Manipulation can be performed in two ways - centred on an individual atom
 
@@ -377,7 +377,7 @@ namespace Avogadro {
       {
         // translate the molecule following mouse movement
         translate(widget, m_clickedAtom->pos(), m_lastDraggingPosition,
-                  event->pos());
+                  event->position().toPoint());
       }
       else if (m_midButtonPressed)
       {
@@ -415,7 +415,7 @@ namespace Avogadro {
       {
         // translate the molecule following mouse movement
         translate(widget, &m_selectedPrimitivesCenter, m_lastDraggingPosition,
-                  event->pos());
+                  event->position().toPoint());
       }
       else if (m_midButtonPressed)
       {
@@ -432,7 +432,7 @@ namespace Avogadro {
       }
     }
 
-    m_lastDraggingPosition = event->pos();
+    m_lastDraggingPosition = event->position().toPoint();
     widget->update();
 
     return 0;

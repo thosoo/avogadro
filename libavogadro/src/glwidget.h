@@ -38,10 +38,10 @@
 #endif
 
 #include <QOpenGLWidget>
+#include <QLabel>
 
 class QOpenGLContext;
 class QShowEvent;
-class QLabel;
 class QMouseEvent;
 class QSettings;
 class QUndoStack;

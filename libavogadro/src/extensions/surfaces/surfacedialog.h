@@ -48,7 +48,8 @@ namespace Avogadro
     Q_OBJECT
 
   public:
-    explicit SurfaceDialog(QWidget* parent = 0, Qt::WindowFlags f = 0);
+    explicit SurfaceDialog(QWidget *parent = nullptr,
+                           Qt::WindowFlags f = Qt::WindowFlags());
     ~SurfaceDialog();
     void setMOs(int num);
     void setHOMO(int num);

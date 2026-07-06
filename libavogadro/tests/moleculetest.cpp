@@ -390,4 +390,4 @@ void MoleculeTest::conformers()
 
 QTEST_MAIN(MoleculeTest)
 
-#include "moc_moleculetest.cpp"
+#include "moleculetest.moc"

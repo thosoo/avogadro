@@ -1,8 +1,8 @@
 AVOGADRO_PREFIX = "@USER_PREFIX@"
-OPENBABEL_PREFIX = "@OPENBABEL2_INCLUDE_DIR@/../.."
+OPENBABEL_PREFIX = "@OPENBABEL3_INCLUDE_DIR@/../.."
 INCLUDEPATH += . \
                "$$AVOGADRO_PREFIX/include" \
-               "@OPENBABEL2_INCLUDE_DIR@ \
+               "@OPENBABEL3_INCLUDE_DIR@ \
                "@EIGEN2_INCLUDE_DIR@"
 LIBS += -L"$$AVOGADRO_PREFIX/lib" -lavogadro \
         -L"$$OPENBABEL_PREFIX/lib" -lopenbabel

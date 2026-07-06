@@ -42,12 +42,17 @@
 
 #include <QtGui>
 #include <QButtonGroup>
+#include <QComboBox>
+#include <QDebug>
+#include <QPushButton>
 
 #include <QString>
 #include <QTextStream>
+#include <QtGlobal>
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QSignalBlocker>
+#include <QTimer>
 
 using namespace OpenBabel;
 using namespace Eigen;
@@ -244,27 +249,72 @@ QStringList orcaSolventEntries()
       << "o-xylene"
       << "p-xylene";
 }
+
+QStringList fallbackBasisEntries()
+{
+    return QStringList()
+      << "def2-SVP"
+      << "def2-SV(P)"
+      << "def2-TZVP"
+      << "def2-TZVP(-f)"
+      << "def2-TZVPP"
+      << "def2-QZVPP";
+}
+
+QStringList fallbackDFTFunctionalEntries()
+{
+    return QStringList()
+      << "PBE"
+      << "r2SCAN"
+      << "B3LYP"
+      << "PBE0"
+      << "TPSSh"
+      << "M06L";
+}
+
+int boundedComboIndex(const QComboBox *combo, int index)
+{
+    if (!combo || combo->count() <= 0)
+        return -1;
+    return qBound(0, index, combo->count() - 1);
+}
+
+void setComboIndexBounded(QComboBox *combo, int index)
+{
+    const int boundedIndex = boundedComboIndex(combo, index);
+    if (boundedIndex >= 0)
+        combo->setCurrentIndex(boundedIndex);
+}
 }
 
 OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
-    QDialog( parent, f ), m_molecule(NULL), m_scfConvButtons(NULL), m_scfConv2ndButtons(NULL),
-    m_output(), m_savePath(), m_dirty(false), m_warned(false), m_initializing(true),
+    QDialog( parent, f ), m_molecule(NULL), basicData(NULL), basisData(NULL),
+    controlData(NULL), dataData(NULL), scfData(NULL), dftData(NULL),
+    m_basic(true), m_advanced(false),
+    m_scfConvButtons(NULL), m_scfConv2ndButtons(NULL), m_output(), m_savePath(),
+    m_dirty(false), m_warned(false), m_initializing(true),
     m_pendingMoleculeSync(false)
 {
+    qInfo() << "OrcaInputDialog: constructor start";
     basicData = new OrcaBasicData;
     basisData = new OrcaBasisData;
     controlData = new OrcaControlData;
     scfData = new OrcaSCFData;
     dftData = new OrcaDFTData;
     dataData = new OrcaDataData;
+    qInfo() << "OrcaInputDialog: data objects allocated";
 
     // This initializes the ui member function to contain pointers to
     // all GUI elements in the orcainputdialog.ui file
+    qInfo() << "OrcaInputDialog: before setupUi";
     ui.setupUi(this);
+    qInfo() << "OrcaInputDialog: setupUi complete";
 
     // write items into comboboxes
 
+    qInfo() << "OrcaInputDialog: before initComboboxes";
     initComboboxes();
+    qInfo() << "OrcaInputDialog: after initComboboxes";
 
     ui.basicCalculationCombo->setItemText(0, tr("Single Point"));
     ui.basicCalculationCombo->setItemText(1, tr("Geometry Optimization"));
@@ -301,14 +351,30 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
     ui.tddftCheck->setText(tr("Enable TD-DFT"));
 
     // init dialog boxes
+    qInfo() << "OrcaInputDialog: before initBasicData";
     initBasicData();
+    qInfo() << "OrcaInputDialog: after initBasicData";
+    qInfo() << "OrcaInputDialog: before initBasisData";
     initBasisData();
+    qInfo() << "OrcaInputDialog: after initBasisData";
+    qInfo() << "OrcaInputDialog: before initControlData";
     initControlData();
+    qInfo() << "OrcaInputDialog: after initControlData";
+    qInfo() << "OrcaInputDialog: before initSCFData";
     initSCFData();
+    qInfo() << "OrcaInputDialog: after initSCFData";
+    qInfo() << "OrcaInputDialog: before initDFTData";
     initDFTData();
+    qInfo() << "OrcaInputDialog: after initDFTData";
+    qInfo() << "OrcaInputDialog: before initResourcesData";
     initResourcesData();
+    qInfo() << "OrcaInputDialog: after initResourcesData";
+    qInfo() << "OrcaInputDialog: before initSolvationData";
     initSolvationData();
+    qInfo() << "OrcaInputDialog: after initSolvationData";
+    qInfo() << "OrcaInputDialog: before initDataData";
     initDataData();
+    qInfo() << "OrcaInputDialog: after initDataData";
 
     ui.scfDampingGroup->hide();
     ui.scfLevelShiftGroup->hide();
@@ -323,7 +389,7 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
     ui.dataPrintCombo->hide();
     ui.groupBox_3->hide();
     ui.basisRelativisticGroup->hide();
-    ui.dataFormatCombo->setCurrentIndex(0);
+    setComboIndexBounded(ui.dataFormatCombo, 0);
     ui.dataFormatCombo->setEnabled(false);
 
 
@@ -332,16 +398,30 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
     ui.advancedTree->expandAll();
     ui.advancedTree->setCurrentItem(ui.advancedTree->topLevelItem(0));
 
-    // Connect the GUI elements to the correct slots
-
-    connectModes();
-    connectBasic();
-    connectAdvanced();
-    connectPreview();
-    connectButtons();
-
     QSettings settings;
+    qInfo() << "OrcaInputDialog: before readSettings";
     readSettings(settings);
+    qInfo() << "OrcaInputDialog: after readSettings";
+
+    // Connect the GUI elements to the correct slots after the widgets and
+    // backing data are fully initialized. The ORCA dialog restores state and
+    // synchronizes molecule data lazily, so constructor-time signals must not
+    // enter runtime slots before setup is complete.
+    qInfo() << "OrcaInputDialog: before connectModes";
+    connectModes();
+    qInfo() << "OrcaInputDialog: after connectModes";
+    qInfo() << "OrcaInputDialog: before connectBasic";
+    connectBasic();
+    qInfo() << "OrcaInputDialog: after connectBasic";
+    qInfo() << "OrcaInputDialog: before connectAdvanced";
+    connectAdvanced();
+    qInfo() << "OrcaInputDialog: after connectAdvanced";
+    qInfo() << "OrcaInputDialog: before connectPreview";
+    connectPreview();
+    qInfo() << "OrcaInputDialog: after connectPreview";
+    qInfo() << "OrcaInputDialog: before connectButtons";
+    connectButtons();
+    qInfo() << "OrcaInputDialog: after connectButtons";
 
     // Enable/Disable Widgets
 
@@ -356,9 +436,8 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
     }
     ui.basisAuxCorrBasisSetCombo->setEnabled(auxCorrNeeded);
 //    ui.basisAuxCorrECPCheck->setEnabled(false);
-    m_basic = true;
-    m_advanced = false;
     m_initializing = false;
+    qInfo() << "OrcaInputDialog: constructor end";
 }
 
   OrcaInputDialog::~OrcaInputDialog()
@@ -374,11 +453,13 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
   }
   void OrcaInputDialog::showEvent(QShowEvent *event)
   {
+    qInfo() << "OrcaInputDialog: showEvent start";
     QDialog::showEvent(event);
     if (m_pendingMoleculeSync)
       applyMoleculeToUi();
     // Generate an initial preview of the input deck
-    updatePreviewText();
+    QTimer::singleShot(0, this, &OrcaInputDialog::updatePreviewText);
+    qInfo() << "OrcaInputDialog: showEvent end";
   }
 
   void OrcaInputDialog::connectModes()
@@ -389,9 +470,15 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
   void OrcaInputDialog::connectAdvanced()
   {
       // Advanced Basis Set Slots
-      connect (ui.basisBasisSetCombo, SIGNAL(currentIndexChanged(int)), this,  SLOT (setBasisBasisSet(int )));
-      connect (ui.basisAuxBasisSetCombo, SIGNAL(currentIndexChanged(int)), this, SLOT( setBasisAuxBasisSet (int )));
-      connect (ui.basisAuxCorrBasisSetCombo, SIGNAL(currentIndexChanged(int)), this, SLOT( setBasisAuxCorrBasisSet (int )));
+      connect(ui.basisBasisSetCombo,
+              qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setBasisBasisSet);
+      connect(ui.basisAuxBasisSetCombo,
+              qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setBasisAuxBasisSet);
+      connect(ui.basisAuxCorrBasisSetCombo,
+              qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setBasisAuxCorrBasisSet);
 //      connect (ui.basisECPCheck, SIGNAL(toggled(bool)), this, SLOT(setBasisUseEPC (bool )));
 //      connect (ui.basisAuxECPCheck, SIGNAL(toggled (bool)), this, SLOT( setBasisUseAuxEPC (bool )));
 //      connect (ui.basisAuxCorrECPCheck, SIGNAL(toggled (bool)), this, SLOT( setBasisUseAuxCorrEPC (bool )));
@@ -402,14 +489,16 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
       // Advanced Control Slots
       connect(ui.advancedTree, SIGNAL(clicked(QModelIndex)), this, SLOT(advancedItemClicked(QModelIndex)));
 
-      connect(ui.controlRunTypeCombo, SIGNAL(currentIndexChanged(int)),
-              this, SLOT(setControlCalculation(int)));
+      connect(ui.controlRunTypeCombo,
+              qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setControlCalculation);
       connect(ui.controlMultiplicitySpin, SIGNAL(valueChanged(int)),
               this, SLOT(setControlMultiplicity(int)));
       connect(ui.controlChargeSpin, SIGNAL(valueChanged(int)),
               this, SLOT(setControlCharge(int)));
-      connect(ui.controlMethodCombo, SIGNAL(currentIndexChanged(int)),
-              this, SLOT(setControlMethod(int)));
+      connect(ui.controlMethodCombo,
+              qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setControlMethod);
 
       // Advanced SCF Slots
 
@@ -419,38 +508,55 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
       connect (ui.scfLevelShiftDSpin, SIGNAL(valueChanged(double)), this, SLOT(setSCFLevelShift(double)));
       connect (ui.scfDampErrorDSpin, SIGNAL(valueChanged(double)), this, SLOT(setSCFDampError (double)));
       connect (ui.scfLevelErrorDSpin, SIGNAL(valueChanged(double)), this, SLOT(setSCFLevelError(double)));
-      connect (ui.scfAccCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setSCFAccuracy(int)));
+      connect(ui.scfAccCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setSCFAccuracy);
 
-      connect (ui.scfTypeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setSCFType(int)));
+      connect(ui.scfTypeCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setSCFType);
       connect (ui.scfMaxIterSpin, SIGNAL(valueChanged(int)), this , SLOT (setSCFMaxIter(int)));
 
-      connect (m_scfConvButtons, SIGNAL(buttonClicked (int)), this, SLOT(setSCFConverger(int)));
-      connect (m_scfConv2ndButtons, SIGNAL(buttonClicked (int)), this, SLOT(setSCF2ndConverger(int)));
+      if (m_scfConvButtons) {
+          connect(m_scfConvButtons, &QButtonGroup::idClicked,
+                  this, &OrcaInputDialog::setSCFConverger);
+      }
+      if (m_scfConv2ndButtons) {
+          connect(m_scfConv2ndButtons, &QButtonGroup::idClicked,
+                  this, &OrcaInputDialog::setSCF2ndConverger);
+      }
 
       // Advanced DFT Slots
 
-      connect (ui.solvationCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setSolvation(int)));
-      connect (ui.solvationModelCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setSolvationModel(int)));
+      connect(ui.solvationCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setSolvation);
+      connect(ui.solvationModelCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setSolvationModel);
       connect (ui.cpcmGroup, SIGNAL(toggled(bool)), this, SLOT(setCpcmAdvancedEnabled(bool)));
       connect (ui.cpcmDRACOCheck, SIGNAL(toggled(bool)), this, SLOT(setCpcmDRACO(bool)));
       connect (ui.cpcmEpsilonSpin, SIGNAL(valueChanged(double)), this, SLOT(setCpcmEpsilon(double)));
       connect (ui.cpcmRefracSpin, SIGNAL(valueChanged(double)), this, SLOT(setCpcmRefrac(double)));
       connect (ui.cpcmRSolvSpin, SIGNAL(valueChanged(double)), this, SLOT(setCpcmRSolv(double)));
-      connect (ui.cpcmSurfaceTypeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setCpcmSurfaceType(int)));
-      connect (ui.dispersionCombo, SIGNAL(currentIndexChanged(int)), this,SLOT(setDispersion(int)));
-      connect (ui.dftFunctionalCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setDFTFunctional(int)));
+      connect(ui.cpcmSurfaceTypeCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setCpcmSurfaceType);
+      connect(ui.dispersionCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setDispersion);
+      connect(ui.dftFunctionalCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setDFTFunctional);
 
       // Advanced resource / excited-state slots
-      connect (ui.maxCoreCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(setResourcesMaxCore(int)));
-      connect (ui.nprocsCombo, SIGNAL(currentIndexChanged(int)), this,SLOT(setResourcesNProcs(int)));
+      connect(ui.maxCoreCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setResourcesMaxCore);
+      connect(ui.nprocsCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setResourcesNProcs);
       connect (ui.tddftCheck, SIGNAL(toggled(bool)), this, SLOT(setTDDFTEnabled(bool)));
       connect (ui.tddftRootsSpin, SIGNAL(valueChanged(int)), this, SLOT(setTDDFTRoots(int)));
       connect (ui.nmrCheck, SIGNAL(toggled(bool)), this, SLOT(setNMRShielding(bool)));
 
       // Advanced Data Slots
-      connect(ui.dataFormatCombo, SIGNAL(currentIndexChanged(int)), this, SLOT (setDataFormat(int)));
+      connect(ui.dataFormatCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setDataFormat);
       connect(ui.dataCommentLine, SIGNAL(editingFinished()), this, SLOT(setDataComment()));
-      connect(ui.dataPrintCombo, SIGNAL(currentIndexChanged(int)), this, SLOT (setPrintLevel(int)));
+      connect(ui.dataPrintCombo, qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setPrintLevel);
       connect(ui.MOPrintCheck, SIGNAL(toggled(bool)), this, SLOT(setMOPrint(bool)));
       connect(ui.basisPrintCheck, SIGNAL(toggled(bool)),this, SLOT(setBasisPrint(bool)));
   }
@@ -471,26 +577,32 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
               this, SLOT(generateClicked()));
       connect(ui.resetButton, SIGNAL(clicked()),
               this, SLOT(resetClicked()));
+      connect(ui.closeButton, &QPushButton::clicked,
+              this, &QDialog::close);
   }
 
   void OrcaInputDialog::connectBasic()
   {
       connect(ui.basicCommentLine, SIGNAL(editingFinished()),
               this, SLOT(setBasicComment()));
-      connect(ui.basicCalculationCombo, SIGNAL(currentIndexChanged(int)),
-              this, SLOT(setBasicCalculation(int)));
-      connect(ui.basicMethodCombo, SIGNAL(currentIndexChanged(int)),
-              this, SLOT(setBasicMethod(int)));
-      connect(ui.basicBasisSetCombo, SIGNAL(currentIndexChanged(int)),
-              this, SLOT(setBasicBasis(int)));
+      connect(ui.basicCalculationCombo,
+              qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setBasicCalculation);
+      connect(ui.basicMethodCombo,
+              qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setBasicMethod);
+      connect(ui.basicBasisSetCombo,
+              qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setBasicBasis);
       connect(ui.basicMultiplicitySpin, SIGNAL(valueChanged(int)),
               this, SLOT(setBasicMultiplicity(int)));
 
       connect(ui.basicChargeSpin, SIGNAL(valueChanged(int)),
               this, SLOT(setBasicCharge(int)));
 
-      connect(ui.basicFormatCombo, SIGNAL(currentIndexChanged(int)),
-              this, SLOT(setBasicCoordsFormat(int)));
+      connect(ui.basicFormatCombo,
+              qOverload<int>(&QComboBox::currentIndexChanged),
+              this, &OrcaInputDialog::setBasicCoordsFormat);
   }
 
   void OrcaInputDialog::advancedItemClicked(const QModelIndex &index )
@@ -508,24 +620,29 @@ OrcaInputDialog::OrcaInputDialog(QWidget *parent, Qt::WindowFlags f ) :
 
 void  OrcaInputDialog::initComboboxes()
   {
-      meta = new QMetaObject (OrcaExtension::staticMetaObject);
+      qInfo() << "OrcaInputDialog: initComboboxes start";
+      const QMetaObject &metaObject = OrcaExtension::staticMetaObject;
       QStringList items;
-      for (int i=0; i < meta->enumeratorCount(); ++i) {
+      bool foundDFTFunctionalType = false;
+      bool foundBasisType = false;
+      for (int i=0; i < metaObject.enumeratorCount(); ++i) {
           items.clear();
-          QMetaEnum m = meta->enumerator(i);
+          QMetaEnum m = metaObject.enumerator(i);
           QString enumType = m.name();
           if (enumType == "DFTFunctionalType") {
+              foundDFTFunctionalType = true;
               dftData->setEnumDFT(m);
               for (int j=0; j<m.keyCount();j++) {
-                  items += QLatin1String(m.valueToKey(j));
+                  items += QLatin1String(m.key(j));
               }
               ui.dftFunctionalCombo->addItems(items);
           } else if (enumType == "basisType") {
+              foundBasisType = true;
               basicData->setEnumBasis(m);
               basisData->setEnumBasis(m);
 
               for (int j=0; j<m.keyCount();j++) {
-                  items += QLatin1String(m.valueToKey(j));
+                  items += QLatin1String(m.key(j));
                   items[j].replace("SV_P", "SV(P)");
                   items[j].replace("TZVP_F", "TZVP(-f)");
                   items[j].prepend("def2-");
@@ -544,6 +661,19 @@ void  OrcaInputDialog::initComboboxes()
               ui.basisAuxBasisSetCombo->addItems(items);   // Only one aux-basisset available
           }
       }
+      if (!foundDFTFunctionalType) {
+          ui.dftFunctionalCombo->addItems(fallbackDFTFunctionalEntries());
+      }
+      if (!foundBasisType) {
+          items = fallbackBasisEntries();
+          ui.basicBasisSetCombo->addItems(items);
+          ui.basisBasisSetCombo->addItems(items);
+          for (QString &item : items)
+              item.append("/C");
+          ui.basisAuxCorrBasisSetCombo->addItems(items);
+          ui.basisAuxBasisSetCombo->addItem("def2/J");
+      }
+      qInfo() << "OrcaInputDialog: initComboboxes end";
   }
   void OrcaInputDialog::initBasicData()
   {
@@ -553,12 +683,12 @@ void  OrcaInputDialog::initComboboxes()
       const QSignalBlocker b4(ui.basicChargeSpin);
       const QSignalBlocker b5(ui.basicMultiplicitySpin);
       const QSignalBlocker b6(ui.basicFormatCombo);
-      ui.basicCalculationCombo->setCurrentIndex(basicData->getCalculation());
-      ui.basicMethodCombo->setCurrentIndex(basicData->getMethod() == DFT ? 1 : 0);
-      ui.basicBasisSetCombo->setCurrentIndex(basicData->getBasis ());
+      setComboIndexBounded(ui.basicCalculationCombo, basicData->getCalculation());
+      setComboIndexBounded(ui.basicMethodCombo, basicData->getMethod() == DFT ? 1 : 0);
+      setComboIndexBounded(ui.basicBasisSetCombo, basicData->getBasis ());
       ui.basicChargeSpin->setValue(basicData->getCharge());
       ui.basicMultiplicitySpin->setValue(basicData->getMultiplicity());
-      ui.basicFormatCombo->setCurrentIndex(basicData->getFormat());
+      setComboIndexBounded(ui.basicFormatCombo, basicData->getFormat());
 
   }
 
@@ -567,9 +697,9 @@ void  OrcaInputDialog::initComboboxes()
       const QSignalBlocker b1(ui.basisBasisSetCombo);
       const QSignalBlocker b2(ui.basisAuxBasisSetCombo);
       const QSignalBlocker b3(ui.basisAuxCorrBasisSetCombo);
-      ui.basisBasisSetCombo->setCurrentIndex(basisData->getBasis());
-      ui.basisAuxBasisSetCombo->setCurrentIndex(basisData->getAuxBasis());
-      ui.basisAuxCorrBasisSetCombo->setCurrentIndex(basisData->getAuxCorrBasis());
+      setComboIndexBounded(ui.basisBasisSetCombo, basisData->getBasis());
+      setComboIndexBounded(ui.basisAuxBasisSetCombo, basisData->getAuxBasis());
+      setComboIndexBounded(ui.basisAuxCorrBasisSetCombo, basisData->getAuxCorrBasis());
       ui.basisRelativisticGroup->hide();
 //      ui.basisECPCheck->setChecked(basisData->EPCEnabled());
 //      ui.basisAuxECPCheck->setChecked(basisData->auxEPCEnabled());
@@ -591,8 +721,8 @@ void  OrcaInputDialog::initComboboxes()
       ui.controlChargeSpin->setValue(controlData->getCharge());
       ui.controlMultiplicitySpin->setValue((controlData->getMultiplicity()));
 
-      ui.controlRunTypeCombo->setCurrentIndex(controlData->getCalculation());
-      ui.controlMethodCombo->setCurrentIndex(controlData->getMethod());
+      setComboIndexBounded(ui.controlRunTypeCombo, controlData->getCalculation());
+      setComboIndexBounded(ui.controlMethodCombo, controlData->getMethod());
   }
 
   void OrcaInputDialog::initSCFData()
@@ -600,8 +730,8 @@ void  OrcaInputDialog::initComboboxes()
       const QSignalBlocker b1(ui.scfAccCombo);
       const QSignalBlocker b2(ui.scfTypeCombo);
       const QSignalBlocker b3(ui.scfMaxIterSpin);
-      ui.scfAccCombo->setCurrentIndex(scfData->getAccuracy());
-      ui.scfTypeCombo->setCurrentIndex(scfData->getType());
+      setComboIndexBounded(ui.scfAccCombo, scfData->getAccuracy());
+      setComboIndexBounded(ui.scfTypeCombo, scfData->getType());
       ui.scfMaxIterSpin->setValue(scfData->getMaxIter());
 
       ui.scfLevelShiftGroup->setChecked(scfData->levelShiftEnabled());
@@ -614,12 +744,12 @@ void  OrcaInputDialog::initComboboxes()
       ui.scfDampErrorDSpin->setValue(scfData->getDampError());
 
       if (m_scfConvButtons == NULL) {
-          m_scfConvButtons = new QButtonGroup;
+          m_scfConvButtons = new QButtonGroup(this);
           m_scfConvButtons->addButton(ui.scfDIISRadio, 0);
           m_scfConvButtons->addButton(ui.scfKDIISRadio, 1);
       }
       if (m_scfConv2ndButtons == NULL) {
-          m_scfConv2ndButtons = new QButtonGroup;
+          m_scfConv2ndButtons = new QButtonGroup(this);
           m_scfConv2ndButtons->addButton(ui.scfSOSCFRadio, 0);
           m_scfConv2ndButtons->addButton(ui.scfNRSCFRadio, 1);
           m_scfConv2ndButtons->addButton(ui.scfAHSCFRadio, 2);
@@ -646,8 +776,8 @@ void  OrcaInputDialog::initComboboxes()
       const QSignalBlocker b2(ui.dftFunctionalCombo);
       const QSignalBlocker b3(ui.tddftRootsSpin);
       const QSignalBlocker b4(ui.nmrCheck);
-      ui.dispersionCombo->setCurrentIndex(controlData->getDispersion());
-      ui.dftFunctionalCombo->setCurrentIndex(dftData->getDFTFunctional());
+      setComboIndexBounded(ui.dispersionCombo, controlData->getDispersion());
+      setComboIndexBounded(ui.dftFunctionalCombo, dftData->getDFTFunctional());
       ui.tddftRootsSpin->setValue(controlData->getTDDFTRoots());
       ui.nmrCheck->setChecked(controlData->nmrShieldingEnabled());
       ui.tddftRootsSpin->setEnabled(controlData->dftEnabled() && controlData->tddftEnabled());
@@ -664,16 +794,16 @@ void  OrcaInputDialog::initComboboxes()
       const QSignalBlocker b6(ui.cpcmRefracSpin);
       const QSignalBlocker b7(ui.cpcmRSolvSpin);
       const QSignalBlocker b8(ui.cpcmSurfaceTypeCombo);
-      ui.solvationModelCombo->setCurrentIndex(controlData->getSolvationModel());
+      setComboIndexBounded(ui.solvationModelCombo, controlData->getSolvationModel());
       const int solventIndex =
         qMax(0, ui.solvationCombo->findText(controlData->getSolventName()));
-      ui.solvationCombo->setCurrentIndex(solventIndex);
+      setComboIndexBounded(ui.solvationCombo, solventIndex);
       ui.cpcmGroup->setChecked(controlData->cpcmAdvancedEnabled());
       ui.cpcmDRACOCheck->setChecked(controlData->dracoEnabled());
       ui.cpcmEpsilonSpin->setValue(controlData->getCpcmEpsilon());
       ui.cpcmRefracSpin->setValue(controlData->getCpcmRefrac());
       ui.cpcmRSolvSpin->setValue(controlData->getCpcmRSolv());
-      ui.cpcmSurfaceTypeCombo->setCurrentIndex(controlData->getCpcmSurfaceType());
+      setComboIndexBounded(ui.cpcmSurfaceTypeCombo, controlData->getCpcmSurfaceType());
       ui.cpcmDRACOCheck->setEnabled(controlData->cpcmAdvancedEnabled());
       ui.cpcmEpsilonSpin->setEnabled(controlData->cpcmAdvancedEnabled());
       ui.cpcmRefracSpin->setEnabled(controlData->cpcmAdvancedEnabled());
@@ -687,9 +817,9 @@ void  OrcaInputDialog::initComboboxes()
       const QSignalBlocker b2(ui.maxCoreCombo);
       const QSignalBlocker b3(ui.tddftCheck);
       const int nProcIndex = qMax(0, ui.nprocsCombo->findText(QString::number(controlData->getNProcs())));
-      ui.nprocsCombo->setCurrentIndex(nProcIndex);
+      setComboIndexBounded(ui.nprocsCombo, nProcIndex);
       const int maxCoreIndex = qMax(0, ui.maxCoreCombo->findText(QString::number(controlData->getMaxCore())));
-      ui.maxCoreCombo->setCurrentIndex(maxCoreIndex);
+      setComboIndexBounded(ui.maxCoreCombo, maxCoreIndex);
       ui.tddftCheck->setChecked(controlData->tddftEnabled());
 
   }
@@ -699,7 +829,7 @@ void  OrcaInputDialog::initComboboxes()
       const QSignalBlocker b1(ui.dataPrintCombo);
       const QSignalBlocker b2(ui.MOPrintCheck);
       const QSignalBlocker b3(ui.basisPrintCheck);
-      ui.dataPrintCombo->setCurrentIndex(dataData->getPrintLevel());
+      setComboIndexBounded(ui.dataPrintCombo, dataData->getPrintLevel());
       if (dataData->MOPrintEnabled()) {
           ui.MOPrintCheck->setChecked(true);
       } else {
@@ -781,6 +911,7 @@ void  OrcaInputDialog::initComboboxes()
   }
   void OrcaInputDialog::setMolecule(Molecule *molecule)
   {
+      qInfo() << "OrcaInputDialog: setMolecule start";
       // Disconnect the old molecule first...
 
       if (m_molecule)
@@ -792,6 +923,7 @@ void  OrcaInputDialog::initComboboxes()
       if (!m_molecule) {
           m_pendingMoleculeSync = false;
           updatePreviewText();
+          qInfo() << "OrcaInputDialog: setMolecule end";
           return;
       }
 
@@ -809,12 +941,20 @@ void  OrcaInputDialog::initComboboxes()
               updatePreviewText();
           }
       }
+      qInfo() << "OrcaInputDialog: setMolecule end";
   }
 
   void OrcaInputDialog::applyMoleculeToUi()
   {
-      if (m_initializing || !m_molecule)
+      qInfo() << "OrcaInputDialog: applyMoleculeToUi start";
+      if (m_initializing || !m_molecule) {
+          qInfo() << "OrcaInputDialog: applyMoleculeToUi end";
           return;
+      }
+      if (!basicData || !controlData) {
+          qInfo() << "OrcaInputDialog: applyMoleculeToUi end";
+          return;
+      }
 
       OpenBabel::OBMol obmol = m_molecule->OBMol();
       const int multiplicity = obmol.GetTotalSpinMultiplicity();
@@ -837,6 +977,7 @@ void  OrcaInputDialog::initComboboxes()
       }
 
       m_pendingMoleculeSync = false;
+      qInfo() << "OrcaInputDialog: applyMoleculeToUi end";
   }
 
   void OrcaInputDialog::resetClicked()
@@ -1242,10 +1383,20 @@ void  OrcaInputDialog::initComboboxes()
 //
   void OrcaInputDialog::updatePreviewText ()
   {
-      if (m_initializing)
+      qInfo() << "OrcaInputDialog: updatePreviewText start";
+      if (m_initializing) {
+          qInfo() << "OrcaInputDialog: updatePreviewText end";
           return;
-      if (!isVisible())
+      }
+      if (!isVisible()) {
+          qInfo() << "OrcaInputDialog: updatePreviewText end";
           return;
+      }
+      if (!basicData || !basisData || !controlData || !dataData || !scfData ||
+          !dftData) {
+          qInfo() << "OrcaInputDialog: updatePreviewText end";
+          return;
+      }
 
       // Generate the input deck and display it
 
@@ -1275,14 +1426,22 @@ void  OrcaInputDialog::initComboboxes()
           ui.previewText->setText(generateInputDeck());
           ui.previewText->document()->setModified(false);
       }
+      qInfo() << "OrcaInputDialog: updatePreviewText end";
   }
 
   QString OrcaInputDialog::generateInputDeck()
   {
+      qInfo() << "OrcaInputDialog: generateInputDeck start";
       // Generate an input deck based on the settings of the dialog
 
       QString buffer;
       QTextStream mol(&buffer);
+
+      if (!basicData || !basisData || !controlData || !dataData || !scfData ||
+          !dftData) {
+          qInfo() << "OrcaInputDialog: generateInputDeck end";
+          return buffer;
+      }
 
       int charge, multiplicity;
       QString comment;
@@ -1405,10 +1564,10 @@ void  OrcaInputDialog::initComboboxes()
           QList<Atom *> atoms = m_molecule->atoms();
 
           foreach (Atom *atom, atoms) {
-              mol << qSetFieldWidth(4) << right
+              mol << qSetFieldWidth(4) << Qt::right
                   << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()))
-                  << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint
-                  << fixed << right << atom->pos()->x() << atom->pos()->y()
+                  << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << Qt::forcepoint
+                  << Qt::fixed << Qt::right << atom->pos()->x() << atom->pos()->y()
                   << atom->pos()->z()
                   << qSetFieldWidth(0) << '\n';
           }
@@ -1513,27 +1672,27 @@ void  OrcaInputDialog::initComboboxes()
               if (t < 0.0)
                   t += 360.0;
 
-              mol << qSetFieldWidth(4) << right
+              mol << qSetFieldWidth(4) << Qt::right
                   << QString(OpenBabel::OBElements::GetSymbol(atom->GetAtomicNum()));
 
               if (a) {
-                  mol << qSetFieldWidth(6) << right << QString::number(a->GetIdx());
+                  mol << qSetFieldWidth(6) << Qt::right << QString::number(a->GetIdx());
               } else {
-                  mol << qSetFieldWidth(6) << right << "0" ;
+                  mol << qSetFieldWidth(6) << Qt::right << "0" ;
               }
               if (b) {
-                  mol << qSetFieldWidth(6) << right << QString::number(b->GetIdx());
+                  mol << qSetFieldWidth(6) << Qt::right << QString::number(b->GetIdx());
               } else {
-                  mol << qSetFieldWidth(6) << right << "0" ;
+                  mol << qSetFieldWidth(6) << Qt::right << "0" ;
               }
               if (c) {
-                  mol << qSetFieldWidth(6) << right << QString::number(c->GetIdx());
+                  mol << qSetFieldWidth(6) << Qt::right << QString::number(c->GetIdx());
               } else {
-                  mol << qSetFieldWidth(6) << right << "0" ;
+                  mol << qSetFieldWidth(6) << Qt::right << "0" ;
               }
-              mol << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint << fixed << right << r;
-              mol << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint << fixed << right << w;
-              mol << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint << fixed << right << t;
+              mol << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right << r;
+              mol << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right << w;
+              mol << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right << t;
 
               mol << qSetFieldWidth(0) << '\n';
           }
@@ -1573,20 +1732,20 @@ void  OrcaInputDialog::initComboboxes()
               if (t < 0.0)
                   t += 360.0;
 
-              mol << qSetFieldWidth(4) << right
+              mol << qSetFieldWidth(4) << Qt::right
                   << QString(OpenBabel::OBElements::GetSymbol(atom->GetAtomicNum()));
               if (atom->GetIdx() > 1)
-                  mol << qSetFieldWidth(6) << right
+                  mol << qSetFieldWidth(6) << Qt::right
                       << QString::number(a->GetIdx()) << qSetFieldWidth(15)
-                      << qSetRealNumberPrecision(5) << forcepoint << fixed << right << r;
+                      << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right << r;
               if (atom->GetIdx() > 2)
-                  mol << qSetFieldWidth(6) << right
+                  mol << qSetFieldWidth(6) << Qt::right
                       << QString::number(b->GetIdx()) << qSetFieldWidth(15)
-                      << qSetRealNumberPrecision(5) << forcepoint << fixed << right << w;
+                      << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right << w;
               if (atom->GetIdx() > 3)
-                  mol << qSetFieldWidth(6) << right
+                  mol << qSetFieldWidth(6) << Qt::right
                       << QString::number(c->GetIdx()) << qSetFieldWidth(15)
-                      << qSetRealNumberPrecision(5) << forcepoint << fixed << right << t;
+                      << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right << t;
               mol << qSetFieldWidth(0) << '\n';
           }
           mol << "*\n";
@@ -1596,8 +1755,9 @@ void  OrcaInputDialog::initComboboxes()
       }
 
 
-      mol << endl;
+      mol << Qt::endl;
 
+      qInfo() << "OrcaInputDialog: generateInputDeck end";
       return buffer;
   }
 

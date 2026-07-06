@@ -28,11 +28,11 @@
 
 #include <openbabel/generic.h> // for OBUnitCell
 
-#include <QtCore/QDebug>
-#include <QtCore/QMutex>
-#include <QtCore/QThread>
+#include <QDebug>
+#include <QMutex>
+#include <QThread>
 #include <QAction>
-#include <QtWidgets/QMessageBox>
+#include <QMessageBox>
 
 using namespace Avogadro;
 

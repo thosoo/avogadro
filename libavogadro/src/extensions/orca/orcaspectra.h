@@ -38,7 +38,7 @@ class OrcaSpectra : public QDialog
   Q_OBJECT
 
 public:
-    OrcaSpectra(QWidget *parent = 0, Qt::WindowFlags f = 0 );
+    OrcaSpectra(QWidget *parent = nullptr, Qt::WindowFlags f = Qt::WindowFlags() );
 
 public slots:
 

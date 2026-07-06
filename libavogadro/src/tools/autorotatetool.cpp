@@ -87,10 +87,10 @@ namespace Avogadro {
   {
     // Record the starting postion and which mouse button was pressed
     m_glwidget = widget;
-    m_startDraggingPosition = event->pos();
+    m_startDraggingPosition = event->position().toPoint();
     m_currentDraggingPosition = m_startDraggingPosition;
     m_leftButtonPressed = ( event->buttons() & Qt::LeftButton );
-    m_midButtonPressed = ( event->buttons() & Qt::MidButton );
+    m_midButtonPressed = ( event->buttons() & Qt::MiddleButton );
 
     if (m_leftButtonPressed || m_midButtonPressed)
       event->accept();
@@ -106,7 +106,7 @@ namespace Avogadro {
     // Calculate some multipliers for the delta
     double xMultiplier = m_maxRotation / static_cast<double>(m_glwidget->width());
     double yMultiplier = m_maxRotation / static_cast<double>(m_glwidget->height());
-    QPoint deltaDragging = event->pos() - m_startDraggingPosition;
+    QPoint deltaDragging = event->position().toPoint() - m_startDraggingPosition;
 
     if(m_leftButtonPressed) {
       event->accept();
@@ -146,7 +146,7 @@ namespace Avogadro {
     m_glwidget = widget;
 
     // Keep track of the current position to draw the movement line
-    m_currentDraggingPosition = event->pos();
+    m_currentDraggingPosition = event->position().toPoint();
 
     if (m_leftButtonPressed || m_midButtonPressed)
       event->accept();

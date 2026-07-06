@@ -49,6 +49,8 @@
 #include <QCoreApplication>
 
 #include "staticplugins.cpp"
+#include <QRegularExpression>
+#include <algorithm>
 
 namespace Avogadro {
 
@@ -306,7 +308,7 @@ namespace Avogadro {
       d->tools.append(tool);
     }
 
-    qSort(d->tools.begin(), d->tools.end(), toolGreaterThan);
+    std::sort(d->tools.begin(), d->tools.end(), toolGreaterThan);
 
     d->toolsLoaded = true;
     return d->tools;
@@ -324,7 +326,7 @@ namespace Avogadro {
     dir.setFilter(QDir::Files | QDir::Readable);
 
     bool failed = false;
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MAC
     dir.cd("Library/Application Support");
     if (!dir.cd("Avogadro")) {
       if (!dir.mkdir("Avogadro")) failed = true;
@@ -392,7 +394,7 @@ namespace Avogadro {
       d->colors.append(color);
     }
 
-    qSort(d->colors.begin(), d->colors.end(), colorGreaterThan);
+    std::sort(d->colors.begin(), d->colors.end(), colorGreaterThan);
 
     d->colorsLoaded = true;
     return d->colors;
@@ -766,7 +768,7 @@ namespace Avogadro {
     foreach (const QString& fileName, plugins) {
       if(!QLibrary::isLibrary(fileName))
         continue;
-#ifdef Q_WS_X11
+#ifdef AVO_USE_X11
       if ((fileName.indexOf("libavogadro.so") != -1)
         || (fileName.indexOf("Avogadro.so") != -1)
         || (fileName.indexOf("libQPeriodicTable.so") != -1)
@@ -800,7 +802,7 @@ namespace Avogadro {
     foreach (const QString &variable, QProcess::systemEnvironment()) {
       if(variable.startsWith("AVOGADRO_PLUGINS=")) {
         QString path(variable);
-        path.remove(QRegExp("^AVOGADRO_PLUGINS="));
+        path.remove(QRegularExpression("^AVOGADRO_PLUGINS="));
         searchDirs << path.split(':');
       }
     }
@@ -813,10 +815,10 @@ namespace Avogadro {
     }
 
     // Now to search for the plugins in home directories
-  #if defined(Q_WS_X11)
+  #if defined(AVO_USE_X11)
     searchDirs << QDir::homePath() + "/."
                      + QString(INSTALL_PLUGIN_DIR) + "/plugins";
-  #elif defined(Q_WS_MAC)
+  #elif defined(Q_OS_MAC)
     searchDirs << QDir::homePath() + "/Library/Application Support/"
                      + QString(INSTALL_PLUGIN_DIR) + "/Plugins";
   #elif defined(WIN32)

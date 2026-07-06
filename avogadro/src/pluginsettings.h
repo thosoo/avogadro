@@ -38,7 +38,7 @@ namespace Avogadro
 
     public:
       //! Constructor
-      explicit PluginSettings( QWidget *parent = 0, Qt::WindowFlags f = 0 );
+      explicit PluginSettings( QWidget *parent = nullptr, Qt::WindowFlags f = Qt::WindowFlags() );
       //! Desconstructor
       ~PluginSettings();
 

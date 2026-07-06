@@ -23,7 +23,7 @@
 #ifndef READFILETHREAD_P_H
 #define READFILETHREAD_P_H
 
-#include <QtCore/QThread>
+#include <QThread>
 
 namespace OpenBabel {
 class OBMol;

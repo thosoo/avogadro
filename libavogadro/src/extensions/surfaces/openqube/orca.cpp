@@ -16,13 +16,14 @@
 
 #include "orca.h"
 
-#include <QtCore/QFile>
-#include <QtCore/QStringList>
-#include <QtCore/QString>
-#include <QtCore/QDebug>
-#include <QtWidgets/QMessageBox>
+#include <QFile>
+#include <QStringList>
+#include <QString>
+#include <QDebug>
+#include <QMessageBox>
 
 #include <avogadro/fragment.h>
+#include <QRegularExpression>
 
 using Eigen::Vector3d;
 using std::vector;
@@ -85,7 +86,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
     if (m_in->atEnd())
         return;
 
-    QStringList list = key.split(' ', QString::SkipEmptyParts);
+    QStringList list = key.split(' ', Qt::SkipEmptyParts);
     int numGTOs;
 
     // Big switch statement checking for various things we are interested in
@@ -106,7 +107,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
 
             // Number of groups of distinct atoms
             key = m_in->readLine();
-            list = key.split(' ', QString::SkipEmptyParts);
+            list = key.split(' ', Qt::SkipEmptyParts);
             if (list.size() > 3) {
                 m_nGroups = list[2].toInt();
             } else {
@@ -137,7 +138,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
     } else if (key.contains("NUMBER OF CARTESIAN GAUSSIAN BASIS")) {
         m_currentMode = NotParsing; // no longer reading GTOs
     } else if (key.contains("Number of Electrons")) {
-        list = key.split(' ', QString::SkipEmptyParts);
+        list = key.split(' ', Qt::SkipEmptyParts);
         m_electrons = list[5].toInt();
     } else if (key.contains("SPIN UP ORBITALS") && !m_openShell) {
         m_openShell = true; //not yet implemented
@@ -174,7 +175,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
         switch (m_currentMode) {
         case Atoms: {
             if (key.isEmpty()) break;
-            list = key.split(' ', QString::SkipEmptyParts);
+            list = key.split(' ', Qt::SkipEmptyParts);
             while (!key.isEmpty()){
                 if (list.size() < 8) {
                     break;
@@ -186,7 +187,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
                 basis->moleculeRef().addAtom(pos, int (list[2].toDouble()));
                 m_atomLabel +=list[1].trimmed();
                 key = m_in->readLine().trimmed();
-                list = key.split(' ', QString::SkipEmptyParts);
+                list = key.split(' ', Qt::SkipEmptyParts);
             }
             m_currentMode = NotParsing;
             break;
@@ -196,7 +197,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
             if (key.isEmpty())
                 break;
             numGTOs = 0;
-            list = key.split(' ', QString::SkipEmptyParts);
+            list = key.split(' ', Qt::SkipEmptyParts);
             int nShells;
             // init all vectors etc.
             m_basisAtomLabel.clear();
@@ -214,7 +215,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
 
                 key = m_in->readLine().trimmed();
 
-                list = key.split(' ', QString::SkipEmptyParts);
+                list = key.split(' ', Qt::SkipEmptyParts);
 
                 nShells = 0;
                 m_basisFunctions.push_back(new std::vector<std::vector<Eigen::Vector2d> *>);
@@ -230,7 +231,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
                     for (int i=0;i<nFunc;i++) {
                         key = m_in->readLine().trimmed();
 
-                        list = key.split(' ', QString::SkipEmptyParts);
+                        list = key.split(' ', Qt::SkipEmptyParts);
                         m_basisFunctions.at(numGTOs)->at(nShells)->at(i).x() = list[1].toDouble();          // exponent
                         m_basisFunctions.at(numGTOs)->at(nShells)->at(i).y() = list[2].toDouble();          // coeff
                     }
@@ -238,7 +239,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
                     nShells++;
                     key = m_in->readLine().trimmed();
 
-                    list = key.split(' ', QString::SkipEmptyParts);
+                    list = key.split(' ', Qt::SkipEmptyParts);
                 }
                 m_orcaShellTypes.push_back(std::vector<orbital>(shellTypes.size()));
                 m_orcaShellTypes.at(numGTOs) =  shellTypes;
@@ -249,7 +250,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
                 key = m_in->readLine().trimmed();
                 key = m_in->readLine().trimmed();
 
-                list = key.split(' ', QString::SkipEmptyParts);
+                list = key.split(' ', Qt::SkipEmptyParts);
                 if (list.size() == 0) break; // unexpected structure - suppose no more NewGTOs
             }
 
@@ -289,11 +290,14 @@ void ORCAOutput::processLine(GaussianSet *basis)
                 key = m_in->readLine(); // skip -----------
                 key = m_in->readLine(); // now we've got coefficients
 
-                QRegExp rx("[.][0-9]{6}[0-9-]");
-                while (rx.indexIn(key) != -1){          // avoid wrong splitting
-                    key.insert(rx.indexIn(key)+1, " ");
+                QRegularExpression rx("[.][0-9]{6}[0-9-]");
+                while (true){          // avoid wrong splitting
+                    const QRegularExpressionMatch match = rx.match(key);
+                    if (!match.hasMatch())
+                        break;
+                    key.insert(match.capturedStart()+1, " ");
                 }
-                list = key.split(' ', QString::SkipEmptyParts);
+                list = key.split(' ', Qt::SkipEmptyParts);
 
                 numColumns = list.size() - 2;
                 columns.resize(numColumns);
@@ -304,11 +308,14 @@ void ORCAOutput::processLine(GaussianSet *basis)
                     }
 
                     key = m_in->readLine();
-                    while (rx.indexIn(key) != -1){          // avoid wrong splitting
-                        key.insert(rx.indexIn(key)+1, " ");
+                    while (true){          // avoid wrong splitting
+                        const QRegularExpressionMatch match = rx.match(key);
+                        if (!match.hasMatch())
+                            break;
+                        key.insert(match.capturedStart()+1, " ");
                     }
 
-                    list = key.split(' ', QString::SkipEmptyParts);
+                    list = key.split(' ', Qt::SkipEmptyParts);
                     if (list.size() != numColumns+2)
                         break;
 
@@ -358,11 +365,14 @@ void ORCAOutput::processLine(GaussianSet *basis)
                     key = m_in->readLine(); // skip -----------
                     key = m_in->readLine(); // now we've got coefficients
 
-                QRegExp rx("[.][0-9]{6}[0-9-]");
-                    while (rx.indexIn(key) != -1){          // avoid wrong splitting
-                        key.insert(rx.indexIn(key)+1, " ");
+                QRegularExpression rx("[.][0-9]{6}[0-9-]");
+                    while (true){          // avoid wrong splitting
+                        const QRegularExpressionMatch match = rx.match(key);
+                        if (!match.hasMatch())
+                            break;
+                        key.insert(match.capturedStart()+1, " ");
                     }
-                    list = key.split(' ', QString::SkipEmptyParts);
+                    list = key.split(' ', Qt::SkipEmptyParts);
                     numColumns = list.size() - 2;
                     columns.resize(numColumns);
                     while (list.size() > 2) {
@@ -373,10 +383,13 @@ void ORCAOutput::processLine(GaussianSet *basis)
                         }
 
                         key = m_in->readLine();
-                        while (rx.indexIn(key) != -1){          // avoid wrong splitting
-                            key.insert(rx.indexIn(key)+1, " ");
+                        while (true){          // avoid wrong splitting
+                            const QRegularExpressionMatch match = rx.match(key);
+                            if (!match.hasMatch())
+                                break;
+                            key.insert(match.capturedStart()+1, " ");
                         }
-                        list = key.split(' ', QString::SkipEmptyParts);
+                        list = key.split(' ', Qt::SkipEmptyParts);
                         if (list.size() != numColumns+2)
                             break;
 

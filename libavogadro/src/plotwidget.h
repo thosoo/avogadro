@@ -33,8 +33,8 @@
 #include <avogadro/plotpoint.h>
 #include <avogadro/plotobject.h>
 
-#include <QtWidgets/QFrame>
-#include <QtCore/QList>
+#include <QFrame>
+#include <QList>
 
 namespace Avogadro {
 

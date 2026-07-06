@@ -26,7 +26,7 @@
 #define ORCAANALYSEDIALOG_H
 
 #include <QDialog>
-#include <QtCore/QSettings>
+#include <QSettings>
 #include <avogadro/glwidget.h>
 #include <avogadro/extension.h>
 #include <avogadro/fragment.h>
@@ -55,7 +55,7 @@ class OrcaAnalyseDialog : public QDialog
     Q_OBJECT
 
 public:
-    explicit OrcaAnalyseDialog(QWidget *parent = 0, Qt::WindowFlags f = 0 );
+    explicit OrcaAnalyseDialog(QWidget *parent = nullptr, Qt::WindowFlags f = Qt::WindowFlags() );
     virtual ~OrcaAnalyseDialog();
 
 

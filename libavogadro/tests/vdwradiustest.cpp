@@ -254,4 +254,4 @@ void VdwRadiusTest::glWidgetSelectionChangedSignal()
 
 QTEST_MAIN(VdwRadiusTest)
 
-#include "moc_vdwradiustest.cpp"
+#include "vdwradiustest.moc"

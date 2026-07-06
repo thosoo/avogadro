@@ -25,7 +25,7 @@
 
 #include <avogadro/extension.h>
 
-#include <QtWidgets/QUndoCommand>
+#include <QUndoCommand>
 
 namespace Avogadro {
 

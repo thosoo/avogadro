@@ -27,8 +27,8 @@
 #include <avogadro/atom.h>
 
 #include <QAction>
-#include <QtWidgets/QMessageBox>
-#include <QtCore/QString>
+#include <QMessageBox>
+#include <QString>
 #include <QDebug>
 
 #include <openbabel/mol.h>
@@ -167,7 +167,7 @@ msym_thresholds_t sloppy_thresholds = {
 
     // check if we need an infinity symbol
     if (pointGroup[1] == '0')
-      pointGroup = pointGroup.replace(1,1,trUtf8("\u221e"));
+      pointGroup = pointGroup.replace(1,1,tr("∞"));
 
     // After first character, point group should subscript everything
     pointGroup.insert(1, "<sub>");

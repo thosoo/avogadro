@@ -1,5 +1,5 @@
 /**********************************************************************
-  TextRenderer - a temporary replacement for QGLWidget::renderText until it
+  TextRenderer - a temporary replacement for QOpenGLWidget text rendering until it
   matures a bit more ;)
 
   Copyright (C) 2007 Benoit Jacob
@@ -149,7 +149,7 @@ namespace Avogadro {
 
     // compute the size of the image to create
     const QFontMetrics fontMetrics ( font );
-    m_realwidth = fontMetrics.width(c);
+    m_realwidth = fontMetrics.horizontalAdvance(c);
     m_realheight = fontMetrics.height();
     if(m_realwidth == 0 || m_realheight == 0) return false;
     int texwidth  =  m_realwidth + 2 * OUTLINE_WIDTH;
@@ -589,7 +589,7 @@ namespace Avogadro {
 
     const QFontMetrics fontMetrics ( d->font );
     qreal dpr = d->glwidget->devicePixelRatioF();
-    int w = static_cast<int>(fontMetrics.width(string) * dpr);
+    int w = static_cast<int>(fontMetrics.horizontalAdvance(string) * dpr);
     int h = static_cast<int>(fontMetrics.height() * dpr);
 
     Eigen::Vector3d wincoords = d->glwidget->camera()->project(pos);

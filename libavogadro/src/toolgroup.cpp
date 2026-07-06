@@ -36,6 +36,7 @@
 #include <QMessageBox>
 
 #include <QObject>
+#include <algorithm>
 
 using namespace std;
 namespace Avogadro {
@@ -91,7 +92,7 @@ namespace Avogadro {
     }
 
     // sort the tools
-    qSort(d->tools.begin(), d->tools.end(), toolGreaterThan);
+    std::sort(d->tools.begin(), d->tools.end(), toolGreaterThan);
 
     // activate the first tool
     if(d->tools.count()) {
@@ -110,7 +111,7 @@ namespace Avogadro {
         this, SLOT(activateTool()));
 
     // sort the tools
-    qSort(d->tools.begin(), d->tools.end(), toolGreaterThan);
+    std::sort(d->tools.begin(), d->tools.end(), toolGreaterThan);
   }
 
   void ToolGroup::activateTool()

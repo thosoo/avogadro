@@ -33,7 +33,7 @@ namespace Avogadro
     int i = filter.indexOf("*.");
     if(i != -1)
     {
-      // FIXME somebody who knows regexps should make this use a QRegExp.
+      // FIXME somebody who knows regexps should make this use a QRegularExpression.
       int j;
       const QString separators(" )");
       for(j = i; j < filter.size() && !separators.contains(filter[j]); j++) {}
@@ -61,7 +61,7 @@ namespace Avogadro
     setNameFilters(filters);
     setFileMode(QFileDialog::AnyFile);
     setAcceptMode(QFileDialog::AcceptSave);
-    setConfirmOverwrite(true);
+    setOption(QFileDialog::DontConfirmOverwrite, false);
     setLabelText(QFileDialog::Accept, tr("Save"));
     connect(this, SIGNAL(filterSelected(const QString &)), this, SLOT(updateDefaultSuffix()));
     updateDefaultSuffix();
@@ -88,7 +88,7 @@ namespace Avogadro
       fileName.remove(gzipIndex, 3);
     }
 
-#if defined (Q_WS_MAC) || defined (Q_WS_WIN)
+#if defined (Q_OS_MAC) || defined (Q_OS_WIN)
 // The Mac and Windows Qt/Native dialog already update extensions for us.
 // So we'll call the static version.
     result = QFileDialog::getSaveFileName(widget,

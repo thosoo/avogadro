@@ -22,6 +22,7 @@
 
 #include <QDebug>
 #include <QSettings>
+#include <algorithm>
 
 namespace Avogadro {
 
@@ -111,7 +112,7 @@ namespace Avogadro {
   void OrbitalWidget::fillTable(QList<Orbital> list)
   {
     // Sort list by orbital
-    qSort(list.begin(), list.end(), orbitalIndexLessThan);
+    std::sort(list.begin(), list.end(), orbitalIndexLessThan);
 
     m_tableModel->clearOrbitals();
 

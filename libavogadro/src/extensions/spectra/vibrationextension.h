@@ -29,11 +29,11 @@
 #include <avogadro/dockextension.h>
 #include <avogadro/animation.h>
 
-#include <QtCore/QObject>
-#include <QtCore/QList>
-#include <QtCore/QString>
-#include <QtWidgets/QDockWidget>
-#include <QtWidgets/QUndoCommand>
+#include <QObject>
+#include <QList>
+#include <QString>
+#include <QDockWidget>
+#include <QUndoCommand>
 
 namespace OpenBabel {
   class OBVibrationData;

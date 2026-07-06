@@ -17,7 +17,7 @@
 
 #include "ceabstractdockwidget.h"
 
-#include <QtWidgets/QMainWindow>
+#include <QMainWindow>
 
 #include "../crystallographyextension.h"
 

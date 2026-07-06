@@ -144,7 +144,7 @@ namespace Avogadro {
   Qt::ItemFlags ProjectTreeModel::flags ( const QModelIndex & index ) const
   {
     if(!index.isValid())
-      return 0;
+      return Qt::ItemFlags();
 
     return Qt::ItemIsSelectable | Qt::ItemIsEnabled;
   }

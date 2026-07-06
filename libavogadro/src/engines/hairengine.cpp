@@ -30,8 +30,8 @@
 #include <avogadro/color.h>
 #include <avogadro/color3f.h>
 
-#include <QtCore/QRandomGenerator>
-#include <QtCore/QElapsedTimer>
+#include <QRandomGenerator>
+#include <QElapsedTimer>
 #include <Eigen/Geometry>
 #ifdef _OPENMP
 #  include <omp.h>

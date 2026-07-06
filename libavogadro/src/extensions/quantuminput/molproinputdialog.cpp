@@ -279,10 +279,10 @@ namespace Avogadro
       }
       QList<Atom *> atoms = m_molecule->atoms();
       foreach (Atom *atom, atoms) {
-        mol << qSetFieldWidth(2) << left
+        mol << qSetFieldWidth(2) << Qt::left
             << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()))
-            << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint
-            << fixed << right << atom->pos()->x() << atom->pos()->y()
+            << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << Qt::forcepoint
+            << Qt::fixed << Qt::right << atom->pos()->x() << atom->pos()->y()
             << atom->pos()->z()
             << qSetFieldWidth(0) << '\n';
       }
@@ -313,15 +313,15 @@ namespace Avogadro
           t += 360.0;
         if (atom->GetIdx() > 1)
           mol << "   r" << atom->GetIdx() << " = " << qSetFieldWidth(15)
-              << qSetRealNumberPrecision(5) << forcepoint << fixed << right
+              << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right
               << r << qSetFieldWidth(0) << " ang\n";
         if (atom->GetIdx() > 2)
           mol << "   a" << atom->GetIdx() << " = " << qSetFieldWidth(15)
-              << qSetRealNumberPrecision(5) << forcepoint << fixed << right
+              << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right
               << w << qSetFieldWidth(0) << " degree\n";
         if (atom->GetIdx() > 3)
           mol << "   d" << atom->GetIdx() << " = " << qSetFieldWidth(15)
-              << qSetRealNumberPrecision(5) << forcepoint << fixed << right
+              << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right
               << t << qSetFieldWidth(0) << " degree\n";
       }
       if(m_2009) {
@@ -390,16 +390,16 @@ namespace Avogadro
         mol << QString(OpenBabel::OBElements::GetSymbol(atom->GetAtomicNum()));
         if (atom->GetIdx() > 1)
           mol << ", " << QString::number(a->GetIdx()) << ", "
-              << qSetRealNumberPrecision(5) << forcepoint 
-	      << fixed << right << r;
+              << qSetRealNumberPrecision(5) << Qt::forcepoint
+	      << Qt::fixed << Qt::right << r;
         if (atom->GetIdx() > 2)
           mol << ", " << QString::number(b->GetIdx()) << ", "
-              << qSetRealNumberPrecision(5) << forcepoint 
-	      << fixed << right << w;
+              << qSetRealNumberPrecision(5) << Qt::forcepoint
+	      << Qt::fixed << Qt::right << w;
         if (atom->GetIdx() > 3)
           mol << ", " << QString::number(c->GetIdx()) << ", " 
-              << qSetRealNumberPrecision(5) << forcepoint 
-              << fixed << right << t;
+              << qSetRealNumberPrecision(5) << Qt::forcepoint
+              << Qt::fixed << Qt::right << t;
         mol << qSetFieldWidth(0) << '\n';
       }
       mol << "}" << '\n';

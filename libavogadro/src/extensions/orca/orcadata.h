@@ -26,7 +26,7 @@
 #define ORCADATA_H
 
 #include <QDialog>
-#include <QtCore/QSettings>
+#include <QSettings>
 
 #include <avogadro/molecule.h>
 #include <avogadro/atom.h>

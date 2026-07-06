@@ -21,8 +21,8 @@
 
 #include "dos.h"
 
-#include <QtWidgets/QMessageBox>
-#include <QtCore/QDebug>
+#include <QMessageBox>
+#include <QDebug>
 
 #include <openbabel/mol.h>
 
@@ -125,8 +125,13 @@ namespace Avogadro {
       }
     }
 
-    setImportedData(m_xList,
-                    QList<double>::fromVector(QVector<double>::fromStdVector(*m_intDOS)));
+    QList<double> intDos;
+    intDos.reserve(static_cast<qsizetype>(m_intDOS->size()));
+    for (double value : *m_intDOS) {
+      intDos.append(value);
+    }
+
+    setImportedData(m_xList, intDos);
 
     return true;
   }

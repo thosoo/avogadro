@@ -27,6 +27,7 @@
 
 #include <QVector>
 #include <QDebug>
+#include <QVariant>
 
 #include <avogadro/atom.h>
 #include <avogadro/bond.h>
@@ -283,7 +284,7 @@ namespace Avogadro {
 
       }
       else if ( role == PrimitiveItemModel::PrimitiveRole ) {
-        return qVariantFromValue(primitive);
+        return QVariant::fromValue(primitive);
       }
     }
 
@@ -303,7 +304,7 @@ namespace Avogadro {
   Qt::ItemFlags PrimitiveItemModel::flags ( const QModelIndex & index ) const
   {
     if(!index.isValid())
-      return 0;
+      return Qt::ItemFlags();
 
     Primitive *primitive = static_cast<Primitive *>(index.internalPointer());
     if(primitive)

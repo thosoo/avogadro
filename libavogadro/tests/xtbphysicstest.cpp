@@ -42,4 +42,4 @@ void XtbPhysicsTest::energy()
 }
 
 QTEST_MAIN(XtbPhysicsTest)
-#include "moc_xtbphysicstest.cpp"
+#include "xtbphysicstest.moc"

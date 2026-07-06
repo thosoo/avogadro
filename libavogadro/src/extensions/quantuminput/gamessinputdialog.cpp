@@ -27,14 +27,17 @@
 #include <avogadro/atom.h>
 #include <avogadro/bond.h>
 
-#include <QtWidgets/QPushButton>
-#include <QtWidgets/QButtonGroup>
-#include <QtWidgets/QMessageBox>
+#include <QPushButton>
+#include <QButtonGroup>
+#include <QMessageBox>
 //#include <QFileDialog>
 
-#include <QtCore/QDebug>
-#include <QtCore/QFile>
-#include <QtCore/QSettings>
+#include <QDebug>
+#include <QFile>
+#include <QSettings>
+#include <QSpinBox>
+
+#include <sstream>
 
 namespace Avogadro {
 
@@ -352,7 +355,7 @@ namespace Avogadro {
 
   void GamessInputDialog::updatePreviewText()
   {
-    stringstream str;
+    std::stringstream str;
     m_inputData->WriteInputFile( str );
     ui.previewText->setText(QString::fromLatin1(str.str().c_str()));
   }
@@ -1004,26 +1007,26 @@ namespace Avogadro {
     connect( ui.controlExecCombo, SIGNAL( currentIndexChanged( int ) ),
         this, SLOT( advancedChanged() ) );
 
-    connect( ui.controlChargeSpin, SIGNAL( valueChanged( QString ) ),
-        this, SLOT( setControlCharge( QString ) ) );
-    connect( ui.controlChargeSpin, SIGNAL( valueChanged( QString ) ),
-        this, SLOT( updatePreviewText() ) );
-    connect( ui.controlChargeSpin, SIGNAL( valueChanged( QString ) ),
-        this, SLOT( advancedChanged() ) );
+    connect(ui.controlChargeSpin, &QSpinBox::textChanged,
+            this, &GamessInputDialog::setControlCharge);
+    connect(ui.controlChargeSpin, &QSpinBox::textChanged,
+            this, &GamessInputDialog::updatePreviewText);
+    connect(ui.controlChargeSpin, &QSpinBox::textChanged,
+            this, &GamessInputDialog::advancedChanged);
 
-    connect( ui.controlMultiplicitySpin, SIGNAL( valueChanged( QString ) ),
-        this, SLOT( setControlMultiplicity( QString ) ) );
-    connect( ui.controlMultiplicitySpin, SIGNAL( valueChanged( QString ) ),
-        this, SLOT( updatePreviewText() ) );
-    connect( ui.controlMultiplicitySpin, SIGNAL( valueChanged( QString ) ),
-        this, SLOT( advancedChanged() ) );
+    connect(ui.controlMultiplicitySpin, &QSpinBox::textChanged,
+            this, &GamessInputDialog::setControlMultiplicity);
+    connect(ui.controlMultiplicitySpin, &QSpinBox::textChanged,
+            this, &GamessInputDialog::updatePreviewText);
+    connect(ui.controlMultiplicitySpin, &QSpinBox::textChanged,
+            this, &GamessInputDialog::advancedChanged);
 
-    connect( ui.controlMaxSCFSpin, SIGNAL( valueChanged( QString ) ),
-        this, SLOT( setControlMaxSCF( QString ) ) );
-    connect( ui.controlMaxSCFSpin, SIGNAL( valueChanged( QString ) ),
-        this, SLOT( updatePreviewText() ) );
-    connect( ui.controlMaxSCFSpin, SIGNAL( valueChanged( QString ) ),
-        this, SLOT( advancedChanged() ) );
+    connect(ui.controlMaxSCFSpin, &QSpinBox::textChanged,
+            this, &GamessInputDialog::setControlMaxSCF);
+    connect(ui.controlMaxSCFSpin, &QSpinBox::textChanged,
+            this, &GamessInputDialog::updatePreviewText);
+    connect(ui.controlMaxSCFSpin, &QSpinBox::textChanged,
+            this, &GamessInputDialog::advancedChanged);
 
     connect( ui.controlMP2Check, SIGNAL( toggled( bool ) ),
         this, SLOT( setControlMP2( bool ) ) );
@@ -1249,12 +1252,12 @@ namespace Avogadro {
     m_miscForceButtons->addButton(ui.miscGamessRadio, 3);
     m_miscForceButtons->addButton(ui.miscGaussianRadio, 4);
     m_miscForceButtons->addButton(ui.miscAllRadio, 5);
-    connect( m_miscForceButtons, SIGNAL( buttonClicked( int ) ),
-        this, SLOT( setMiscForce( int ) ) );
-    connect( m_miscForceButtons, SIGNAL( buttonClicked( int ) ),
-        this, SLOT( updatePreviewText() ) );
-    connect( m_miscForceButtons, SIGNAL( buttonClicked( int ) ),
-        this, SLOT( advancedChanged() ) );
+    connect(m_miscForceButtons, &QButtonGroup::idClicked,
+        this, &GamessInputDialog::setMiscForce);
+    connect(m_miscForceButtons, &QButtonGroup::idClicked,
+        this, [this](int) { updatePreviewText(); });
+    connect(m_miscForceButtons, &QButtonGroup::idClicked,
+        this, [this](int) { advancedChanged(); });
 
     connect( ui.miscWaterCheck, SIGNAL( toggled( bool ) ),
         this, SLOT( setMiscWater( bool ) ) );
@@ -1464,12 +1467,12 @@ namespace Avogadro {
     m_statPointHessianButtons->addButton(ui.statPointGuessButton, 0);
     m_statPointHessianButtons->addButton(ui.statPointReadButton, 1);
     m_statPointHessianButtons->addButton(ui.statPointCalculateButton, 2);
-    connect( m_statPointHessianButtons, SIGNAL( buttonClicked( int ) ),
-        this, SLOT( setStatPointHessian( int ) ) );
-    connect( m_statPointHessianButtons, SIGNAL( buttonClicked( int ) ),
-        this, SLOT( updatePreviewText() ) );
-    connect( m_statPointHessianButtons, SIGNAL( buttonClicked( int ) ),
-        this, SLOT( advancedChanged() ) );
+    connect(m_statPointHessianButtons, &QButtonGroup::idClicked,
+        this, &GamessInputDialog::setStatPointHessian);
+    connect(m_statPointHessianButtons, &QButtonGroup::idClicked,
+        this, [this](int) { updatePreviewText(); });
+    connect(m_statPointHessianButtons, &QButtonGroup::idClicked,
+        this, [this](int) { advancedChanged(); });
 
     connect( ui.statPointJumpDouble, SIGNAL( valueChanged( double ) ),
         this, SLOT( setStatPointJump( double ) ) );
@@ -2417,4 +2420,3 @@ namespace Avogadro {
     settings.setValue("gamess/savepath", m_savePath);
   }
 }
-

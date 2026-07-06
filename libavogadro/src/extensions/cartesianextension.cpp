@@ -38,11 +38,12 @@
 #include <QAction>
 #include <QDialog>
 #include <QClipboard>
-#include <QtWidgets/QMessageBox>
+#include <QMessageBox>
 
-#include <QtCore/QDebug>
-#include <QtCore/QStringList>
-#include <QtCore/QTextStream>
+#include <QDebug>
+#include <QStringList>
+#include <QTextStream>
+#include <QRegularExpression>
 
 using namespace std;
 using namespace OpenBabel;
@@ -52,7 +53,7 @@ namespace Avogadro
   static const double BOHR_TO_ANGSTROM = 0.529177249;
   static const double ANGSTROM_TO_BOHR = 1.0 / 0.529177249;
 
-#ifdef Q_WS_X11
+#ifdef AVO_USE_X11
   static const QString EDITOR_FONT = "Monospace";
 #else
   // Windows and Mac
@@ -184,17 +185,17 @@ namespace Avogadro
   bool CartesianEditor::parseText(OBMol *mol)
   {
     QString coord = cartesianEdit->toPlainText();
-    QStringList coordStrings = coord.split(QRegExp("\n"));
+    QStringList coordStrings = coord.split(QRegularExpression("\n"));
 
     matrix3x3 xform;
     switch (m_unit) {
     case ANGSTROM:
       for (int i = 0; i < 3; i++)
-        xform.Set(i,i,1.0);
+        xform(i, i) = 1.0;
       break;
     case BOHR:
       for (int i = 0; i < 3; i++)
-        xform.Set(i,i,BOHR_TO_ANGSTROM);
+        xform(i, i) = BOHR_TO_ANGSTROM;
       break;
     case FRACTIONAL:
       // Fractional coordinates -- convert below
@@ -205,7 +206,7 @@ namespace Avogadro
     // Guess format
 
     // split on any non-word symbol, except '.'
-    QStringList data = coordStrings.at(0).trimmed().split(QRegExp("\\s+|,|;"));
+    QStringList data = coordStrings.at(0).trimmed().split(QRegularExpression("\\s+|,|;"));
     // Format definition, will be used for parsing
     int NameCol=-1, Xcol=-1, Ycol=-1, Zcol=-1;
     QString format("");
@@ -308,7 +309,7 @@ namespace Avogadro
       double x=0, y=0, z=0;
       int _n=0;
       OBAtom *atom  = mol->NewAtom();
-      QStringList s_data = coordStrings.at(N).trimmed().split(QRegExp("\\s+|,|;"));
+      QStringList s_data = coordStrings.at(N).trimmed().split(QRegularExpression("\\s+|,|;"));
       if (s_data.size() != data.size()) {
         return false;
       }
@@ -418,11 +419,11 @@ namespace Avogadro
         switch (m_unit) {
         case ANGSTROM:
           for (int i = 0; i < 3; i++)
-            xform.Set(i,i,1.0);
+            xform(i, i) = 1.0;
           break;
         case BOHR:
           for (int i = 0; i < 3; i++)
-            xform.Set(i,i,ANGSTROM_TO_BOHR);
+            xform(i, i) = ANGSTROM_TO_BOHR;
           break;
         case FRACTIONAL:
           xform = matrix3x3(0.0); // Check below and use proper conversions
@@ -445,67 +446,67 @@ namespace Avogadro
           switch (m_format) {
           case XYZ:
             coordStream.setFieldWidth(3);
-            coordStream << left << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()));
+            coordStream << Qt::left << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()));
             coordStream.setFieldWidth(18);
-            coordStream << fixed << forcepoint << right << pos.x() << pos.y()
-                << pos.z() << endl;
+            coordStream << Qt::fixed << Qt::forcepoint << Qt::right << pos.x() << pos.y()
+                << pos.z() << Qt::endl;
             break;
 
           case XYZ_ONLY:
             coordStream.setFieldWidth(18);
-            coordStream << fixed << forcepoint << right << pos.x() << pos.y()
-                << pos.z() << endl;
+            coordStream << Qt::fixed << Qt::forcepoint << Qt::right << pos.x() << pos.y()
+                << pos.z() << Qt::endl;
             break;
 
           case XYZ_NUM:
             coordStream.setFieldWidth(6);
-            coordStream << left << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()))+
+            coordStream << Qt::left << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()))+
             QString::number(i+1);
             coordStream.setFieldWidth(18);
-            coordStream << fixed << forcepoint << right << pos.x() << pos.y()
-              << pos.z() << endl;
+            coordStream << Qt::fixed << Qt::forcepoint << Qt::right << pos.x() << pos.y()
+              << pos.z() << Qt::endl;
             break;
 
           case GAMESS:
             coordStream.setFieldWidth(3);
-            coordStream << left << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()));
+            coordStream << Qt::left << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()));
             coordStream.setFieldWidth(3);
-            coordStream << right << atom->atomicNumber();
+            coordStream << Qt::right << atom->atomicNumber();
             coordStream.setFieldWidth(2);
-            coordStream << left << ".0";
+            coordStream << Qt::left << ".0";
             coordStream.setFieldWidth(18);
-            coordStream << fixed << forcepoint << right << pos.x() << pos.y()
-              << pos.z() << endl;
+            coordStream << Qt::fixed << Qt::forcepoint << Qt::right << pos.x() << pos.y()
+              << pos.z() << Qt::endl;
             break;
 
           case GAMESS2:
             coordStream.setFieldWidth(12);
-            coordStream << left << QString::fromLatin1(OpenBabel::OBElements::GetName(atom->atomicNumber()));
+            coordStream << Qt::left << QString::fromLatin1(OpenBabel::OBElements::GetName(atom->atomicNumber()));
             coordStream.setFieldWidth(3);
-            coordStream << right << atom->atomicNumber();
+            coordStream << Qt::right << atom->atomicNumber();
             coordStream.setFieldWidth(2);
-            coordStream << left << ".0";
+            coordStream << Qt::left << ".0";
             coordStream.setFieldWidth(18);
-            coordStream << fixed << forcepoint << right << pos.x() << pos.y()
-              << pos.z() << endl;
+            coordStream << Qt::fixed << Qt::forcepoint << Qt::right << pos.x() << pos.y()
+              << pos.z() << Qt::endl;
             break;
 
           case TURBOMOLE:
             coordStream.setFieldWidth(14);
-            coordStream << fixed << forcepoint << left << right << pos.x();
+            coordStream << Qt::fixed << Qt::forcepoint << Qt::left << Qt::right << pos.x();
             coordStream.setFieldWidth(18);
             coordStream << pos.y()
               << pos.z();
             coordStream.setFieldWidth(5);
-            coordStream << left << right << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber())) << endl;
+            coordStream << Qt::left << Qt::right << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber())) << Qt::endl;
             break;
 
           case PRIRODA:
             coordStream.setFieldWidth(3);
-            coordStream << left << atom->atomicNumber();
+            coordStream << Qt::left << atom->atomicNumber();
             coordStream.setFieldWidth(18);
-            coordStream << fixed << forcepoint << right << pos.x() << pos.y()
-              << pos.z() << endl;
+            coordStream << Qt::fixed << Qt::forcepoint << Qt::right << pos.x() << pos.y()
+              << pos.z() << Qt::endl;
           }
         }
         cartesianEdit->setText(*coord);

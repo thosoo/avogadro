@@ -277,10 +277,10 @@ namespace Avogadro
       for (unsigned int frag = 0; frag < fragList.size(); ++frag) {
         for (unsigned int idx = 0; idx < fragList[frag].size(); ++idx) {
           Atom *atom = m_molecule->atom(fragList[frag][idx] - 1);
-          mol << qSetFieldWidth(4) << right
+          mol << qSetFieldWidth(4) << Qt::right
               << QString(OpenBabel::OBElements::GetSymbol(atom->atomicNumber()))
-              << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << forcepoint
-              << fixed << right << atom->pos()->x() << atom->pos()->y()
+              << qSetFieldWidth(15) << qSetRealNumberPrecision(5) << Qt::forcepoint
+              << Qt::fixed << Qt::right << atom->pos()->x() << atom->pos()->y()
               << atom->pos()->z()
               << qSetFieldWidth(0) << '\n';
         }
@@ -307,7 +307,7 @@ namespace Avogadro
         b = vic[atom->GetIdx()]->_b;
         c = vic[atom->GetIdx()]->_c;
 
-        mol << qSetFieldWidth(4) << right
+        mol << qSetFieldWidth(4) << Qt::right
             << QString(OpenBabel::OBElements::GetSymbol(atom->GetAtomicNum())
                        + QString::number(atom->GetIdx()))
             << qSetFieldWidth(0);
@@ -338,15 +338,15 @@ namespace Avogadro
           t += 360.0;
         if (atom->GetIdx() > 1)
           mol << "   r" << atom->GetIdx() << " = " << qSetFieldWidth(15)
-              << qSetRealNumberPrecision(5) << forcepoint << fixed << right
+              << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right
               << r << qSetFieldWidth(0) << '\n';
         if (atom->GetIdx() > 2)
           mol << "   a" << atom->GetIdx() << " = " << qSetFieldWidth(15)
-              << qSetRealNumberPrecision(5) << forcepoint << fixed << right
+              << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right
               << w << qSetFieldWidth(0) << '\n';
         if (atom->GetIdx() > 3)
           mol << "   d" << atom->GetIdx() << " = " << qSetFieldWidth(15)
-              << qSetRealNumberPrecision(5) << forcepoint << fixed << right
+              << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right
               << t << qSetFieldWidth(0) << '\n';
       }
       foreach (OpenBabel::OBInternalCoord *c, vic)
@@ -379,24 +379,24 @@ namespace Avogadro
         if (t < 0.0)
           t += 360.0;
 
-        mol << qSetFieldWidth(4) << right
+        mol << qSetFieldWidth(4) << Qt::right
             << QString(OpenBabel::OBElements::GetSymbol(atom->GetAtomicNum())
                        + QString::number(atom->GetIdx()));
         if (atom->GetIdx() > 1)
-          mol << qSetFieldWidth(6) << right
+          mol << qSetFieldWidth(6) << Qt::right
               << QString(OpenBabel::OBElements::GetSymbol(a->GetAtomicNum())
                          + QString::number(a->GetIdx())) << qSetFieldWidth(15)
-              << qSetRealNumberPrecision(5) << forcepoint << fixed << right << r;
+              << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right << r;
         if (atom->GetIdx() > 2)
-          mol << qSetFieldWidth(6) << right
+          mol << qSetFieldWidth(6) << Qt::right
                  << QString(OpenBabel::OBElements::GetSymbol(b->GetAtomicNum())
                          + QString::number(b->GetIdx())) << qSetFieldWidth(15)
-              << qSetRealNumberPrecision(5) << forcepoint << fixed << right << w;
+              << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right << w;
         if (atom->GetIdx() > 3)
-          mol << qSetFieldWidth(6) << right
+          mol << qSetFieldWidth(6) << Qt::right
               << QString(OpenBabel::OBElements::GetSymbol(c->GetAtomicNum())
                          + QString::number(c->GetIdx())) << qSetFieldWidth(15)
-              << qSetRealNumberPrecision(5) << forcepoint << fixed << right << t;
+              << qSetRealNumberPrecision(5) << Qt::forcepoint << Qt::fixed << Qt::right << t;
         mol << qSetFieldWidth(0) << '\n';
       }
       foreach (OpenBabel::OBInternalCoord *c, vic)

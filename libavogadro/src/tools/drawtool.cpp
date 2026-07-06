@@ -131,12 +131,12 @@ namespace Avogadro {
     m_buttons = event->buttons();
 
     m_movedSinceButtonPressed = false;
-    m_lastDraggingPosition = event->pos();
-    m_initialDraggingPosition = event->pos();
+    m_lastDraggingPosition = event->position().toPoint();
+    m_initialDraggingPosition = event->position().toPoint();
 
     //! List of hits from a selection/pick
-    m_hits = widget->hits(event->pos().x()-SEL_BOX_HALF_SIZE,
-                          event->pos().y()-SEL_BOX_HALF_SIZE,
+    m_hits = widget->hits(event->position().toPoint().x()-SEL_BOX_HALF_SIZE,
+                          event->position().toPoint().y()-SEL_BOX_HALF_SIZE,
                           SEL_BOX_SIZE,
                           SEL_BOX_SIZE);
 
@@ -194,7 +194,7 @@ namespace Avogadro {
         }
       }
       else { // a genuine click in new space == create a new atom
-        m_beginAtom = addAtom(widget, event->pos());
+        m_beginAtom = addAtom(widget, event->position().toPoint());
         m_beginAtomAdded = true;
         m_forceField->SetIgnoreAtom(m_beginAtom->index());
       } // hits
@@ -218,8 +218,8 @@ namespace Avogadro {
       if (!molecule->lock()->tryLockForWrite())
         return 0;
 
-      m_hits = widget->hits(event->pos().x()-SEL_BOX_HALF_SIZE,
-                            event->pos().y()-SEL_BOX_HALF_SIZE,
+      m_hits = widget->hits(event->position().toPoint().x()-SEL_BOX_HALF_SIZE,
+                            event->position().toPoint().y()-SEL_BOX_HALF_SIZE,
                             SEL_BOX_SIZE,
                             SEL_BOX_SIZE);
 
@@ -352,7 +352,7 @@ namespace Avogadro {
             m_prevBond = 0;
             m_prevBondOrder = 0;
           }
-          m_endAtom = addAtom(widget, event->pos());
+          m_endAtom = addAtom(widget, event->position().toPoint());
           m_endAtomAdded = true;
           m_forceField->SetIgnoreAtom(m_endAtom->index());
 
@@ -362,7 +362,7 @@ namespace Avogadro {
             m_bond->setEnd(m_endAtom);
         }
         else // we're moving -- stretch a bond
-          moveAtom(widget, m_endAtom, event->pos());
+          moveAtom(widget, m_endAtom, event->position().toPoint());
       }
       molecule->lock()->unlock();
 
@@ -534,8 +534,8 @@ namespace Avogadro {
              ((m_buttons & Qt::LeftButton) &&
               (event->modifiers() == Qt::ControlModifier ||
                event->modifiers() == Qt::MetaModifier)) ) {
-      m_hits = widget->hits(event->pos().x()-SEL_BOX_HALF_SIZE,
-                            event->pos().y()-SEL_BOX_HALF_SIZE,
+      m_hits = widget->hits(event->position().toPoint().x()-SEL_BOX_HALF_SIZE,
+                            event->position().toPoint().y()-SEL_BOX_HALF_SIZE,
                             SEL_BOX_SIZE,
                             SEL_BOX_SIZE);
       if(m_hits.size()) {
