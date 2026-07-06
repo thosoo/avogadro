@@ -93,6 +93,25 @@ namespace Avogadro {
     glPopMatrix();
   }
 
+  void Sphere::drawEllipsoid(const Eigen::Vector3d &center,
+                             const Eigen::Matrix3d &axes,
+                             const Eigen::Vector3d &radii) const
+  {
+    glPushMatrix();
+    glTranslated(center.x(), center.y(), center.z());
+
+    GLdouble matrix[16] = {
+      axes(0,0), axes(1,0), axes(2,0), 0.0,
+      axes(0,1), axes(1,1), axes(2,1), 0.0,
+      axes(0,2), axes(1,2), axes(2,2), 0.0,
+      0.0,       0.0,       0.0,       1.0
+    };
+    glMultMatrixd(matrix);
+    glScaled(radii.x(), radii.y(), radii.z());
+    glCallList(d->displayList);
+    glPopMatrix();
+  }
+
   void Sphere::initialize()
   {
     if( d->detail < 0 ) return;

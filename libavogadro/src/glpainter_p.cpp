@@ -365,6 +365,35 @@ namespace Avogadro
     popName();
   }
 
+  void GLPainter::drawEllipsoid(const Eigen::Vector3d &center,
+                                const Eigen::Matrix3d &axes,
+                                const Eigen::Vector3d &radii)
+  {
+    if(!d->isValid())
+      return;
+
+    int detailLevel = PAINTER_MAX_DETAIL_LEVEL / 3;
+    if (d->widget->projection() != GLWidget::Orthographic &&
+        m_dynamicScaling) {
+      double apparentRadius = radii.maxCoeff() / d->widget->camera()->distance(center);
+      detailLevel = 1 + static_cast<int>(floor(PAINTER_SPHERES_DETAIL_COEFF
+                        * (sqrt(apparentRadius) - PAINTER_SPHERES_SQRT_LIMIT_MIN_LEVEL)));
+      if (detailLevel < 0)
+        detailLevel = 0;
+      if (detailLevel > PAINTER_MAX_DETAIL_LEVEL)
+        detailLevel = PAINTER_MAX_DETAIL_LEVEL;
+    }
+
+    d->color.applyAsMaterials();
+    pushName();
+    GLboolean normalize = glIsEnabled(GL_NORMALIZE);
+    glEnable(GL_NORMALIZE);
+    d->spheres[detailLevel]->drawEllipsoid(center, axes, radii);
+    if (!normalize)
+      glDisable(GL_NORMALIZE);
+    popName();
+  }
+
   void GLPainter::drawCylinder ( const Eigen::Vector3d &end1, const Eigen::Vector3d &end2,
                                  double radius )
   {
