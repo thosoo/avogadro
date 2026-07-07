@@ -42,8 +42,8 @@ namespace ThermalEllipsoidGeometry {
     if (!atom || atom->property("adp_valid").toString().toLower() != QLatin1String("true"))
       return false;
 
-    const QString basis = atom->property("adp_basis").toString();
-    if (!basis.contains(QLatin1String("cartesian"), Qt::CaseInsensitive))
+    const QString basis = atom->property("adp_basis").toString().trimmed();
+    if (basis.compare(QLatin1String("cif cartesian"), Qt::CaseInsensitive) != 0)
       return false;
 
     double u11, u22, u33, u12, u13, u23;
@@ -82,6 +82,9 @@ namespace ThermalEllipsoidGeometry {
         eigenvalues(i) = 0.0;
       axes.col(i) = solver.eigenvectors().col(source);
     }
+
+    if (axes.determinant() < 0.0)
+      axes.col(2) *= -1.0;
 
     return true;
   }

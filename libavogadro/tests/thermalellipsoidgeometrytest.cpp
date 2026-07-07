@@ -104,7 +104,7 @@ void ThermalEllipsoidGeometryTest::nonCartesianBasisReturnsFalse()
 {
   Atom atom;
   setValidCartesianAdp(atom);
-  atom.setProperty("adp_basis", "cif");
+  atom.setProperty("adp_basis", "not cartesian");
 
   Eigen::Matrix3d axes;
   Eigen::Vector3d radii;

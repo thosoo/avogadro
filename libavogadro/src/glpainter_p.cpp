@@ -387,9 +387,17 @@ namespace Avogadro
     d->color.applyAsMaterials();
     pushName();
     GLboolean normalize = glIsEnabled(GL_NORMALIZE);
+    GLboolean rescaleNormal = glIsEnabled(GL_RESCALE_NORMAL);
     glEnable(GL_NORMALIZE);
+    glDisable(GL_RESCALE_NORMAL);
     d->spheres[detailLevel]->drawEllipsoid(center, axes, radii);
-    if (!normalize)
+    if (rescaleNormal)
+      glEnable(GL_RESCALE_NORMAL);
+    else
+      glDisable(GL_RESCALE_NORMAL);
+    if (normalize)
+      glEnable(GL_NORMALIZE);
+    else
       glDisable(GL_NORMALIZE);
     popName();
   }
