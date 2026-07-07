@@ -30,7 +30,6 @@
 #include <avogadro/global.h>
 
 #include <Eigen/Core>
-#include <Eigen/Geometry>
 
 namespace Avogadro {
 
