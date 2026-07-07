@@ -9,6 +9,7 @@
 #include <Eigen/Eigenvalues>
 
 #include <QString>
+#include <QVariant>
 
 #include <cmath>
 

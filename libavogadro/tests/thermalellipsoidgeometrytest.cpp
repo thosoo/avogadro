@@ -35,6 +35,7 @@ private slots:
   void diagonalTensorRadii();
   void missingTensorComponentReturnsFalse();
   void invalidAdpReturnsFalse();
+  void missingBasisReturnsFalse();
   void nonCartesianBasisReturnsFalse();
   void tinyNegativeEigenvalueIsClamped();
   void significantNegativeEigenvalueIsRejected();
@@ -76,6 +77,22 @@ void ThermalEllipsoidGeometryTest::invalidAdpReturnsFalse()
   Atom atom;
   setValidCartesianAdp(atom);
   atom.setProperty("adp_valid", "false");
+
+  Eigen::Matrix3d axes;
+  Eigen::Vector3d radii;
+  QVERIFY(!Avogadro::ThermalEllipsoidGeometry::ellipsoidForAtom(&atom, Probability50, 1.0, axes, radii));
+}
+
+void ThermalEllipsoidGeometryTest::missingBasisReturnsFalse()
+{
+  Atom atom;
+  atom.setProperty("adp_valid", "true");
+  atom.setProperty("adp_Ucart_11", "0.01");
+  atom.setProperty("adp_Ucart_22", "0.04");
+  atom.setProperty("adp_Ucart_33", "0.09");
+  atom.setProperty("adp_Ucart_12", "0.0");
+  atom.setProperty("adp_Ucart_13", "0.0");
+  atom.setProperty("adp_Ucart_23", "0.0");
 
   Eigen::Matrix3d axes;
   Eigen::Vector3d radii;
