@@ -421,24 +421,46 @@ namespace Avogadro {
      // And add any generic data as QObject properties
      std::vector<OpenBabel::OBGenericData*> data;
      OpenBabel::OBDataIterator j;
-     OpenBabel::OBPairData *property;
-
      data = obatom->GetAllData(OpenBabel::OBGenericDataType::PairData);
      for (j = data.begin(); j != data.end(); ++j) {
-       property = static_cast<OpenBabel::OBPairData *>(*j);
-       if (property->GetAttribute() == "label") {
-         d->customLabel = property->GetValue().c_str();
+       if (OpenBabel::OBPairData *property =
+             dynamic_cast<OpenBabel::OBPairData *>(*j)) {
+         if (property->GetAttribute() == "label") {
+           d->customLabel = property->GetValue().c_str();
+           continue;
+         }
+         if (property->GetAttribute() == "color") {
+           d->customColorName = property->GetValue().c_str();
+           continue;
+         }
+         if (property->GetAttribute() == "radius") {
+           d->customRadius = QString(property->GetValue().c_str()).toDouble();
+           continue;
+         }
+         setProperty(property->GetAttribute().c_str(), property->GetValue().c_str());
          continue;
        }
-       if (property->GetAttribute() == "color") {
-         d->customColorName = property->GetValue().c_str();
+
+       if (OpenBabel::OBPairFloatingPoint *property =
+             dynamic_cast<OpenBabel::OBPairFloatingPoint *>(*j)) {
+         setProperty(property->GetAttribute().c_str(),
+                     property->GetGenericValue());
          continue;
        }
-       if (property->GetAttribute() == "radius") {
-         d->customRadius = QString(property->GetValue().c_str()).toDouble();
+
+       if (OpenBabel::OBPairInteger *property =
+             dynamic_cast<OpenBabel::OBPairInteger *>(*j)) {
+         setProperty(property->GetAttribute().c_str(),
+                     property->GetGenericValue());
          continue;
        }
-       setProperty(property->GetAttribute().c_str(), property->GetValue().c_str());
+
+       if (OpenBabel::OBPairBool *property =
+             dynamic_cast<OpenBabel::OBPairBool *>(*j)) {
+         setProperty(property->GetAttribute().c_str(),
+                     property->GetGenericValue());
+         continue;
+       }
      }
 
      return true;

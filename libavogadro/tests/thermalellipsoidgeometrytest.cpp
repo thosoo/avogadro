@@ -5,13 +5,18 @@
 #include <QtTest>
 
 #include <avogadro/atom.h>
+#include <avogadro/molecule.h>
 #include "../src/engines/thermalellipsoidgeometry.h"
+
+#include <openbabel/atom.h>
+#include <openbabel/generic.h>
 
 #include <Eigen/Core>
 
 #include <cmath>
 
 using Avogadro::Atom;
+using Avogadro::Molecule;
 using Avogadro::ThermalEllipsoidGeometry::Probability50;
 
 class ThermalEllipsoidGeometryTest : public QObject
@@ -39,7 +44,41 @@ private slots:
   void nonCartesianBasisReturnsFalse();
   void tinyNegativeEigenvalueIsClamped();
   void significantNegativeEigenvalueIsRejected();
+  void setOBAtomImportsFloatingPointPairData();
+  void ellipsoidForAtomUsesImportedFloatingPointPairData();
 };
+
+namespace {
+
+void addStringPair(OpenBabel::OBAtom &obatom, const char *name, const char *value)
+{
+  OpenBabel::OBPairData *pair = new OpenBabel::OBPairData;
+  pair->SetAttribute(name);
+  pair->SetValue(value);
+  obatom.SetData(pair);
+}
+
+void addFloatingPointPair(OpenBabel::OBAtom &obatom, const char *name, double value)
+{
+  OpenBabel::OBPairFloatingPoint *pair = new OpenBabel::OBPairFloatingPoint;
+  pair->SetAttribute(name);
+  pair->SetValue(value);
+  obatom.SetData(pair);
+}
+
+void addValidCartesianAdp(OpenBabel::OBAtom &obatom)
+{
+  addStringPair(obatom, "adp_valid", "true");
+  addStringPair(obatom, "adp_basis", "cif cartesian");
+  addFloatingPointPair(obatom, "adp_Ucart_11", 0.01);
+  addFloatingPointPair(obatom, "adp_Ucart_22", 0.04);
+  addFloatingPointPair(obatom, "adp_Ucart_33", 0.09);
+  addFloatingPointPair(obatom, "adp_Ucart_12", 0.0);
+  addFloatingPointPair(obatom, "adp_Ucart_13", 0.0);
+  addFloatingPointPair(obatom, "adp_Ucart_23", 0.0);
+}
+
+} // namespace
 
 void ThermalEllipsoidGeometryTest::diagonalTensorRadii()
 {
@@ -134,6 +173,45 @@ void ThermalEllipsoidGeometryTest::significantNegativeEigenvalueIsRejected()
   Eigen::Matrix3d axes;
   Eigen::Vector3d eigenvalues;
   QVERIFY(!Avogadro::ThermalEllipsoidGeometry::diagonalizeUcart(ucart, axes, eigenvalues));
+}
+
+void ThermalEllipsoidGeometryTest::setOBAtomImportsFloatingPointPairData()
+{
+  OpenBabel::OBAtom obatom;
+  obatom.SetAtomicNum(6);
+  obatom.SetVector(1.0, 2.0, 3.0);
+  addStringPair(obatom, "adp_valid", "true");
+  addStringPair(obatom, "adp_basis", "cif cartesian");
+  addFloatingPointPair(obatom, "adp_Ucart_11", 0.01);
+
+  Molecule molecule;
+  Atom *atom = molecule.addAtom();
+  QVERIFY(atom->setOBAtom(&obatom));
+
+  QCOMPARE(atom->property("adp_valid").toString(), QString("true"));
+  QCOMPARE(atom->property("adp_basis").toString(), QString("cif cartesian"));
+  QVERIFY(std::abs(atom->property("adp_Ucart_11").toDouble() - 0.01) < 1.0e-12);
+}
+
+void ThermalEllipsoidGeometryTest::ellipsoidForAtomUsesImportedFloatingPointPairData()
+{
+  OpenBabel::OBAtom obatom;
+  obatom.SetAtomicNum(6);
+  obatom.SetVector(1.0, 2.0, 3.0);
+  addValidCartesianAdp(obatom);
+
+  Molecule molecule;
+  Atom *atom = molecule.addAtom();
+  QVERIFY(atom->setOBAtom(&obatom));
+
+  Eigen::Matrix3d axes;
+  Eigen::Vector3d radii;
+  QVERIFY(Avogadro::ThermalEllipsoidGeometry::ellipsoidForAtom(atom, Probability50, 1.0, axes, radii));
+
+  const double tol = 1.0e-12;
+  QVERIFY(std::abs(radii(0) - std::sqrt(0.09) * 1.538172) < tol);
+  QVERIFY(std::abs(radii(1) - std::sqrt(0.04) * 1.538172) < tol);
+  QVERIFY(std::abs(radii(2) - std::sqrt(0.01) * 1.538172) < tol);
 }
 
 QTEST_MAIN(ThermalEllipsoidGeometryTest)
