@@ -14,6 +14,7 @@
 #include <openbabel/obconversion.h>
 
 #include <Eigen/Core>
+#include <Eigen/LU>
 
 #include <cmath>
 
@@ -215,6 +216,11 @@ void ThermalEllipsoidGeometryTest::ellipsoidForAtomUsesImportedFloatingPointPair
   QVERIFY(std::abs(radii(0) - std::sqrt(0.09) * 1.538172) < tol);
   QVERIFY(std::abs(radii(1) - std::sqrt(0.04) * 1.538172) < tol);
   QVERIFY(std::abs(radii(2) - std::sqrt(0.01) * 1.538172) < tol);
+
+  const Eigen::Matrix3d transform = axes * radii.asDiagonal();
+  QVERIFY(transform.allFinite());
+  QVERIFY(std::isfinite(transform.determinant()));
+  QVERIFY(transform.determinant() > 0.0);
 }
 
 void ThermalEllipsoidGeometryTest::cifImportProducesRenderableThermalEllipsoid()

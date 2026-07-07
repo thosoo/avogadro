@@ -140,16 +140,6 @@ namespace Avogadro
     virtual void drawSphere(const Eigen::Vector3d *center, double radius);
 
     /**
-     * Draws an ellipsoid centered at @p center. The columns of @p axes are
-     * orthonormal ellipsoid axes and @p radii are the semi-axis lengths.
-     * Base painters do not know how to represent oriented ellipsoids, so the
-     * default implementation is a no-op unless a concrete painter overrides it.
-     */
-    virtual void drawEllipsoid(const Eigen::Vector3d &center,
-                               const Eigen::Matrix3d &axes,
-                               const Eigen::Vector3d &radii);
-
-    /**
      * Draws a cylinder, leaving the Painter choose the appropriate detail level based on the
      * apparent radius (ratio of radius over distance) and the global quality setting.
      * @param end1 the position of the first end of the cylinder.

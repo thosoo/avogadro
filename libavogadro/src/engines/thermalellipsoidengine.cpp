@@ -9,8 +9,10 @@
 #include <avogadro/painterdevice.h>
 #include <avogadro/primitive.h>
 
+#include <QDebug>
 #include <QSettings>
 
+#include <algorithm>
 #include <cmath>
 
 namespace Avogadro {
@@ -38,9 +40,38 @@ namespace Avogadro {
 
   bool ThermalEllipsoidEngine::renderOpaque(PainterDevice *pd)
   {
-    QList<Atom *> allAtoms = atoms() + atomImages();
-    foreach(Atom *a, allAtoms)
-      render(pd, a);
+    const bool debug = qEnvironmentVariableIsSet("AVOGADRO_THERMAL_ELLIPSOID_DEBUG");
+    QList<Atom *> moleculeAtoms = atoms();
+    QList<Atom *> imageAtoms = atomImages();
+    QList<Atom *> allAtoms = moleculeAtoms + imageAtoms;
+
+    int drawableAtoms = 0;
+    int drawnEllipsoids = 0;
+    double maxRadius = 0.0;
+
+    if (debug)
+      qDebug() << "ThermalEllipsoidEngine::renderOpaque called";
+
+    foreach(Atom *a, allAtoms) {
+      Eigen::Matrix3d axes;
+      Eigen::Vector3d radii;
+      if (!ThermalEllipsoidGeometry::ellipsoidForAtom(a, m_probability, m_scale, axes, radii))
+        continue;
+
+      ++drawableAtoms;
+      maxRadius = std::max(maxRadius, radii.maxCoeff());
+      if (render(pd, a, axes, radii))
+        ++drawnEllipsoids;
+    }
+
+    if (debug) {
+      qDebug() << "ThermalEllipsoidEngine::renderOpaque atoms" << moleculeAtoms.size()
+               << "atomImages" << imageAtoms.size()
+               << "ellipsoidForAtom" << drawableAtoms
+               << "drawn" << drawnEllipsoids
+               << "maxRadius" << maxRadius;
+    }
+
     return true;
   }
 
@@ -58,14 +89,31 @@ namespace Avogadro {
     if (!ThermalEllipsoidGeometry::ellipsoidForAtom(a, m_probability, m_scale, axes, radii))
       return false;
 
+    return render(pd, a, axes, radii);
+  }
+
+  bool ThermalEllipsoidEngine::render(PainterDevice *pd, const Atom *a,
+                                      const Eigen::Matrix3d &axes,
+                                      const Eigen::Vector3d &radii)
+  {
+    const bool debugSpheres = qEnvironmentVariableIsSet("AVOGADRO_THERMAL_ELLIPSOID_DEBUG_SPHERES");
+
     Color *map = colorMap();
     if (!map)
       map = pd->colorMap();
 
     map->setFromPrimitive(a);
-    pd->painter()->setColor(map);
     pd->painter()->setName(a);
-    pd->painter()->drawEllipsoid(*a->pos(), axes, radii);
+
+    if (debugSpheres) {
+      pd->painter()->setColor(1.0f, 0.0f, 1.0f, 1.0f);
+      pd->painter()->drawSphere(*a->pos(), std::max(0.25, radii.maxCoeff()));
+      return true;
+    }
+
+    pd->painter()->setColor(map);
+    const Eigen::Matrix3d transform = axes * radii.asDiagonal();
+    pd->painter()->drawEllipsoid(*a->pos(), transform);
     return true;
   }
 

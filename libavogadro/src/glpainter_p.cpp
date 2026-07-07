@@ -46,7 +46,9 @@
 #include <QColor>
 #include <QVarLengthArray>
 #include <Eigen/Geometry>
+#include <Eigen/LU>
 #define _USE_MATH_DEFINES
+#include <algorithm>
 #include <cmath>
 #ifndef M_PI
 #  define M_PI 3.1415926535897932384626433832795
@@ -362,43 +364,6 @@ namespace Avogadro
     d->color.applyAsMaterials();
     pushName();
     d->spheres[detailLevel]->draw (center, radius);
-    popName();
-  }
-
-  void GLPainter::drawEllipsoid(const Eigen::Vector3d &center,
-                                const Eigen::Matrix3d &axes,
-                                const Eigen::Vector3d &radii)
-  {
-    if(!d->isValid())
-      return;
-
-    int detailLevel = PAINTER_MAX_DETAIL_LEVEL / 3;
-    if (d->widget->projection() != GLWidget::Orthographic &&
-        m_dynamicScaling) {
-      double apparentRadius = radii.maxCoeff() / d->widget->camera()->distance(center);
-      detailLevel = 1 + static_cast<int>(floor(PAINTER_SPHERES_DETAIL_COEFF
-                        * (sqrt(apparentRadius) - PAINTER_SPHERES_SQRT_LIMIT_MIN_LEVEL)));
-      if (detailLevel < 0)
-        detailLevel = 0;
-      if (detailLevel > PAINTER_MAX_DETAIL_LEVEL)
-        detailLevel = PAINTER_MAX_DETAIL_LEVEL;
-    }
-
-    d->color.applyAsMaterials();
-    pushName();
-    GLboolean normalize = glIsEnabled(GL_NORMALIZE);
-    GLboolean rescaleNormal = glIsEnabled(GL_RESCALE_NORMAL);
-    glEnable(GL_NORMALIZE);
-    glDisable(GL_RESCALE_NORMAL);
-    d->spheres[detailLevel]->drawEllipsoid(center, axes, radii);
-    if (rescaleNormal)
-      glEnable(GL_RESCALE_NORMAL);
-    else
-      glDisable(GL_RESCALE_NORMAL);
-    if (normalize)
-      glEnable(GL_NORMALIZE);
-    else
-      glDisable(GL_NORMALIZE);
     popName();
   }
 
@@ -1266,9 +1231,57 @@ namespace Avogadro
   {
   }
 
-  void GLPainter::drawEllipsoid(const Eigen::Vector3d &,
-                                const Eigen::Matrix3d &)
+  void GLPainter::drawEllipsoid(const Eigen::Vector3d &position,
+                                const Eigen::Matrix3d &matrix)
   {
+    if(!d->isValid())
+      return;
+
+    const bool debug = qEnvironmentVariableIsSet("AVOGADRO_THERMAL_ELLIPSOID_DEBUG");
+    const double maxRadius = std::max(matrix.col(0).norm(),
+                                      std::max(matrix.col(1).norm(),
+                                               matrix.col(2).norm()));
+
+    int detailLevel = PAINTER_MAX_DETAIL_LEVEL / 3;
+    if (d->widget->projection() != GLWidget::Orthographic &&
+        m_dynamicScaling && maxRadius > 0.0) {
+      double apparentRadius = maxRadius / d->widget->camera()->distance(position);
+      detailLevel = 1 + static_cast<int>(floor(PAINTER_SPHERES_DETAIL_COEFF
+                        * (sqrt(apparentRadius) - PAINTER_SPHERES_SQRT_LIMIT_MIN_LEVEL)));
+      if (detailLevel < 0)
+        detailLevel = 0;
+      if (detailLevel > PAINTER_MAX_DETAIL_LEVEL)
+        detailLevel = PAINTER_MAX_DETAIL_LEVEL;
+    }
+
+    GLenum errorBefore = GL_NO_ERROR;
+    if (debug) {
+      errorBefore = glGetError();
+      qDebug() << "GLPainter::drawEllipsoid called"
+               << "determinant" << matrix.determinant()
+               << "detailLevel" << detailLevel
+               << "glErrorBefore" << errorBefore;
+    }
+
+    d->color.applyAsMaterials();
+    pushName();
+    GLboolean normalize = glIsEnabled(GL_NORMALIZE);
+    GLboolean rescaleNormal = glIsEnabled(GL_RESCALE_NORMAL);
+    glEnable(GL_NORMALIZE);
+    glDisable(GL_RESCALE_NORMAL);
+    d->spheres[detailLevel]->drawEllipsoid(position, matrix);
+    if (rescaleNormal)
+      glEnable(GL_RESCALE_NORMAL);
+    else
+      glDisable(GL_RESCALE_NORMAL);
+    if (normalize)
+      glEnable(GL_NORMALIZE);
+    else
+      glDisable(GL_NORMALIZE);
+    popName();
+
+    if (debug)
+      qDebug() << "GLPainter::drawEllipsoid glErrorAfter" << glGetError();
   }
 
   int GLPainter::defaultQuality()

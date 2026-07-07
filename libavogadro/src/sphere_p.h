@@ -84,8 +84,7 @@ namespace Avogadro {
 
       /** draws a unit sphere transformed into an ellipsoid. */
       void drawEllipsoid( const Eigen::Vector3d &center,
-                          const Eigen::Matrix3d &axes,
-                          const Eigen::Vector3d &radii ) const;
+                          const Eigen::Matrix3d &matrix ) const;
   };
 
 }

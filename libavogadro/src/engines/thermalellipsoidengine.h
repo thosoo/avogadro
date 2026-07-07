@@ -43,6 +43,9 @@ namespace Avogadro {
 
     private:
       bool render(PainterDevice *pd, const Atom *a);
+      bool render(PainterDevice *pd, const Atom *a,
+                  const Eigen::Matrix3d &axes,
+                  const Eigen::Vector3d &radii);
       ThermalEllipsoidSettingsWidget *m_settingsWidget;
       ThermalEllipsoidGeometry::Probability m_probability;
       double m_scale;

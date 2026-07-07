@@ -126,11 +126,6 @@ namespace Avogadro
      */
     void drawSphere(const Eigen::Vector3d &center, double radius);
 
-    /** Draws an oriented ellipsoid. */
-    void drawEllipsoid(const Eigen::Vector3d &center,
-                       const Eigen::Matrix3d &axes,
-                       const Eigen::Vector3d &radii);
-
     /**
      * Draws a cylinder, leaving the Painter choose the appropriate detail level based on the
      * apparent radius (ratio of radius over distance) and the global quality setting.
