@@ -142,6 +142,8 @@ namespace Avogadro
     /**
      * Draws an ellipsoid centered at @p center. The columns of @p axes are
      * orthonormal ellipsoid axes and @p radii are the semi-axis lengths.
+     * Base painters do not know how to represent oriented ellipsoids, so the
+     * default implementation is a no-op unless a concrete painter overrides it.
      */
     virtual void drawEllipsoid(const Eigen::Vector3d &center,
                                const Eigen::Matrix3d &axes,

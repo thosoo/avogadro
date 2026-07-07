@@ -48,6 +48,7 @@ set(tests
   neighborlist
   addremovehydrogens
   vdwradius
+  thermalellipsoidgeometry
 )
 if(XTB_FOUND)
   list(APPEND tests xtbopttool xtbphysics)
@@ -56,6 +57,9 @@ endif()
 foreach (test ${tests})
   message(STATUS "Test:  ${test}")
   set(test_SRCS ${test}test.cpp)
+  if (${test} STREQUAL "thermalellipsoidgeometry")
+    list(APPEND test_SRCS ../src/engines/thermalellipsoidgeometry.cpp)
+  endif()
   if (${test} STREQUAL "insertfragmentextension")
     list(APPEND test_SRCS
       ../src/extensions/insertfragmentextension.cpp

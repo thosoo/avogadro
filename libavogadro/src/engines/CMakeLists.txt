@@ -32,7 +32,7 @@ endif()
 avogadro_plugin(sphereengine sphereengine.cpp spheresettingswidget.ui)
 
 # Thermal ellipsoid engine for anisotropic displacement parameters
-avogadro_plugin(thermalellipsoidengine thermalellipsoidengine.cpp thermalellipsoidsettingswidget.ui)
+avogadro_plugin(thermalellipsoidengine "thermalellipsoidengine.cpp;thermalellipsoidgeometry.cpp" thermalellipsoidsettingswidget.ui)
 
 # stick (cylinder) engine
 avogadro_plugin(stickengine stickengine.cpp sticksettingswidget.ui)

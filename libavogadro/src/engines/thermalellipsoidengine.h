@@ -9,8 +9,7 @@
 #include <avogadro/engine.h>
 
 #include "ui_thermalellipsoidsettingswidget.h"
-
-#include <Eigen/Core>
+#include "thermalellipsoidgeometry.h"
 
 namespace Avogadro {
 
@@ -42,22 +41,10 @@ namespace Avogadro {
       void writeSettings(QSettings &settings) const;
       void readSettings(QSettings &settings);
 
-      enum Probability { Probability50 = 0, Probability90 = 1, Probability99 = 2 };
-
-      static double probabilityScale(Probability probability);
-      static bool ellipsoidForAtom(const Atom *atom, Probability probability,
-                                   double userScale, Eigen::Matrix3d &axes,
-                                   Eigen::Vector3d &radii);
-
     private:
       bool render(PainterDevice *pd, const Atom *a);
-      static bool readUcart(const Atom *atom, Eigen::Matrix3d &ucart);
-      static bool diagonalizeUcart(const Eigen::Matrix3d &ucart,
-                                   Eigen::Matrix3d &axes,
-                                   Eigen::Vector3d &eigenvalues);
-
       ThermalEllipsoidSettingsWidget *m_settingsWidget;
-      Probability m_probability;
+      ThermalEllipsoidGeometry::Probability m_probability;
       double m_scale;
 
     private Q_SLOTS:

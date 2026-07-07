@@ -53,11 +53,12 @@ namespace Avogadro
     drawSphere(*center, radius);
   }
 
-  void Painter::drawEllipsoid(const Eigen::Vector3d &center,
+  void Painter::drawEllipsoid(const Eigen::Vector3d &,
                               const Eigen::Matrix3d &,
-                              const Eigen::Vector3d &radii)
+                              const Eigen::Vector3d &)
   {
-    drawSphere(center, radii.maxCoeff());
+    // No-op by default: exporters/painters must opt in to true ellipsoid
+    // support rather than silently misrepresenting anisotropic geometry.
   }
 
   void Painter::drawQuadrilateral(const Eigen::Vector3d & p1,
