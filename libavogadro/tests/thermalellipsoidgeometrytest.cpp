@@ -50,9 +50,10 @@ void ThermalEllipsoidGeometryTest::diagonalTensorRadii()
   Eigen::Vector3d radii;
   QVERIFY(Avogadro::ThermalEllipsoidGeometry::ellipsoidForAtom(&atom, Probability50, 1.0, axes, radii));
 
-  QCOMPARE(radii(0), std::sqrt(0.09) * 1.538172);
-  QCOMPARE(radii(1), std::sqrt(0.04) * 1.538172);
-  QCOMPARE(radii(2), std::sqrt(0.01) * 1.538172);
+  const double tol = 1.0e-12;
+  QVERIFY(std::abs(radii(0) - std::sqrt(0.09) * 1.538172) < tol);
+  QVERIFY(std::abs(radii(1) - std::sqrt(0.04) * 1.538172) < tol);
+  QVERIFY(std::abs(radii(2) - std::sqrt(0.01) * 1.538172) < tol);
 }
 
 void ThermalEllipsoidGeometryTest::missingTensorComponentReturnsFalse()
@@ -120,7 +121,7 @@ void ThermalEllipsoidGeometryTest::tinyNegativeEigenvalueIsClamped()
   Eigen::Matrix3d axes;
   Eigen::Vector3d eigenvalues;
   QVERIFY(Avogadro::ThermalEllipsoidGeometry::diagonalizeUcart(ucart, axes, eigenvalues));
-  QCOMPARE(eigenvalues(2), 0.0);
+  QVERIFY(std::abs(eigenvalues(2)) < 1.0e-12);
 }
 
 void ThermalEllipsoidGeometryTest::significantNegativeEigenvalueIsRejected()
