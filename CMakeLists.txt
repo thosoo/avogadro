@@ -239,9 +239,9 @@ set(I18N_LANGUAGE "" CACHE STRING "Build i18n only for selected language")
 # This Avogadro fork relies on changes in thosoo/openbabel, so CI must use
 # this bundled ExternalProject rather than Ubuntu's system OpenBabel package.
 set(OPENBABEL3_SOURCE_URL
-  "https://github.com/thosoo/openbabel/archive/259e272e0a689ada7f64d2315a9722f14eb106f3.zip")
-set(OPENBABEL3_SOURCE_COMMIT "259e272e0a689ada7f64d2315a9722f14eb106f3")
-set(OPENBABEL3_SOURCE_SHA256 "966daf6e7d2f1cff4f00b2b44c90318a2e9378b113d83f85bea518b160d3edd8")
+  "https://github.com/thosoo/openbabel/archive/c1a91a5e2796b7c8bdd66eca4e47ec92698146d1.zip")
+set(OPENBABEL3_SOURCE_COMMIT "c1a91a5e2796b7c8bdd66eca4e47ec92698146d1")
+set(OPENBABEL3_SOURCE_SHA256 "15457f959ecc031f85df3412dc2e53eb3286eb8afe2c88b7d4d0dca6bd324d22")
 set(OPENBABEL_INSTALL_DIR "${CMAKE_BINARY_DIR}/openbabel-install")
 set(OPENBABEL3_INCLUDE_DIR "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
 if(WIN32)

@@ -17,6 +17,7 @@
 #include <Eigen/LU>
 
 #include <cmath>
+#include <string>
 
 using Avogadro::Atom;
 using Avogadro::Molecule;
@@ -50,6 +51,7 @@ private slots:
   void setOBAtomImportsFloatingPointPairData();
   void ellipsoidForAtomUsesImportedFloatingPointPairData();
   void cifImportProducesRenderableThermalEllipsoid();
+  void openBabelCifEllipsoidFixturesProduceRenderableAtoms();
 };
 
 namespace {
@@ -80,6 +82,40 @@ void addValidCartesianAdp(OpenBabel::OBAtom &obatom)
   addFloatingPointPair(obatom, "adp_Ucart_12", 0.0);
   addFloatingPointPair(obatom, "adp_Ucart_13", 0.0);
   addFloatingPointPair(obatom, "adp_Ucart_23", 0.0);
+}
+
+bool obPairAsDouble(OpenBabel::OBAtom *atom, const char *name, double &value)
+{
+  if (!atom)
+    return false;
+
+  OpenBabel::OBGenericData *data = atom->GetData(name);
+  if (!data)
+    return false;
+
+  if (OpenBabel::OBPairFloatingPoint *fp =
+        dynamic_cast<OpenBabel::OBPairFloatingPoint *>(data)) {
+    value = fp->GetGenericValue();
+    return true;
+  }
+
+  if (OpenBabel::OBPairData *pair = dynamic_cast<OpenBabel::OBPairData *>(data)) {
+    bool ok = false;
+    value = QString(pair->GetValue().c_str()).toDouble(&ok);
+    return ok;
+  }
+
+  return false;
+}
+
+QString obPairAsString(OpenBabel::OBAtom *atom, const char *name)
+{
+  if (!atom)
+    return QString();
+  if (OpenBabel::OBPairData *pair =
+        dynamic_cast<OpenBabel::OBPairData *>(atom->GetData(name)))
+    return QString(pair->GetValue().c_str());
+  return QString();
 }
 
 } // namespace
@@ -344,6 +380,115 @@ C2 0.0198(10) 0.0185(10) 0.0159(10) 0.0031(8) 0.0045(8) 0.0016(8)
 
   QVERIFY(radii.allFinite());
   QVERIFY(radii.maxCoeff() > 0.0);
+}
+
+void ThermalEllipsoidGeometryTest::openBabelCifEllipsoidFixturesProduceRenderableAtoms()
+{
+  struct FixtureExpectation
+  {
+    const char *filename;
+    unsigned int atoms;
+    unsigned int atomsWithAdps;
+  };
+
+  const FixtureExpectation fixtures[] = {
+    { "cif-ellipsoids/1548467.cif", 19, 19 },
+    { "cif-ellipsoids/4335632.cif", 5, 3 },
+    { "cif-ellipsoids/4124388.cif", 11, 5 }
+  };
+
+  OpenBabel::OBConversion conv;
+  QVERIFY2(conv.SetInFormat("cif"), "Open Babel CIF input format is unavailable");
+
+  const char *rawFields[6] = {
+    "adp_U_11", "adp_U_22", "adp_U_33",
+    "adp_U_12", "adp_U_13", "adp_U_23"
+  };
+
+  const char *cartFields[6] = {
+    "adp_Ucart_11", "adp_Ucart_22", "adp_Ucart_33",
+    "adp_Ucart_12", "adp_Ucart_13", "adp_Ucart_23"
+  };
+
+  for (const FixtureExpectation &fixture : fixtures) {
+    OpenBabel::OBMol obmol;
+    const std::string filename = std::string(TESTDATADIR) + fixture.filename;
+    const QByteArray readError = QString("Open Babel failed to read fixture %1")
+                                 .arg(fixture.filename).toLocal8Bit();
+    QVERIFY2(conv.ReadFile(&obmol, filename), readError.constData());
+    QCOMPARE(obmol.NumAtoms(), fixture.atoms);
+
+    Molecule molecule;
+    unsigned int atomsWithAdps = 0;
+    unsigned int renderableAtoms = 0;
+    double maxRenderableRadius = 0.0;
+
+    for (unsigned int atomIndex = 1; atomIndex <= obmol.NumAtoms(); ++atomIndex) {
+      OpenBabel::OBAtom *obatom = obmol.GetAtom(atomIndex);
+      QVERIFY(obatom != nullptr);
+
+      if (!obatom->GetData("adp_U_11"))
+        continue;
+
+      QCOMPARE(obPairAsString(obatom, "adp_valid"), QString("true"));
+      QCOMPARE(obPairAsString(obatom, "adp_basis"), QString("cif cartesian"));
+      QCOMPARE(obPairAsString(obatom, "adp_input_type"), QString("U"));
+      const QString source = obPairAsString(obatom, "adp_source");
+      QVERIFY(source == QString("mmcif_atom_site_aniso") ||
+              source == QString("cif_atom_site_aniso"));
+
+      double maxRaw = 0.0;
+      double maxCart = 0.0;
+      for (int field = 0; field < 6; ++field) {
+        double raw = 0.0;
+        QVERIFY2(obPairAsDouble(obatom, rawFields[field], raw), "Open Babel did not produce numeric raw ADP data");
+        QVERIFY(std::isfinite(raw));
+        maxRaw = std::max(maxRaw, std::abs(raw));
+
+        double cart = 0.0;
+        QVERIFY2(obPairAsDouble(obatom, cartFields[field], cart), "Open Babel did not produce numeric Cartesian ADP data");
+        QVERIFY(std::isfinite(cart));
+        maxCart = std::max(maxCart, std::abs(cart));
+      }
+      QVERIFY(maxRaw > 0.0);
+      QVERIFY(maxCart > 0.0);
+
+      Atom *atom = molecule.addAtom();
+      QVERIFY(atom != nullptr);
+      QVERIFY2(atom->setOBAtom(obatom), "Atom::setOBAtom() failed for CIF fixture atom");
+
+      for (int field = 0; field < 6; ++field) {
+        bool ok = false;
+        const double cart = atom->property(cartFields[field]).toDouble(&ok);
+        QVERIFY2(ok, "Atom::setOBAtom() did not import numeric adp_Ucart_*");
+        QVERIFY(std::isfinite(cart));
+      }
+
+      Eigen::Matrix3d axes;
+      Eigen::Vector3d radii;
+      QVERIFY2(Avogadro::ThermalEllipsoidGeometry::ellipsoidForAtom(
+                 atom,
+                 Avogadro::ThermalEllipsoidGeometry::Probability50,
+                 1.0,
+                 axes,
+                 radii),
+               "ThermalEllipsoidGeometry::ellipsoidForAtom() rejected a CIF fixture atom");
+      QVERIFY(radii.allFinite());
+      QVERIFY(radii.maxCoeff() > 0.0);
+      const Eigen::Matrix3d transform = axes * radii.asDiagonal();
+      QVERIFY(transform.allFinite());
+      QVERIFY(std::isfinite(transform.determinant()));
+      QVERIFY(transform.determinant() > 0.0);
+
+      ++atomsWithAdps;
+      ++renderableAtoms;
+      maxRenderableRadius = std::max(maxRenderableRadius, radii.maxCoeff());
+    }
+
+    QCOMPARE(atomsWithAdps, fixture.atomsWithAdps);
+    QCOMPARE(renderableAtoms, fixture.atomsWithAdps);
+    QVERIFY(maxRenderableRadius > 0.0);
+  }
 }
 
 QTEST_MAIN(ThermalEllipsoidGeometryTest)

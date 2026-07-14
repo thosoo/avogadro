@@ -1,0 +1,194 @@
+#------------------------------------------------------------------------------
+#$Date: 2017-12-15 11:05:44 +0200 (Fri, 15 Dec 2017) $
+#$Revision: 204284 $
+#$URL: file:///home/coder/svn-repositories/_RELOADED_COD/cod-reloaded/cif/1/54/84/1548467.cif $
+#------------------------------------------------------------------------------
+#
+# This file is available in the Crystallography Open Database (COD),
+# http://www.crystallography.net/
+#
+# All data on this site have been placed in the public domain by the
+# contributors.
+#
+data_1548467
+loop_
+_publ_author_name
+'P. S. Whitfield'
+'N. Herron'
+'W. E. Guise'
+'K. Page'
+'Y. Q. Cheng'
+'I. Milas'
+'M. K. Crawford'
+_publ_section_title
+;
+ Structures, Phase Transitions and Tricritical Behavior of the Hybrid
+ Perovskite Methyl Ammonium Lead Iodide
+;
+_journal_name_full               'Scientific Reports'
+_journal_page_first              35685
+_journal_paper_doi               10.1038/srep35685
+_journal_volume                  6
+_journal_year                    2016
+_chemical_formula_sum            'C H0.378 D5.622 I3 N Pb'
+_chemical_formula_weight         625.60
+_space_group_IT_number           140
+_symmetry_cell_setting           tetragonal
+_symmetry_Int_Tables_number      140
+_symmetry_space_group_name_Hall  '-I 4 2c'
+_symmetry_space_group_name_H-M   'I 4/m c m'
+_cell_angle_alpha                90.
+_cell_angle_beta                 90.
+_cell_angle_gamma                90.
+_cell_formula_units_Z            4
+_cell_length_a                   8.79948(6)
+_cell_length_b                   8.79948(6)
+_cell_length_c                   12.6882(1)
+_cell_volume                     982.458(12)
+_diffrn_ambient_temperature      190
+_diffrn_radiation_probe          neutron
+_exptl_crystal_density_diffrn    4.229
+_pd_proc_ls_prof_wR_factor       0.0196
+_refine_ls_goodness_of_fit_ref   2.52
+_cod_data_source_file            Sci-Rep-2016-6-35685-2.cif
+_cod_data_source_block           190K
+_cod_original_cell_volume        982.46(2)
+_cod_original_formula_sum        'C D5.622 H0.378 N Pb I3'
+_cod_database_code               1548467
+loop_
+_space_group_symop_id
+_space_group_symop_operation_xyz
+1 x,y,z
+2 -y,x,z
+3 -x,-y,z
+4 y,-x,z
+5 x,-y,1/2-z
+6 y,x,1/2-z
+7 -x,y,1/2-z
+8 -y,-x,1/2-z
+9 -x,-y,-z
+10 y,-x,-z
+11 x,y,-z
+12 -y,x,-z
+13 -x,y,1/2+z
+14 -y,-x,1/2+z
+15 x,-y,1/2+z
+16 y,x,1/2+z
+17 1/2+x,1/2+y,1/2+z
+18 1/2-y,1/2+x,1/2+z
+19 1/2-x,1/2-y,1/2+z
+20 1/2+y,1/2-x,1/2+z
+21 1/2+x,1/2-y,-z
+22 1/2+y,1/2+x,-z
+23 1/2-x,1/2+y,-z
+24 1/2-y,1/2-x,-z
+25 1/2-x,1/2-y,1/2-z
+26 1/2+y,1/2-x,1/2-z
+27 1/2+x,1/2+y,1/2-z
+28 1/2-y,1/2+x,1/2-z
+29 1/2-x,1/2+y,z
+30 1/2-y,1/2-x,z
+31 1/2+x,1/2-y,z
+32 1/2+y,1/2+x,z
+loop_
+_atom_site_aniso_label
+_atom_site_aniso_U_11
+_atom_site_aniso_U_22
+_atom_site_aniso_U_33
+_atom_site_aniso_U_23
+_atom_site_aniso_U_13
+_atom_site_aniso_U_12
+Pb 0.0232(6) 0.0232(6) 0.0229(9) 0.0000 0.0000 0.0000
+I1 0.0532(10) 0.0532(10) 0.0127(13) 0.0000 0.0000 0.0000
+I2 0.0367(8) 0.0367(8) 0.0566(12) 0.0000 0.0000 -0.0209(8)
+N1 0.085(7) 0.08(3) 0.055(9) 0.051(6) 0.015(13) -0.025(10)
+N2 0.036(6) 0.025(5) 0.032(4) 0.006(3) 0.017(4) -0.0051(4)
+C 0.036(6) 0.025(5) 0.032(4) 0.006(3) 0.017(4) -0.0051(4)
+C1 0.085(7) 0.08(3) 0.055(9) 0.051(6) 0.015(13) -0.025(10)
+H1 0.216(16) 0.074(10) 0.17(2) -0.106(11) -0.02(3) -0.008(15)
+D1 0.216(16) 0.074(10) 0.17(2) -0.106(11) -0.02(3) -0.008(15)
+D2 0.050(7) 0.23(2) 0.132(16) 0.053(8) 0.046(10) -0.01(2)
+D3 0.193(18) 0.166(16) 0.069(8) 0.039(14) 0.01(2) -0.087(9)
+D4 0.058(7) 0.101(13) 0.097(9) -0.026(5) 0.051(7) 0.003(15)
+D5 0.058(13) 0.036(6) 0.129(12) 0.016(5) -0.004(18) 0.031(8)
+D6 0.130(13) 0.093(12) 0.045(5) 0.013(11) 0.001(9) -0.048(7)
+H2 0.050(7) 0.23(2) 0.132(16) 0.053(8) 0.046(10) -0.01(2)
+H3 0.193(18) 0.166(16) 0.069(8) 0.039(14) 0.01(2) -0.087(9)
+H4 0.058(7) 0.101(13) 0.097(9) -0.026(5) 0.051(7) 0.003(15)
+H5 0.058(13) 0.036(6) 0.129(12) 0.016(5) -0.004(18) 0.031(8)
+H6 0.130(13) 0.093(12) 0.045(5) 0.013(11) 0.001(9) -0.048(7)
+loop_
+_atom_site_label
+_atom_site_type_symbol
+_atom_site_thermal_displace_type
+_atom_site_fract_x
+_atom_site_fract_y
+_atom_site_fract_z
+_atom_site_occupancy
+_atom_site_U_iso_or_equiv
+_atom_site_calc_flag
+_atom_site_refinement_flags
+_atom_site_disorder_assembly
+_atom_site_disorder_group
+Pb Pb Uani 0.00000 0.00000 0.00000 1.000 0.0231(4) . . . .
+I1 I Uani 0.00000 0.00000 0.25000 1.000 0.0397(6) . . . .
+I2 I Uani 0.20130(10) 0.29870(10) 0.00000 1.000 0.0433(5) . . . .
+N1 N Uani 0.4734(3) 0.0266(3) 0.2680(4) 0.125 0.073(11) . . . .
+N2 N Uani 0.5795(3) -0.0795(3) 0.2132(4) 0.125 0.031(3) . . . .
+C C Uani 0.5795(3) -0.0795(3) 0.2132(4) 0.125 0.031(3) . . . .
+C1 C Uani 0.4734(3) 0.0266(3) 0.2680(4) 0.125 0.073(11) . . . .
+H1 H Uani 0.4496(6) 0.1118(5) 0.2217(6) 0.008 0.153(9) . . . .
+D1 D Uani 0.4496(6) 0.1118(5) 0.2217(6) 0.117 0.153(9) . . . .
+D2 D Uani 0.3799(5) -0.0271(4) 0.2861(6) 0.117 0.137(9) . . . .
+D3 D Uani 0.5212(6) 0.0645(8) 0.3323(5) 0.117 0.143(8) . . . .
+D4 D Uani 0.6775(6) -0.0298(5) 0.2030(8) 0.117 0.085(6) . . . .
+D5 D Uani 0.5933(9) -0.1708(6) 0.2558(7) 0.117 0.074(6) . . . .
+D6 D Uani 0.5372(8) -0.1075(10) 0.1448(5) 0.117 0.089(6) . . . .
+H2 H Uani 0.3799(5) -0.0271(4) 0.2861(6) 0.008 0.137(9) . . . .
+H3 H Uani 0.5212(6) 0.0645(8) 0.3323(5) 0.008 0.143(8) . . . .
+H4 H Uani 0.6775(6) -0.0298(5) 0.2030(8) 0.008 0.085(6) . . . .
+H5 H Uani 0.5933(9) -0.1708(6) 0.2558(7) 0.008 0.074(6) . . . .
+H6 H Uani 0.5372(8) -0.1075(10) 0.1448(5) 0.008 0.089(6) . . . .
+loop_
+_geom_angle_atom_site_label_1
+_geom_angle_atom_site_label_2
+_geom_angle_atom_site_label_3
+_geom_angle
+_geom_angle_site_symmetry_1
+_geom_angle_site_symmetry_2
+_geom_angle_site_symmetry_3
+_geom_angle_publ_flag
+I1 Pb I2 90.00 . . . yes
+I1 Pb I2 90.00 . . 2_555 yes
+I1 Pb I2 90.00 . . 3_555 yes
+I1 Pb I2 90.00 . . 4_555 yes
+I1 Pb I1 180.00 . . 9_555 yes
+I2 Pb I2 90.00(2) . . 2_555 yes
+I2 Pb I2 180.00 . . 3_555 yes
+I2 Pb I2 90.00(2) . . 4_555 yes
+I1 Pb I2 90.00 9_555 . . yes
+I2 Pb I2 90.00(2) 2_555 . 3_555 yes
+I2 Pb I2 180.00 2_555 . 4_555 yes
+I1 Pb I2 90.00 9_555 . 2_555 yes
+I2 Pb I2 90.00(2) 3_555 . 4_555 yes
+I1 Pb I2 90.00 9_555 . 3_555 yes
+I1 Pb I2 90.00 9_555 . 4_555 yes
+Pb I1 Pb 180.00 . . 5_555 yes
+Pb I2 Pb 157.95(3) . . 21_555 yes
+loop_
+_geom_bond_atom_site_label_1
+_geom_bond_atom_site_label_2
+_geom_bond_distance
+_geom_bond_site_symmetry_1
+_geom_bond_site_symmetry_2
+_geom_bond_publ_flag
+Pb I1 3.1721(1) . . yes
+Pb I2 3.1696(9) . . yes
+Pb I2 3.1696(9) . 2_555 yes
+Pb I2 3.1696(9) . 3_555 yes
+Pb I2 3.1696(9) . 4_555 yes
+Pb I1 3.1721(1) . 9_555 yes
+N1 N2 1.492(5) . . yes
+N1 C 1.492(5) . . yes
+N2 C1 1.492(5) . . yes
+C C1 1.492(5) . . no
