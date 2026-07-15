@@ -5,7 +5,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  THOSOO_OPENBABEL_COMMIT: d8695a2628ee7b85d88af8c4cf429626ba081f36
+  THOSOO_OPENBABEL_COMMIT: c1a91a5e2796b7c8bdd66eca4e47ec92698146d1
   OPENBABEL_CMAKE_OPTIONS: BUILD_SHARED-ON-OB_USE_PREBUILT_BINARIES-OFF-OPENBABEL_USE_SYSTEM_INCHI-OFF-WITH_INCHI-ON-WITH_COORDGEN-ON
   OPENBABEL_CACHE_LAYOUT: CACHE-LAYOUT-v2
 
@@ -73,4 +73,6 @@ jobs:
         run: |
           export LD_LIBRARY_PATH="$PWD/build/openbabel-install/lib:$LD_LIBRARY_PATH"
           export PATH="$PWD/build/openbabel-install/bin:$PATH"
+          export BABEL_DATADIR="$PWD/build/openbabel-install/share/openbabel/3.1.1"
+          export BABEL_LIBDIR="$PWD/build/openbabel-install/lib/openbabel/3.1.1"
           ctest --test-dir build --output-on-failure

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ThermalEllipsoidSettingsWidget</class>
+ <widget class="QWidget" name="ThermalEllipsoidSettingsWidget">
+  <layout class="QFormLayout" name="formLayout">
+   <item row="0" column="0"><widget class="QLabel" name="probabilityLabel"><property name="text"><string>Probability:</string></property></widget></item>
+   <item row="0" column="1"><widget class="QComboBox" name="probabilityCombo"><item><property name="text"><string>50%</string></property></item><item><property name="text"><string>90%</string></property></item><item><property name="text"><string>99%</string></property></item></widget></item>
+   <item row="1" column="0"><widget class="QLabel" name="scaleLabel"><property name="text"><string>Scale:</string></property></widget></item>
+   <item row="1" column="1"><widget class="QDoubleSpinBox" name="scaleSpin"><property name="minimum"><double>0.010000000000000</double></property><property name="maximum"><double>100.000000000000000</double></property><property name="singleStep"><double>0.100000000000000</double></property><property name="value"><double>1.000000000000000</double></property></widget></item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

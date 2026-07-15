@@ -83,11 +83,19 @@ def main() -> int:
 
     version_dir = _find_version_dir(lib_root)
     plugin_dir = version_dir
-    data_dir = share_root / version_dir.name
+    share_data_dir = share_root / version_dir.name
+    bin_data_dir = bin_dir / "data"
+    data_dir = bin_data_dir if bin_data_dir.exists() else share_data_dir
 
     _print_header("Versioned OpenBabel paths")
     print(f"plugin_dir={plugin_dir}")
     print(f"data_dir={data_dir} exists={data_dir.exists()}")
+    print(f"share_data_dir={share_data_dir} exists={share_data_dir.exists()}")
+    print(f"bin_data_dir={bin_data_dir} exists={bin_data_dir.exists()}")
+    print(f"bin_data_space_groups_exists={(bin_data_dir / 'space-groups.txt').exists()}")
+    if not (bin_data_dir / "space-groups.txt").exists():
+        print(f"ERROR: missing packaged OpenBabel data file: {bin_data_dir / 'space-groups.txt'}", file=sys.stderr)
+        return 1
 
     openbabel_dll = bin_dir / "openbabel-3.dll"
     formats_xml = plugin_dir / "formats_xml.obf"

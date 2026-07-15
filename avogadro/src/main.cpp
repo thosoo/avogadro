@@ -44,6 +44,8 @@
 #include <QProcess>
 #include <QFont>
 #include <QFileInfo>
+#include <QFile>
+#include <QDir>
 
 #include <iostream>
 
@@ -68,6 +70,78 @@
 #endif
 
 using namespace Avogadro;
+
+
+namespace {
+
+QString firstExistingDirectory(const QStringList &candidates,
+                               const QString &requiredFile = QString())
+{
+  foreach (const QString &candidate, candidates) {
+    QDir dir(candidate);
+    if (!dir.exists())
+      continue;
+    if (!requiredFile.isEmpty() &&
+        !QFileInfo::exists(dir.filePath(requiredFile)))
+      continue;
+    return dir.absolutePath();
+  }
+  return QString();
+}
+
+void setEnvironmentIfUnset(const char *name, const QString &value)
+{
+  if (value.isEmpty() || !qEnvironmentVariableIsEmpty(name))
+    return;
+  qputenv(name, QFile::encodeName(value));
+}
+
+void configureBundledOpenBabelRuntime()
+{
+  const QString appDir = QCoreApplication::applicationDirPath();
+  const QString version = QString(BABEL_VERSION);
+
+#ifdef WIN32
+  const QString dataDir = firstExistingDirectory(
+    QStringList()
+      << QDir(appDir).filePath(QStringLiteral("data"))
+      << QDir(appDir).filePath(QStringLiteral("../share/openbabel/%1")).arg(version),
+    QStringLiteral("space-groups.txt"));
+  const QString pluginDir = firstExistingDirectory(
+    QStringList()
+      << appDir
+      << QDir(appDir).filePath(QStringLiteral("../lib/openbabel/%1")).arg(version));
+#else
+  const QString dataDir = firstExistingDirectory(
+    QStringList()
+      << QDir(appDir).filePath(QStringLiteral("../share/openbabel/%1")).arg(version),
+    QStringLiteral("space-groups.txt"));
+  const QString pluginDir = firstExistingDirectory(
+    QStringList()
+      << QDir(appDir).filePath(QStringLiteral("../lib/openbabel/%1")).arg(version));
+#endif
+
+  setEnvironmentIfUnset("BABEL_DATADIR", dataDir);
+  setEnvironmentIfUnset("BABEL_LIBDIR", pluginDir);
+
+  if (qEnvironmentVariableIsSet("AVOGADRO_THERMAL_ELLIPSOID_DEBUG")) {
+    const QString effectiveDataDir = QString::fromLocal8Bit(qgetenv("BABEL_DATADIR"));
+    const QString spaceGroupsPath =
+      QDir(effectiveDataDir).filePath(QStringLiteral("space-groups.txt"));
+    const QString effectivePluginDir = QString::fromLocal8Bit(qgetenv("BABEL_LIBDIR"));
+    OpenBabel::OBConversion conversion;
+    const bool cifAvailable = conversion.SetInFormat("cif");
+
+    qDebug() << "[ThermalEllipsoid/OpenBabel] BABEL_DATADIR=" << effectiveDataDir;
+    qDebug() << "[ThermalEllipsoid/OpenBabel] space-groups.txt=" << spaceGroupsPath;
+    qDebug() << "[ThermalEllipsoid/OpenBabel] space-groups exists="
+             << QFileInfo::exists(spaceGroupsPath);
+    qDebug() << "[ThermalEllipsoid/OpenBabel] BABEL_LIBDIR=" << effectivePluginDir;
+    qDebug() << "[ThermalEllipsoid/OpenBabel] CIF format available=" << cifAvailable;
+  }
+}
+
+} // namespace
 
 void printVersion(const QString &appName);
 void printHelp(const QString &appName);
@@ -124,58 +198,9 @@ int main(int argc, char *argv[])
                         + Library::version() + "\tGit:\t" + Library::scmRevision();
   qDebug() << versionInfo;
 
-#ifdef WIN32
-#ifndef AVO_APP_BUNDLE
-  // Point OpenBabel at the bundled data/plugins installed by the
-  // Windows installer so file formats and forcefields are available.
-  QString babelDataDir = QCoreApplication::applicationDirPath();
-  QString babelShareDir = babelDataDir + "/../share/openbabel/" + QString(BABEL_VERSION);
-  if (QFileInfo::exists(babelShareDir))
-    babelDataDir = babelShareDir;
-
-  QString babelLibDir = QCoreApplication::applicationDirPath() +
-                        "/../lib/openbabel/" + QString(BABEL_VERSION);
-
-  qDebug() << "BABEL_DATADIR" << babelDataDir;
-  _putenv_s("BABEL_DATADIR", babelDataDir.toLocal8Bit().constData());
-
-  if (QFileInfo::exists(babelLibDir)) {
-    qDebug() << "BABEL_LIBDIR" << babelLibDir;
-    _putenv_s("BABEL_LIBDIR", babelLibDir.toLocal8Bit().constData());
-  }
-
-  OpenBabel::OBConversion conversion;
-  const bool cmlReaderAvailable = conversion.SetInFormat("cml");
-  qDebug() << "OpenBabel CML reader available at startup:" << cmlReaderAvailable;
-#endif
-#endif
+  configureBundledOpenBabelRuntime();
 
 #ifdef AVO_APP_BUNDLE
-  // Set up the babel data and plugin directories for Mac - relocatable
-  // This also works for the Windows package, but BABEL_LIBDIR is ignored
-
-  // Point BABEL_DATADIR and BABEL_LIBDIR at the OpenBabel directories
-  // including the OpenBabel version.
-  QByteArray babelDataDir(
-      (QCoreApplication::applicationDirPath() + "/../share/openbabel/" +
-       QString(BABEL_VERSION)).toLatin1());
-  QByteArray babelLibDir(
-      (QCoreApplication::applicationDirPath() + "/../lib/openbabel/" +
-       QString(BABEL_VERSION)).toLatin1());
-
-#ifdef _MSC_VER
-  int res1 = _putenv_s("BABEL_DATADIR", babelDataDir.data());
-  int res2 = _putenv_s("BABEL_LIBDIR", babelLibDir.data());
-#else
-  int res1 = setenv("BABEL_DATADIR", babelDataDir.data(), 1);
-  int res2 = setenv("BABEL_LIBDIR", babelLibDir.data(), 1);
-#endif
-
-  qDebug() << "BABEL_LIBDIR" << babelLibDir.data();
-
-  if (res1 != 0 || res2 != 0)
-    qDebug() << "Error: setenv failed." << res1 << res2;
-
   // Override the Qt plugin search path too
   QStringList pluginSearchPaths;
   pluginSearchPaths << QCoreApplication::applicationDirPath() + "/../plugins";
