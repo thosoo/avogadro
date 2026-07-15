@@ -38,6 +38,11 @@ link_directories(
 find_package(PkgConfig)
 pkg_check_modules(XTB xtb)
 
+set(_openbabel_test_env
+  "QT_QPA_PLATFORM=offscreen"
+  "BABEL_DATADIR=${OPENBABEL3_DATA_DIR}"
+  "BABEL_LIBDIR=${OPENBABEL3_PLUGIN_DIR}")
+
 set(tests
   drawcommand
 #  hydrogenscommand
@@ -60,7 +65,7 @@ foreach (test ${tests})
   if ("${test}" STREQUAL "thermalellipsoidgeometry")
     list(APPEND test_SRCS ../src/engines/thermalellipsoidgeometry.cpp)
   endif()
-  if (${test} STREQUAL "insertfragmentextension")
+  if ("${test}" STREQUAL "insertfragmentextension")
     list(APPEND test_SRCS
       ../src/extensions/insertfragmentextension.cpp
       ../src/extensions/insertfragmentdialog.cpp
@@ -82,12 +87,8 @@ foreach (test ${tests})
     add_dependencies(${test}test openbabel_ext)
   endif()
   add_test(${test}Test ${CMAKE_BINARY_DIR}/bin/${test}test)
-  set(_test_env "QT_QPA_PLATFORM=offscreen")
-  if(${test} STREQUAL "forcefield")
-    list(APPEND _test_env
-      "BABEL_DATADIR=${CMAKE_BINARY_DIR}/openbabel-install/share")
-  endif()
-  set_tests_properties(${test}Test PROPERTIES ENVIRONMENT "${_test_env}")
+  set_tests_properties(${test}Test PROPERTIES
+    ENVIRONMENT "${_openbabel_test_env}")
   set_property(SOURCE ${test_SRCS} PROPERTY LABELS avogadro)
   set_property(TARGET ${test}test PROPERTY LABELS avogadro)
   set_property(TEST ${test}Test PROPERTY LABELS avogadro)
@@ -185,7 +186,7 @@ if(TARGET openbabel_ext)
 endif()
 add_test(dialogsmokeTest ${CMAKE_BINARY_DIR}/bin/dialogsmoketest)
 set_tests_properties(dialogsmokeTest PROPERTIES
-  ENVIRONMENT "QT_QPA_PLATFORM=offscreen;BABEL_DATADIR=${CMAKE_BINARY_DIR}/openbabel-install/share")
+  ENVIRONMENT "${_openbabel_test_env}")
 set_property(SOURCE ${dialogsmoketest_SRCS} PROPERTY LABELS avogadro)
 set_property(TARGET dialogsmoketest PROPERTY LABELS avogadro)
 set_property(TEST dialogsmokeTest PROPERTY LABELS avogadro)

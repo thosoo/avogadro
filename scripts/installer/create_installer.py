@@ -175,6 +175,16 @@ def main():
         dest = dist / "share" / "openbabel" / ob_version
         log(f"Copying OpenBabel data from {share} to {dest}")
         shutil.copytree(share, dest, dirs_exist_ok=True)
+
+        # OpenBabel installs runtime data to bin/data for MSVC builds. The
+        # installed Avogadro executable sets BABEL_DATADIR to its application
+        # directory's data subdirectory, so package the complete OpenBabel data
+        # directory there too. Keep the share/openbabel copy above for tools or
+        # layouts that still look for the Unix-style data location.
+        bin_data = dist / "bin" / "data"
+        log(f"Copying OpenBabel data from {share} to {bin_data}")
+        shutil.copytree(share, bin_data, dirs_exist_ok=True)
+
         patterns = ["*.txt", "*.par", "*.prm", "*.ff", "*.dat"]
         for pat in patterns:
             for f in share.glob(pat):
@@ -185,6 +195,12 @@ def main():
                 for f in alt_share.glob(pat):
                     if f.is_file():
                         copy(f, dist / "bin")
+
+        space_groups = bin_data / "space-groups.txt"
+        if not space_groups.exists():
+            raise FileNotFoundError(
+                f"Packaged OpenBabel data is missing required file: {space_groups}"
+            )
 
     libxml = os.environ.get("LIBXML2_LIBRARY")
     if libxml:

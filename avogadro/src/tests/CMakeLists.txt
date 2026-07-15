@@ -27,4 +27,9 @@ if(TARGET openbabel_ext)
 endif()
 
 add_test(clipboardFormatDetectorTest ${CMAKE_BINARY_DIR}/bin/clipboardformatdetectortest)
-set_tests_properties(clipboardFormatDetectorTest PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+set(_openbabel_test_env
+  "QT_QPA_PLATFORM=offscreen"
+  "BABEL_DATADIR=${OPENBABEL3_DATA_DIR}"
+  "BABEL_LIBDIR=${OPENBABEL3_PLUGIN_DIR}")
+set_tests_properties(clipboardFormatDetectorTest PROPERTIES
+  ENVIRONMENT "${_openbabel_test_env}")

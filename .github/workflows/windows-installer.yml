@@ -360,6 +360,21 @@ jobs:
             Copy-Item -Path $dll.FullName -Destination $coordgenDir -Force
           }
           Write-Host "Boost DLLs copied to ${coordgenDir}:" ($boostDlls | ForEach-Object { $_.Name } | Join-String -Separator ", ")
+
+          $obPrefix = "$PWD\build\openbabel-install"
+          Write-Host "Bundled OpenBabel bin tree:"
+          Get-ChildItem "$obPrefix\bin" -Recurse |
+            Select-Object FullName, Length |
+            Format-Table -AutoSize | Out-String | Write-Host
+          if (-not (Test-Path "$obPrefix\bin\data\space-groups.txt")) {
+            throw "Bundled OpenBabel space-groups.txt was not installed"
+          }
+          $modules = Get-ChildItem "$obPrefix\bin" -Recurse -Include *.dll,*.obf -ErrorAction SilentlyContinue
+          if (-not $modules) {
+            throw "No bundled OpenBabel DLL or OBF modules found under $obPrefix\bin"
+          }
+          Write-Host "Bundled OpenBabel module artifacts:" ($modules | ForEach-Object { $_.FullName } | Join-String -Separator ", ")
+
           cmake --build build --config Release --target install
       - name: Create installer
         if: matrix.target == 'installer'
@@ -420,6 +435,13 @@ jobs:
           if (-not (Test-Path $dataDir)) {
             throw "Missing OpenBabel data directory for version '$versionDir': $dataDir"
           }
+          $binDataDir = Join-Path $dist "bin\data"
+          $spaceGroups = Join-Path $binDataDir "space-groups.txt"
+          if (-not (Test-Path $spaceGroups)) {
+            throw "Missing packaged OpenBabel space-groups.txt: $spaceGroups"
+          }
+          Write-Host "Found packaged OpenBabel data directory:" $binDataDir
+          Write-Host "Found packaged OpenBabel space-groups.txt:" $spaceGroups
       - name: Probe packaged OpenBabel runtime (installer)
         if: matrix.target == 'installer'
         shell: pwsh
@@ -430,7 +452,17 @@ jobs:
         shell: pwsh
         run: |
           $env:PATH = "$PWD\build\openbabel-install\bin;$env:PATH"
+          $env:BABEL_DATADIR = "$PWD\build\openbabel-install\bin\data"
+          $env:BABEL_LIBDIR = "$PWD\build\openbabel-install\bin"
+          $env:QT_QPA_PLATFORM = "offscreen"
+          Write-Host "BABEL_DATADIR=$env:BABEL_DATADIR"
+          Write-Host "BABEL_LIBDIR=$env:BABEL_LIBDIR"
           ctest --test-dir build -C Release --output-on-failure
+          $ctestExit = $LASTEXITCODE
+          if ($ctestExit -ne 0) {
+            ctest --test-dir build -C Release -R thermalellipsoidgeometryTest -V --output-on-failure
+            exit $ctestExit
+          }
       - name: Upload installer
         if: matrix.target == 'installer'
         uses: actions/upload-artifact@v4

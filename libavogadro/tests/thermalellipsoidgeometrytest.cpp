@@ -4,6 +4,9 @@
 
 #include <QtTest>
 
+#include <QDir>
+#include <QFileInfo>
+
 #include <avogadro/atom.h>
 #include <avogadro/molecule.h>
 #include "../src/engines/thermalellipsoidgeometry.h"
@@ -106,6 +109,23 @@ bool obPairAsDouble(OpenBabel::OBAtom *atom, const char *name, double &value)
   }
 
   return false;
+}
+
+
+void verifyOpenBabelDataDir()
+{
+  const QByteArray babelDataDir = qgetenv("BABEL_DATADIR");
+  QVERIFY2(!babelDataDir.isEmpty(),
+           "BABEL_DATADIR is not set for the thermal ellipsoid test");
+
+  const QString dataDir = QString::fromLocal8Bit(babelDataDir);
+  const QString spaceGroupsPath =
+    QDir(dataDir).filePath(QStringLiteral("space-groups.txt"));
+
+  QVERIFY2(QFileInfo::exists(spaceGroupsPath),
+           qPrintable(QStringLiteral(
+             "Open Babel data file is missing: %1; BABEL_DATADIR=%2")
+             .arg(spaceGroupsPath, dataDir)));
 }
 
 QString obPairAsString(OpenBabel::OBAtom *atom, const char *name)
@@ -261,6 +281,8 @@ void ThermalEllipsoidGeometryTest::ellipsoidForAtomUsesImportedFloatingPointPair
 
 void ThermalEllipsoidGeometryTest::cifImportProducesRenderableThermalEllipsoid()
 {
+  verifyOpenBabelDataDir();
+
   static const char cif[] = R"cif(data_adp_real_cif_minimal
 _cell_length_a 6.9827
 _cell_length_b 11.8748
@@ -396,6 +418,8 @@ void ThermalEllipsoidGeometryTest::openBabelCifEllipsoidFixturesProduceRenderabl
     { "cif-ellipsoids/4335632.cif", 5, 3 },
     { "cif-ellipsoids/4124388.cif", 11, 5 }
   };
+
+  verifyOpenBabelDataDir();
 
   OpenBabel::OBConversion conv;
   QVERIFY2(conv.SetInFormat("cif"), "Open Babel CIF input format is unavailable");
