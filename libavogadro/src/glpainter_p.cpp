@@ -46,6 +46,7 @@
 #include <QColor>
 #include <QVarLengthArray>
 #include <Eigen/Geometry>
+#include <Eigen/Eigenvalues>
 #define _USE_MATH_DEFINES
 #include <cmath>
 #ifndef M_PI
@@ -1229,9 +1230,175 @@ namespace Avogadro
   {
   }
 
-  void GLPainter::drawEllipsoid(const Eigen::Vector3d &,
-                                const Eigen::Matrix3d &)
+  void GLPainter::drawEllipsoid(const Eigen::Vector3d &position,
+                                const Eigen::Matrix3d &U)
   {
+    // Diagonalize the U-matrix to get semi-axes
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(U);
+    if (solver.info() != Eigen::Success)
+      return;
+
+    Eigen::Vector3d eigenvalues = solver.eigenvalues();
+    Eigen::Matrix3d eigenvectors = solver.eigenvectors();
+
+    // Semi-axes lengths (square root of eigenvalues)
+    Eigen::Vector3d semiAxes;
+    for (int i = 0; i < 3; ++i) {
+      semiAxes[i] = eigenvalues[i] > 0.0 ? sqrt(eigenvalues[i]) : 0.01;
+    }
+
+    // Avoid degenerate ellipsoids
+    if (semiAxes.maxCoeff() < 0.001)
+      return;
+
+    // Generate icosphere with per-triangle vertices and normals
+    const int subdivisions = 2; // Quality: 2 = ~160 triangles
+    QVector<Eigen::Vector3d> baseVertices;
+    QVector<TriIndex> faces;
+    generateIcosphereBase(baseVertices, faces, subdivisions);
+
+    // Build mesh with per-vertex data (Mesh expects vertex/normal arrays of same size)
+    std::vector<Eigen::Vector3f> meshVertices;
+    std::vector<Eigen::Vector3f> meshNormals;
+    meshVertices.reserve(faces.size() * 3);
+    meshNormals.reserve(faces.size() * 3);
+
+    for (const auto &face : faces) {
+      Eigen::Vector3d v0 = baseVertices[face.v[0]];
+      Eigen::Vector3d v1 = baseVertices[face.v[1]];
+      Eigen::Vector3d v2 = baseVertices[face.v[2]];
+
+      // Transform: rotate, scale, translate
+      auto transform = [&](const Eigen::Vector3d &v) -> Eigen::Vector3d {
+        Eigen::Vector3d transformed = eigenvectors * (v.cwiseProduct(semiAxes));
+        return transformed + position;
+      };
+
+      Eigen::Vector3d tv0 = transform(v0);
+      Eigen::Vector3d tv1 = transform(v1);
+      Eigen::Vector3d tv2 = transform(v2);
+
+      // Compute normal (cross product of edges, normalized)
+      Eigen::Vector3d edge1 = tv1 - tv0;
+      Eigen::Vector3d edge2 = tv2 - tv0;
+      Eigen::Vector3d normal = edge1.cross(edge2).normalized();
+
+      // Add vertices and normals for this triangle
+      meshVertices.push_back(Eigen::Vector3f(tv0.cast<float>()));
+      meshNormals.push_back(Eigen::Vector3f(normal.cast<float>()));
+      meshVertices.push_back(Eigen::Vector3f(tv1.cast<float>()));
+      meshNormals.push_back(Eigen::Vector3f(normal.cast<float>()));
+      meshVertices.push_back(Eigen::Vector3f(tv2.cast<float>()));
+      meshNormals.push_back(Eigen::Vector3f(normal.cast<float>()));
+    }
+
+    // Create mesh and render
+    Mesh mesh;
+    mesh.setVertices(meshVertices);
+    mesh.setNormals(meshNormals);
+    drawMesh(mesh, 0); // 0 = filled
+  }
+
+  // Helper: generate base icosphere (shared vertices and faces)
+  void GLPainter::generateIcosphereBase(QVector<Eigen::Vector3d> &vertices,
+                                         QVector<TriIndex> &faces,
+                                         int subdivisions)
+  {
+    // Icosahedron vertices
+    const float t = 0.5f;
+    const float phi = 0.5f * (1.0f + sqrt(5.0f));
+
+    vertices.append(Eigen::Vector3d(-t, phi, 0.0f).normalized());
+    vertices.append(Eigen::Vector3d( t, phi, 0.0f).normalized());
+    vertices.append(Eigen::Vector3d(-t,-phi, 0.0f).normalized());
+    vertices.append(Eigen::Vector3d( t,-phi, 0.0f).normalized());
+    vertices.append(Eigen::Vector3d(0.0f,-t, phi).normalized());
+    vertices.append(Eigen::Vector3d(0.0f, t, phi).normalized());
+    vertices.append(Eigen::Vector3d(0.0f,-t,-phi).normalized());
+    vertices.append(Eigen::Vector3d(0.0f, t,-phi).normalized());
+    vertices.append(Eigen::Vector3d( phi, 0.0f,-t).normalized());
+    vertices.append(Eigen::Vector3d(-phi, 0.0f,-t).normalized());
+    vertices.append(Eigen::Vector3d( phi, 0.0f, t).normalized());
+    vertices.append(Eigen::Vector3d(-phi, 0.0f, t).normalized());
+
+    // Icosahedron faces (20 triangles)
+    struct Tri {
+      int v[3];
+      Tri(int a, int b, int c) { v[0]=a; v[1]=b; v[2]=c; }
+      bool operator==(const Tri &other) const {
+        return v[0]==other.v[0] && v[1]==other.v[1] && v[2]==other.v[2];
+      }
+      uint hash() const {
+        return uint(v[0]) * 65536 + uint(v[1]) * 256 + uint(v[2]);
+      }
+    };
+    QVector<Tri> triFaces;
+    
+    triFaces.append(Tri(0, 11, 5));
+    triFaces.append(Tri(0, 5, 1));
+    triFaces.append(Tri(0, 1, 7));
+    triFaces.append(Tri(0, 7, 10));
+    triFaces.append(Tri(0, 10, 11));
+    triFaces.append(Tri(1, 5, 9));
+    triFaces.append(Tri(5, 11, 4));
+    triFaces.append(Tri(11, 10, 2));
+    triFaces.append(Tri(10, 7, 6));
+    triFaces.append(Tri(7, 1, 8));
+    triFaces.append(Tri(3, 9, 4));
+    triFaces.append(Tri(3, 4, 2));
+    triFaces.append(Tri(3, 2, 6));
+    triFaces.append(Tri(3, 6, 8));
+    triFaces.append(Tri(3, 8, 9));
+    triFaces.append(Tri(4, 9, 5));
+    triFaces.append(Tri(2, 4, 11));
+    triFaces.append(Tri(6, 2, 10));
+    triFaces.append(Tri(8, 6, 7));
+    triFaces.append(Tri(9, 8, 1));
+
+    // Subdivide
+    for (int sub = 0; sub < subdivisions; ++sub) {
+      QVector<Tri> newFaces;
+      QVector<Tri> edges;
+      QVector<int> edgeIndices;
+
+      for (const auto &tri : triFaces) {
+        int mid[3];
+        for (int i = 0; i < 3; ++i) {
+          int v1 = tri.v[i];
+          int v2 = tri.v[(i+1)%3];
+          // Find or create edge
+          int edgeIdx = -1;
+          for (int e = 0; e < edges.size(); ++e) {
+            if ((edges[e].v[0]==v1 && edges[e].v[1]==v2) ||
+                (edges[e].v[0]==v2 && edges[e].v[1]==v1)) {
+              edgeIdx = edgeIndices[e];
+              break;
+            }
+          }
+          if (edgeIdx == -1) {
+            edgeIdx = vertices.size();
+            edges.append(Tri(v1, v2, 0));
+            edgeIndices.append(edgeIdx);
+            Eigen::Vector3d midPoint = (vertices[v1] + vertices[v2]) * 0.5;
+            midPoint.normalize();
+            vertices.append(midPoint);
+          }
+          mid[i] = edgeIdx;
+        }
+
+        newFaces.append(Tri(tri.v[0], mid[0], mid[2]));
+        newFaces.append(Tri(tri.v[1], mid[1], mid[0]));
+        newFaces.append(Tri(tri.v[2], mid[2], mid[1]));
+        newFaces.append(Tri(mid[0], mid[1], mid[2]));
+      }
+
+      triFaces = newFaces;
+    }
+
+    faces.resize(triFaces.size());
+    for (int i = 0; i < triFaces.size(); ++i) {
+      faces[i] = TriIndex{triFaces[i].v[0], triFaces[i].v[1], triFaces[i].v[2]};
+    }
   }
 
   int GLPainter::defaultQuality()

@@ -44,7 +44,7 @@ namespace Avogadro {
   public:
     AtomPrivate(): assignedFormalCharge(false), groupIndex(0), residue(FALSE_ID),
       partialCharge(0.0), formalCharge(0), forceVector(0.0, 0.0, 0.0),
-      customRadius(0.0)
+      customRadius(0.0), hasAnisoU(false), uIso(0.0), hasUIso(false)
     {}
 
     bool assignedFormalCharge;
@@ -56,6 +56,10 @@ namespace Avogadro {
     QString customLabel;
     QString customColorName;
     double customRadius;
+    Eigen::Matrix3d anisoU;      // 3x3 symmetric anisotropic displacement parameter matrix
+    bool hasAnisoU;              // flag indicating whether anisotropic U-tensor is available
+    double uIso;                 // isotropic displacement parameter (fallback)
+    bool hasUIso;                // flag indicating whether isotropic U is available
   };
 
   Atom::Atom(QObject *parent) : Primitive(AtomType, parent),
@@ -301,6 +305,37 @@ namespace Avogadro {
      return d->customRadius;
    }
 
+   bool Atom::hasAnisoU() const
+   {
+     Q_D(const Atom);
+     return d->hasAnisoU;
+   }
+
+   Eigen::Matrix3d Atom::anisoU() const
+   {
+     Q_D(const Atom);
+     return d->anisoU;
+   }
+
+   void Atom::setAnisoU(const Eigen::Matrix3d &U)
+   {
+     Q_D(Atom);
+     d->anisoU = U;
+     d->hasAnisoU = true;
+   }
+
+   double Atom::uIso() const
+   {
+     Q_D(const Atom);
+     return d->uIso;
+   }
+
+   bool Atom::hasUIso() const
+   {
+     Q_D(const Atom);
+     return d->hasUIso;
+   }
+
    const Eigen::Vector3d Atom::forceVector() const
    {
      Q_D(const Atom);
@@ -441,6 +476,40 @@ namespace Avogadro {
        setProperty(property->GetAttribute().c_str(), property->GetValue().c_str());
      }
 
+     // Extract anisotropic displacement parameters if available
+     // OpenBabel stores them as OBPairData with keys "adp_U_11" through "adp_U_23"
+     double uValues[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+     bool hasAllU = true;
+     const char* uKeys[6] = {"adp_U_11", "adp_U_22", "adp_U_33", "adp_U_12", "adp_U_13", "adp_U_23"};
+     for (int i = 0; i < 6; ++i) {
+       OpenBabel::OBGenericData* uData = obatom->GetData(uKeys[i]);
+       if (uData && uData->GetDataType() == OpenBabel::OBGenericDataType::PairData) {
+         OpenBabel::OBPairData* pairData = static_cast<OpenBabel::OBPairData*>(uData);
+         uValues[i] = QString(pairData->GetValue().c_str()).toDouble();
+       } else {
+         hasAllU = false;
+         break;
+       }
+     }
+     if (hasAllU) {
+       // Build 3x3 symmetric matrix from the 6 unique components
+       // Order: U11, U22, U33, U12, U13, U23
+       Eigen::Matrix3d U;
+       U << uValues[0], uValues[3], uValues[4],
+            uValues[3], uValues[1], uValues[5],
+            uValues[4], uValues[5], uValues[2];
+       d->anisoU = U;
+       d->hasAnisoU = true;
+     }
+
+     // Extract isotropic U if available
+     OpenBabel::OBGenericData* uIsoData = obatom->GetData("adp_U_iso_or_equiv");
+     if (uIsoData && uIsoData->GetDataType() == OpenBabel::OBGenericDataType::PairData) {
+       OpenBabel::OBPairData* pairData = static_cast<OpenBabel::OBPairData*>(uIsoData);
+       d->uIso = QString(pairData->GetValue().c_str()).toDouble();
+       d->hasUIso = true;
+     }
+
      return true;
    }
 
@@ -460,6 +529,10 @@ namespace Avogadro {
      d->customLabel = other.customLabel();
      d->customColorName = other.customColorName();
      d->customRadius = other.customRadius();
+     d->anisoU = other.anisoU();
+     d->hasAnisoU = other.hasAnisoU();
+     d->uIso = other.uIso();
+     d->hasUIso = other.hasUIso();
      return *this;
    }
 

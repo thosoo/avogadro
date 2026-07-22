@@ -128,6 +128,39 @@ namespace Avogadro {
     void setCustomRadius(const double radius);
     /** @} */
 
+    /** @name Anisotropic displacement parameters
+     * These functions provide access to crystallographic displacement parameters.
+     * @{
+     */
+
+    /**
+     * @return true if anisotropic displacement parameters are available.
+     */
+    bool hasAnisoU() const;
+
+    /**
+     * @return the 3x3 symmetric anisotropic displacement parameter matrix.
+     * @note Only valid if hasAnisoU() returns true.
+     */
+    Eigen::Matrix3d anisoU() const;
+
+    /**
+     * Set the anisotropic displacement parameter matrix.
+     * @param U the 3x3 symmetric matrix
+     */
+    void setAnisoU(const Eigen::Matrix3d &U);
+
+    /**
+     * @return the isotropic displacement parameter Uiso.
+     */
+    double uIso() const;
+
+    /**
+     * @return true if isotropic displacement parameter is available.
+     */
+    bool hasUIso() const;
+    /** @} */
+
     /** @name Get atomic information
      * These functions are used to get atomic information.
      * @{

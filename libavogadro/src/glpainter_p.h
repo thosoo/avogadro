@@ -35,6 +35,11 @@
 namespace Avogadro
 {
 
+  // Simple triangle index struct
+  struct TriIndex {
+    int v[3];
+  };
+
   /**
    * @class GLPainter glpainter.h
    * @brief Implementation of the Painter class using OpenGL.
@@ -500,6 +505,16 @@ namespace Avogadro
     GLPainterPrivate * const d;
 
     bool m_dynamicScaling;
+
+    /**
+     * Generate an icosphere mesh for ellipsoid rendering.
+     * @param vertices Output vertex positions
+     * @param faces Output triangle faces (as TriIndex structs)
+     * @param subdivisions Number of subdivision levels (higher = smoother)
+     */
+    void generateIcosphereBase(QVector<Eigen::Vector3d> &vertices,
+                               QVector<TriIndex> &faces,
+                               int subdivisions);
 
     /**
      * Increment the number of widgets the Painter is being shared by.
