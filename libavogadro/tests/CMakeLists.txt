@@ -48,6 +48,7 @@ set(tests
   neighborlist
   addremovehydrogens
   vdwradius
+  cifadp
 )
 if(XTB_FOUND)
   list(APPEND tests xtbopttool xtbphysics)
@@ -82,6 +83,10 @@ foreach (test ${tests})
   if(${test} STREQUAL "forcefield")
     list(APPEND _test_env
       "BABEL_DATADIR=${CMAKE_BINARY_DIR}/openbabel-install/share")
+  endif()
+  if(${test} STREQUAL "cifadp")
+    list(APPEND _test_env
+      "BABEL_LIBDIR=${CMAKE_BINARY_DIR}/openbabel_ext-prefix/src/openbabel_ext-build/lib")
   endif()
   set_tests_properties(${test}Test PROPERTIES ENVIRONMENT "${_test_env}")
   set_property(SOURCE ${test_SRCS} PROPERTY LABELS avogadro)

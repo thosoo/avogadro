@@ -28,11 +28,14 @@
 #include <avogadro/global.h>
 #include <avogadro/engine.h>
 
+#include "ui_ellipsoidssettingswidget.h"
+
 namespace Avogadro {
 
   //! Ellipsoid Engine class - renders atoms as displacement ellipsoids
   class Atom;
   class Bond;
+  class EllipsoidSettingsWidget;
   class EllipsoidEngine : public Engine
   {
     Q_OBJECT
@@ -62,6 +65,14 @@ namespace Avogadro {
 
     double radius(const PainterDevice *pd, const Primitive *p = 0) const;
 
+    //! \\name Settings access
+    //@{
+    double scale() const { return m_scale; }
+    void setScale(double scale) { m_scale = scale; m_cacheValid = false; }
+    bool drawIsotropicSpheres() const { return m_drawIsotropicSpheres; }
+    void setDrawIsotropicSpheres(bool draw) { m_drawIsotropicSpheres = draw; }
+    //@}>
+
     QWidget *settingsWidget();
     bool hasSettings() { return true; }
 
@@ -76,6 +87,15 @@ namespace Avogadro {
     void readSettings(QSettings &settings);
 
   private:
+    //! Ensure cached diagonalized U data is up to date
+    void ensureCache(PainterDevice *pd) const;
+
+    //! Get cached eigenvectors for an atom
+    const Eigen::Matrix3d &cachedEigenvectors(const Atom *a) const;
+
+    //! Get cached semi-axes for an atom
+    const Eigen::Vector3d &cachedSemiAxes(const Atom *a) const;
+
     //! Render an Atom as an ellipsoid
     bool renderAtom(PainterDevice *pd, const Atom *a);
 
@@ -88,20 +108,47 @@ namespace Avogadro {
     //! Scale multiplier for ellipsoid size
     double m_scale;
 
-    //! Mesh quality (subdivision levels for icosphere)
-    int m_meshQuality;
+    //! Whether to draw isotropic Uiso spheres for atoms without anisotropic data (otherwise VdW spheres)
+    bool m_drawIsotropicSpheres;
 
-    //! Opacity of the ellipsoids
-    double m_opacity;
+    //! Cached diagonalized U data per atom (indexed by atom index)
+    mutable std::vector<Eigen::Matrix3d> m_cachedEigenvectors;
+    mutable std::vector<Eigen::Vector3d> m_cachedSemiAxes;
+    mutable bool m_cacheValid;
 
-    //! Whether to show ellipsoids
-    bool m_showEllipsoids;
+    EllipsoidSettingsWidget *m_settingsWidget;
 
-    //! Whether to use isotropic fallback for atoms without U-tensor
-    bool m_useIsotropicFallback;
+  private Q_SLOTS:
+    void settingsWidgetDestroyed();
+  };
 
-    //! Whether to show eigenvector axes
-    bool m_showAxes;
+  class EllipsoidSettingsWidget : public QWidget, public Ui::EllipsoidSettingsWidget
+  {
+    Q_OBJECT
+    public:
+      EllipsoidSettingsWidget(EllipsoidEngine *engine, QWidget *parent=0)
+        : QWidget(parent), m_engine(engine) {
+        setupUi(this);
+        scaleSpinBox->setValue(engine->scale());
+        drawIsotropicCheckBox->setChecked(engine->drawIsotropicSpheres());
+        connect(scaleSpinBox, SIGNAL(valueChanged(double)),
+                this, SLOT(updateScale(double)));
+        connect(drawIsotropicCheckBox, SIGNAL(toggled(bool)),
+                this, SLOT(updateDrawIsotropic(bool)));
+      }
+
+    private:
+      EllipsoidEngine *m_engine;
+
+    private Q_SLOTS:
+      void updateScale(double value) {
+        if (m_engine)
+          m_engine->setScale(value);
+      }
+      void updateDrawIsotropic(bool checked) {
+        if (m_engine)
+          m_engine->setDrawIsotropicSpheres(checked);
+      }
   };
 
   //! Generates instances of our EllipsoidEngine class

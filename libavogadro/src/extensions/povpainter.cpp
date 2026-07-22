@@ -383,7 +383,7 @@ namespace Avogadro
   }
 
   void POVPainter::drawEllipsoid(const Eigen::Vector3d &,
-                                 const Eigen::Matrix3d &)
+                                 const Eigen::Matrix3d &, const Eigen::Vector3d &, double)
   {
   }
 

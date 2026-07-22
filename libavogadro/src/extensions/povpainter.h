@@ -332,7 +332,9 @@ namespace Avogadro
      * @todo Implement this primitive.
      */
     void drawEllipsoid(const Eigen::Vector3d &position,
-                       const Eigen::Matrix3d &matrix);
+                       const Eigen::Matrix3d &eigenvectors,
+                       const Eigen::Vector3d &semiAxes,
+                       double maxSemiAxis);
 
     void begin(QTextStream *output, Vector3d planeNormalVector);
     void end();

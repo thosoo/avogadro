@@ -37,6 +37,8 @@
 
 #include <Eigen/Dense>
 
+#include <vector>
+
 #include <QSettings>
 
 using Eigen::Vector3d;
@@ -46,12 +48,10 @@ namespace Avogadro {
 
   EllipsoidEngine::EllipsoidEngine(QObject *parent)
     : Engine(parent),
-      m_scale(1.0),
-      m_meshQuality(3),
-      m_opacity(1.0),
-      m_showEllipsoids(true),
-      m_useIsotropicFallback(true),
-      m_showAxes(false)
+      m_scale(1.73), // 50% probability ellipsoid (k-factor for 3D)
+      m_drawIsotropicSpheres(true),
+      m_cacheValid(false),
+      m_settingsWidget(0)
   {
   }
 
@@ -62,22 +62,85 @@ namespace Avogadro {
   Engine *EllipsoidEngine::clone() const
   {
     EllipsoidEngine *eng = new EllipsoidEngine;
-    eng->m_scale = m_scale;
-    eng->m_meshQuality = m_meshQuality;
-    eng->m_opacity = m_opacity;
-    eng->m_showEllipsoids = m_showEllipsoids;
-    eng->m_useIsotropicFallback = m_useIsotropicFallback;
-    eng->m_showAxes = m_showAxes;
+    eng->m_scale = m_scale; // k-factor multiplier (1.73 = 50% probability)
+    eng->m_drawIsotropicSpheres = m_drawIsotropicSpheres;
     eng->setColorMap(colorMap());
     return eng;
   }
 
+  //! Diagonalize U-matrix once, returning eigenvectors and scaled semi-axes
+  static inline void diagonalizeU(const Atom *a, Eigen::Matrix3d &eigenvectors,
+                                   Eigen::Vector3d &semiAxes, double scale)
+  {
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(a->anisoU() * scale);
+    eigenvectors = solver.eigenvectors();
+    Eigen::Vector3d eigenvalues = solver.eigenvalues();
+    for (int i = 0; i < 3; ++i)
+      semiAxes[i] = eigenvalues[i] > 0.0 ? sqrt(eigenvalues[i]) : 0.01;
+  }
+
+  //! Compute the point on an ellipsoid surface in a given direction from center
+  static inline Eigen::Vector3d ellipsoidSurfacePoint(
+      const Eigen::Vector3d &center,
+      const Eigen::Matrix3d &eigenvectors,
+      const Eigen::Vector3d &semiAxes,
+      const Eigen::Vector3d &direction)
+  {
+    Eigen::Vector3d d = direction.normalized();
+    // Transform direction into ellipsoid's principal axis frame
+    Eigen::Vector3d dLocal = eigenvectors.transpose() * d;
+    // Compute radius using ellipsoid equation: (x/a)² + (y/b)² + (z/c)² = 1
+    double invSq = 0.0;
+    for (int i = 0; i < 3; ++i) {
+      double sa = semiAxes[i];
+      if (sa > 1e-6)
+        invSq += (dLocal[i] * dLocal[i]) / (sa * sa);
+    }
+    double r = (invSq > 0.0) ? (1.0 / sqrt(invSq)) : semiAxes.maxCoeff();
+    return center + r * d;
+  }
+
+  //! Ensure cached diagonalized U data is up to date for all atoms
+  void EllipsoidEngine::ensureCache(PainterDevice *) const
+  {
+    if (m_cacheValid && static_cast<int>(m_cachedEigenvectors.size()) == atoms().size())
+      return;
+
+    m_cachedEigenvectors.resize(atoms().size());
+    m_cachedSemiAxes.resize(atoms().size());
+
+    foreach(Atom *a, atoms()) {
+      if (a->hasAnisoU()) {
+        Eigen::Matrix3d eig;
+        Eigen::Vector3d sa;
+        diagonalizeU(a, eig, sa, m_scale);
+        m_cachedEigenvectors[a->index()] = eig;
+        m_cachedSemiAxes[a->index()] = sa;
+      }
+    }
+    m_cacheValid = true;
+  }
+
+  //! Get cached eigenvectors for an atom (must call ensureCache first)
+  const Eigen::Matrix3d &EllipsoidEngine::cachedEigenvectors(const Atom *a) const
+  {
+    return m_cachedEigenvectors[a->index()];
+  }
+
+  //! Get cached semi-axes for an atom (must call ensureCache first)
+  const Eigen::Vector3d &EllipsoidEngine::cachedSemiAxes(const Atom *a) const
+  {
+    return m_cachedSemiAxes[a->index()];
+  }
+
   bool EllipsoidEngine::renderOpaque(PainterDevice *pd)
   {
+    // Pre-compute diagonalized U for all atoms (avoids redundant eigenvalue decompositions)
+    ensureCache(pd);
+
     // Render atoms as ellipsoids
     foreach(Atom *a, atoms()) {
-      if (m_showEllipsoids)
-        renderAtom(pd, a);
+      renderAtom(pd, a);
     }
 
     // Render bonds as sticks
@@ -90,8 +153,30 @@ namespace Avogadro {
 
   bool EllipsoidEngine::renderQuick(PainterDevice *pd)
   {
-    // For quick rendering, use the same as opaque
-    return renderOpaque(pd);
+    // For quick rendering, draw atoms as spheres (max semi-axis) instead of ellipsoids
+    foreach(Atom *a, atoms()) {
+      Color *map = colorMap();
+      if (!map) map = pd->colorMap();
+      map->setFromPrimitive(a);
+      pd->painter()->setColor(map);
+      pd->painter()->setName(a);
+      double r = maxSemiAxis(a);
+      pd->painter()->drawSphere(a->pos(), r);
+    }
+    // Render bonds as simple center-to-center sticks (no surface intersection in quick mode)
+    foreach(Bond *b, bonds()) {
+      Atom *atom1 = pd->molecule()->atomById(b->beginAtomId());
+      Atom *atom2 = pd->molecule()->atomById(b->endAtomId());
+      if (!atom1 || !atom2) continue;
+
+      Color *map = colorMap();
+      if (!map) map = pd->colorMap();
+      map->setFromPrimitive(b);
+      pd->painter()->setColor(map);
+      pd->painter()->setName(b);
+      pd->painter()->drawCylinder(*atom1->pos(), *atom2->pos(), 0.15);
+    }
+    return true;
   }
 
   bool EllipsoidEngine::renderPick(PainterDevice *pd)
@@ -139,28 +224,29 @@ namespace Avogadro {
 
   QWidget *EllipsoidEngine::settingsWidget()
   {
-    // For now, return 0. A proper settings widget can be added later.
-    return 0;
+    if (!m_settingsWidget) {
+      m_settingsWidget = new EllipsoidSettingsWidget(this);
+      connect(m_settingsWidget, SIGNAL(destroyed(QObject*)),
+              this, SLOT(settingsWidgetDestroyed()));
+    }
+    return m_settingsWidget;
+  }
+
+  void EllipsoidEngine::settingsWidgetDestroyed()
+  {
+    m_settingsWidget = 0;
   }
 
   void EllipsoidEngine::writeSettings(QSettings &settings) const
   {
     settings.setValue("scale", m_scale);
-    settings.setValue("meshQuality", m_meshQuality);
-    settings.setValue("opacity", m_opacity);
-    settings.setValue("showEllipsoids", m_showEllipsoids);
-    settings.setValue("useIsotropicFallback", m_useIsotropicFallback);
-    settings.setValue("showAxes", m_showAxes);
+    settings.setValue("drawIsotropicSpheres", m_drawIsotropicSpheres);
   }
 
   void EllipsoidEngine::readSettings(QSettings &settings)
   {
-    m_scale = settings.value("scale", 1.0).toDouble();
-    m_meshQuality = settings.value("meshQuality", 3).toInt();
-    m_opacity = settings.value("opacity", 1.0).toDouble();
-    m_showEllipsoids = settings.value("showEllipsoids", true).toBool();
-    m_useIsotropicFallback = settings.value("useIsotropicFallback", true).toBool();
-    m_showAxes = settings.value("showAxes", false).toBool();
+    m_scale = settings.value("scale", 1.73).toDouble(); // 50% probability default
+    m_drawIsotropicSpheres = settings.value("drawIsotropicSpheres", true).toBool();
   }
 
   bool EllipsoidEngine::renderAtom(PainterDevice *pd, const Atom *a)
@@ -176,30 +262,22 @@ namespace Avogadro {
     // Set name for picking
     pd->painter()->setName(a);
 
-    // Apply opacity
-    if (m_opacity < 1.0) {
-      glEnable(GL_BLEND);
-      glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    }
-
     // Check if atom has anisotropic displacement parameters
     if (a->hasAnisoU()) {
-      // Render as ellipsoid
-      pd->painter()->drawEllipsoid(*a->pos(), a->anisoU() * m_scale);
-    } else if (m_useIsotropicFallback && a->hasUIso()) {
-      // Fall back to sphere scaled by Uiso
+      // Use pre-computed cached diagonalized data
+      const Eigen::Matrix3d &eigenvectors = cachedEigenvectors(a);
+      const Eigen::Vector3d &semiAxes = cachedSemiAxes(a);
+      double maxAxis = semiAxes.maxCoeff();
+      pd->painter()->drawEllipsoid(*a->pos(), eigenvectors, semiAxes, maxAxis);
+    } else if (m_drawIsotropicSpheres && a->hasUIso()) {
+      // Fall back to sphere scaled by Uiso (same k-factor as anisotropic ellipsoids)
       double uIso = a->uIso();
-      double radius = sqrt(uIso) * m_scale * 10.0; // Scale factor for visibility
+      double radius = m_scale * sqrt(uIso);
       pd->painter()->drawSphere(a->pos(), radius);
     } else {
-      // Fall back to VdW radius sphere
-      double radius = 1.7; // Default VdW radius in Angstroms
+      // Fall back to element-specific VdW radius sphere
+      double radius = OpenBabel::OBElements::GetVdwRad(a->atomicNumber());
       pd->painter()->drawSphere(a->pos(), radius);
-    }
-
-    // Restore blending
-    if (m_opacity < 1.0) {
-      glDisable(GL_BLEND);
     }
 
     return true;
@@ -223,9 +301,41 @@ namespace Avogadro {
     // Set name for picking
     pd->painter()->setName(b);
 
-    // Draw stick between atoms
+    // Compute bond endpoints on ellipsoid surfaces using cached data
+    Eigen::Vector3d end1, end2;
+    if (atom1->hasAnisoU() && atom2->hasAnisoU()) {
+      // Both atoms have anisotropic data: compute surface intersections
+      const Eigen::Matrix3d &eig1 = cachedEigenvectors(atom1);
+      const Eigen::Vector3d &sa1 = cachedSemiAxes(atom1);
+      const Eigen::Matrix3d &eig2 = cachedEigenvectors(atom2);
+      const Eigen::Vector3d &sa2 = cachedSemiAxes(atom2);
+
+      Eigen::Vector3d vec1to2 = *atom2->pos() - *atom1->pos();
+      end1 = ellipsoidSurfacePoint(*atom1->pos(), eig1, sa1, vec1to2);
+      end2 = ellipsoidSurfacePoint(*atom2->pos(), eig2, sa2, -vec1to2);
+    } else if (atom1->hasAnisoU()) {
+      // Only atom1 has anisotropic data
+      const Eigen::Matrix3d &eig1 = cachedEigenvectors(atom1);
+      const Eigen::Vector3d &sa1 = cachedSemiAxes(atom1);
+      Eigen::Vector3d vec1to2 = *atom2->pos() - *atom1->pos();
+      end1 = ellipsoidSurfacePoint(*atom1->pos(), eig1, sa1, vec1to2);
+      end2 = *atom2->pos();
+    } else if (atom2->hasAnisoU()) {
+      // Only atom2 has anisotropic data
+      const Eigen::Matrix3d &eig2 = cachedEigenvectors(atom2);
+      const Eigen::Vector3d &sa2 = cachedSemiAxes(atom2);
+      Eigen::Vector3d vec1to2 = *atom2->pos() - *atom1->pos();
+      end1 = *atom1->pos();
+      end2 = ellipsoidSurfacePoint(*atom2->pos(), eig2, sa2, -vec1to2);
+    } else {
+      // Neither has anisotropic data: use centers (VdW spheres)
+      end1 = *atom1->pos();
+      end2 = *atom2->pos();
+    }
+
+    // Draw stick between computed endpoints
     double bondRadius = 0.15;
-    pd->painter()->drawCylinder(*atom1->pos(), *atom2->pos(), bondRadius);
+    pd->painter()->drawCylinder(end1, end2, bondRadius);
 
     return true;
   }
@@ -233,17 +343,18 @@ namespace Avogadro {
   double EllipsoidEngine::maxSemiAxis(const Atom *a) const
   {
     if (a->hasAnisoU()) {
-      // Get eigenvalues of U matrix
-      Eigen::SelfAdjointEigenSolver<Matrix3d> solver(a->anisoU());
-      if (solver.info() == Eigen::Success) {
-        Vector3d eigenvalues = solver.eigenvalues();
-        double maxVal = eigenvalues.maxCoeff();
-        return sqrt(qMax(0.0, maxVal)) * m_scale;
+      // Use cached data if available, otherwise compute on the fly
+      if (m_cacheValid && static_cast<long>(a->index()) < static_cast<long>(m_cachedSemiAxes.size())) {
+        return m_cachedSemiAxes[a->index()].maxCoeff();
       }
-    } else if (m_useIsotropicFallback && a->hasUIso()) {
-      return sqrt(a->uIso()) * m_scale * 10.0;
+      Eigen::Matrix3d eigenvectors;
+      Eigen::Vector3d semiAxes;
+      diagonalizeU(a, eigenvectors, semiAxes, m_scale);
+      return semiAxes.maxCoeff();
+    } else if (m_drawIsotropicSpheres && a->hasUIso()) {
+      return m_scale * sqrt(a->uIso());
     }
-    return 1.7; // Default VdW radius
+    return OpenBabel::OBElements::GetVdwRad(a->atomicNumber());
   }
 
 } // end namespace Avogadro

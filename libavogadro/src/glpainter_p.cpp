@@ -117,7 +117,10 @@ namespace Avogadro
     GLPainterPrivate() : widget ( 0 ), newQuality(-1), quality ( 0 ), overflow(0),
                          spheres ( 0 ), cylinders ( 0 ),
                          textRenderer ( new TextRenderer ), initialized ( false ), sharing ( 0 ),
-                         type(Primitive::OtherType), id ( -1 ), color(0)  {};
+                         type(Primitive::OtherType), id ( -1 ), color(0)
+  {
+    icospheresInitialized = false;
+  };
     ~GLPainterPrivate()
     {
       deleteObjects();
@@ -142,6 +145,13 @@ namespace Avogadro
      * to share that cylinder, instead of having redundant cylinder in memory.
      */
     Cylinder **cylinders;
+
+    /**
+     * Cached icosphere base meshes for ellipsoid rendering.
+     * One per subdivision level (0 to PAINTER_MAX_DETAIL_LEVEL).
+     */
+    IcosphereData icospheres[PAINTER_DETAIL_LEVELS];
+    bool icospheresInitialized;
 
     TextRenderer *textRenderer;
 
@@ -1230,32 +1240,47 @@ namespace Avogadro
   {
   }
 
-  void GLPainter::drawEllipsoid(const Eigen::Vector3d &position,
-                                const Eigen::Matrix3d &U)
+  const IcosphereData &GLPainter::getIcosphere(int subdivisions)
   {
-    // Diagonalize the U-matrix to get semi-axes
-    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3d> solver(U);
-    if (solver.info() != Eigen::Success)
-      return;
-
-    Eigen::Vector3d eigenvalues = solver.eigenvalues();
-    Eigen::Matrix3d eigenvectors = solver.eigenvectors();
-
-    // Semi-axes lengths (square root of eigenvalues)
-    Eigen::Vector3d semiAxes;
-    for (int i = 0; i < 3; ++i) {
-      semiAxes[i] = eigenvalues[i] > 0.0 ? sqrt(eigenvalues[i]) : 0.01;
+    if (!d->icospheresInitialized) {
+      // Generate and cache icosphere base meshes for all subdivision levels
+      for (int sub = 0; sub < PAINTER_DETAIL_LEVELS; ++sub) {
+        generateIcosphereBase(d->icospheres[sub].vertices,
+                              d->icospheres[sub].faces,
+                              sub);
+      }
+      d->icospheresInitialized = true;
     }
+    return d->icospheres[subdivisions];
+  }
 
+  void GLPainter::drawEllipsoid(const Eigen::Vector3d &position,
+                                const Eigen::Matrix3d &eigenvectors,
+                                const Eigen::Vector3d &semiAxes,
+                                double maxSemiAxis)
+  {
     // Avoid degenerate ellipsoids
     if (semiAxes.maxCoeff() < 0.001)
       return;
 
-    // Generate icosphere with per-triangle vertices and normals
-    const int subdivisions = 2; // Quality: 2 = ~160 triangles
-    QVector<Eigen::Vector3d> baseVertices;
-    QVector<TriIndex> faces;
-    generateIcosphereBase(baseVertices, faces, subdivisions);
+    // Compute subdivision level based on apparent size and global quality
+    // (consistent with sphere/cylinder dynamic scaling)
+    int subdivisions = 2; // Default for very small or distant ellipsoids
+    if (d->widget && d->widget->projection() != GLWidget::Orthographic) {
+      double apparentRadius = maxSemiAxis / d->widget->camera()->distance(position);
+      if (apparentRadius > PAINTER_SPHERES_LIMIT_MIN_LEVEL) {
+        subdivisions = 1 + static_cast<int>(floor(
+          PAINTER_SPHERES_DETAIL_COEFF *
+          (sqrt(apparentRadius) - PAINTER_SPHERES_SQRT_LIMIT_MIN_LEVEL)));
+        if (subdivisions < 1) subdivisions = 1;
+        if (subdivisions > PAINTER_MAX_DETAIL_LEVEL) subdivisions = PAINTER_MAX_DETAIL_LEVEL;
+      }
+    }
+
+    // Use cached icosphere base mesh
+    const IcosphereData &icosphere = getIcosphere(subdivisions);
+    const QVector<Eigen::Vector3d> &baseVertices = icosphere.vertices;
+    const QVector<TriIndex> &faces = icosphere.faces;
 
     // Build mesh with per-vertex data (Mesh expects vertex/normal arrays of same size)
     std::vector<Eigen::Vector3f> meshVertices;

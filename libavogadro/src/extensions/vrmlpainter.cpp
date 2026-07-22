@@ -359,8 +359,7 @@ namespace Avogadro
 	{
 	}
 
-	void VRMLPainter::drawEllipsoid(const Eigen::Vector3d &,
-		const Eigen::Matrix3d &)
+	void VRMLPainter::drawEllipsoid(const Eigen::Vector3d &, const Eigen::Matrix3d &, const Eigen::Vector3d &, double)
 	{
 	}
 	void VRMLPainter::begin(QTextStream *output, Vector3d planeNormalVector)

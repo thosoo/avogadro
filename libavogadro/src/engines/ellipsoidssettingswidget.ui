@@ -1,0 +1,57 @@
+<ui version="4.0" >
+ <class>EllipsoidSettingsWidget</class>
+ <widget class="QWidget" name="EllipsoidSettingsWidget" >
+  <property name="geometry" >
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>400</width>
+    <height>150</height>
+   </rect>
+  </property>
+  <layout class="QFormLayout" >
+   <item row="0" column="0" >
+    <widget class="QLabel" name="scaleLabel" >
+     <property name="text" >
+      <string>K-factor (probability):</string>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="1" >
+    <widget class="QDoubleSpinBox" name="scaleSpinBox" >
+     <property name="minimum" >
+      <double>0.100000000000000</double>
+     </property>
+     <property name="maximum" >
+      <double>5.000000000000000</double>
+     </property>
+     <property name="singleStep" >
+      <double>0.010000000000000</double>
+     </property>
+     <property name="value" >
+      <double>1.730000000000000</double>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0" >
+    <widget class="QLabel" name="scaleHintLabel" >
+     <property name="text" >
+      <string>1.0=63%, 1.73=50%, 2.58=95%</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="0" colspan="2" >
+    <widget class="QCheckBox" name="drawIsotropicCheckBox" >
+     <property name="text" >
+      <string>Draw isotropic Uiso spheres for atoms without anisotropic data</string>
+     </property>
+     <property name="checked" >
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

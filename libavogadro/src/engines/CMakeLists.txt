@@ -35,7 +35,7 @@ avogadro_plugin(sphereengine sphereengine.cpp spheresettingswidget.ui)
 avogadro_plugin(stickengine stickengine.cpp sticksettingswidget.ui)
 
 # Crystallographic ellipsoid engine
-avogadro_plugin(ellipsoidengine ellipsoidengine.cpp)
+avogadro_plugin(ellipsoidengine ellipsoidengine.cpp ellipsoidssettingswidget.ui)
 
 # Ribbon engine (biological structure)
 avogadro_plugin(ribbonengine ribbonengine.cpp ribbonsettingswidget.ui)

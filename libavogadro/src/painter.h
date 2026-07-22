@@ -503,13 +503,16 @@ namespace Avogadro
                            double majorRadius, double minorRadius) = 0;
 
     /**
-     * Placeholder to draw an ellipsoid.
-     * @param pos Position of the center of the ellipsoid.
-     * @param matrix Linear transformation matrix for scaling and rotation.
-     * @todo Implement this primitive.
+     * Draws an ellipsoid with detail level determined by apparent size and global quality.
+     * @param position Position of the center of the ellipsoid.
+     * @param eigenvectors 3x3 rotation matrix (columns are eigenvectors of U).
+     * @param semiAxes Lengths of the three semi-axes.
+     * @param maxSemiAxis The length of the longest semi-axis (for apparent size calculation).
      */
     virtual void drawEllipsoid(const Eigen::Vector3d &position,
-                               const Eigen::Matrix3d &matrix) = 0;
+                               const Eigen::Matrix3d &eigenvectors,
+                               const Eigen::Vector3d &semiAxes,
+                               double maxSemiAxis) = 0;
 
     /**
      * Other primitives we may want

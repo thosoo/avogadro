@@ -41,6 +41,15 @@ namespace Avogadro
   };
 
   /**
+   * Cached icosphere base mesh for ellipsoid rendering.
+   * Shared across all ellipsoids at a given subdivision level.
+   */
+  struct IcosphereData {
+    QVector<Eigen::Vector3d> vertices;
+    QVector<TriIndex> faces;
+  };
+
+  /**
    * @class GLPainter glpainter.h
    * @brief Implementation of the Painter class using OpenGL.
    * @author Marcus D. Hanwell
@@ -457,13 +466,16 @@ namespace Avogadro
                    double majorRadius, double minorRadius);
 
     /**
-     * Placeholder to draw an ellipsoid.
-     * @param pos Position of the center of the ellipsoid.
-     * @param matrix Linear transformation matrix for scaling and rotation.
-     * @todo Implement this primitive.
+     * Draws an ellipsoid with detail level determined by apparent size and global quality.
+     * @param position Position of the center of the ellipsoid.
+     * @param eigenvectors 3x3 rotation matrix (columns are eigenvectors of U).
+     * @param semiAxes Lengths of the three semi-axes.
+     * @param maxSemiAxis The length of the longest semi-axis (for apparent size calculation).
      */
     void drawEllipsoid(const Eigen::Vector3d &position,
-                               const Eigen::Matrix3d &matrix);
+                       const Eigen::Matrix3d &eigenvectors,
+                       const Eigen::Vector3d &semiAxes,
+                       double maxSemiAxis);
 
     /**
      * Set the Painter up for painting onto a GLWidget, should be called
@@ -507,10 +519,13 @@ namespace Avogadro
     bool m_dynamicScaling;
 
     /**
-     * Generate an icosphere mesh for ellipsoid rendering.
-     * @param vertices Output vertex positions
-     * @param faces Output triangle faces (as TriIndex structs)
-     * @param subdivisions Number of subdivision levels (higher = smoother)
+     * Get the cached icosphere base mesh for a given subdivision level.
+     * Generates and caches the mesh on first request.
+     */
+    const IcosphereData &getIcosphere(int subdivisions);
+
+    /**
+     * Generate an icosphere mesh (used internally for caching).
      */
     void generateIcosphereBase(QVector<Eigen::Vector3d> &vertices,
                                QVector<TriIndex> &faces,
