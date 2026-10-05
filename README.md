@@ -37,8 +37,10 @@ GNU General Public License for more details.
 See INSTALL file for installation instructions.
 
 Automated Windows installer builds are generated with GitHub Actions and can be
-found in the workflow artifacts. The build system fetches OpenBabel from our
-fork at <https://github.com/thosoo/openbabel> and bundles it with Avogadro.
+found in the workflow artifacts. The build system bundles OpenBabel from our
+companion fork at <https://github.com/thosoo/openbabel> (as a pinned git
+submodule at `extern/openbabel`) with Avogadro. Clone the repository with
+`git clone --recurse-submodules` so the bundled OpenBabel source is present.
 
 # Backers
 Support us with a monthly donation and help us continue our activities. [[Become a backer](https://opencollective.com/avogadro#backer)]

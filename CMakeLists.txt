@@ -238,10 +238,17 @@ set(I18N_LANGUAGE "" CACHE STRING "Build i18n only for selected language")
 # Build Open Babel from our fork so CMake can find it below.
 # This Avogadro fork relies on changes in thosoo/openbabel, so CI must use
 # this bundled ExternalProject rather than Ubuntu's system OpenBabel package.
-set(OPENBABEL3_SOURCE_URL
-  "https://github.com/thosoo/openbabel/archive/d8695a2628ee7b85d88af8c4cf429626ba081f36.zip")
-set(OPENBABEL3_SOURCE_COMMIT "d8695a2628ee7b85d88af8c4cf429626ba081f36")
-set(OPENBABEL3_SOURCE_SHA256 "7036bb5f3d0f7a87aa2a11ba7326742cab5d987056b94c96f4530f8ef059836a")
+# The OpenBabel source is a git submodule (extern/openbabel) pinned to a
+# commit of thosoo/openbabel. The submodule gitlink is the only place the pin
+# is recorded; there is no network download of OpenBabel source. If the
+# submodule was not initialized (e.g. a non-recursive clone), configuration
+# fails loudly instead of silently fetching a different source.
+set(OPENBABEL3_SOURCE_DIR "${CMAKE_SOURCE_DIR}/extern/openbabel")
+if(NOT EXISTS "${OPENBABEL3_SOURCE_DIR}/CMakeLists.txt")
+  message(FATAL_ERROR
+    "OpenBabel submodule not initialized at extern/openbabel. "
+    "Initialize it with:\n    git submodule update --init")
+endif()
 set(OPENBABEL_INSTALL_DIR "${CMAKE_BINARY_DIR}/openbabel-install")
 set(OPENBABEL3_INCLUDE_DIR "${OPENBABEL_INSTALL_DIR}/include/openbabel3")
 if(WIN32)
@@ -290,25 +297,14 @@ pass_ob_arg(wxWidgets_LIB_DIR)
 pass_ob_arg(LIB_INSTALL_DIR)
 pass_ob_arg(ENABLE_OPENMP)
 pass_ob_arg(WITH_COORDGEN)
-message(STATUS "Bundled thosoo/openbabel source URL: ${OPENBABEL3_SOURCE_URL}")
-message(STATUS "Bundled thosoo/openbabel commit: ${OPENBABEL3_SOURCE_COMMIT}")
+message(STATUS "Bundled OpenBabel submodule source dir: ${OPENBABEL3_SOURCE_DIR}")
 message(STATUS "Bundled OpenBabel install prefix: ${OPENBABEL_INSTALL_DIR}")
 message(STATUS "Bundled OpenBabel include dir: ${OPENBABEL3_INCLUDE_DIR}")
 message(STATUS "Bundled OpenBabel library: ${OPENBABEL3_LIBRARY}")
 
-set(_openbabel_patch_args)
-if(MSVC)
-  list(APPEND _openbabel_patch_args
-    PATCH_COMMAND ${CMAKE_COMMAND}
-      -DOPENBABEL_SOURCE_DIR=<SOURCE_DIR>
-      -P ${CMAKE_SOURCE_DIR}/cmake/PatchOpenBabelMsvcTls.cmake)
-endif()
-
 ExternalProject_Add(openbabel_ext
-  URL ${OPENBABEL3_SOURCE_URL}
-  URL_HASH SHA256=${OPENBABEL3_SOURCE_SHA256}
+  SOURCE_DIR ${OPENBABEL3_SOURCE_DIR}
   BUILD_BYPRODUCTS ${_openbabel_build_byproducts}
-  ${_openbabel_patch_args}
   CMAKE_ARGS
     -DCMAKE_INSTALL_PREFIX=${OPENBABEL_INSTALL_DIR}
     -DCMAKE_BUILD_TYPE=Release

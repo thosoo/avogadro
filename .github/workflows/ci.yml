@@ -5,7 +5,6 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  THOSOO_OPENBABEL_COMMIT: d8695a2628ee7b85d88af8c4cf429626ba081f36
   OPENBABEL_CMAKE_OPTIONS: BUILD_SHARED-ON-OB_USE_PREBUILT_BINARIES-OFF-OPENBABEL_USE_SYSTEM_INCHI-OFF-WITH_INCHI-ON-WITH_COORDGEN-ON
   OPENBABEL_CACHE_LAYOUT: CACHE-LAYOUT-v2
 
@@ -28,6 +27,11 @@ jobs:
         xtb: [ON, OFF]
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Compute OpenBabel pin
+        id: obpin
+        run: echo "commit=$(git rev-parse HEAD:extern/openbabel)" >> "$GITHUB_OUTPUT"
       - name: Cache apt packages
         uses: actions/cache@v4
         with:
@@ -37,22 +41,10 @@ jobs:
       - name: Cache bundled thosoo OpenBabel
         uses: actions/cache@v4
         with:
-          path: |
-            build/openbabel-install
-            build/openbabel_ext-prefix/src/openbabel_ext
-            build/openbabel_ext-prefix/src/openbabel_ext-build
-            build/openbabel_ext-prefix/src/openbabel_ext-stamp
-          key: ${{ runner.os }}-gcc-thosoo-openbabel-${{ env.THOSOO_OPENBABEL_COMMIT }}-${{ env.OPENBABEL_CACHE_LAYOUT }}-${{ env.OPENBABEL_CMAKE_OPTIONS }}
+          path: build/openbabel-install
+          key: ${{ runner.os }}-gcc-thosoo-openbabel-${{ steps.obpin.outputs.commit }}-${{ env.OPENBABEL_CACHE_LAYOUT }}-${{ env.OPENBABEL_CMAKE_OPTIONS }}
           restore-keys: |
-            ${{ runner.os }}-gcc-thosoo-openbabel-${{ env.THOSOO_OPENBABEL_COMMIT }}-${{ env.OPENBABEL_CACHE_LAYOUT }}-
-      - name: Validate bundled thosoo OpenBabel cache
-        run: |
-          if { [ -d build/openbabel_ext-prefix/src/openbabel_ext-stamp ] || [ -d build/openbabel_ext-prefix/src/openbabel_ext-build ]; } && [ ! -f build/openbabel_ext-prefix/src/openbabel_ext/CMakeLists.txt ]; then
-            echo "Invalid OpenBabel cache: missing ExternalProject source; clearing stale source/build/stamp state"
-            rm -rf build/openbabel_ext-prefix/src/openbabel_ext \
-                   build/openbabel_ext-prefix/src/openbabel_ext-build \
-                   build/openbabel_ext-prefix/src/openbabel_ext-stamp
-          fi
+            ${{ runner.os }}-gcc-thosoo-openbabel-${{ steps.obpin.outputs.commit }}-${{ env.OPENBABEL_CACHE_LAYOUT }}-
       - name: Install dependencies
         run: |
           sudo apt-get update

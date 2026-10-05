@@ -1,0 +1,3 @@
+[submodule "extern/openbabel"]
+	path = extern/openbabel
+	url = https://github.com/thosoo/openbabel
