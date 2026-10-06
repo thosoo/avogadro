@@ -50,8 +50,8 @@ class TestSurfaceExtension : public SurfaceExtension
 {
 public:
   // Re-export loadBasis() publicly: SurfacesGuardTest is not a derived class,
-  // so standard C++ bars it from calling a protected base member directly (the
-  // removed -fno-access-control previously masked this). loadBasis() itself
+  // so standard C++ bars it from calling a protected base member directly (a
+  // previously removed access-suppression flag masked this). loadBasis() itself
   // stays protected in SurfaceExtension (OpenSpec task 1.1); this using-
   // declaration is the only change needed to make line 108 legal. It is not a
   // functional change: no assertion or scenario is touched.
