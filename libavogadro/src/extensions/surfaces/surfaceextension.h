@@ -66,33 +66,36 @@ namespace Avogadro
 
     void setMolecule(Molecule *molecule);
 
+  protected:
+    // White-box regression test (surfaceextensiontest) subclasses this class
+    // and asserts the N.1 stale-callback generation guard, so these members
+    // are declared protected — standard C++, no access-suppression flags.
+    SurfaceDialog *m_surfaceDialog;
+    Molecule *m_molecule;
+    unsigned long m_generation;        // N.1: bumped on each document switch
+    unsigned long m_runningGeneration; // N.1: captured per launched calculation
+    VdWSurface *m_VdWsurface;
+
+    //! Load the appropriate basis set (if possible)
+    bool loadBasis();
+
   private:
     QList<unsigned long> m_cubes; // These are the standard cubes
     QVector<unsigned long> m_moCubes; // These are the MO cubes
     int m_calculationPhase;        // The calculation phase
     GLWidget* m_glwidget;
-    SurfaceDialog *m_surfaceDialog;
     QList<QAction *> m_actions;
-    Molecule *m_molecule;
     OpenQube::BasisSet *m_basis;   // The basis set
     QString m_loadedFileName;
     QProgressDialog *m_progress;
-
-    unsigned long m_generation;        // N.1: bumped on each document switch
-    unsigned long m_runningGeneration; // N.1: captured per launched calculation
 
     Mesh *m_mesh1, *m_mesh2;
     MeshGenerator *m_meshGen1;
     MeshGenerator *m_meshGen2;
 
-    VdWSurface *m_VdWsurface;
-
     Cube *m_cube;
     OpenQube::Cube *m_qube;
     Cube *m_cubeColor;
-
-    //! Load the appropriate basis set (if possible)
-    bool loadBasis();
 
     //! Calculate the ESP from the partial charges of the atoms on the supplied
     //! Mesh object.

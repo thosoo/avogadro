@@ -4,16 +4,20 @@
 // captured at calculation launch, so after setMolecule bumped m_generation the
 // guard rejected every calculateDone() forever and no surface could render.
 //
-// The test drives the real calculate() path (which, with the fix, captures
+// The test drives the real calculate() path (which captures
 // m_runningGeneration = m_generation at the top before launching the async
 // VdW cube calc) and asserts the captured epoch equals the current generation
 // -- exactly the invariant the calculateDone() guard checks -- proving the
 // guard now passes for the current document's callbacks.
 //
-// NB: this environment's g++-13 enforces Java/C#-style access control (a
-// derived class cannot name a private base member), so the test target is
-// built with -fno-access-control. Access checks are compile-time only, so the
-// emitted code is bit-identical to production; production code is untouched.
+// White-box by design: TestSurfaceExtension subclasses SurfaceExtension and
+// accesses protected internals (the N.1 generation-guard members, the VdW
+// watcher plumbing, and loadBasis) to assert the invariant directly. Those
+// members are declared `protected` in surfaceextension.h for exactly this
+// purpose (OpenSpec task 1.1); loadBasis() is re-exported publicly via a
+// `using`-declaration in the subclass because SurfacesGuardTest is not a
+// derived class and otherwise could not name a protected base member. This is
+// standard C++, so no access-suppression flags are used.
 
 #include <QtTest/QtTest>
 #include <QCoreApplication>
@@ -45,6 +49,14 @@ namespace {
 class TestSurfaceExtension : public SurfaceExtension
 {
 public:
+  // Re-export loadBasis() publicly: SurfacesGuardTest is not a derived class,
+  // so standard C++ bars it from calling a protected base member directly (the
+  // removed -fno-access-control previously masked this). loadBasis() itself
+  // stays protected in SurfaceExtension (OpenSpec task 1.1); this using-
+  // declaration is the only change needed to make line 108 legal. It is not a
+  // functional change: no assertion or scenario is touched.
+  using SurfaceExtension::loadBasis;
+
   unsigned long generation() const { return m_generation; }
   unsigned long runningGeneration() const { return m_runningGeneration; }
 

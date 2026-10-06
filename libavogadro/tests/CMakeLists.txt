@@ -220,13 +220,6 @@ target_link_libraries(surfaceextensiontest
   OpenBabel3::openbabel)
 target_compile_definitions(surfaceextensiontest PRIVATE
   TESTDATA_DIR="${CMAKE_SOURCE_DIR}/testfiles")
-# This environment's g++-13 enforces Java/C#-style access semantics: a
-# derived class cannot name a private base member (standard C++ allows it).
-# The test is white-box by design — it must read the private N.1 generation
-# members to assert the guard invariant. -fno-access-control is the canonical
-# GCC white-box-test flag; access checks are compile-time only, so the emitted
-# code is bit-identical to production. Production code is untouched.
-target_compile_options(surfaceextensiontest PRIVATE -fno-access-control)
 add_test(surfaceextensionTest ${CMAKE_BINARY_DIR}/bin/surfaceextensiontest)
 set_tests_properties(surfaceextensionTest PROPERTIES
   ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
