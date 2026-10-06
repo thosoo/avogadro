@@ -49,6 +49,7 @@
 
 #include <QProgressDialog>
 #include <QCoreApplication>
+#include <QApplication>
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QTime>
@@ -66,6 +67,7 @@ namespace Avogadro
 {
   SurfaceExtension::SurfaceExtension(QObject* parent) : Extension(parent),
     m_glwidget(0), m_surfaceDialog(0), m_molecule(0), m_basis(0), m_progress(0),
+    m_generation(0), m_runningGeneration(0),
     m_mesh1(0), m_mesh2(0), m_meshGen1(0), m_meshGen2(0), m_VdWsurface(0),
     m_cube(0), m_qube(0), m_cubeColor(0)
   {
@@ -119,6 +121,38 @@ namespace Avogadro
   void SurfaceExtension::setMolecule(Molecule *molecule)
   {
     m_molecule = molecule;
+
+    // N.1: bump the generation counter first, before any teardown, so a stale
+    // completion callback from the outgoing document can no longer run.
+    m_generation++;
+
+    // N.2: quiesce background work owned by the outgoing document before
+    // releasing its data. Cube calcs run on QtConcurrent (writing through
+    // m_basis / m_VdWsurface internals) and mesh gens run on their own
+    // QThreads; both must be disconnected and waited on before those objects
+    // are destroyed. Deleting m_basis mid-calc would be a cross-thread UAF.
+    if (m_basis)
+      disconnect(&m_basis->watcher(), 0, this, 0);
+    if (m_VdWsurface)
+      disconnect(&m_VdWsurface->watcher(), 0, this, 0);
+    if (m_meshGen1)
+      m_meshGen1->disconnect();
+    if (m_meshGen2)
+      m_meshGen2->disconnect();
+
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    if (m_basis && m_basis->watcher().isRunning())
+      m_basis->watcher().future().waitForFinished();
+    if (m_VdWsurface && m_VdWsurface->watcher().isRunning())
+      m_VdWsurface->watcher().future().waitForFinished();
+    if (m_meshGen1 && m_meshGen1->isRunning())
+      m_meshGen1->wait();
+    if (m_meshGen2 && m_meshGen2->isRunning())
+      m_meshGen2->wait();
+    QApplication::restoreOverrideCursor();
+
+    // A stale calculateDone() must now no-op (see the guard below).
+    m_runningGeneration = 0;
 
     // Stuff we manage that will not be valid any longer
     delete m_basis;
@@ -564,6 +598,13 @@ namespace Avogadro
   void SurfaceExtension::calculate()
   {
     qDebug() << "Calculate called!";
+    // N.1: capture the epoch for the stale-callback guard, mirroring
+    // OrbitalExtension::startCalculation. Without this m_runningGeneration
+    // stays 0 (see setMolecule) while m_generation becomes >=1 after the
+    // first load, so the calculateDone() guard below would reject every
+    // legitimate callback and no surface could ever render.
+    m_runningGeneration = m_generation;
+
     // ESP cubes are not supported -- show an error and bail
     if (m_surfaceDialog->cubeType() == Cube::ESP) {
       QMessageBox::critical(m_surfaceDialog, tr("Error"),
@@ -592,6 +633,11 @@ namespace Avogadro
 
   void SurfaceExtension::calculateDone()
   {
+    // N.1/1.3: stale or invalid callback from the outgoing document — bail
+    // before touching m_basis / m_cube / m_qube / m_mesh1 / m_mesh2.
+    if (m_runningGeneration != m_generation)
+      return;
+
     // Figure out what to do based on the calculation phase
     // 0 = main cube, 1 = color cube (optional) and 2 = mesh calculation
     switch (m_calculationPhase) {

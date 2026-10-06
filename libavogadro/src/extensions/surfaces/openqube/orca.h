@@ -47,6 +47,18 @@ private:
   void load(GaussianSet *basis);
   void calculateDensityMatrix();
 
+  // N.5/5.1: free the three-level raw-pointer tree m_basisFunctions (each
+  // element and each sub-vector are heap-allocated with `new` and never
+  // otherwise released). Called from the destructor and before every
+  // GTO-branch resize(0) so re-entry does not leak the previous tree.
+  void clearBasisFunctions();
+
+  // N.5/5.2: open-shell files parse both the alpha and beta MO blocks; this
+  // holds the beta block separately so the alpha/beta choice can be made
+  // after parsing (via setUseBeta) instead of from a modal dialog mid-parse.
+  std::vector<double> m_MOcoeffsBeta;
+  void setUseBeta(bool value);
+
   // OrcaStuff
 
   void orcaWarningMessage(const QString &m);

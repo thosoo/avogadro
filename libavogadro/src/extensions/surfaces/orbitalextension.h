@@ -174,6 +174,8 @@ namespace Avogadro
 
     QList<calcInfo> m_queue;
     int m_currentRunningCalculation;
+    unsigned long m_generation;        // N.1: bumped on each document switch
+    unsigned long m_runningGeneration; // N.1: captured per launched calculation
     MeshGenerator *m_meshGen;
     OpenQube::BasisSet *m_basis;
     QList<QAction *> m_actions;

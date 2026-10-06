@@ -45,6 +45,7 @@
 #include <QFileInfo>
 #include <QMessageBox>
 #include <QAction>
+#include <QApplication>
 #include <algorithm>
 
 using OpenQube::BasisSet;
@@ -61,6 +62,8 @@ namespace Avogadro
     m_widget(0),
     m_runningMutex(new QMutex),
     m_currentRunningCalculation(-1),
+    m_generation(0),
+    m_runningGeneration(0),
     m_meshGen(0),
     m_basis(0),
     m_molecule(0),
@@ -111,10 +114,41 @@ namespace Avogadro
 
   void OrbitalExtension::setMolecule(Molecule *molecule)
   {
-    m_molecule = molecule;
-    // Stuff we manage that will not be valid any longer
+    // N.1: bump the generation counter first, before any teardown, so a
+    // stale completion callback from the outgoing document can no longer be
+    // mistaken for work of the incoming document.
+    m_generation++;
+
+    // N.2: quiesce background work owned by the outgoing document before
+    // releasing its data. A cube calc runs on QtConcurrent (writes through
+    // m_basis internals) and a mesh gen runs on its own QThread; both must
+    // be disconnected and waited on before m_basis / the queue are destroyed.
+    bool calcInFlight = (m_currentRunningCalculation != -1);
+
+    if (m_basis)
+      disconnect(&m_basis->watcher(), 0, this, 0);
+    if (m_meshGen)
+      m_meshGen->disconnect();
+
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    if (m_basis && m_basis->watcher().isRunning())
+      m_basis->watcher().future().waitForFinished();
+    if (m_meshGen && m_meshGen->isRunning())
+      m_meshGen->wait();
+    QApplication::restoreOverrideCursor();
+
+    // N.1: the queue mutex is held from checkQueue() until
+    // calculationComplete() unlocks it. Because we just disconnected the
+    // completion signals, that unlock will never fire, so release the lock
+    // here (exactly once) to avoid deadlocking the new document's queue.
+    // Stale completion slots now no-op without touching m_runningMutex.
+    if (calcInFlight)
+      m_runningMutex->unlock();
+
+    // Now safe to tear down: nothing references m_basis / m_queue.
     m_queue.clear();
     m_currentRunningCalculation = -1;
+    m_runningGeneration = 0;
 
     if (m_basis) {
       delete m_basis;
@@ -476,6 +510,7 @@ namespace Avogadro
   {
     // This will launch calculateMesh when finished.
     m_currentRunningCalculation = queueIndex;
+    m_runningGeneration = m_generation;   // N.1: capture epoch for the stale-callback guard
 
     calcInfo *info = &m_queue[m_currentRunningCalculation];
 
@@ -548,6 +583,12 @@ namespace Avogadro
 
   void OrbitalExtension::calculateCubeDone()
   {
+    // N.1/1.2: stale or invalid callback — never touch m_queue, m_basis, m_qube.
+    if (m_runningGeneration != m_generation ||
+        m_currentRunningCalculation < 0 ||
+        m_currentRunningCalculation >= (int)m_queue.size())
+      return;
+
     calcInfo *info = &m_queue[m_currentRunningCalculation];
 
     qDebug() << info->orbital << " Cube calculation finished.";
@@ -622,6 +663,12 @@ namespace Avogadro
 
   void OrbitalExtension::calculatePosMeshDone()
   {
+    // N.1/1.2: stale or invalid callback — never touch m_queue, m_meshGen.
+    if (m_runningGeneration != m_generation ||
+        m_currentRunningCalculation < 0 ||
+        m_currentRunningCalculation >= (int)m_queue.size())
+      return;
+
     calcInfo *info = &m_queue[m_currentRunningCalculation];
 
     disconnect(m_meshGen, 0,
@@ -690,6 +737,12 @@ namespace Avogadro
 
   void OrbitalExtension::calculateNegMeshDone()
   {
+    // N.1/1.2: stale or invalid callback — never touch m_queue, m_meshGen.
+    if (m_runningGeneration != m_generation ||
+        m_currentRunningCalculation < 0 ||
+        m_currentRunningCalculation >= (int)m_queue.size())
+      return;
+
     calcInfo *info = &m_queue[m_currentRunningCalculation];
 
     disconnect(m_meshGen, 0,
@@ -701,6 +754,13 @@ namespace Avogadro
 
   void OrbitalExtension::calculationComplete()
   {
+    // N.1/1.2: stale or invalid callback — return without touching the mutex
+    // (setMolecule owns mutex teardown) or m_queue.
+    if (m_runningGeneration != m_generation ||
+        m_currentRunningCalculation < 0 ||
+        m_currentRunningCalculation >= (int)m_queue.size())
+      return;
+
     calcInfo *info = &m_queue[m_currentRunningCalculation];
 
     m_widget->calculationComplete(info->orbital);
@@ -866,6 +926,12 @@ namespace Avogadro
 
   void OrbitalExtension::updateProgress(int current)
   {
+    // N.1/1.2: stale or invalid callback — never touch m_queue or m_widget.
+    if (m_runningGeneration != m_generation ||
+        m_currentRunningCalculation < 0 ||
+        m_currentRunningCalculation >= (int)m_queue.size())
+      return;
+
     calcInfo *info = &m_queue[m_currentRunningCalculation];
     int orbital = info->orbital;
     m_widget->updateProgress(orbital, current);

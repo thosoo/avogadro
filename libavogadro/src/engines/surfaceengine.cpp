@@ -233,7 +233,12 @@ namespace Avogadro {
         index = m_settingsWidget->orbital1Combo->count();
 
       // Now figure out the mesh type and add it to the map
-      Cube::Type cubeType = m_molecule->cubeById(mesh->cube())->cubeType();
+      // N.4/4.1: guard the cube lookup — a stale cube id after a document
+      // switch must not dereference a null Cube.
+      Cube *cube = m_molecule->cubeById(mesh->cube());
+      if (!cube)
+        continue;
+      Cube::Type cubeType = cube->cubeType();
       QString comboText;
       if (cubeType == Cube::VdW) {
         comboText = tr("Van der Waals, isosurface = %L1",
@@ -285,9 +290,15 @@ namespace Avogadro {
   void SurfaceEngine::setOrbital(int n)
   {
     if (m_meshes.size() && n >= 0 && n < m_meshes.size()) {
-      m_mesh1 = m_molecule->meshById(m_meshes.at(n));
-      m_mesh2 = m_molecule->meshById(m_mesh1->otherMesh());
-      Cube *cube = m_molecule->cubeById(m_mesh1->cube());
+      // N.4/4.1: resolve ids into locals and bail if any is stale (e.g. after a
+      // document switch) before dereferencing.
+      Mesh *mesh1 = m_molecule->meshById(m_meshes.at(n));
+      Mesh *mesh2 = mesh1 ? m_molecule->meshById(mesh1->otherMesh()) : 0;
+      Cube *cube  = mesh1 ? m_molecule->cubeById(mesh1->cube()) : 0;
+      if (!mesh1 || !mesh2 || !cube)
+        return;
+      m_mesh1 = mesh1;
+      m_mesh2 = mesh2;
       m_min = cube->min();
       m_max = cube->max();
       if (m_mesh1->colors().size() == 0)
@@ -491,11 +502,15 @@ namespace Avogadro {
       m_mesh2 = m_molecule->meshById(settings.value("mesh2Id",
                                                     qulonglong(FALSE_ID)).toInt());
       if (m_mesh1) {
+        // N.4/4.2: guard the cube lookup too — a stale cube id must not be
+        // dereferenced (matches the setOrbital/updateOrbitalCombo hardening).
         Cube *cube = m_molecule->cubeById(m_mesh1->cube());
-        m_min = cube->min();
-        m_max = cube->max();
-        if (m_mesh1->colors().size() == 0)
-          m_colored = false;
+        if (cube) {
+          m_min = cube->min();
+          m_max = cube->max();
+          if (m_mesh1->colors().size() == 0)
+            m_colored = false;
+        }
       }
     }
   }

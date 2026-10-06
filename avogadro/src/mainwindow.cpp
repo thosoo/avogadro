@@ -1283,6 +1283,18 @@ protected:
     // Other file types appear to work correctly - this should be fixed properly
 #endif
 
+    // N.3: release the previous document's reader thread and file before
+    // allocating the new one. Disconnect ready()/firstMolReady() so a still
+    // in-flight old read can't fire into this window, then delete synchronously
+    // -- ~MoleculeFile joins the reader thread (task 3.2) under the
+    // already-active WaitCursor, so the heavy payload is freed before the new
+    // file's parse (bounds memory on rapid reloads).
+    if (d->moleculeFile) {
+      disconnect(d->moleculeFile, 0, this, 0);
+      delete d->moleculeFile;
+      d->moleculeFile = 0;
+    }
+
     // This will work in a background thread -- we want to wait until the firstMolReady() signal appears
     d->moleculeFile = MoleculeFile::readFile(fileName, formatType.trimmed(),
                                              options, false);
@@ -3339,6 +3351,16 @@ protected:
   {
     if (d->molecule && options & Extension::DeleteOld) {
       disconnect(d->molecule, 0);
+      // N.3: flush the heavy payload (cubes/meshes/atoms/bonds) before
+      // deleteLater so it is freed immediately rather than piling on top of
+      // the new document's parse. blockSignals() suppresses the primitiveRemoved
+      // storm from clearing() reaching documentWasModified() on the outgoing
+      // molecule; paint events are queued and will not run before GLWidget swaps
+      // in the new molecule, and the engines' QPointer guards tolerate the
+      // vanished meshes.
+      d->molecule->blockSignals(true);
+      d->molecule->clear();
+      d->molecule->blockSignals(false);
       d->molecule->deleteLater();
       qDebug() << "Old molecule deleted...";
     }

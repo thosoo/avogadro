@@ -20,7 +20,6 @@
 #include <QStringList>
 #include <QString>
 #include <QDebug>
-#include <QMessageBox>
 
 #include <avogadro/fragment.h>
 #include <QRegularExpression>
@@ -73,6 +72,30 @@ ORCAOutput::ORCAOutput(const QString &filename, GaussianSet* basis):
 
 ORCAOutput::~ORCAOutput()
 {
+    clearBasisFunctions();
+}
+
+void ORCAOutput::clearBasisFunctions()
+{
+    // N.5/5.1: m_basisFunctions is std::vector<std::vector<std::vector<...> *> *>,
+    // i.e. a vector of heap vectors, each of which owns heap vectors. Free both
+    // pointer levels before clearing so a fresh parse does not leak the tree.
+    for (std::vector<std::vector<std::vector<Eigen::Vector2d> *> *>::iterator
+             it = m_basisFunctions.begin(),
+             end = m_basisFunctions.end();
+         it != end; ++it) {
+        std::vector<std::vector<Eigen::Vector2d> *> *atomVec = *it;
+        if (atomVec) {
+            for (std::vector<std::vector<Eigen::Vector2d> *>::iterator
+                     it2 = atomVec->begin(), end2 = atomVec->end();
+                 it2 != end2; ++it2) {
+                delete *it2;
+            }
+            delete atomVec;
+        }
+    }
+    m_basisFunctions.clear();
+    m_basisFunctions.resize(0);
 }
 
 void ORCAOutput::processLine(GaussianSet *basis)
@@ -141,26 +164,13 @@ void ORCAOutput::processLine(GaussianSet *basis)
         list = key.split(' ', Qt::SkipEmptyParts);
         m_electrons = list[5].toInt();
     } else if (key.contains("SPIN UP ORBITALS") && !m_openShell) {
-        m_openShell = true; //not yet implemented
-
-        QMessageBox msgBox;
-
-        msgBox.setWindowTitle(("ALPHA / BETA Orbitals"));
-        msgBox.setText(("OpenShell detected! \n Would you like to use the BETA orbitals?"));
-        msgBox.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-
-        switch (msgBox.exec()) {
-        case QMessageBox::Yes:
-            // YES was clicked - beta orbitals should be read
-            m_useBeta = true;
-            break;
-        case QMessageBox::No:
-            // NO was clicked - ignore beta orbitals
-            m_useBeta = false;
-        default:
-            // should never be reached
-            break;
-        }
+        // N.5/5.2: record that this is an open-shell calculation but do NOT prompt
+        // mid-parse. The alpha block is always parsed into m_MOcoeffs and the beta
+        // block unconditionally into m_MOcoeffsBeta; the caller chooses which to
+        // export via setUseBeta() after parsing (default alpha). A modal dialog
+        // here would block the parse thread and, on a stale document, could touch
+        // freed widgets.
+        m_openShell = true;
     } else if (key.contains("MOLECULAR ORBITALS")) { //|| key.contains("MOLECULAR ORBITALS")) {
         m_currentMode = MO;
         key = m_in->readLine(); //------------
@@ -202,6 +212,9 @@ void ORCAOutput::processLine(GaussianSet *basis)
             // init all vectors etc.
             m_basisAtomLabel.clear();
             m_orcaNumShells.resize(0);
+            // N.5/5.1: free the previous basis-function tree before re-sizing so
+            // re-entry of this branch does not leak the old heap-allocated tree.
+            clearBasisFunctions();
             m_basisFunctions.resize(0);
             m_orcaShellTypes.resize(0);
 
@@ -322,8 +335,23 @@ void ORCAOutput::processLine(GaussianSet *basis)
                 } // ok, we've finished one batch of MO coeffs
                 // now reorder the p orbitals from "orcaStyle" (pz, px,py) to expected (px,py,pz)
                 int idx = 0;
-                while (idx<orcaOrbitals.size()){
+                while (idx < (int)orcaOrbitals.size()){
                     if (orcaOrbitals.at(idx).contains("pz")) {
+                        // N.5/5.3: the reorder swaps (idx, idx+1) then (idx+1, idx+2),
+                        // so the triple idx, idx+1, idx+2 must all be valid in the
+                        // orbital list AND in every column; a truncated MO block would
+                        // let idx+2 run off the end of an at() call.
+                        if (idx + 2 >= (int)orcaOrbitals.size())
+                            break;
+                        bool columnsTruncated = false;
+                        for (uint i = 0; i < numColumns; i++) {
+                            if (idx + 2 >= (int)columns[i].size()) {
+                                columnsTruncated = true;
+                                break;
+                            }
+                        }
+                        if (columnsTruncated)
+                            break;
                         for (uint i=0;i<numColumns;i++){
                             qSwap (columns[i].at(idx),columns[i].at(idx+1));
                         }
@@ -354,8 +382,12 @@ void ORCAOutput::processLine(GaussianSet *basis)
                 qDebug() << "Something went wrong during read of MOs\n check columns!!!";
             }
             m_numBasisFunctions = numRows;
-            if (m_openShell && m_useBeta) {
-                m_MOcoeffs.clear(); // if the orbitals were punched multiple times
+            // N.5/5.2: for open-shell files parse the beta block unconditionally
+            // into m_MOcoeffsBeta; the alpha block already populated m_MOcoeffs.
+            // The caller (load) picks which to export via setUseBeta() (default
+            // alpha), so no modal dialog is needed mid-parse.
+            if (m_openShell) {
+                m_MOcoeffsBeta.clear(); // if the orbitals were punched multiple times
                 QStringList orcaOrbitals;
                 key = m_in->readLine();
                 while(!key.trimmed().isEmpty()) {
@@ -396,8 +428,22 @@ void ORCAOutput::processLine(GaussianSet *basis)
                     } // ok, we've finished one batch of MO coeffs
                     // now reorder the p orbitals from "orcaStyle" (pz, px,py) to expected (px,py,pz)
                     int idx = 0;
-                    while (idx<orcaOrbitals.size()){
+                    while (idx < (int)orcaOrbitals.size()){
                         if (orcaOrbitals.at(idx).contains("pz")) {
+                            // N.5/5.3: guard the trailing at(idx+1) swap — the reorder
+                            // touches idx, idx+1, idx+2, so all three must be valid in
+                            // the orbital list AND in every column.
+                            if (idx + 2 >= (int)orcaOrbitals.size())
+                                break;
+                            bool columnsTruncated = false;
+                            for (uint i = 0; i < numColumns; i++) {
+                                if (idx + 2 >= (int)columns[i].size()) {
+                                    columnsTruncated = true;
+                                    break;
+                                }
+                            }
+                            if (columnsTruncated)
+                                break;
                             for (uint i=0;i<numColumns;i++){
                                 qSwap (columns[i].at(idx),columns[i].at(idx+1));
                             }
@@ -417,7 +463,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
                         numRows = columns[i].size();
                         for (unsigned int j = 0; j < numRows; ++j) {
 
-                            m_MOcoeffs.push_back(columns[i][j]);
+                            m_MOcoeffsBeta.push_back(columns[i][j]);
                         }
                     }
                     columns.clear();
@@ -426,7 +472,7 @@ void ORCAOutput::processLine(GaussianSet *basis)
                     if (key.trimmed().isEmpty())
                         key = m_in->readLine(); // skip the blank line after the MOs
                 } // finished parsing 2nd. MOs
-                if (m_MOcoeffs.size() != numRows*numRows) {
+                if (m_MOcoeffsBeta.size() != numRows*numRows) {
                     m_orcaSuccess = false;
                     qDebug() << "Something went wrong during read of MOs\n check columns!!!";
                 }
@@ -476,11 +522,22 @@ void ORCAOutput::load(GaussianSet* basis)
     }
   }
 
-  // Now to load in the MO coefficients
-  if (m_MOcoeffs.size())
-    basis->addMOs(m_MOcoeffs);
+  // Now to load in the MO coefficients. For open-shell files both the alpha
+  // block (m_MOcoeffs) and the beta block (m_MOcoeffsBeta) were parsed; pick
+  // the one the caller requested via setUseBeta() (default alpha).
+  const std::vector<double> *coeffs = &m_MOcoeffs;
+  if (m_useBeta && !m_MOcoeffsBeta.empty())
+      coeffs = &m_MOcoeffsBeta;
+  if (coeffs->size())
+      basis->addMOs(*coeffs);
 
-  m_homo = ceil(m_electrons / 2.0 );
+  // N.5/5.3: clamp HOMO into [1, m_numBasisFunctions] so calculateDensityMatrix
+  // never iterates k past the end of moMatrix.
+  m_homo = (int)ceil(m_electrons / 2.0);
+  if (m_homo < 1)
+    m_homo = 1;
+  if (m_homo > (int)m_numBasisFunctions)
+    m_homo = (int)m_numBasisFunctions;
   calculateDensityMatrix();
 
   basis->setDensityMatrix(m_density);
@@ -520,6 +577,14 @@ orbital ORCAOutput::orbitalIdx(QString txt) {
 
 void ORCAOutput::calculateDensityMatrix()
 {
+    // N.5/5.3: the flat coefficient index reaches m_numBasisFunctions^2 - 1; if
+    // we have fewer coefficients (truncated / MO-missed file) bail before the
+    // out-of-bounds read below rather than corrupting the density matrix.
+    if (m_MOcoeffs.size() < (size_t)m_numBasisFunctions * (size_t)m_numBasisFunctions) {
+        m_orcaSuccess = false;
+        return;
+    }
+
     std::vector<std::vector<double> > dens;
 //    dens.resize(m_numBasisFunctions, vector<double>(m_numBasisFunctions, 0.0));
 

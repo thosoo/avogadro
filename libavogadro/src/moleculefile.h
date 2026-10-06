@@ -42,6 +42,7 @@ namespace OpenBabel {
 namespace Avogadro {
 
   class Molecule;
+  class ReadFileThread;
 
   class MoleculeFilePrivate;
   class A_EXPORT MoleculeFile : public QObject
@@ -293,6 +294,12 @@ namespace Avogadro {
     QString m_fileName, m_fileType, m_fileOptions;
     QString m_error;
     std::vector<std::vector<Eigen::Vector3d>*> m_conformers;
+
+    // N.3: sole owner of the reader thread that populates this object.
+    // ~MoleculeFile joins (and deletes) it, so a running ReadFileThread::run()
+    // (which writes through the raw m_moleculeFile pointer) always finishes
+    // before this object is destroyed — no use-after-free on reload.
+    ReadFileThread *m_thread;
 
   };
 

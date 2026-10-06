@@ -73,12 +73,22 @@ namespace Avogadro {
 
   MoleculeFile::MoleculeFile(const QString &fileName, const QString &fileType,
       const QString &fileOptions) : QObject(), d(new MoleculeFilePrivate),
-      m_fileName(fileName), m_fileType(fileType), m_fileOptions(fileOptions)
+      m_fileName(fileName), m_fileType(fileType), m_fileOptions(fileOptions),
+      m_thread(0)
   {
   }
 
   MoleculeFile::~MoleculeFile()
   {
+    // N.3: join the reader thread before this object dies. ReadFileThread::run()
+    // writes through the raw m_moleculeFile pointer, so it must finish before we
+    // free anything here. This is the sole owner, so a synchronous wait here is
+    // correct (callers hold a WaitCursor while loading).
+    if (m_thread) {
+      m_thread->wait();
+      delete m_thread;
+      m_thread = 0;
+    }
     if (d->specialCaseOBMol)
       delete d->specialCaseOBMol;
     delete d;
@@ -735,6 +745,9 @@ namespace Avogadro {
 
     ReadFileThread *thread = new ReadFileThread(moleculeFile);
     QObject::connect(thread, SIGNAL(finished()), moleculeFile, SLOT(threadFinished()));
+    // N.3: hand ownership of the thread to the MoleculeFile so it is joined and
+    // deleted when the file is released (e.g. when a second document is opened).
+    moleculeFile->m_thread = thread;
     thread->start();
 
     if (wait) {

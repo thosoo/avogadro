@@ -186,6 +186,54 @@ set_property(SOURCE ${dialogsmoketest_SRCS} PROPERTY LABELS avogadro)
 set_property(TARGET dialogsmoketest PROPERTY LABELS avogadro)
 set_property(TEST dialogsmokeTest PROPERTY LABELS avogadro)
 
+# Surfaces stale-callback guard regression (fix-second-document-open-crash,
+# tasks 1.3 / 2.2). Compiles the real SurfaceExtension + SurfaceDialog +
+# VdWSurface so the calculate() -> calculateDone() generation-guard path can be
+# exercised against a real molecule/basis offscreen.
+set(surfaceextensiontest_SRCS
+  surfaceextensiontest.cpp
+  ../src/extensions/surfaces/surfaceextension.cpp
+  ../src/extensions/surfaces/surfaceextension.h
+  ../src/extensions/surfaces/surfacedialog.cpp
+  ../src/extensions/surfaces/surfacedialog.h
+  ../src/extensions/surfaces/surfacedialog.ui
+  ../src/extensions/surfaces/vdwsurface.cpp
+  ../src/extensions/surfaces/vdwsurface.h)
+add_executable(surfaceextensiontest ${surfaceextensiontest_SRCS})
+target_include_directories(surfaceextensiontest PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/surfaces
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../avogadro/src)
+set_target_properties(surfaceextensiontest PROPERTIES
+  AUTOUIC_SEARCH_PATHS "${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions")
+target_link_libraries(surfaceextensiontest
+  PRIVATE
+  Qt6::Core
+  Qt6::Gui
+  Qt6::Widgets
+  Qt6::OpenGL
+  Qt6::OpenGLWidgets
+  Qt6::Test
+  Qt6::Concurrent
+  avogadro
+  OpenQube
+  OpenBabel3::openbabel)
+target_compile_definitions(surfaceextensiontest PRIVATE
+  TESTDATA_DIR="${CMAKE_SOURCE_DIR}/testfiles")
+# This environment's g++-13 enforces Java/C#-style access semantics: a
+# derived class cannot name a private base member (standard C++ allows it).
+# The test is white-box by design — it must read the private N.1 generation
+# members to assert the guard invariant. -fno-access-control is the canonical
+# GCC white-box-test flag; access checks are compile-time only, so the emitted
+# code is bit-identical to production. Production code is untouched.
+target_compile_options(surfaceextensiontest PRIVATE -fno-access-control)
+add_test(surfaceextensionTest ${CMAKE_BINARY_DIR}/bin/surfaceextensiontest)
+set_tests_properties(surfaceextensionTest PROPERTIES
+  ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+set_property(SOURCE ${surfaceextensiontest_SRCS} PROPERTY LABELS avogadro)
+set_property(TARGET surfaceextensiontest PROPERTY LABELS avogadro)
+set_property(TEST surfaceextensionTest PROPERTY LABELS avogadro)
+
 add_executable(qt6signalpatternstest qt6signalpatternstest.cpp)
 target_compile_definitions(qt6signalpatternstest PRIVATE
   AVOGADRO_SOURCE_DIR="${CMAKE_SOURCE_DIR}")

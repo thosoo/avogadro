@@ -1,10 +1,10 @@
-# bundled-openbabel delta spec
+# bundled-openbabel Specification
 
 ## Purpose
 
 Defines how Avogadro acquires, pins, and validates its bundled OpenBabel dependency (the permanent `thosoo/openbabel` companion fork), so that builds are reproducible from a single-sourced pin and never depend on post-checkout source mutation or duplicated pin constants.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Submodule-sourced OpenBabel pin
 The bundled OpenBabel source SHALL be acquired exclusively from a git submodule in this repository, pinned to a single commit of `thosoo/openbabel`. The submodule gitlink SHALL be the only place the pin is recorded; no build script or workflow file SHALL independently hardcode an OpenBabel commit, archive URL, or source hash.

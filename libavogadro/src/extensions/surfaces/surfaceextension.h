@@ -78,6 +78,9 @@ namespace Avogadro
     QString m_loadedFileName;
     QProgressDialog *m_progress;
 
+    unsigned long m_generation;        // N.1: bumped on each document switch
+    unsigned long m_runningGeneration; // N.1: captured per launched calculation
+
     Mesh *m_mesh1, *m_mesh2;
     MeshGenerator *m_meshGen1;
     MeshGenerator *m_meshGen2;
