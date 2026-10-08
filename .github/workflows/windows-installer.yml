@@ -387,6 +387,41 @@ jobs:
             throw "Missing expected GPU-preference exports: $($missing -join ', ')"
           }
           Write-Host "GPU-preference exports present: $($required -join ', ')"
+      - name: Capture live renderer log (D3, OpenSpec 3.1)
+        if: matrix.target == 'installer'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'SilentlyContinue'
+          $exe = Join-Path 'scripts\installer\dist\bin' 'avogadro.exe'
+          if (-not (Test-Path $exe)) {
+            Write-Host "avogadro.exe not found; skipping D3 runtime check"
+            return
+          }
+          $env:QT_FORCE_STDERR_LOGGING = '1'
+          $errLog = "$PWD\renderer_stderr.log"
+          try {
+            $proc = Start-Process -FilePath $exe -RedirectStandardError $errLog -RedirectStandardOutput "$PWD\renderer_stdout.log" -PassThru -WindowStyle Hidden
+            $done = Wait-Process -Id $proc.Id -Timeout 45 -ErrorAction SilentlyContinue
+            if (-not $done) {
+              Write-Host "avogadro.exe did not exit within 45s; stopping it"
+              Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+              Get-Process -Name avogadro -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            }
+          } catch {
+            Write-Host "Failed to launch avogadro.exe for D3 check: $($_.Exception.Message)"
+          }
+          if (Test-Path $errLog) {
+            $log = Get-Content $errLog -Raw
+            Write-Host "----- renderer_stderr.log (first 40 lines) -----"
+            ($log -split "`n" | Select-Object -First 40) -join "`n" | Write-Host
+            if ($log -match 'OpenGL renderer:') {
+              Write-Host "D3 renderer log line captured from a live GL context"
+            } else {
+              Write-Host "NOTE: 'OpenGL renderer:' not found in stderr (GL context may not have initialized in this headless runner)"
+            }
+          } else {
+            Write-Host "NOTE: no renderer_stderr.log produced (app may have failed to start)"
+          }
       - name: Create installer
         if: matrix.target == 'installer'
         shell: pwsh
