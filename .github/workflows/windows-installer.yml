@@ -363,6 +363,30 @@ jobs:
           }
           Write-Host "Boost DLLs copied to ${coordgenDir}:" ($boostDlls | ForEach-Object { $_.Name } | Join-String -Separator ", ")
           cmake --build build --config Release --target install
+      - name: Verify GPU-preference symbol exports (force-dedicated-gpu)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Join-Path 'scripts\installer\dist\bin' 'avogadro.exe'
+          if (-not (Test-Path $exe)) {
+            throw "avogadro.exe not found at $exe"
+          }
+          if (-not (Get-Command dumpbin -ErrorAction SilentlyContinue)) {
+            throw "dumpbin not found on PATH; cannot verify exports"
+          }
+          $exports = dumpbin /exports $exe | Out-String
+          Write-Host $exports
+          $required = @('NvOptimusEnablement', 'AmdPowerXpressRequestHighPerformance')
+          $missing = @()
+          foreach ($sym in $required) {
+            if (-not ($exports -match [regex]::Escape($sym))) {
+              $missing += $sym
+            }
+          }
+          if ($missing.Count -gt 0) {
+            throw "Missing expected GPU-preference exports: $($missing -join ', ')"
+          }
+          Write-Host "GPU-preference exports present: $($required -join ', ')"
       - name: Create installer
         if: matrix.target == 'installer'
         shell: pwsh
