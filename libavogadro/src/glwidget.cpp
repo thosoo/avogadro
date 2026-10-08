@@ -508,6 +508,14 @@ GLWidget::GLWidget( Molecule *molecule,
       abort();
     }
 
+    // Report the renderer the live context actually resolved (not the requested
+    // format), so rendering-behaviour issues can be attributed to the right
+    // device. initializeGL runs exactly once per widget, so no once-flag needed.
+    qDebug() << "OpenGL renderer:" << reinterpret_cast<const char*>(glGetString(GL_RENDERER))
+             << "vendor:" << reinterpret_cast<const char*>(glGetString(GL_VENDOR))
+             << "version:" << reinterpret_cast<const char*>(glGetString(GL_VERSION))
+             << "requested samples:" << context()->format().samples();
+
     // Try to initialise GLEW if GLSL was enabled, test for OpenGL 2.0 support
     #ifdef ENABLE_GLSL
     GLenum err = glewInit();

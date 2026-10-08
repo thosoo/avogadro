@@ -61,6 +61,14 @@
 #ifdef WIN32
   #include <windows.h>
   #include <stdlib.h>
+
+  // Ask hybrid-GPU drivers (NVIDIA Optimus / AMD PowerXpress) to route this
+  // process to the high-performance GPU. The driver reads these named exports
+  // from the executable before the first OpenGL context is created. File scope
+  // in the primary exe only; no runtime code required. Windows' per-user
+  // Graphics-settings preference, when present, overrides these hints.
+  extern "C" __declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
+  extern "C" __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 #endif
 
 #ifdef AVO_APP_BUNDLE
@@ -68,6 +76,79 @@
 #endif
 
 using namespace Avogadro;
+
+#ifdef WIN32
+
+// Best-effort, Windows-only fallback for the driver-level hint exports above:
+// register a per-user DirectX GPU preference that Windows consults at process
+// launch. We only write when no preference exists for this executable and a
+// second (dedicated) adapter is present. An existing preference is never
+// touched. Every call is non-fatal; any failure is a single qDebug line.
+static void registerUserGpuPreference()
+{
+  // The Settings UI stores the value name as a backslash path; normalize ours
+  // to match so the two views stay consistent.
+  const QString valueName =
+    QCoreApplication::applicationFilePath().replace(QLatin1Char('/'),
+                                                    QLatin1Char('\\'));
+
+  HKEY key = 0;
+  const wchar_t *subKey = L"Software\\Microsoft\\DirectX\\UserGpuPreferences";
+
+  // Only read here first: if a preference already exists, leave it alone.
+  if (RegOpenKeyExW(HKEY_CURRENT_USER, subKey, 0, KEY_READ, &key) == ERROR_SUCCESS) {
+    DWORD type = 0, size = 0;
+    if (RegGetValueW(key, nullptr, reinterpret_cast<LPCWSTR>(valueName.utf16()),
+                     RRF_RT_REG_SZ, &type, nullptr, &size) == ERROR_SUCCESS) {
+      // A preference exists (any value: 0, 1, or 2). Do not modify it.
+      RegCloseKey(key);
+      return;
+    }
+    // ERROR_FILE_NOT_FOUND: no preference for us yet, continue to write path.
+    RegCloseKey(key);
+  }
+  // Key missing entirely, or no entry for us: treat as "no preference".
+
+  // Only act on a hybrid system: probe for a second active adapter.
+  int activeAdapters = 0;
+  DISPLAY_DEVICE dd;
+  ZeroMemory(&dd, sizeof(dd));
+  dd.cb = sizeof(dd);
+  for (DWORD i = 0; i < 32; ++i) {
+    if (EnumDisplayDevicesW(NULL, i, &dd, 0)) {
+#if _WIN32_WINNT >= 0x0601
+      if (dd.StateFlags & DISPLAY_DEVICE_ACTIVE) {
+#else
+      if (dd.StateFlags & DISPLAY_DEVICE_ATTACHED_TO_DESKTOP) {
+#endif
+        ++activeAdapters;
+      }
+    }
+    else {
+      break;
+    }
+  }
+  if (activeAdapters < 2) {
+    // Single-adapter machine: nothing to force here.
+    return;
+  }
+
+  // Write GpuPreference=2; (high performance). Best effort; ignore errors.
+  if (RegOpenKeyExW(HKEY_CURRENT_USER, subKey, 0, KEY_SET_VALUE, &key)
+        == ERROR_SUCCESS) {
+    const wchar_t *value = L"GpuPreference=2;";
+    const DWORD byteLen = (static_cast<DWORD>(lstrlenW(value)) + 1) * sizeof(wchar_t);
+    const LONG rc = RegSetValueExW(key, reinterpret_cast<LPCWSTR>(valueName.utf16()),
+                                   0, REG_SZ,
+                                   reinterpret_cast<const BYTE *>(value), byteLen);
+    RegCloseKey(key);
+    if (rc != ERROR_SUCCESS) {
+      qDebug() << "registerUserGpuPreference: RegSetValueExW failed" << rc;
+    }
+  }
+}
+
+#endif
 
 void printVersion(const QString &appName);
 void printHelp(const QString &appName);
@@ -115,6 +196,11 @@ int main(int argc, char *argv[])
     newPath = babelPluginDir + QLatin1Char(';') + newPath;
   }
   _putenv_s("PATH", newPath.toLocal8Bit().constData());
+
+  // Best-effort per-user GPU preference fallback (Windows hybrid-GPU only).
+  // Launch 1 relies on the driver-level hint exports above; this write takes
+  // effect on subsequent launches. Never overwrites an existing preference.
+  registerUserGpuPreference();
 
 #endif
 
@@ -271,16 +357,6 @@ int main(int argc, char *argv[])
   QSurfaceFormat defFormat = QSurfaceFormat::defaultFormat();
   defFormat.setSamples(4);
   QSurfaceFormat::setDefaultFormat(defFormat);
-
-  // Test what capabilities we have
-  //qDebug() << /*QCoreApplication::translate("main.cpp", */"OpenGL capabilities found: "/*)*/;
-  std::cout << "OpenGL capabilities found: " << std::endl;
-  if (defFormat.swapBehavior() != QSurfaceFormat::SingleBuffer)
-    std::cout << "\t" << "Double Buffering." << std::endl;
-  if (defFormat.renderableType() == QSurfaceFormat::OpenGL)
-    std::cout << "\t" << "Direct Rendering." << std::endl;
-  if (defFormat.samples() > 0)
-    std::cout << "\t" << "Antialiasing." << std::endl;
 
   // Now load any files supplied on the command-line or via launching a file.
   // Additionally, process and remove any command line arguments.
