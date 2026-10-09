@@ -728,6 +728,20 @@ namespace Avogadro {
      */
     QReadWriteLock *lock() const;
 
+    /**
+     * Return the current molecule revision counter.
+     *
+     * The counter is bumped by every structural or positional mutation
+     * (add/remove atoms and bonds, position edits, translate, conformer
+     * switch, clear, etc.). Snapshot builders taken off the GUI thread record
+     * the revision they snapshotted and discard their result if the revision
+     * has advanced before they finish, so an edit during a build never
+     * presents stale geometry.
+     *
+     * Read this under lock()->lockForRead().
+     */
+    unsigned int revision() const;
+
     /** @name OpenBabel translation functions
      * These functions are used to exchange information with OpenBabel.
      * @{

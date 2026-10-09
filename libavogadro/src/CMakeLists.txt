@@ -7,6 +7,7 @@ set_directory_properties(PROPERTIES INCLUDE_DIRECTORIES
   "${libavogadro_BINARY_DIR}/include;${tmp_include_dirs}")
 include_directories(
   ${CMAKE_CURRENT_BINARY_DIR}
+  ${CMAKE_CURRENT_SOURCE_DIR}
   ${OPENBABEL3_INCLUDE_DIR}
 )
 
@@ -118,6 +119,11 @@ set(libavogadro_SRCS
   toolgroup.cpp
   undosequence.cpp
   zmatrix.cpp
+
+  # Tiered rendering pipeline (gpu-rendering-pipeline). Scene core emitter and
+  # modern-tier primitive geometry.
+  rendering/scenebuilder.cpp
+  rendering/geometry.cpp
 )
 
 set(libavogadro_MOC_HDRS

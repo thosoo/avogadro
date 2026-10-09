@@ -69,6 +69,7 @@ namespace Avogadro{
     public:
       MoleculePrivate() : farthestAtom(0), invalidGeomInfo(true),
                           invalidRings(true), invalidGroupIndices(true),
+                          revision(0),
                          obmol(0), obunitcell(0),
                          obvibdata(0), obdosdata(0),
                          obelectronictransitiondata(0),
@@ -86,6 +87,14 @@ namespace Avogadro{
       mutable bool                  invalidRings;
       mutable bool                  invalidGroupIndices;
       mutable std::vector<double>   energies;
+
+      // Monotonically increasing counter bumped by every structural or
+      // positional mutation. Snapshot builders record the revision they took
+      // and discard stale results, so a molecule edited during a build does not
+      // present out-of-date geometry. See Molecule::revision().
+      // mutable: it is bumped from const methods (addAtom, setAtomPos,
+      // translate, ...) just like the other cache-invalidation flags above.
+      mutable unsigned int revision;
 
       // std::vector used over QVector due to index issues, QVector uses ints
       std::vector<Cube *>           cubes;
@@ -175,6 +184,7 @@ namespace Avogadro{
   {
     Q_D(const Molecule);
     d->invalidGeomInfo = true;
+    d->revision++;
     Atom *atom = new Atom(this);
 
     if (!m_atomPos) {
@@ -228,6 +238,7 @@ namespace Avogadro{
     if (id < m_atomPos->size()) {
       (*m_atomPos)[id] = vec;
       d->invalidGeomInfo = true;
+      d->revision++;
     }
   }
 
@@ -256,6 +267,7 @@ namespace Avogadro{
 
       disconnect(atom, SIGNAL(updated()), this, SLOT(updateAtom()));
       d->invalidGroupIndices = true;
+      d->revision++;
       emit atomRemoved(atom);
     }
   }
@@ -276,6 +288,7 @@ namespace Avogadro{
     Bond *bond = new Bond(this);
 
     d->invalidRings = true;
+    d->revision++;
     m_invalidPartialCharges = true;
     m_invalidAromaticity = true;
     if(id >= m_bonds.size())
@@ -933,6 +946,7 @@ namespace Avogadro{
   {
     Q_D(Molecule);
     d->invalidGeomInfo = true;
+    d->revision++;
     emit moleculeChanged();
     emit updated();
   }
@@ -942,6 +956,7 @@ namespace Avogadro{
     Q_D(Molecule);
     Primitive *primitive = qobject_cast<Primitive *>(sender());
     d->invalidGeomInfo = true;
+    d->revision++;
     emit primitiveUpdated(primitive);
   }
 
@@ -956,7 +971,9 @@ namespace Avogadro{
 
   void Molecule::updateBond()
   {
+    Q_D(Molecule);
     Bond *bond = qobject_cast<Bond *>(sender());
+    d->revision++;
     emit bondUpdated(bond);
   }
 
@@ -1052,6 +1069,8 @@ namespace Avogadro{
         m_atomPos->push_back(Eigen::Vector3d::Zero());
       // set the current conformer index
       m_currentConformer = index;
+      Q_D(Molecule);
+      d->revision++;
       return true;
     }
   }
@@ -1644,6 +1663,7 @@ namespace Avogadro{
 
     Q_D(const Molecule);
     d->invalidGeomInfo = true;
+    d->revision++;
     foreach (Atom *atom, m_atomList) {
       (*m_atomPos)[atom->id()] += offset;
       emit atomUpdated(atom);
@@ -1653,6 +1673,7 @@ namespace Avogadro{
   void Molecule::clear()
   {
     Q_D(Molecule);
+    d->revision++;
     m_atoms.clear();
     foreach (Atom *atom, m_atomList) {
       atom->deleteLater();
@@ -1706,6 +1727,12 @@ namespace Avogadro{
   QReadWriteLock * Molecule::lock() const
   {
     return m_lock;
+  }
+
+  unsigned int Molecule::revision() const
+  {
+    Q_D(const Molecule);
+    return d->revision;
   }
 
   Molecule &Molecule::operator=(const Molecule& other)

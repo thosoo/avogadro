@@ -39,6 +39,9 @@ find_package(PkgConfig)
 pkg_check_modules(XTB xtb)
 
 set(tests
+  chunkstore
+  scenebuilder
+  geometry
   drawcommand
 #  hydrogenscommand
   forcefield
@@ -62,6 +65,11 @@ foreach (test ${tests})
       ../src/extensions/insertfragmentdialog.cpp
       ../src/extensions/insertcommand.cpp
       ../src/extensions/sortfiltertreeproxymodel.cpp)
+  endif()
+  if (${test} STREQUAL "scenebuilder")
+    # Compile the real ball-and-stick engine so the molecule can be rendered
+    # headlessly through the SceneBuilder emitter (task 1.2).
+    list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)
   endif()
   add_executable(${test}test ${test_SRCS})
   target_link_libraries(${test}test
