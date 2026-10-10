@@ -52,10 +52,15 @@
 #include "libavogadro/src/rendering/chunkstore.h"
 #include "libavogadro/src/rendering/chunkeduploader.h"
 #include "libavogadro/src/rendering/modernbackend.h"
+#include "libavogadro/src/rendering/lod.h"
+#include "libavogadro/src/rendering/frustum.h"
 
 using Avogadro::rendering::CylinderGeometry;
 using Avogadro::rendering::GeometryVertex;
 using Avogadro::rendering::SphereGeometry;
+using Avogadro::rendering::Frustum;
+using Avogadro::rendering::LodLevel;
+using Avogadro::rendering::ZoomLodController;
 
 namespace {
 
@@ -177,6 +182,15 @@ class ModernRenderTest : public QObject
     void testSingleChunkRender();
     void testChunkedUploaderBudget();
     void testUpload50kWithinBudget();
+
+    // Task 2.3: LOD zoom bands + hysteresis and per-chunk AABB frustum culling.
+    void testLodParams();
+    void testOnScreenRadiusZoomInvariantUnderRotation();
+    void testOnScreenRadiusZoomResponsive();
+    void testLodChurnInvariantAtFixedZoom();
+    void testLodHysteresis();
+    void testFrustumCulling();
+    void testChunkAABB();
 };
 
 void ModernRenderTest::testShaderSources()
@@ -624,6 +638,243 @@ void ModernRenderTest::testUpload50kWithinBudget()
   ctx->makeCurrent(nullptr);
   delete off;
   delete ctx;
+}
+
+// --- Task 2.3: LOD + frustum culling (headless; no GL needed) --------------
+
+// lodParams(): detail levels must be strictly coarser-to-finer, Medium must
+// preserve the pre-LOD default (12/24) for visual parity, and every generated
+// level must stay under the unsigned-short index-buffer vertex ceiling.
+void ModernRenderTest::testLodParams()
+{
+  using Avogadro::rendering::SphereGeometry;
+  using Avogadro::rendering::LodParams;
+
+  const LodParams low = Avogadro::rendering::lodParams(Avogadro::rendering::LodLow);
+  const LodParams med = Avogadro::rendering::lodParams(Avogadro::rendering::LodMedium);
+  const LodParams high = Avogadro::rendering::lodParams(Avogadro::rendering::LodHigh);
+
+  QVERIFY(low.sphereRings < med.sphereRings);
+  QVERIFY(low.sphereSegments < med.sphereSegments);
+  QVERIFY(med.sphereRings < high.sphereRings);
+  QVERIFY(med.sphereSegments < high.sphereSegments);
+  // Medium preserves the pre-LOD default for visual parity.
+  QCOMPARE(med.sphereRings, 12);
+  QCOMPARE(med.sphereSegments, 24);
+
+  SphereGeometry sl, sm, sh;
+  sl.setRings(low.sphereRings); sl.setSegments(low.sphereSegments); sl.generate();
+  sm.setRings(med.sphereRings); sm.setSegments(med.sphereSegments); sm.generate();
+  sh.setRings(high.sphereRings); sh.setSegments(high.sphereSegments); sh.generate();
+
+  QVERIFY(sh.indexCount() > sm.indexCount());
+  QVERIFY(sm.indexCount() > sl.indexCount());
+  // Index buffer is unsigned short: stay under 65536 vertices.
+  // Index values reference vertex slots, so the vertex count is what must fit
+  // in the unsigned-short index buffer.
+  QVERIFY(sh.vertexCount() < 65536);
+}
+
+// Build a perspective projection matrix (gluPerspective form) for tests that
+// need a real P(1,1) and P(3,3) == 0.
+static Eigen::Matrix4f makePerspective(float fovYDeg, float aspect,
+                                       float nearPlane, float farPlane)
+{
+  Eigen::Matrix4f p = Eigen::Matrix4f::Zero();
+  const float f = 1.0f / std::tan(fovYDeg * 0.5f * static_cast<float>(M_PI) / 180.0f);
+  p(0, 0) = f / aspect;
+  p(1, 1) = f;
+  p(2, 2) = -(farPlane + nearPlane) / (farPlane - nearPlane);
+  p(2, 3) = -2.0f * farPlane * nearPlane / (farPlane - nearPlane);
+  p(3, 3) = 0.0f;
+  return p;
+}
+
+// onScreenRadius must be invariant under orbiting the camera about the focus
+// point (a pure rotation changes only the rotation part: s stays 1, the focus
+// depth and P are unchanged). This is the "rotation at fixed zoom" that must
+// NOT change the LOD.
+void ModernRenderTest::testOnScreenRadiusZoomInvariantUnderRotation()
+{
+  using Avogadro::rendering::onScreenRadius;
+  const float d = 5.0f;      // eye-space depth of the (origin) focus
+  const float H = 256.0f;
+  const float aspect = 1.0f;
+  const Eigen::Vector3f focus(0.0f, 0.0f, 0.0f);
+  const float refRadius = 1.0f;
+
+  Eigen::Matrix4f p = makePerspective(40.0f, aspect, 0.1f, 100.0f);
+
+  // modelview = rotation about Z (any angle) then translate the scene -d.
+  auto buildMv = [&](float angleDeg) {
+    Eigen::AngleAxisf aa(angleDeg * static_cast<float>(M_PI) / 180.0f,
+                         Eigen::Vector3f::UnitZ());
+    Eigen::Transform<float, 3, Eigen::Affine> t;
+    t.linear() = aa.toRotationMatrix();
+    t.translation() = Eigen::Vector3f(0.0f, 0.0f, -d);
+    return t.matrix();
+  };
+
+  const float rho0 = onScreenRadius(buildMv(0.0f), p, H, focus, refRadius);
+  const float rho90 = onScreenRadius(buildMv(90.0f), p, H, focus, refRadius);
+  const float rho137 = onScreenRadius(buildMv(137.0f), p, H, focus, refRadius);
+
+  QCOMPARE(rho0, rho90);
+  QCOMPARE(rho0, rho137);
+}
+
+// onScreenRadius must respond to genuine zoom. This app zooms by scaling the
+// modelview linear part (Camera::scale), so doubling that scale must double
+// rho. This is the regression guard against the zoom-blind 1/distance metric.
+void ModernRenderTest::testOnScreenRadiusZoomResponsive()
+{
+  using Avogadro::rendering::onScreenRadius;
+  const float d = 5.0f;
+  const float H = 256.0f;
+  const Eigen::Vector3f focus(0.0f, 0.0f, 0.0f);
+  const float refRadius = 1.0f;
+  Eigen::Matrix4f p = makePerspective(40.0f, 1.0f, 0.1f, 100.0f);
+
+  auto buildScaledMv = [&](float s) {
+    Eigen::Transform<float, 3, Eigen::Affine> t;
+    t.linear() = s * Eigen::Matrix3f::Identity();
+    t.translation() = Eigen::Vector3f(0.0f, 0.0f, -d);
+    return t.matrix();
+  };
+
+  const float rhoFar = onScreenRadius(buildScaledMv(1.0f), p, H, focus, refRadius);
+  const float rhoNear = onScreenRadius(buildScaledMv(2.0f), p, H, focus, refRadius);
+
+  // rho scales linearly with the modelview scale factor.
+  QCOMPARE(rhoNear / rhoFar, 2.0f);
+}
+
+// At a constant on-screen radius (fixed zoom), selecting the LOD every frame
+// must never churn: the Schmitt trigger is a fixed point once primed.
+void ModernRenderTest::testLodChurnInvariantAtFixedZoom()
+{
+  ZoomLodController ctrl(4.0f, 16.0f, 1.3f);
+  ctrl.reset();
+  // Prime at Low with the initial (non-churning) selection.
+  ctrl.select(1.0f);
+  QCOMPARE(ctrl.churnCount(), 0);
+  // 120 "rotation frames" at the same zoom: no LOD change, no churn.
+  for (int i = 0; i < 120; ++i)
+    ctrl.select(1.0f);
+  QCOMPARE(ctrl.churnCount(), 0);
+  QCOMPARE(ctrl.level(), Avogadro::rendering::LodLow);
+}
+
+// Schmitt-trigger hysteresis: crossing a boundary up counts one churn, wiggling
+// inside the dead band counts zero, and falling back down counts one more.
+void ModernRenderTest::testLodHysteresis()
+{
+  ZoomLodController ctrl(4.0f, 16.0f, 1.3f); // t01=4, t12=16, g=1.3
+  ctrl.reset();
+  ctrl.select(1.0f); // initial selection -> Low, no churn
+  QCOMPARE(ctrl.churnCount(), 0);
+  QCOMPARE(ctrl.level(), Avogadro::rendering::LodLow);
+
+  // Inside the low->medium dead band [t01/g=3.08, t01*g=5.2]: no transition.
+  ctrl.select(4.0f);
+  QCOMPARE(ctrl.level(), Avogadro::rendering::LodLow);
+  QCOMPARE(ctrl.churnCount(), 0);
+
+  // Cross up to Medium (>= 5.2): exactly one churn.
+  ctrl.select(5.2f);
+  QCOMPARE(ctrl.level(), Avogadro::rendering::LodMedium);
+  QCOMPARE(ctrl.churnCount(), 1);
+
+  // Inside the medium->high dead band [t12/g=12.3, t12*g=20.8]: no transition.
+  ctrl.select(16.0f);
+  QCOMPARE(ctrl.level(), Avogadro::rendering::LodMedium);
+  QCOMPARE(ctrl.churnCount(), 1);
+
+  // Fall below t01/g (3.08) back to Low: one more churn.
+  ctrl.select(3.0f);
+  QCOMPARE(ctrl.level(), Avogadro::rendering::LodLow);
+  QCOMPARE(ctrl.churnCount(), 2);
+}
+
+// Per-chunk AABB-vs-frustum culling: a box around the origin is visible in the
+// identity (standard) clip volume; a box beyond the far plane is culled; a box
+// straddling a side plane is kept (the conservative test must never drop a
+// visible chunk); a box fully outside is culled.
+void ModernRenderTest::testFrustumCulling()
+{
+  const Frustum f(Eigen::Matrix4f::Identity());
+
+  // Box around the origin is inside [-1,1]^3.
+  Eigen::Vector3f mn(-0.5f, -0.5f, -0.5f), mx(0.5f, 0.5f, 0.5f);
+  QVERIFY(Avogadro::rendering::aabbVisible(mn, mx, f));
+
+  // Box beyond the far plane (z in [5,6]) is culled.
+  Eigen::Vector3f behindMN(0.0f, 0.0f, 5.0f), behindMX(1.0f, 1.0f, 6.0f);
+  QVERIFY(!Avogadro::rendering::aabbVisible(behindMN, behindMX, f));
+
+  // Box straddling the left plane (x in [-2,-0.5]) is still visible.
+  Eigen::Vector3f addMN(-2.0f, -0.5f, -0.5f), addMX(-0.5f, 0.5f, 0.5f);
+  QVERIFY(Avogadro::rendering::aabbVisible(addMN, addMX, f));
+
+  // Box fully left of the left plane (x in [-3,-2]) is culled.
+  Eigen::Vector3f outMN(-3.0f, -0.5f, -0.5f), outMX(-2.0f, -0.2f, -0.2f);
+  QVERIFY(!Avogadro::rendering::aabbVisible(outMN, outMX, f));
+
+  // cullChunks returns the visible indices in order.
+  std::vector<Eigen::Vector3f> mins = {
+      Eigen::Vector3f(-0.5f, -0.5f, -0.5f),  // 0 visible
+      Eigen::Vector3f(5.0f, 5.0f, 5.0f),     // 1 culled (far)
+      Eigen::Vector3f(-2.0f, -0.5f, -0.5f),  // 2 visible (straddle)
+  };
+  std::vector<Eigen::Vector3f> maxs = {
+      Eigen::Vector3f(0.5f, 0.5f, 0.5f),
+      Eigen::Vector3f(6.0f, 6.0f, 6.0f),
+      Eigen::Vector3f(-0.5f, 0.5f, 0.5f),
+  };
+  const auto visible = Avogadro::rendering::cullChunks(mins, maxs, f);
+  QCOMPARE(static_cast<int>(visible.size()), 2);
+  QCOMPARE(visible[0], 0);
+  QCOMPARE(visible[1], 2);
+}
+
+// buildSphereAABB expands each record's centre by its radius per axis, and a
+// per-chunk AABB set culls correctly (on-screen kept, off-screen dropped).
+void ModernRenderTest::testChunkAABB()
+{
+  using Avogadro::rendering::SphereInstance;
+
+  std::vector<SphereInstance> recs;
+  SphereInstance a;
+  a.pos[0] = 0.0f; a.pos[1] = 0.0f; a.pos[2] = 0.0f; a.radius = 0.5f;
+  recs.push_back(a);
+  SphereInstance b;
+  b.pos[0] = 100.0f; b.pos[1] = 2.0f; b.pos[2] = -3.0f; b.radius = 1.5f;
+  recs.push_back(b);
+
+  Eigen::Vector3f mn, mx;
+  Avogadro::rendering::buildSphereAABB(recs.data(), static_cast<int>(recs.size()), mn, mx);
+  // Per-axis min/max over both records (a: r=0.5 at origin, b: r=1.5 at 100,2,-3).
+  QCOMPARE(mn.x(), -0.5f);
+  QCOMPARE(mn.y(), -0.5f);
+  QCOMPARE(mn.z(), -4.5f);
+  QCOMPARE(mx.x(), 101.5f);
+  QCOMPARE(mx.y(), 3.5f);
+  QCOMPARE(mx.z(), 0.5f);
+
+  // Two per-chunk AABBs: chunk 0 near origin (visible), chunk 1 far off +X
+  // (culled against the identity clip volume).
+  std::vector<Eigen::Vector3f> mins = {
+      Eigen::Vector3f(-0.5f, -0.5f, -0.5f),
+      Eigen::Vector3f(98.0f, 0.5f, -4.5f),
+  };
+  std::vector<Eigen::Vector3f> maxs = {
+      Eigen::Vector3f(0.5f, 0.5f, 0.5f),
+      Eigen::Vector3f(102.0f, 3.5f, -1.5f),
+  };
+  const Frustum f(Eigen::Matrix4f::Identity());
+  const auto visible = Avogadro::rendering::cullChunks(mins, maxs, f);
+  QCOMPARE(static_cast<int>(visible.size()), 1);
+  QCOMPARE(visible[0], 0);
 }
 
 QTEST_MAIN(ModernRenderTest)

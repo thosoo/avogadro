@@ -126,6 +126,7 @@ set(libavogadro_SRCS
   rendering/geometry.cpp
   rendering/chunkeduploader.cpp  # chunked, budgeted upload scheduler (2.2)
   rendering/modernbackend.cpp    # modern-tier submit stage with fences (2.2)
+  rendering/lod.cpp              # LOD zoom bands + hysteresis (2.3)
 )
 
 set(libavogadro_MOC_HDRS

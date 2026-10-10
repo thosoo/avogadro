@@ -6,8 +6,8 @@
 ## 2. Modern tier backend (D2)
 
 - [x] 2.1 Unit-sphere and unit-cylinder geometry VAOs, per-instance vertex formats (sphere: pos 3f + radius 1f + color 4×u8; bond half: 2×3f + radius + color — design D2), instanced shaders with lighting parity against `initializeGL`'s two-light setup (`glwidget.cpp:538-556`); verify with a single-chunk render test producing visually correct atoms/bonds
-- [ ] 2.2 Chunked instance-buffer upload with the ≤2 ms/frame time-sliced budget and fences; verify by log/assert that no upload exceeds the budget on a 50k-atom rebuild
-- [ ] 2.3 LOD zoom bands (2-3 index-buffer detail levels on the same instance data, hysteresis) + per-chunk AABB frustum culling; verify no re-tessellation during rotation at fixed zoom (churn counter stays 0) and culling skips off-screen chunks
+- [x] 2.2 Chunked instance-buffer upload with the ≤2 ms/frame time-sliced budget and fences; verify by log/assert that no upload exceeds the budget on a 50k-atom rebuild
+- [x] 2.3 LOD zoom bands (2-3 index-buffer detail levels on the same instance data, hysteresis) + per-chunk AABB frustum culling; verify no re-tessellation during rotation at fixed zoom (churn counter stays 0) and culling skips off-screen chunks
 - [ ] 2.4 Wire `GLWidget::render()` (`glwidget.cpp:775-905`) to the backend keeping `engineLessThan` pass order (`glwidget.cpp:41`); request GL 3.3 compatibility in `main.cpp:271-273` (non-Apple only); GPU buffers recreated in `initializeGL` (`glwidget.cpp:494`) on context loss; add backend draw-call/frame counters to the debug overlay (`renderTextOverlay`, `computeFramesPerSecond` at `glwidget.cpp:2742`) and verify a static 1M-atom synthetic scene stays at a bounded count (design A3; apitrace optional cross-check)
 
 ## 3. Engine migration via emitter (D4)
