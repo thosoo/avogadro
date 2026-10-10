@@ -67,14 +67,15 @@ uniform vec3 uLight1Diff;
 uniform vec3 uLight1Spec;
 uniform vec3 uLight1Dir;
 
-// View-space light directions (w = 0 => directional).
-const vec3 L0 = normalize(uLight0Dir);
-const vec3 L1 = normalize(uLight1Dir);
+// View-space light directions (w = 0 => directional). Runtime-normalized,
+// so they cannot be `const` (a uniform is a runtime value).
+vec3 L0 = normalize(uLight0Dir);
+vec3 L1 = normalize(uLight1Dir);
 const vec3 V = vec3(0.0, 0.0, 1.0); // camera on +Z looking down -Z
 
 // Replicate GLPainter::applyAsMaterials: derive the Phong material from the
 // base (element) colour.
-vec3 materialFromBase(vec3 base, out vec3 ambient, out vec3 diffuse,
+void materialFromBase(vec3 base, out vec3 ambient, out vec3 diffuse,
                       out vec3 specular) {
   ambient = base / 3.0;
   diffuse = base;
@@ -86,7 +87,7 @@ vec3 materialFromBase(vec3 base, out vec3 ambient, out vec3 diffuse,
 }
 
 // One directional light, fixed-function Blinn-Phong style (shininess 50).
-vec3 shadeOne(vec3 N, vec3 base, vec3 diff, vec3 spec, vec3 lDir,
+vec3 shadeOne(vec3 N, vec3 base, vec3 lDir,
               vec3 lDiff, vec3 lSpec) {
   vec3 amb; vec3 df; vec3 sp;
   materialFromBase(base, amb, df, sp);
@@ -99,7 +100,6 @@ vec3 shadeOne(vec3 N, vec3 base, vec3 diff, vec3 spec, vec3 lDir,
     if (ndoth > 0.0)
       outc += sp * lSpec * pow(ndoth, 50.0);
   }
-  (void)diff; (void)spec;
   return outc;
 }
 )";
@@ -138,9 +138,14 @@ ${LIGHTING}
 
 void main() {
   vec3 N = normalize(vNormal);
-  vec3 col = shadeOne(N, vColor.rgb, vec3(0.0), vec3(0.0), L0,
+  // Per-instance, per-fragment lighting. Compute the normalised light
+  // directions here (from the current uniforms) rather than at top level in
+  // the shared preamble, so per-frame uniform updates are honoured.
+  vec3 l0 = normalize(uLight0Dir);
+  vec3 l1 = normalize(uLight1Dir);
+  vec3 col = shadeOne(N, vColor.rgb, l0,
                       uLight0Diff, uLight0Spec);
-  col += shadeOne(N, vColor.rgb, vec3(0.0), vec3(0.0), L1,
+  col += shadeOne(N, vColor.rgb, l1,
                   uLight1Diff, uLight1Spec);
   fragColor = vec4(col, vColor.a);
 }
@@ -169,7 +174,7 @@ void main() {
   vec3 u = normalize(cross(up, axis));
   vec3 v = cross(axis, u);
 
-  const float len = length(aInstEnd - aInstStart);
+  float len = length(aInstEnd - aInstStart);
   // Local z maps onto the axis (centred), local x/y are the radial directions.
   vec3 worldPos =
     0.5 * (aInstStart + aInstEnd)
@@ -194,9 +199,11 @@ ${LIGHTING}
 
 void main() {
   vec3 N = normalize(vNormal);
-  vec3 col = shadeOne(N, vColor.rgb, vec3(0.0), vec3(0.0), L0,
+  vec3 l0 = normalize(uLight0Dir);
+  vec3 l1 = normalize(uLight1Dir);
+  vec3 col = shadeOne(N, vColor.rgb, l0,
                       uLight0Diff, uLight0Spec);
-  col += shadeOne(N, vColor.rgb, vec3(0.0), vec3(0.0), L1,
+  col += shadeOne(N, vColor.rgb, l1,
                   uLight1Diff, uLight1Spec);
   fragColor = vec4(col, vColor.a);
 }

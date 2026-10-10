@@ -42,6 +42,7 @@ set(tests
   chunkstore
   scenebuilder
   geometry
+  modernrenderer
   drawcommand
 #  hydrogenscommand
   forcefield
