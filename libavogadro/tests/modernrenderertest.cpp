@@ -132,18 +132,6 @@ void setDivisor(QOpenGLContext *ctx, GLuint location, GLuint divisor)
     fn(location, divisor);
 }
 
-//! glDrawArraysInstanced (GL 3.1), resolved via getProcAddress so the test
-//! only depends on the base QOpenGLFunctions for the draw call itself.
-void drawArraysInstanced(QOpenGLContext *ctx, GLenum mode, GLint first,
-                         GLsizei count, GLsizei instancecount)
-{
-  typedef void (*PFNGLDRAWARRAYSINSTANCEDPROC)(GLenum, GLint, GLsizei, GLsizei);
-  auto fn = reinterpret_cast<PFNGLDRAWARRAYSINSTANCEDPROC>(
-      ctx->getProcAddress("glDrawArraysInstanced"));
-  if (fn)
-    fn(mode, first, count, instancecount);
-}
-
 //! glDrawElementsInstanced (GL 3.1). The shared geometry is an indexed triangle
 //! list, so the modern tier draws it indexed + instanced rather than as a
 //! triangle strip.
@@ -405,24 +393,6 @@ void ModernRenderTest::testSingleChunkRender()
   instanceVBO.bind();
   instanceVBO.allocate(&sphereInst, sizeof(Inst)); // sphere first
 
-  // TEMP diagnostic: read back the raw VBO bytes to confirm what the GPU sees.
-  {
-    unsigned char vbo[sizeof(Inst)] = {0};
-    instanceVBO.bind();
-    // glGetBufferSubData is not on base QOpenGLFunctions; resolve it.
-    typedef void (*PFNGLGETBUFFERSUBDAPROC)(GLenum, GLintptr, GLsizeiptr, void*);
-    auto fn = reinterpret_cast<PFNGLGETBUFFERSUBDAPROC>(
-        ctx->getProcAddress("glGetBufferSubData"));
-    if (fn)
-      fn(GL_ARRAY_BUFFER, 0, sizeof(Inst), vbo);
-    instanceVBO.release();
-    qWarning() << "VBO raw bytes";
-    for (int i = 0; i < (int)sizeof(Inst); ++i)
-      qWarning() << "  byte[" << i << "]=" << (int)vbo[i];
-    qWarning() << "  => color @16 =" << (int)vbo[16] << (int)vbo[17]
-               << (int)vbo[18] << (int)vbo[19];
-  }
-
   // --- draw the single chunk ---------------------------------------------
   gl.glBindFramebuffer(GL_FRAMEBUFFER, fboID);
   gl.glViewport(0, 0, kWidth, kHeight);
@@ -431,128 +401,11 @@ void ModernRenderTest::testSingleChunkRender()
   glEnable(GL_DEPTH_TEST);
   gl.glDepthFunc(GL_LEQUAL);
 
-  // --- TEMP diagnostics ---
-  {
-    float bg_after_clear[3];
-    readPixel(&gl, 0, 0, bg_after_clear);
-    qWarning() << "bg after clear" << QString("(%1,%2,%3)").arg(bg_after_clear[0], 0, 'f', 3)
-                                               .arg(bg_after_clear[1], 0, 'f', 3)
-                                               .arg(bg_after_clear[2], 0, 'f', 3);
-    GLint vp[4];
-    gl.glGetIntegerv(GL_VIEWPORT, vp);
-    qWarning() << "viewport" << vp[0] << vp[1] << vp[2] << vp[3];
-    qWarning() << "sizeof(Inst)=" << sizeof(Inst) << "sizeof(GeometryVertex)="
-               << sizeof(GeometryVertex);
-    qWarning() << "sphereInst bytes"
-               << (int)sphereInst.pos[0] << (int)sphereInst.pos[1]
-               << (int)sphereInst.pos[2] << sphereInst.radius
-               << (int)sphereInst.color[0] << (int)sphereInst.color[1]
-               << (int)sphereInst.color[2] << (int)sphereInst.color[3];
-    int corners[4][2] = {{10, 10}, {kWidth - 11, 10}, {10, kHeight - 11},
-                         {kWidth - 11, kHeight - 11}};
-    for (int i = 0; i < 4; ++i) {
-      float c[3];
-      readPixel(&gl, corners[i][0], corners[i][1], c);
-      qWarning() << "corner" << i << QString("(%1,%2,%3)").arg(c[0], 0, 'f', 3)
-                                                 .arg(c[1], 0, 'f', 3)
-                                                 .arg(c[2], 0, 'f', 3);
-    }
-    GLenum err;
-    int errs = 0;
-    while ((err = gl.glGetError()) != GL_NO_ERROR) {
-      qWarning() << "GLERR" << err;
-      ++errs;
-    }
-    if (!errs)
-      qWarning() << "no GL error after clear";
-  }
-  // --- end TEMP diagnostics ---
-
   const QMatrix4x4 mvp = viewProjection();
 
-  // --- TEMP diagnostic: trivial fixed-red program, geometry only ---
-  {
-    QOpenGLShader *tv = new QOpenGLShader(QOpenGLShader::Vertex);
-    QVERIFY(tv->compileSourceCode(
-        "#version 330\nlayout(location=0) in vec3 aPos;\nuniform mat4 uMVP;\nvoid main(){ gl_Position = uMVP * vec4(aPos, 1.0); }"));
-    QOpenGLShader *tf = new QOpenGLShader(QOpenGLShader::Fragment);
-    QVERIFY(tf->compileSourceCode("#version 330\nout vec4 fc;\nvoid main(){ fc = vec4(1.0, 0.0, 0.0, 1.0); }"));
-    QOpenGLShaderProgram prog;
-    QVERIFY(prog.addShader(tv));
-    QVERIFY(prog.addShader(tf));
-    QVERIFY(prog.link());
-    GLuint u = prog.uniformLocation("uMVP");
-    prog.bind();
-    // Try with an identity MVP and depth test disabled to isolate projection
-    // vs. geometry/draw problems.
-    QMatrix4x4 identity;
-    prog.setUniformValue(u, identity);
-    gl.glDisable(GL_DEPTH_TEST);
-    sphereVAO.bind();
-    sphereVBO.bind();
-    prog.setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(GeometryVertex));
-    gl.glEnableVertexAttribArray(0);
-    GLint eab = -1;
-    gl.glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &eab);
-    qWarning() << "identityMVP indexCount=" << sphere.indexCount()
-               << "ELEMENT_ARRAY_BUFFER_BINDING=" << eab;
-    gl.glDrawElements(GL_TRIANGLES, sphere.indexCount(), GL_UNSIGNED_SHORT,
-                      nullptr);
-    gl.glFlush();
-    GLenum err;
-    int errs = 0;
-    while ((err = gl.glGetError()) != GL_NO_ERROR) {
-      qWarning() << "GLERR after draw" << err;
-      ++errs;
-    }
-    if (!errs)
-      qWarning() << "no GL error after draw";
-
-    // Hardcoded triangle of known vertex data, no MVP, no index buffer.
-    static const float tri[9] = {0.0f, 0.0f, 0.0f, 0.5f, 0.0f, 0.0f,
-                                 0.0f, 0.5f, 0.0f};
-    QOpenGLBuffer vb;
-    vb.create();
-    vb.bind();
-    vb.allocate(tri, sizeof(tri));
-    prog.setAttributeBuffer(0, GL_FLOAT, 0, 3, 3 * sizeof(float));
-    gl.glEnableVertexAttribArray(0);
-    gl.glDisable(GL_DEPTH_TEST);
-    gl.glDrawArrays(GL_TRIANGLES, 0, 3);
-    gl.glFlush();
-    float tc[3];
-    readPixel(&gl, 149, 149, tc);  // near triangle centroid (0.167, 0.167) NDC
-    qWarning() << "hardcoded-triangle px(149,149)" << QString("(%1,%2,%3)").arg(tc[0], 0, 'f', 3)
-                                                 .arg(tc[1], 0, 'f', 3)
-                                                 .arg(tc[2], 0, 'f', 3);
-    float rc[3];
-    readPixel(&gl, kWidth / 2, kHeight / 2, rc);
-    qWarning() << "trivial-red CENTER" << QString("(%1,%2,%3)").arg(rc[0], 0, 'f', 3)
-                                               .arg(rc[1], 0, 'f', 3)
-                                               .arg(rc[2], 0, 'f', 3);
-    sphereVAO.release();
-    prog.release();
-    delete tv;
-    delete tf;
-  }
-  // --- end TEMP diagnostic ---
-
-  // The earlier fixed-shape diagnostics disabled the depth test; re-enable it
-  // so the sphere (front surface, closer) correctly occludes the bond drawn
-  // behind it at their overlap.
-  // Wipe any diagnostic contamination in BOTH buffers so the real render
-  // starts from a clean background. (The earlier fixed-shape diagnostics
-  // painted the framebuffer red; a depth-only clear would leave that red.)
-  gl.glClearColor(kBackground[0], kBackground[1], kBackground[2], 1.0f);
-  gl.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  gl.glEnable(GL_DEPTH_TEST);
-  gl.glDepthFunc(GL_LEQUAL);
-
   // Sphere: geometry VAO (locs 0/1) + instance VBO (locs 2/3/4, instanced).
-  // The trivial-red diagnostic above bound and released its own program,
-  // leaving no program bound. Re-bind the sphere program BEFORE configuring
-  // attribute buffers or setting uniforms, since Qt applies those against the
-  // currently bound program.
+  // Bind the sphere program BEFORE configuring attribute buffers or setting
+  // uniforms, since Qt applies those against the currently bound program.
   program.bind();
   // Sanity: assert a program is actually bound before drawing.
   GLuint boundProg = 0;
@@ -592,32 +445,6 @@ void ModernRenderTest::testSingleChunkRender()
   instanceVBO.release();
   sphereVAO.release();
   gl.glFlush();
-
-  // --- DISCRIMINATING DIAGNOSTICS (sphere-only, bond disabled) ---
-  // centre colour + depth (oracle table).
-  {
-    float sc[3];
-    readPixel(&gl, kWidth / 2, kHeight / 2, sc);
-    float sd = 0.0f;
-    gl.glReadPixels(kWidth / 2, kHeight / 2, 1, 1, GL_DEPTH_COMPONENT,
-                    GL_FLOAT, &sd);
-    qWarning() << "SPHERE-ONLY centre colour"
-               << QString("(%1,%2,%3)").arg(sc[0], 0, 'f', 3)
-                                        .arg(sc[1], 0, 'f', 3)
-                                        .arg(sc[2], 0, 'f', 3)
-               << "depth" << sd;
-  }
-  // 4) GL errors after the sphere draw.
-  {
-    GLenum err;
-    int errs = 0;
-    while ((err = gl.glGetError()) != GL_NO_ERROR) {
-      qWarning() << "GLERR after sphere draw" << err;
-      ++errs;
-    }
-    if (!errs)
-      qWarning() << "no GL error after sphere draw";
-  }
 
   // Bond: cylinder geometry VAO + a fresh instance buffer holding the bond.
   QOpenGLShaderProgram bprogram;
@@ -668,32 +495,6 @@ void ModernRenderTest::testSingleChunkRender()
   bondInstanceVBO.release();
 
   gl.glFlush();
-
-  // --- TEMP diagnostics ---
-  for (int x = 0; x < kWidth; x += 16) {
-    float p[3];
-    readPixel(&gl, x, kHeight / 2, p);
-    qWarning() << "scan" << x << QString("(%1,%2,%3)").arg(p[0], 0, 'f', 3)
-                                               .arg(p[1], 0, 'f', 3)
-                                               .arg(p[2], 0, 'f', 3);
-  }
-  float center_dbg[3];
-  readPixel(&gl, kWidth / 2, kHeight / 2, center_dbg);
-  qWarning() << "CENTER" << QString("(%1,%2,%3)").arg(center_dbg[0], 0, 'f', 3)
-                                             .arg(center_dbg[1], 0, 'f', 3)
-                                             .arg(center_dbg[2], 0, 'f', 3);
-  // Vertical scan at x=128: sphere disk spans ~y[110,147]; the bond (drawn
-  // after the sphere, starting at the origin = sphere centre) spans ~y[119,137].
-  // Red at the sphere-only rows (y~110-118) with white at the centre proves the
-  // white bond overwrites the red sphere (inert depth test / no FBO depth).
-  for (int y = 100; y <= 160; y += 4) {
-    float q[3];
-    readPixel(&gl, kWidth / 2, y, q);
-    qWarning() << "vscan" << 128 << y << QString("(%1,%2,%3)").arg(q[0], 0, 'f', 3)
-                                                 .arg(q[1], 0, 'f', 3)
-                                                 .arg(q[2], 0, 'f', 3);
-  }
-  // --- end TEMP diagnostics ---
 
   // --- verify the rendered pixels ----------------------------------------
   // Atom 1 (red) is centred on screen.
