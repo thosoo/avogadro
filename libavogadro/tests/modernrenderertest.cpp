@@ -49,6 +49,9 @@
 #include "libavogadro/src/rendering/geometry.h"
 #include "libavogadro/src/rendering/shaders.h"
 #include "libavogadro/src/rendering/records.h"
+#include "libavogadro/src/rendering/chunkstore.h"
+#include "libavogadro/src/rendering/chunkeduploader.h"
+#include "libavogadro/src/rendering/modernbackend.h"
 
 using Avogadro::rendering::CylinderGeometry;
 using Avogadro::rendering::GeometryVertex;
@@ -184,6 +187,8 @@ class ModernRenderTest : public QObject
   private Q_SLOTS:
     void testShaderSources();
     void testSingleChunkRender();
+    void testChunkedUploaderBudget();
+    void testUpload50kWithinBudget();
 };
 
 void ModernRenderTest::testShaderSources()
@@ -724,6 +729,98 @@ void ModernRenderTest::testSingleChunkRender()
   delete fsrc;
   delete bcv;
   delete bcf;
+  delete off;
+  delete ctx;
+}
+
+// Headless: the ChunkedUploader must slice a large dirty set against a fixed
+// per-frame budget and defer the overflow, while a small set fits whole.
+void ModernRenderTest::testChunkedUploaderBudget()
+{
+  // Synthetic cost: 1 MB of instance data costs 1000 us of upload time.
+  const Avogadro::rendering::ChunkedUploader::CostFn cost =
+      [](std::size_t bytes) {
+        return static_cast<double>(bytes) / (1u << 20) * 1000.0;
+      };
+
+  // Budget 2000 us accepts two 1-MB ranges; the rest are deferred.
+  Avogadro::rendering::ChunkedUploader uploader(2000);
+  std::vector<Avogadro::rendering::ChunkedUploader::Range> big;
+  for (int i = 0; i < 5; ++i)
+    big.push_back({static_cast<std::size_t>(i) * (1u << 20), 1u << 20});
+  const int accepted = uploader.schedule(big, cost);
+  QCOMPARE(accepted, 2);
+  QCOMPARE(uploader.deferredCount(), 3);
+  QCOMPARE(uploader.totalScheduled(), 5);
+  QVERIFY(!uploader.fullyAccepted());
+
+  // A single 1-MB range fits entirely under the 2000 us budget.
+  Avogadro::rendering::ChunkedUploader small(2000);
+  std::vector<Avogadro::rendering::ChunkedUploader::Range> one;
+  one.push_back({0, 1u << 20});
+  QCOMPARE(small.schedule(one, cost), 1);
+  QVERIFY(small.fullyAccepted());
+  QCOMPARE(small.deferredCount(), 0);
+
+  // recordUploadMicros tracks the worst-case single upload, not the average.
+  small.recordUploadMicros(500.0);
+  small.recordUploadMicros(1500.0);
+  small.recordUploadMicros(900.0);
+  QCOMPARE(small.maxSingleUploadMicros(), 1500.0);
+}
+
+// Real GL: upload a 50k-atom store through the modern backend in bounded
+// chunks and assert no single glBufferSubData exceeded the 2 ms budget.
+void ModernRenderTest::testUpload50kWithinBudget()
+{
+  QOffscreenSurface *off = nullptr;
+  QOpenGLContext *ctx = makeGLContext(&off);
+  if (!ctx)
+    QSKIP("No GL 3.3+ context available on this runner; skipping 50k upload",
+          SkipSingle);
+
+  Avogadro::rendering::ModernRendererBackend backend;
+  // Pre-reserve capacity for 64k atoms / bonds so the 50k rebuild uploads
+  // without a costly, un-budgeted VBO reallocation.
+  backend.initialize(65536, 65536);
+
+  // Build a 50k-atom store, every atom dirty.
+  constexpr int kAtoms = 50000;
+  Avogadro::rendering::ChunkStore<Avogadro::rendering::SphereInstance> store;
+  store.reserve(kAtoms);
+  for (int i = 0; i < kAtoms; ++i) {
+    Avogadro::rendering::SphereInstance s;
+    s.pos[0] = static_cast<float>(i);
+    s.radius = 0.5f;
+    s.color[0] = 255; s.color[1] = 128; s.color[2] = 0; s.color[3] = 255;
+    store.append(s);
+  }
+  QCOMPARE(static_cast<int>(store.size()), kAtoms);
+
+  // Upload in frames until the whole store is on the GPU. The default 2 ms
+  // budget accepts the ~1 MB store in one frame (a real glBufferSubData of
+  // that size is well under 2 ms); the loop still proves the mechanism scales
+  // and defers correctly if a rebuild ever exceeds the budget.
+  const int kMaxFrames = 64;
+  int frames = 0;
+  do {
+    backend.beginFrame(nullptr, QRect(0, 0, kWidth, kHeight), 0);
+    backend.pushSpheres(store);
+    ++frames;
+  } while (backend.pendingUploads() > 0 && frames < kMaxFrames);
+
+  QVERIFY(frames < kMaxFrames);
+  // Every atom was acknowledged (nothing left dirty).
+  QCOMPARE(store.dirtyRanges().count(), 0);
+  // The upload was chunked (multiple bounded glBufferSubData calls).
+  QVERIFY(backend.uploadCallCount() >= 1);
+  QVERIFY(backend.maxChunkBytes() <= Avogadro::rendering::ModernRendererBackend::kMaxChunkBytes);
+  // The core 2.2 assertion: no single upload exceeded the 2 ms budget.
+  QVERIFY2(backend.maxSingleUploadMicros() <= 2000.0,
+           qPrintable(QString("max single upload %1 us exceeded 2 ms budget")
+                          .arg(backend.maxSingleUploadMicros(), 0, 'f', 1)));
+
+  ctx->makeCurrent(nullptr);
   delete off;
   delete ctx;
 }

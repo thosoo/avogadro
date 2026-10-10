@@ -98,6 +98,23 @@ public:
     return m_data.back();
   }
 
+  //! Raw pointer to the record data (for GPU uploads keyed by byte offset).
+  const T *data() const { return m_data.constData(); }
+
+  //! Clear the dirty flag for a contiguous range of records. Used by the submit
+  //! stage to acknowledge only the ranges it uploaded, leaving deferred ranges
+  //! dirty for the next frame.
+  void clearDirty(unsigned int start, unsigned int count) const {
+    if (count == 0 || start >= m_data.size())
+      return;
+    unsigned int end = qMin(start + count,
+                            static_cast<unsigned int>(m_data.size()));
+    if (static_cast<unsigned int>(m_dirty.size()) < m_data.size())
+      m_dirty.resize(m_data.size(), 0);
+    for (unsigned int i = start; i < end; ++i)
+      m_dirty[i] = 0;
+  }
+
   //! Mark an in-place modification of a single record dirty.
   void modify(unsigned int i) {
     markDirty(i, 1);
@@ -161,7 +178,9 @@ public:
 
 private:
   QVector<T> m_data;
-  QVector<char> m_dirty; // parallel to m_data; 1 == dirty since acknowledge()
+  mutable QVector<char> m_dirty; // parallel to m_data; 1 == dirty since
+                                // acknowledge(); mutable: the submit stage
+                                // clears flags through a const ChunkStore ref.
 };
 
 } // namespace rendering

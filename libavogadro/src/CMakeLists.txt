@@ -124,6 +124,8 @@ set(libavogadro_SRCS
   # modern-tier primitive geometry.
   rendering/scenebuilder.cpp
   rendering/geometry.cpp
+  rendering/chunkeduploader.cpp  # chunked, budgeted upload scheduler (2.2)
+  rendering/modernbackend.cpp    # modern-tier submit stage with fences (2.2)
 )
 
 set(libavogadro_MOC_HDRS
