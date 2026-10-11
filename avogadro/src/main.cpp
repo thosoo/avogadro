@@ -356,6 +356,15 @@ int main(int argc, char *argv[])
 
   QSurfaceFormat defFormat = QSurfaceFormat::defaultFormat();
   defFormat.setSamples(4);
+  // Request a GL 3.3 compatibility context so the modern instanced rendering
+  // tier (gpu-rendering-pipeline task 2.4) can run while the legacy fixed-
+  // function tier stays available on the same context. CompatibilityProfile
+  // (not Core) is required for the legacy fixed-function path; Apple caps GL at
+  // 3.2 and exposes no compatibility profile, so this is skipped there.
+  #ifndef Q_OS_MAC
+  defFormat.setVersion(3, 3);
+  defFormat.setProfile(QSurfaceFormat::CompatibilityProfile);
+  #endif
   QSurfaceFormat::setDefaultFormat(defFormat);
 
   // Now load any files supplied on the command-line or via launching a file.

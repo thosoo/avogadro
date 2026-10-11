@@ -19,6 +19,9 @@
 
 #include <QtDebug>
 
+#include "geometry.h"
+#include "shaders.h"
+
 namespace Avogadro {
 namespace rendering {
 
@@ -72,6 +75,10 @@ void ModernRendererBackend::initialize(int maxSpheres, int maxBonds) {
   };
   alloc(m_sphereVBO, sphereBytes);
   alloc(m_bondVBO, bondBytes);
+
+  // Shared geometry VAOs + shaders for the instanced draw (task 2.4). Built on
+  // this context; rebuilt on context loss via initializeGL -> initialize().
+  buildGeometry();
 }
 
 void ModernRendererBackend::ensureCapacity(InstanceVBO &vbo,
@@ -106,6 +113,11 @@ bool ModernRendererBackend::beginFrame(const Camera * /*camera*/,
   m_bondVBO.uploader.beginFrame();
   m_uploadCalls = 0;
   m_maxChunkBytes = 0;
+  // Per-frame state reset. The MVP is supplied separately via
+  // setModelViewProjection(); without it drawInstances() is a no-op.
+  m_sphereCount = 0;
+  m_bondCount = 0;
+  m_drawCallsThisFrame = 0;
   return true;
 }
 
@@ -180,11 +192,16 @@ template void ModernRendererBackend::pushDirtyRanges<BondInstance>(
 void ModernRendererBackend::pushSpheres(const ChunkStore<SphereInstance> &store) {
   pushDirtyRanges(store, m_sphereVBO);
   fenceAfterUpload(m_sphereVBO);
+  // Watermark: the count drawn this frame is the store size, never the
+  // accumulated total. A smaller scene after a larger one must not draw stale
+  // instances as garbage (risk #2 in the task design).
+  m_sphereCount = static_cast<unsigned int>(store.size());
 }
 
 void ModernRendererBackend::pushBonds(const ChunkStore<BondInstance> &store) {
   pushDirtyRanges(store, m_bondVBO);
   fenceAfterUpload(m_bondVBO);
+  m_bondCount = static_cast<unsigned int>(store.size());
 }
 
 void ModernRendererBackend::pushLines(const ChunkStore<LineInstance> & /*store*/) {
@@ -218,8 +235,11 @@ void ModernRendererBackend::fenceAfterUpload(InstanceVBO &vbo) {
 }
 
 void ModernRendererBackend::endFrame() {
-  // Present / flush. The modern tier presents via the QOpenGLWidget swap; the
-  // fences above guarantee prior uploads are consumed before reuse.
+  // Draw the uploaded instance data (one instanced draw per primitive type),
+  // then present via the QOpenGLWidget swap. The fences above guarantee prior
+  // uploads are consumed before reuse; the draw reads the same VBOs.
+  drawInstances();
+  ++m_framesSubmitted;
 }
 
 QList<GLHit> ModernRendererBackend::pick(int /*x*/, int /*y*/, int /*w*/,
@@ -227,6 +247,241 @@ QList<GLHit> ModernRendererBackend::pick(int /*x*/, int /*y*/, int /*w*/,
   // Color-ID picking is the modern tier's pick strategy (task 4.1). Not yet
   // implemented in the 2.2 upload stage; returns empty until then.
   return QList<GLHit>();
+}
+
+//! Compile + link a program from the sphere/cylinder shader sources, replacing
+//! the ${LIGHTING} placeholder with the shared lighting preamble first.
+static bool compileShaderProgram(QOpenGLShaderProgram &program,
+                                 const QString &vsrc, const QString &fsrc);
+
+void ModernRendererBackend::buildGeometry()
+{
+  // Sphere: unit sphere tessellation + instanced sphere shader.
+  {
+    SphereGeometry sphere;
+    sphere.setRings(12);
+    sphere.setSegments(24);
+    sphere.generate();
+
+    if (!m_sphereGeom.vao.create() || !m_sphereGeom.geometryVBO.create()) {
+      qWarning() << "ModernRendererBackend: sphere VAO/VBO create failed";
+      return;
+    }
+    m_sphereGeom.geometryVBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
+    m_sphereGeom.geometryVBO.allocate(sphere.vertices().data(),
+                                      sphere.vertices().size() * sizeof(GeometryVertex));
+    // Index buffer (GL_ELEMENT_ARRAY_BUFFER): must be an IndexBuffer-type VBO,
+    // else ELEMENT_ARRAY_BUFFER stays at 0 and glDrawElements uses a null
+    // client-side index pointer (SIGSEGV in the driver). A plain member is
+    // VertexBuffer-type, so build it locally with the right type and move it in.
+    {
+      QOpenGLBuffer indexVBO(QOpenGLBuffer::IndexBuffer);
+      indexVBO.create();
+      indexVBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
+      indexVBO.allocate(sphere.indices().data(),
+                        sphere.indices().size() * sizeof(unsigned short));
+      m_sphereGeom.indexVBO = std::move(indexVBO);
+    }
+    m_sphereGeom.indexCount = sphere.indexCount();
+
+    if (!compileShaderProgram(m_sphereGeom.program, kSphereVertexShader,
+                        kSphereFragmentShader)) {
+      qWarning() << "ModernRendererBackend: sphere program compile/link failed";
+      return;
+    }
+
+    // Bind the VAO and record every attribute (geometry 0/1, instance 2+ with
+    // per-instance divisor) plus the ELEMENT_ARRAY_BUFFER. After this, binding
+    // the VAO alone restores the full draw configuration.
+    if (!m_sphereGeom.program.bind()) {
+      qWarning() << "ModernRendererBackend: sphere program bind failed during setup";
+      return;
+    }
+    m_sphereGeom.uMVPloc = m_sphereGeom.program.uniformLocation("uMVP");
+    m_sphereGeom.vao.bind();
+    m_sphereGeom.geometryVBO.bind();
+    m_gl.glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
+                               sizeof(GeometryVertex), reinterpret_cast<void *>(0));
+    m_gl.glEnableVertexAttribArray(0);
+    m_gl.glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE,
+                               sizeof(GeometryVertex), reinterpret_cast<void *>(12));
+    m_gl.glEnableVertexAttribArray(1);
+    // Instance attributes read from the (stable-object) upload VBO.
+    m_sphereVBO.buffer.bind();
+    m_sphereGeom.program.setAttributeBuffer(2, GL_FLOAT, 0, 3, sizeof(SphereInstance));
+    m_sphereGeom.program.setAttributeBuffer(3, GL_FLOAT, 12, 1, sizeof(SphereInstance));
+    m_sphereGeom.program.setAttributeBuffer(4, GL_UNSIGNED_BYTE, 16, 4, sizeof(SphereInstance));
+    m_gl.glEnableVertexAttribArray(2);
+    m_gl.glEnableVertexAttribArray(3);
+    m_gl.glEnableVertexAttribArray(4);
+    m_gl.glVertexAttribDivisor(2, 1);
+    m_gl.glVertexAttribDivisor(3, 1);
+    m_gl.glVertexAttribDivisor(4, 1);
+    m_sphereGeom.vao.release();
+    m_sphereGeom.program.release();
+    m_sphereGeom.valid = true;
+  }
+
+  // Cylinder (bond half): unit cylinder tessellation + instanced cylinder shader.
+  {
+    CylinderGeometry cylinder;
+    cylinder.setSegments(24);
+    cylinder.generate();
+
+    if (!m_cylinderGeom.vao.create() || !m_cylinderGeom.geometryVBO.create()) {
+      qWarning() << "ModernRendererBackend: cylinder VAO/VBO create failed";
+      return;
+    }
+    m_cylinderGeom.geometryVBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
+    m_cylinderGeom.geometryVBO.allocate(cylinder.vertices().data(),
+                                        cylinder.vertices().size() * sizeof(GeometryVertex));
+    {
+      QOpenGLBuffer indexVBO(QOpenGLBuffer::IndexBuffer);
+      indexVBO.create();
+      indexVBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
+      indexVBO.allocate(cylinder.indices().data(),
+                        cylinder.indices().size() * sizeof(unsigned short));
+      m_cylinderGeom.indexVBO = std::move(indexVBO);
+    }
+    m_cylinderGeom.indexCount = cylinder.indexCount();
+
+    if (!compileShaderProgram(m_cylinderGeom.program, kCylinderVertexShader,
+                        kCylinderFragmentShader)) {
+      qWarning() << "ModernRendererBackend: cylinder program compile/link failed";
+      return;
+    }
+
+    if (!m_cylinderGeom.program.bind()) {
+      qWarning() << "ModernRendererBackend: cylinder program bind failed during setup";
+      return;
+    }
+    m_cylinderGeom.uMVPloc = m_cylinderGeom.program.uniformLocation("uMVP");
+    m_cylinderGeom.vao.bind();
+    m_cylinderGeom.geometryVBO.bind();
+    m_gl.glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
+                               sizeof(GeometryVertex), reinterpret_cast<void *>(0));
+    m_gl.glEnableVertexAttribArray(0);
+    m_gl.glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE,
+                               sizeof(GeometryVertex), reinterpret_cast<void *>(12));
+    m_gl.glEnableVertexAttribArray(1);
+    // Instance attributes read from the (stable-object) bond upload VBO.
+    m_bondVBO.buffer.bind();
+    m_cylinderGeom.program.setAttributeBuffer(2, GL_FLOAT, 0, 3, sizeof(BondInstance));
+    m_cylinderGeom.program.setAttributeBuffer(3, GL_FLOAT, 12, 3, sizeof(BondInstance));
+    m_cylinderGeom.program.setAttributeBuffer(4, GL_FLOAT, 24, 1, sizeof(BondInstance));
+    m_cylinderGeom.program.setAttributeBuffer(5, GL_UNSIGNED_BYTE, 28, 4, sizeof(BondInstance));
+    m_gl.glEnableVertexAttribArray(2);
+    m_gl.glEnableVertexAttribArray(3);
+    m_gl.glEnableVertexAttribArray(4);
+    m_gl.glEnableVertexAttribArray(5);
+    m_gl.glVertexAttribDivisor(2, 1);
+    m_gl.glVertexAttribDivisor(3, 1);
+    m_gl.glVertexAttribDivisor(4, 1);
+    m_gl.glVertexAttribDivisor(5, 1);
+    m_cylinderGeom.vao.release();
+    m_cylinderGeom.program.release();
+    m_cylinderGeom.valid = true;
+  }
+}
+
+void ModernRendererBackend::drawInstances()
+{
+  if (!m_glInitialized || !m_haveMvp)
+    return; // no matrix yet: a frame with a stale matrix must not draw
+
+  // Blending + depth test so transparent (alpha < 1) instances composite over
+  // opaque ones. Exact back-to-front sorting is out of scope for 2.4 (D2
+  // allows "same visual class"); per-instance alpha already carries the
+  // transparency.
+  m_gl.glEnable(GL_BLEND);
+  m_gl.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  m_gl.glEnable(GL_DEPTH_TEST);
+  m_gl.glDepthFunc(GL_LEQUAL);
+
+  if (m_sphereGeom.valid && m_sphereCount > 0) {
+    if (!m_sphereGeom.program.bind()) {
+      qWarning() << "ModernRendererBackend: sphere program bind failed";
+      return;
+    }
+    m_sphereGeom.program.setUniformValue(m_sphereGeom.uMVPloc, m_mvp);
+    // Re-establish every binding explicitly rather than relying on VAO state
+    // to persist across the buildGeometry/drawInstances scope split: bind the
+    // geometry VBO for attribs 0/1, the index VBO for ELEMENT_ARRAY_BUFFER,
+    // then the instance VBO for 2+ with divisors.
+    m_sphereGeom.vao.bind();
+    m_sphereGeom.geometryVBO.bind();
+    m_sphereGeom.indexVBO.bind();
+    m_sphereGeom.program.setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(GeometryVertex));
+    m_sphereGeom.program.setAttributeBuffer(1, GL_FLOAT, 12, 3, sizeof(GeometryVertex));
+    m_sphereVBO.buffer.bind();
+    m_sphereGeom.program.setAttributeBuffer(2, GL_FLOAT, 0, 3, sizeof(SphereInstance));
+    m_sphereGeom.program.setAttributeBuffer(3, GL_FLOAT, 12, 1, sizeof(SphereInstance));
+    m_sphereGeom.program.setAttributeBuffer(4, GL_UNSIGNED_BYTE, 16, 4, sizeof(SphereInstance));
+    m_gl.glVertexAttribDivisor(2, 1);
+    m_gl.glVertexAttribDivisor(3, 1);
+    m_gl.glVertexAttribDivisor(4, 1);
+    m_gl.glDrawElementsInstanced(GL_TRIANGLES, m_sphereGeom.indexCount,
+                                 GL_UNSIGNED_SHORT, nullptr,
+                                 static_cast<GLsizei>(m_sphereCount));
+    ++m_drawCallsThisFrame;
+    m_sphereGeom.vao.release();
+  }
+
+  if (m_cylinderGeom.valid && m_bondCount > 0) {
+    if (!m_cylinderGeom.program.bind()) {
+      qWarning() << "ModernRendererBackend: cylinder program bind failed";
+      return;
+    }
+    m_cylinderGeom.program.setUniformValue(m_cylinderGeom.uMVPloc, m_mvp);
+    m_cylinderGeom.vao.bind();
+    m_cylinderGeom.geometryVBO.bind();
+    m_cylinderGeom.indexVBO.bind();
+    m_cylinderGeom.program.setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(GeometryVertex));
+    m_cylinderGeom.program.setAttributeBuffer(1, GL_FLOAT, 12, 3, sizeof(GeometryVertex));
+    m_bondVBO.buffer.bind();
+    m_cylinderGeom.program.setAttributeBuffer(2, GL_FLOAT, 0, 3, sizeof(BondInstance));
+    m_cylinderGeom.program.setAttributeBuffer(3, GL_FLOAT, 12, 3, sizeof(BondInstance));
+    m_cylinderGeom.program.setAttributeBuffer(4, GL_FLOAT, 24, 1, sizeof(BondInstance));
+    m_cylinderGeom.program.setAttributeBuffer(5, GL_UNSIGNED_BYTE, 28, 4, sizeof(BondInstance));
+    m_gl.glVertexAttribDivisor(2, 1);
+    m_gl.glVertexAttribDivisor(3, 1);
+    m_gl.glVertexAttribDivisor(4, 1);
+    m_gl.glVertexAttribDivisor(5, 1);
+    m_gl.glDrawElementsInstanced(GL_TRIANGLES, m_cylinderGeom.indexCount,
+                                 GL_UNSIGNED_SHORT, nullptr,
+                                 static_cast<GLsizei>(m_bondCount));
+    ++m_drawCallsThisFrame;
+    m_cylinderGeom.vao.release();
+  }
+}
+
+//! Compile + link a program from the sphere/cylinder shader sources, replacing
+//! the ${LIGHTING} placeholder with the shared lighting preamble first.
+static bool compileShaderProgram(QOpenGLShaderProgram &program,
+                                 const QString &vsrc, const QString &fsrc)
+{
+  QString vs = vsrc;
+  vs.replace("${LIGHTING}", kLightingPreamble);
+  QString fs = fsrc;
+  fs.replace("${LIGHTING}", kLightingPreamble);
+
+  QOpenGLShader *vs_ = new QOpenGLShader(QOpenGLShader::Vertex);
+  QOpenGLShader *fs_ = new QOpenGLShader(QOpenGLShader::Fragment);
+  if (!vs_->compileSourceCode(vs) || !fs_->compileSourceCode(fs)) {
+    qWarning() << "modern backend shader log:" << vs_->log() << fs_->log();
+    delete vs_;
+    delete fs_;
+    return false;
+  }
+  if (!program.addShader(vs_) || !program.addShader(fs_)) {
+    qWarning() << "modern backend shader program log:" << program.log();
+    delete vs_;
+    delete fs_;
+    return false;
+  }
+  delete vs_;
+  delete fs_;
+  return program.link();
 }
 
 } // namespace rendering

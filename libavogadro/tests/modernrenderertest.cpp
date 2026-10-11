@@ -182,6 +182,7 @@ class ModernRenderTest : public QObject
     void testSingleChunkRender();
     void testChunkedUploaderBudget();
     void testUpload50kWithinBudget();
+    void testDrawCallsBounded();
 
     // Task 2.3: LOD zoom bands + hysteresis and per-chunk AABB frustum culling.
     void testLodParams();
@@ -634,6 +635,82 @@ void ModernRenderTest::testUpload50kWithinBudget()
   QVERIFY2(backend.maxSingleUploadMicros() <= 2000.0,
            qPrintable(QString("max single upload %1 us exceeded 2 ms budget")
                           .arg(backend.maxSingleUploadMicros(), 0, 'f', 1)));
+
+  ctx->makeCurrent(nullptr);
+  delete off;
+  delete ctx;
+}
+
+// Task 2.4: the modern backend issues a bounded number of instanced draws per
+// frame — one per primitive type that has instances — independent of scene
+// size. A static 1M-atom synthetic scene must still draw exactly 2 (sphere +
+// cylinder), proving the draw count does not scale with the atom count.
+void ModernRenderTest::testDrawCallsBounded()
+{
+  QOffscreenSurface *off = nullptr;
+  QOpenGLContext *ctx = makeGLContext(&off);
+  if (!ctx)
+    QSKIP("No GL 3.3+ context available on this runner; skipping draw-count test",
+          SkipSingle);
+
+  Avogadro::rendering::ModernRendererBackend backend;
+  // Pre-reserve for a 1M-atom scene so no VBO reallocation happens during the
+  // upload (a reallocation would be an un-budgeted write, which is fine for the
+  // count test but we want to exercise the reserve path).
+  backend.initialize(1 << 20, 1 << 20);
+
+  using SphereStore = Avogadro::rendering::ChunkStore<Avogadro::rendering::SphereInstance>;
+  using BondStore = Avogadro::rendering::ChunkStore<Avogadro::rendering::BondInstance>;
+
+  // 1) No MVP supplied: a frame with a stale matrix must draw nothing (the draw
+  //    path is a no-op until an MVP is set, so a mis-ordered frame never draws
+  //    stale instances).
+  backend.beginFrame(nullptr, QRect(0, 0, kWidth, kHeight), 0);
+  {
+    SphereStore spheres;
+    spheres.reserve(1024);
+    for (int i = 0; i < 1024; ++i) {
+      Avogadro::rendering::SphereInstance s;
+      s.pos[0] = 0; s.pos[1] = 0; s.pos[2] = 0; s.radius = 0.5f;
+      s.color[0] = 255; s.color[1] = 0; s.color[2] = 0; s.color[3] = 255;
+      spheres.append(s);
+    }
+    backend.pushSpheres(spheres);
+    backend.endFrame();
+  }
+  QCOMPARE(static_cast<int>(backend.drawCallsThisFrame()), 0);
+
+  // 2) A 1M-atom synthetic scene WITH an MVP: exactly 2 instanced draws, one
+  //    per primitive type, regardless of the atom count.
+  backend.beginFrame(nullptr, QRect(0, 0, kWidth, kHeight), 0);
+  backend.setModelViewProjection(viewProjection());
+  {
+    SphereStore spheres;
+    spheres.reserve(1 << 20);
+    for (int i = 0; i < (1 << 20); ++i) {
+      Avogadro::rendering::SphereInstance s;
+      s.pos[0] = static_cast<float>(i); s.pos[1] = 0; s.pos[2] = 0;
+      s.radius = 0.5f;
+      s.color[0] = 255; s.color[1] = 128; s.color[2] = 0; s.color[3] = 255;
+      spheres.append(s);
+    }
+    BondStore bonds;
+    bonds.reserve(1 << 20);
+    for (int i = 0; i < (1 << 20); ++i) {
+      Avogadro::rendering::BondInstance b;
+      b.start[0] = 0; b.start[1] = 0; b.start[2] = 0;
+      b.end[0] = 1; b.end[1] = 0; b.end[2] = 0;
+      b.radius = 0.2f;
+      b.color[0] = 200; b.color[1] = 200; b.color[2] = 200; b.color[3] = 255;
+      b.order = 0; b.shift = 0;
+      bonds.append(b);
+    }
+    backend.pushSpheres(spheres);
+    backend.pushBonds(bonds);
+    backend.endFrame();
+  }
+  QCOMPARE(static_cast<int>(backend.drawCallsThisFrame()), 2);
+  QCOMPARE(static_cast<int>(backend.framesSubmitted()), 2);
 
   ctx->makeCurrent(nullptr);
   delete off;

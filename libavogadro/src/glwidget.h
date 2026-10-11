@@ -633,6 +633,18 @@ namespace Avogadro {
       virtual void render();
 
       /**
+       * Modern-tier render path (gpu-rendering-pipeline task 2.4). Paints the
+       * engines into the SceneBuilder (a Painter, via the pd painter override)
+       * keeping engineLessThan pass order, then hands the finished chunk stores
+       * to the ModernRendererBackend, which uploads them (chunked, budgeted)
+       * and issues a bounded number of instanced draws (one per primitive type
+       * that has instances). Uses the model*projection matrix set up by
+       * paintGL. Falls back to the legacy display-list path when the modern
+       * tier is disabled.
+       */
+      virtual void renderModern();
+
+      /**
        * Render a full crystal cell
        * Called by render() automatically
        *

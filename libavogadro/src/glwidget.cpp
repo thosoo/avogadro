@@ -34,6 +34,9 @@
 #include "glpainter_p.h"
 #include "glhit.h"
 
+#include "rendering/modernbackend.h"
+#include "rendering/scenebuilder.h"
+
 #include <QMessageBox>
 #include <QPen>
 #include <QPainter>
@@ -154,10 +157,16 @@ void GLWidget::updateViewport()
   class GLPainterDevice : public PainterDevice
   {
   public:
-    GLPainterDevice(GLWidget *gl) { widget = gl; }
+    GLPainterDevice(GLWidget *gl) : widget( gl ), overridePainter( nullptr ) { }
     ~GLPainterDevice() {}
 
-    Painter *painter() const { return widget->painter(); }
+    //! Redirect every engine draw call to a different Painter (e.g. the
+    //! SceneBuilder for the modern tier) instead of the widget's real painter.
+    void setOverridePainter(Painter *p) { overridePainter = p; }
+    void clearOverridePainter() { overridePainter = nullptr; }
+
+    Painter *painter() const
+    { return overridePainter ? overridePainter : widget->painter(); }
     Camera *camera() const { return widget->camera(); }
     bool isSelected( const Primitive *p ) const { return widget->isSelected(p); }
     double radius( const Primitive *p ) const { return widget->radius(p); }
@@ -169,6 +178,7 @@ void GLWidget::updateViewport()
 
   private:
     GLWidget *widget;
+    Painter *overridePainter;
   };
 
   class GLWidgetPrivate
@@ -202,7 +212,7 @@ void GLWidget::updateViewport()
                         renderDebug(false),
                         renderModelViewDebug(false),
                         dlistQuick(0), dlistOpaque(0), dlistTransparent(0),
-                        pd(0)
+                        pd(0), backend(0)
     {
     }
 
@@ -210,6 +220,7 @@ void GLWidget::updateViewport()
     {
       if ( selectBuf ) delete[] selectBuf;
       delete camera;
+      delete backend;
 
       // free the display lists
       if (dlistQuick)
@@ -289,6 +300,22 @@ void GLWidget::updateViewport()
       * Member GLPainterDevice which is passed to the engines.
       */
     GLPainterDevice *pd;
+
+    //! Modern-tier backend (task 2.4). Owns the instanced geometry VAOs,
+    //! shaders and instance VBOs, and issues the bounded instanced draws.
+    //! Created on the GL context in initializeGL(); rebuilt on context loss.
+    rendering::ModernRendererBackend *backend = nullptr;
+    //! SceneBuilder: the Painter engines emit into it (via the pd override),
+    //! producing the chunk stores the backend uploads and draws.
+    rendering::SceneBuilder builder;
+    //! Whether render() uses the modern instanced path (true) or the legacy
+    //! display-list/GL painter path (false). Defaulted true for GL 3.3 contexts;
+    //! the engines are painter-agnostic so they emit to the SceneBuilder.
+    bool useModernTier = true;
+    //! Backend counters exposed to the debug overlay (draw calls / frames of
+    //! the most recent modern frame).
+    unsigned int backendDrawCalls = 0;
+    unsigned int backendFrames = 0;
   };
 
   void GLWidgetPrivate::updateListQuick()
@@ -574,6 +601,46 @@ GLWidget::GLWidget( Molecule *molecule,
     glLightfv( GL_LIGHT1, GL_POSITION, LIGHT1_POSITION );
     glEnable( GL_LIGHT1 );
 
+    // Modern-tier backend (gpu-rendering-pipeline task 2.4). The instanced
+    // geometry VAOs, shaders and instance VBOs are GPU objects bound to this
+    // context, so they are created here on the current context. initializeGL
+    // runs again when the GL context is rebuilt (e.g. after context loss), so
+    // the existing backend is destroyed first and rebuilt: the GPU buffers are
+    // recreated rather than leaked or left bound to a dead context.
+    bool supportsGL33 = false;
+    {
+      const GLubyte *versionStr = glGetString(GL_VERSION);
+      if (versionStr) {
+        QString ver = QString::fromUtf8(reinterpret_cast<const char *>(versionStr));
+        QStringList parts = ver.split('.');
+        if (parts.size() >= 2) {
+          int major = parts.at(0).toInt();
+          int minor = parts.at(1).toInt();
+          supportsGL33 = (major > 3) || (major == 3 && minor >= 3);
+        }
+      }
+    }
+    delete d->backend;
+    d->backend = nullptr;
+    if (supportsGL33) {
+      d->backend = new rendering::ModernRendererBackend();
+      d->backend->initialize();
+      if (d->backend->isInitialized()) {
+        d->useModernTier = true;
+        qDebug() << "GLWidget: modern rendering tier enabled (GL 3.3+).";
+      } else {
+        // Context is 3.3 but the backend could not build its shaders/VAOs;
+        // drop it and stay on the legacy tier rather than show a black screen.
+        delete d->backend;
+        d->backend = nullptr;
+        d->useModernTier = false;
+        qDebug() << "GLWidget: modern backend failed to initialise; using legacy tier.";
+      }
+    } else {
+      d->useModernTier = false;
+      qDebug() << "GLWidget: modern rendering tier unavailable (needs GL 3.3); using legacy tier.";
+    }
+
     qDebug() << "GLWidget initialised...";
   }
 
@@ -780,6 +847,74 @@ GLWidget::GLWidget( Molecule *molecule,
     return d->renderModelViewDebug;
   }
 
+  void GLWidget::renderModern()
+  {
+    if (!d->molecule) {
+      qDebug() << "GLWidget::renderModern(): No molecule set.";
+      return;
+    }
+    if (!d->molecule->lock()->tryLockForRead()) {
+      qDebug() << "GLWidget::renderModern(): Could not get read lock on molecule.";
+      return;
+    }
+    if (!d->backend) {
+      // Backend not initialised on this context yet (e.g. before initializeGL
+      // or after a context-loss rebuild); nothing to draw this frame.
+      return;
+    }
+
+    // The model*projection matrix is the one paintGL() set up on the GL stack
+    // (projection * modelview). The backend's vertex shader evaluates
+    // uMVP * vec4(worldPos, 1.0), so compose MVP = projection * modelview.
+    GLfloat mvMat[16], projMat[16];
+    glGetFloatv(GL_MODELVIEW_MATRIX, mvMat);
+    glGetFloatv(GL_PROJECTION_MATRIX, projMat);
+    QMatrix4x4 mvp(QMatrix4x4(projMat) * QMatrix4x4(mvMat));
+
+    // Paint the engines into the SceneBuilder (a Painter) instead of issuing
+    // GL. The pd override routes every pd->painter()->draw* call to the
+    // SceneBuilder, which appends per-instance records to the chunk stores the
+    // backend uploads. Engines are already sorted by engineLessThan, so the
+    // opaque-then-transparent pass order matches the legacy path.
+    d->pd->setOverridePainter(&d->builder);
+    d->builder.begin();
+    d->builder.clearStores();
+
+    // Opaque engine elements first.
+    foreach (Engine *engine, d->engines) {
+      if (engine->isEnabled())
+        engine->renderOpaque(d->pd);
+    }
+
+    // Render the active tool (screen-space UI, on the widget's real painter).
+    if (d->tool) {
+      d->tool->paint(this);
+    }
+
+    // Transparent engine elements.
+    glEnable(GL_BLEND);
+    foreach (Engine *engine, d->engines) {
+      if (engine->isEnabled() && engine->layers() & Engine::Transparent) {
+        engine->renderTransparent(d->pd);
+      }
+    }
+    glDisable(GL_BLEND);
+
+    d->builder.end();
+    d->pd->clearOverridePainter();
+
+    // Upload the finished stores and issue the bounded instanced draws.
+    if (d->backend->beginFrame(camera(), QRect(0, 0, width(), height()),
+                               d->builder.quality())) {
+      d->backend->setModelViewProjection(mvp);
+      d->backend->pushSpheres(d->builder.spheres());
+      d->backend->pushBonds(d->builder.bonds());
+      d->backend->endFrame();
+      d->backendDrawCalls = d->backend->drawCallsThisFrame();
+      d->backendFrames = d->backend->framesSubmitted();
+    }
+  }
+
   void GLWidget::render()
   {
     if (!d->molecule) {
@@ -788,6 +923,15 @@ GLWidget::GLWidget( Molecule *molecule,
     }
     if (!d->molecule->lock()->tryLockForRead()) {
       qDebug() << "GLWidget::render(): Could not get read lock on molecule.";
+      return;
+    }
+
+    // Modern instanced tier (gpu-rendering-pipeline task 2.4): the engines
+    // emit into the SceneBuilder and the backend issues bounded instanced
+    // draws. The legacy display-list/GL-painter path is retained for the
+    // compatibility tier (task 7.2) and selectable via AVOGADRO_RENDERER.
+    if (d->useModernTier) {
+      renderModern();
       return;
     }
 
@@ -1745,6 +1889,16 @@ namespace Avogadro {
       // FPS
       y += d->pd->painter()->drawText
         (x, y, tr("FPS: %L1").arg(computeFramesPerSecond(), 0, 'g', 3));
+
+      // Modern-tier backend counters (gpu-rendering-pipeline task 2.4): the
+      // number of instanced draws issued for the most recent modern frame and
+      // the total frames submitted, used to confirm the draw count stays
+      // bounded (2 per frame, one per primitive type) regardless of scene size.
+      if (d->useModernTier && d->backend) {
+        y += d->pd->painter()->drawText
+          (x, y, tr("Draw Calls: %L1 (frames %L2)")
+           .arg(d->backendDrawCalls).arg(d->backendFrames));
+      }
 
       // pd size
       y += d->pd->painter()->drawText

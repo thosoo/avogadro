@@ -32,8 +32,12 @@
 #define AVOGADRO_RENDERING_MODERNBACKEND_H
 
 #include <QElapsedTimer>
+#include <QPointer>
+#include <QMatrix4x4>
 #include <QtOpenGL/QOpenGLBuffer>
 #include <QtOpenGL/QOpenGLFunctions_3_3_Core>
+#include <QtOpenGL/QOpenGLShaderProgram>
+#include <QtOpenGL/QOpenGLVertexArrayObject>
 #include <QVector>
 
 #include <avogadro/glhit.h>
@@ -54,6 +58,23 @@ struct InstanceVBO {
   std::size_t capacityBytes = 0; // allocated byte capacity
   ChunkedUploader uploader;      // per-frame budget scheduler
   GLsync fence = nullptr;        // last upload fence for this VBO
+};
+
+//! Shared per-primitive-type geometry for the modern tier: one indexed VAO
+//! (interleaved position + normal) plus the shader program used to draw it
+//! instanced. Built once in initialize() on the owning GL context; the
+//! instance data it is drawn from lives in the matching InstanceVBO and is
+//! re-uploaded (chunked, budgeted) each frame. A single VAO + one
+//! glDrawElementsInstanced renders the whole scene of that primitive type.
+struct PrimitiveGeometry {
+  QOpenGLVertexArrayObject vao;
+  QOpenGLBuffer geometryVBO;
+  QOpenGLBuffer indexVBO; // GL_ELEMENT_ARRAY_BUFFER; IndexBuffer type is fixed at
+                          // construction, so buildGeometry move-assigns it
+  GLuint uMVPloc = 0;  // "uMVP" uniform location for this program
+  QOpenGLShaderProgram program;
+  int indexCount = 0; // triangles * 3 for the indexed draw
+  bool valid = false;
 };
 
 class A_EXPORT ModernRendererBackend : public RendererBackend {
@@ -90,9 +111,28 @@ public:
   //! chunk). > 1 demonstrates the upload is chunked, not one unbounded write.
   int uploadCallCount() const { return m_uploadCalls; }
 
+  //! Whether initialize() succeeded on a live GL 3.3 context (shaders + geometry
+  //! VAOs + instance VBOs created). The GLWidget uses this to fall back to the
+  //! legacy tier if the modern backend could not be built, avoiding a black
+  //! screen when the context is 3.3-capable but the backend failed.
+  bool isInitialized() const { return m_glInitialized; }
+
   //! Largest single chunk uploaded this frame (bytes). Never exceeds
   //! kMaxChunkBytes.
   std::size_t maxChunkBytes() const { return m_maxChunkBytes; }
+
+  //! Draw calls issued for the frame submitted in the most recent endFrame()
+  //! (one instanced draw per primitive type that has instances). Bounded by
+  //! construction: 2 for any scene size, reduced only by per-chunk culling.
+  unsigned int drawCallsThisFrame() const { return m_drawCallsThisFrame; }
+
+  //! Number of frames fully submitted (endFrame reached) since the last reset.
+  unsigned int framesSubmitted() const { return m_framesSubmitted; }
+
+  //! Model*projection matrix for the frame, set by the caller (GLWidget) from
+  //! the camera before beginFrame. Stored as a shader uniform; without it the
+  //! draw path is a no-op so a frame with a stale matrix never draws garbage.
+  void setModelViewProjection(const QMatrix4x4 &mvp) { m_mvp = mvp; m_haveMvp = true; }
 
   // RendererBackend interface.
   bool beginFrame(const Camera *camera, const QRect &viewport,
@@ -116,9 +156,33 @@ private:
   //! upload, then issue a fresh fence after the uploads complete.
   void fenceAfterUpload(InstanceVBO &vbo);
 
-  QOpenGLContext *m_ctx = nullptr;
+  //! Build the shared geometry VAOs and shader programs from geometry.h +
+  //! shaders.h on the current GL context. Called from initialize(); rebuilt on
+  //! context loss (initializeGL). Compiling the shaders replaces the
+  //! ${LIGHTING} placeholder with the shared lighting preamble first.
+  void buildGeometry();
+
+  //! Draw the uploaded instance data for this frame: one instanced draw per
+  //! primitive type that has instances, after uploads and fences complete.
+  void drawInstances();
+
+  //! Non-owning handle to the GL context the backend initialised on. Kept as
+  //! a QPointer (not a raw pointer) so that if the owning context is deleted
+  //! before the backend (e.g. in test teardown, or during widget destruction),
+  //! it nulls out and the destructor can safely skip VBO cleanup rather than
+  //! dereferencing freed memory. The VBOs are GL objects bound to that context,
+  //! so when the context is gone they are gone too - nothing to leak.
+  QPointer<QOpenGLContext> m_ctx;
   InstanceVBO m_sphereVBO;
   InstanceVBO m_bondVBO;
+  PrimitiveGeometry m_sphereGeom;
+  PrimitiveGeometry m_cylinderGeom;
+  QMatrix4x4 m_mvp;
+  bool m_haveMvp = false;
+  unsigned int m_sphereCount = 0; // records drawn this frame (watermark)
+  unsigned int m_bondCount = 0;
+  unsigned int m_drawCallsThisFrame = 0;
+  unsigned int m_framesSubmitted = 0;
   QOpenGLFunctions_3_3_Core m_gl;
   bool m_glInitialized = false;
   int m_uploadCalls = 0;
