@@ -130,6 +130,7 @@ set(libavogadro_SRCS
   rendering/modernbackend.cpp    # modern-tier submit stage with fences (2.2)
   rendering/lod.cpp              # LOD zoom bands + hysteresis (2.3)
   rendering/renderertier.cpp     # tier selection: CMake gating + probe + override (7.1)
+  rendering/compatbackend.cpp    # compat tier: fixed-function flush of chunk stores (7.2)
 )
 
 set(libavogadro_MOC_HDRS

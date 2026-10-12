@@ -52,6 +52,7 @@
 #include "libavogadro/src/rendering/chunkstore.h"
 #include "libavogadro/src/rendering/chunkeduploader.h"
 #include "libavogadro/src/rendering/modernbackend.h"
+#include "libavogadro/src/rendering/compatbackend.h"
 #include "libavogadro/src/rendering/lod.h"
 #include "libavogadro/src/rendering/frustum.h"
 #include "libavogadro/src/rendering/scenebuilder.h"
@@ -221,6 +222,7 @@ class ModernRenderTest : public QObject
     void testBSDYThroughModernBackend();
     void testBackendSingleSphere();
     void testContextLossRebuildsFromCpuChunks();
+    void testCompatBackendFlush();
     void testDiagCoreProfile();
 
     // Task 2.3: LOD zoom bands + hysteresis and per-chunk AABB frustum culling.
@@ -1058,6 +1060,121 @@ void ModernRenderTest::testContextLossRebuildsFromCpuChunks()
   QVERIFY(depthAfter < 0.99f);
   for (int c = 0; c < 3; ++c)
     QCOMPARE(after[c], before[c]);
+}
+
+//! Task 7.2: the compat tier flushes the same chunk stores through fixed
+//! function. Render a sphere plus a bond half offscreen and verify the pixels:
+//! the atom is its color at the centre, the bond shows along the -X axis, and
+//! the background stays clean — proving the fixed-function replay of the
+//! chunk stores (matrix stack + client arrays) produces a correct image.
+void ModernRenderTest::testCompatBackendFlush()
+{
+  QOffscreenSurface *off = nullptr;
+  QOpenGLContext *ctx = makeGLContext(&off);
+  if (!ctx)
+    QSKIP("No GL 3.3+ compatibility context available; skipping compat render",
+          SkipSingle);
+
+  QOpenGLFunctions gl;
+  gl.initializeOpenGLFunctions();
+
+  GLuint fboID = 0, colorTexID = 0, depthRBID = 0;
+  gl.glGenFramebuffers(1, &fboID);
+  gl.glBindFramebuffer(GL_FRAMEBUFFER, fboID);
+  gl.glGenTextures(1, &colorTexID);
+  gl.glBindTexture(GL_TEXTURE_2D, colorTexID);
+  gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, kWidth, kHeight, 0, GL_RGB,
+                  GL_UNSIGNED_BYTE, nullptr);
+  gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  gl.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                            GL_TEXTURE_2D, colorTexID, 0);
+  gl.glGenRenderbuffers(1, &depthRBID);
+  gl.glBindRenderbuffer(GL_RENDERBUFFER, depthRBID);
+  gl.glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, kWidth, kHeight);
+  gl.glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                               GL_RENDERBUFFER, depthRBID);
+  gl.glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  QVERIFY(fboID != 0);
+
+  Avogadro::rendering::CompatRendererBackend backend;
+  backend.initialize();
+  QVERIFY(backend.isInitialized());
+
+  // One red sphere at the origin, one cyan bond half running along -X.
+  Avogadro::rendering::ChunkStore<Avogadro::rendering::SphereInstance> spheres;
+  Avogadro::rendering::SphereInstance s;
+  s.pos[0] = 0.0f; s.pos[1] = 0.0f; s.pos[2] = 0.0f;
+  s.radius = 0.5f;
+  s.color[0] = 255; s.color[1] = 0; s.color[2] = 0; s.color[3] = 255;
+  spheres.append(s);
+
+  Avogadro::rendering::ChunkStore<Avogadro::rendering::BondInstance> bonds;
+  Avogadro::rendering::BondInstance b;
+  b.start[0] = 0.0f; b.start[1] = 0.0f; b.start[2] = 0.0f;
+  b.end[0] = -1.5f; b.end[1] = 0.0f; b.end[2] = 0.0f;
+  b.radius = 0.1f;
+  b.color[0] = 0; b.color[1] = 255; b.color[2] = 255; b.color[3] = 255;
+  bonds.append(b);
+
+  // Fixed function reads the GL matrix stack: set the same view the modern
+  // tier passes as a uniform (viewProjection()). These matrix-stack entry
+  // points exist in the compatibility profile only, so they go through the
+  // global desktop GL (the context was requested with CompatibilityProfile).
+  gl.glBindFramebuffer(GL_FRAMEBUFFER, fboID);
+  gl.glViewport(0, 0, kWidth, kHeight);
+  glMatrixMode(GL_PROJECTION);
+  glLoadIdentity();
+  QMatrix4x4 proj;
+  proj.perspective(45.0f, static_cast<float>(kWidth) / kHeight, 0.1f, 100.0f);
+  glMultMatrixf(proj.constData());
+  glMatrixMode(GL_MODELVIEW);
+  glLoadIdentity();
+  glTranslatef(0.0f, 0.0f, -5.0f);
+
+  // The two fixed-function lights the widget configures in initializeGL.
+  gl.glEnable(GL_LIGHTING);
+  gl.glEnable(GL_LIGHT0);
+  gl.glEnable(GL_LIGHT1);
+
+  gl.glClearColor(0.05f, 0.05f, 0.05f, 1.0f);
+  gl.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  gl.glEnable(GL_DEPTH_TEST);
+
+  QVERIFY(backend.beginFrame(nullptr, QRect(0, 0, kWidth, kHeight), 0));
+  backend.pushSpheres(spheres);
+  backend.pushBonds(bonds);
+  backend.endFrame();
+  gl.glFlush();
+
+  float p[3] = {-1, -1, -1};
+  float d = 9;
+  gl.glPixelStorei(GL_PACK_ALIGNMENT, 1);
+  gl.glReadPixels(kWidth / 2, kHeight / 2, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &d);
+  readPixel(&gl, kWidth / 2, kHeight / 2, p);
+  qInfo().noquote() << "COMPAT center depth" << d << "color" << p[0] << p[1] << p[2];
+  QVERIFY(d < 0.99f);                 // the sphere drew
+  QVERIFY(p[0] > 0.4f);               // red channel lit
+  QVERIFY(p[1] < 0.4f && p[2] < 0.4f);
+
+  // The bond half: sample along -X (midpoint of the bond, left of centre).
+  float bp[3] = {-1, -1, -1};
+  float bd = 9;
+  const int bx = kWidth / 2 - kWidth / 8;
+  gl.glReadPixels(bx, kHeight / 2, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &bd);
+  readPixel(&gl, bx, kHeight / 2, bp);
+  qInfo().noquote() << "COMPAT bond depth" << bd << "color" << bp[0] << bp[1] << bp[2];
+  QVERIFY(bd < 0.99f);                // the cylinder drew
+  QVERIFY(bp[1] > 0.3f && bp[2] > 0.3f); // cyan-ish
+
+  // Corner stays background: no stray geometry, no state leaks into a clear.
+  float cp[3] = {-1, -1, -1};
+  readPixel(&gl, 4, 4, cp);
+  QVERIFY(cp[0] < 0.1f && cp[1] < 0.1f && cp[2] < 0.1f);
+
+  // Frame bookkeeping: one draw per instance plus one for the line set.
+  QCOMPARE(backend.drawCallsThisFrame(), 2u);
+  QCOMPARE(backend.framesSubmitted(), 1u);
 }
 
 void ModernRenderTest::testBackendSingleSphere()

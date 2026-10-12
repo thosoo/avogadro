@@ -52,9 +52,18 @@ ModernRendererBackend::~ModernRendererBackend() {
 }
 
 void ModernRendererBackend::initialize(int maxSpheres, int maxBonds) {
+  // A shared widget's initializeGL can run with no current context (observed
+  // for the second GLWidget created from MainWindow::newGLWidget): resolving
+  // version functions then dereferences null inside Qt. Bail out cleanly and
+  // let the caller fall back (isInitialized() == false), never crash.
   m_ctx = QOpenGLContext::currentContext();
+  if (!m_ctx) {
+    qWarning() << "ModernRendererBackend: no current GL context; cannot initialise";
+    m_glInitialized = false;
+    return;
+  }
   m_glInitialized = m_gl.initializeOpenGLFunctions();
-  if (!m_ctx || !m_glInitialized) {
+  if (!m_glInitialized) {
     qWarning() << "ModernRendererBackend: cannot initialise GL 3.3 core";
     return;
   }

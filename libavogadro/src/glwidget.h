@@ -645,6 +645,22 @@ namespace Avogadro {
       virtual void renderModern();
 
       /**
+       * Render through the compat tier (gpu-rendering-pipeline task 7.2):
+       * engines emit into the chunk stores exactly like renderModern(), but
+       * the stores are flushed through the fixed-function pipeline by
+       * CompatRendererBackend instead of instanced shaders. Called by
+       * render() when the resolved tier is Compat.
+       */
+      virtual void renderCompat();
+
+      /**
+       * Engines (plus the active tool) emit the scene into the SceneBuilder
+       * chunk stores; shared by renderModern() and renderCompat() (design D4).
+       * Returns the model*projection matrix paintGL() left on the GL stack.
+       */
+      QMatrix4x4 emitSceneToBuilder();
+
+      /**
        * Render a full crystal cell
        * Called by render() automatically
        *

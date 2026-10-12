@@ -155,6 +155,13 @@ namespace Avogadro
       m_basis = 0;
     }
 
+    // Track the incoming document before probing it: loadBasis() reads
+    // m_molecule->fileName(), and the first moleculeChanged fires before any
+    // other code has assigned m_molecule (a null dereference at startup).
+    m_molecule = molecule;
+    if (!m_molecule)
+      return;
+
     loadBasis();
 
     if (!m_basis || m_basis->numElectrons() == 0) {

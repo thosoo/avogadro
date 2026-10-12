@@ -35,6 +35,7 @@
 #include "glhit.h"
 
 #include "rendering/modernbackend.h"
+#include "rendering/compatbackend.h"
 #include "rendering/renderertier.h"
 #include "rendering/selectrefine.h"
 #include "rendering/scenebuilder.h"
@@ -91,7 +92,6 @@
   #include <GL/glew.h>
 #endif
 
-#include <cstdio>
 #include <algorithm>
 #include <vector>
 #include <cstdlib>
@@ -325,6 +325,10 @@ void GLWidget::updateViewport()
     //! (task 7.2 replaces that with the batched chunk-store flush); the tier
     //! is resolved and logged distinctly from task 7.1 on.
     rendering::RendererTier rendererTier = rendering::RendererTier::Modern;
+    //! Compat-tier submit stage (task 7.2): engines emit the same chunk
+    //! stores the modern tier consumes, flushed through fixed function. Only
+    //! created when the resolved tier is Compat; null otherwise.
+    rendering::CompatRendererBackend *compatBackend = nullptr;
     //! Backend counters exposed to the debug overlay (draw calls / frames of
     //! the most recent modern frame).
     unsigned int backendDrawCalls = 0;
@@ -623,7 +627,8 @@ GLWidget::GLWidget( Molecule *molecule,
     // Capability probing itself lives in rendering/renderertier.cpp (task 7.1).
     delete d->backend;
     d->backend = nullptr;
-
+    delete d->compatBackend;
+    d->compatBackend = nullptr;
     // Renderer-tier selection (gpu-rendering-pipeline design A8/D7, task 7.1).
     // The AVOGADRO_RENDERER override is read before the first frame is drawn;
     // without it the highest compiled-in tier the context supports runs. A
@@ -657,6 +662,19 @@ GLWidget::GLWidget( Molecule *molecule,
 
     d->rendererTier = resolvedTier;
     d->useModernTier = (resolvedTier == rendering::RendererTier::Modern);
+
+    if (resolvedTier == rendering::RendererTier::Compat) {
+      // Compat-tier submit stage (task 7.2): the context is current here, so
+      // the unit geometry client arrays can be captured now.
+      d->compatBackend = new rendering::CompatRendererBackend();
+      d->compatBackend->initialize();
+      if (!d->compatBackend->isInitialized()) {
+        delete d->compatBackend;
+        d->compatBackend = nullptr;
+        qFatal("The compat renderer tier could not initialise its unit "
+               "geometry on this context.");
+      }
+    }
 
     if (d->useModernTier) {
       d->backend = new rendering::ModernRendererBackend();
@@ -898,19 +916,45 @@ GLWidget::GLWidget( Molecule *molecule,
       return;
     }
 
+    // Paint the engines into the SceneBuilder (a Painter) instead of issuing
+    // GL. The pd override routes every pd->painter()->draw* call to the
+    // SceneBuilder, which appends per-instance records to the chunk stores the
+    // backend uploads. Engines are already sorted by engineLessThan, so the
+    // opaque-then-transparent pass order matches the legacy path.
+    const QMatrix4x4 mvp = emitSceneToBuilder();
+
+    // Upload the finished stores and issue the bounded instanced draws.
+    if (d->backend->beginFrame(camera(), QRect(0, 0, width(), height()),
+                               d->builder.quality())) {
+      d->backend->setModelViewProjection(mvp);
+      d->backend->pushSpheres(d->builder.spheres());
+      d->backend->pushBonds(d->builder.bonds());
+      d->backend->pushLines(d->builder.lines());
+      d->backend->endFrame();
+      d->backendDrawCalls = d->backend->drawCallsThisFrame();
+      d->backendFrames = d->backend->framesSubmitted();
+    }
+  }
+
+  //! Engines (plus the active tool) emit the scene into the chunk stores.
+  //! Shared by the modern tier (instanced shaders) and the compat tier
+  //! (fixed-function flush), so both tiers render byte-identical instance
+  //! sets and any engine migration lands on both at once (design D4).
+  QMatrix4x4 GLWidget::emitSceneToBuilder()
+  {
     // The model*projection matrix is the one paintGL() set up on the GL stack
     // (projection * modelview). The backend's vertex shader evaluates
     // uMVP * vec4(worldPos, 1.0), so compose MVP = projection * modelview.
     GLfloat mvMat[16], projMat[16];
     glGetFloatv(GL_MODELVIEW_MATRIX, mvMat);
     glGetFloatv(GL_PROJECTION_MATRIX, projMat);
-    QMatrix4x4 mvp(QMatrix4x4(projMat) * QMatrix4x4(mvMat));
+    const QMatrix4x4 mvp(QMatrix4x4(projMat) * QMatrix4x4(mvMat));
 
     // Paint the engines into the SceneBuilder (a Painter) instead of issuing
     // GL. The pd override routes every pd->painter()->draw* call to the
-    // SceneBuilder, which appends per-instance records to the chunk stores the
-    // backend uploads. Engines are already sorted by engineLessThan, so the
-    // opaque-then-transparent pass order matches the legacy path.
+    // SceneBuilder, which appends per-instance records to the chunk stores
+    // the backend uploads. Engines are already sorted by engineLessThan, so
+    // the opaque-then-transparent pass order matches the legacy path.
     d->pd->setOverridePainter(&d->builder);
     d->builder.begin();
     d->builder.clearStores();
@@ -937,17 +981,40 @@ GLWidget::GLWidget( Molecule *molecule,
 
     d->builder.end();
     d->pd->clearOverridePainter();
+    return mvp;
+  }
 
-    // Upload the finished stores and issue the bounded instanced draws.
-    if (d->backend->beginFrame(camera(), QRect(0, 0, width(), height()),
-                               d->builder.quality())) {
-      d->backend->setModelViewProjection(mvp);
-      d->backend->pushSpheres(d->builder.spheres());
-      d->backend->pushBonds(d->builder.bonds());
-      d->backend->pushLines(d->builder.lines());
-      d->backend->endFrame();
-      d->backendDrawCalls = d->backend->drawCallsThisFrame();
-      d->backendFrames = d->backend->framesSubmitted();
+  //! Compat tier (task 7.2 / design D9): the same chunk stores the modern
+  //! tier consumes, flushed through the fixed-function pipeline. Draw calls
+  //! scale with the instance count, which the monomer-scale compat target
+  //! accepts; picking stays on the GL_SELECT path via hits().
+  void GLWidget::renderCompat()
+  {
+    if (!d->molecule) {
+      qDebug() << "GLWidget::renderCompat(): No molecule set.";
+      return;
+    }
+    if (!d->molecule->lock()->tryLockForRead()) {
+      qDebug() << "GLWidget::renderCompat(): Could not get read lock on molecule.";
+      return;
+    }
+    if (!d->compatBackend || !d->compatBackend->isInitialized()) {
+      // No compat stage on this context (before initializeGL or after a
+      // context-loss rebuild that has not run yet); nothing to draw.
+      return;
+    }
+
+    const QMatrix4x4 mvp = emitSceneToBuilder();
+
+    if (d->compatBackend->beginFrame(camera(), QRect(0, 0, width(), height()),
+                                     d->builder.quality())) {
+      d->compatBackend->setModelViewProjection(mvp); // no-op: FF reads the stack
+      d->compatBackend->pushSpheres(d->builder.spheres());
+      d->compatBackend->pushBonds(d->builder.bonds());
+      d->compatBackend->pushLines(d->builder.lines());
+      d->compatBackend->endFrame();
+      d->backendDrawCalls = d->compatBackend->drawCallsThisFrame();
+      d->backendFrames = d->compatBackend->framesSubmitted();
     }
   }
 
@@ -964,10 +1031,15 @@ GLWidget::GLWidget( Molecule *molecule,
 
     // Modern instanced tier (gpu-rendering-pipeline task 2.4): the engines
     // emit into the SceneBuilder and the backend issues bounded instanced
-    // draws. The legacy display-list/GL-painter path is retained for the
-    // compatibility tier (task 7.2) and selectable via AVOGADRO_RENDERER.
+    // draws. The compat tier (task 7.2) emits the same stores and flushes
+    // them through fixed function. The frozen legacy tier keeps its own
+    // per-primitive display-list/GL-painter path below.
     if (d->useModernTier) {
       renderModern();
+      return;
+    }
+    if (d->rendererTier == rendering::RendererTier::Compat) {
+      renderCompat();
       return;
     }
 
