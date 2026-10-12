@@ -449,6 +449,20 @@ if(ENABLE_GLSL)
   endif()
 endif()
 
+# Renderer tier compile-time switches (gpu-rendering-pipeline design A8/D7).
+# The runtime picks the highest compiled-in tier the GL context supports;
+# AVOGADRO_RENDERER overrides the choice and fails loudly when the requested
+# tier is compiled out or unsupported. Apple caps GL at 3.2 and exposes no
+# compatibility profile, so the modern tier cannot run there: force it off and
+# keep the frozen legacy tier as the macOS default (spec "macOS uses legacy").
+option(AVO_RENDERER_TIER2 "Compile in the modern instanced renderer tier (GL 3.3+)" ON)
+option(AVO_RENDERER_TIER1 "Compile in the compat fixed-function tier (GL 2.0+)" ON)
+option(AVO_RENDERER_LEGACY "Compile in the frozen legacy tier" ON)
+if(APPLE AND AVO_RENDERER_TIER2)
+  message(STATUS "Apple platform: modern renderer tier (AVO_RENDERER_TIER2) forced off; legacy tier stays the default")
+  set(AVO_RENDERER_TIER2 OFF)
+endif()
+
 # Multithreaded OpenGL. Seems mostly broken on Linux right now.
 option(ENABLE_THREADEDGL "Enable threaded OpenGL rendering" OFF)
 if(ENABLE_THREADEDGL)

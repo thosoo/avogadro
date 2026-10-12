@@ -129,6 +129,7 @@ set(libavogadro_SRCS
   rendering/chunkeduploader.cpp  # chunked, budgeted upload scheduler (2.2)
   rendering/modernbackend.cpp    # modern-tier submit stage with fences (2.2)
   rendering/lod.cpp              # LOD zoom bands + hysteresis (2.3)
+  rendering/renderertier.cpp     # tier selection: CMake gating + probe + override (7.1)
 )
 
 set(libavogadro_MOC_HDRS
@@ -251,6 +252,20 @@ set_target_properties(avogadro PROPERTIES
 install(FILES ${libavogadro_HDRS}
   DESTINATION "${INCLUDE_INSTALL_DIR}/avogadro")
 install(TARGETS avogadro DESTINATION ${LIB_INSTALL_DIR} EXPORT AvogadroTargets)
+
+# Renderer tier compile-time inclusion (gpu-rendering-pipeline design A8).
+# Public: app code reads them too when reporting the resolved tier. A tier
+# that is compiled out cannot be selected at runtime; explicitly requesting a
+# missing tier fails at startup with a clear diagnostic (design D7).
+if(AVO_RENDERER_TIER2)
+  target_compile_definitions(avogadro PUBLIC AVO_RENDERER_TIER2=1)
+endif()
+if(AVO_RENDERER_TIER1)
+  target_compile_definitions(avogadro PUBLIC AVO_RENDERER_TIER1=1)
+endif()
+if(AVO_RENDERER_LEGACY)
+  target_compile_definitions(avogadro PUBLIC AVO_RENDERER_LEGACY=1)
+endif()
 
 # Add the engiens, tools and extensions directories
 add_subdirectory(engines)

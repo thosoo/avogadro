@@ -35,6 +35,7 @@
 #include "glhit.h"
 
 #include "rendering/modernbackend.h"
+#include "rendering/renderertier.h"
 #include "rendering/selectrefine.h"
 #include "rendering/scenebuilder.h"
 
@@ -319,6 +320,11 @@ void GLWidget::updateViewport()
     //! display-list/GL painter path (false). Defaulted true for GL 3.3 contexts;
     //! the engines are painter-agnostic so they emit to the SceneBuilder.
     bool useModernTier = true;
+    //! Resolved runtime tier (design D7): modern, compat or legacy. The compat
+    //! tier currently renders through the same fixed-function path as legacy
+    //! (task 7.2 replaces that with the batched chunk-store flush); the tier
+    //! is resolved and logged distinctly from task 7.1 on.
+    rendering::RendererTier rendererTier = rendering::RendererTier::Modern;
     //! Backend counters exposed to the debug overlay (draw calls / frames of
     //! the most recent modern frame).
     unsigned int backendDrawCalls = 0;
@@ -614,78 +620,63 @@ GLWidget::GLWidget( Molecule *molecule,
     // runs again when the GL context is rebuilt (e.g. after context loss), so
     // the existing backend is destroyed first and rebuilt: the GPU buffers are
     // recreated rather than leaked or left bound to a dead context.
-    bool supportsGL33 = false;
-    {
-      const GLubyte *versionStr = glGetString(GL_VERSION);
-      if (versionStr) {
-        QString ver = QString::fromUtf8(reinterpret_cast<const char *>(versionStr));
-        QStringList parts = ver.split('.');
-        if (parts.size() >= 2) {
-          int major = parts.at(0).toInt();
-          int minor = parts.at(1).toInt();
-          supportsGL33 = (major > 3) || (major == 3 && minor >= 3);
-        }
-      }
-    }
+    // Capability probing itself lives in rendering/renderertier.cpp (task 7.1).
     delete d->backend;
     d->backend = nullptr;
 
-    // Renderer-tier override (gpu-rendering-pipeline design A8). Read once at
-    // GL initialisation, i.e. before the first frame: "modern" (default when
-    // supported), "compat"/"legacy" force the fixed-function path. An explicit
-    // override wins over the capability probe so a broken driver can be
-    // bypassed, and an unsupported-but-forced request is honoured with a
-    // diagnostic rather than silently ignored.
-    enum RendererTier { TierModern, TierLegacy } requestedTier = TierModern;
+    // Renderer-tier selection (gpu-rendering-pipeline design A8/D7, task 7.1).
+    // The AVOGADRO_RENDERER override is read before the first frame is drawn;
+    // without it the highest compiled-in tier the context supports runs. A
+    // forced tier that is compiled out or unsupported fails at startup with a
+    // clear diagnostic instead of silently degrading (design D7).
     bool tierForced = false;
-    const QByteArray rendererEnv = qgetenv("AVOGADRO_RENDERER");
-    const QString rendererChoice = QString::fromUtf8(rendererEnv).toLower().trimmed();
-    if (!rendererChoice.isEmpty()) {
-      if (rendererChoice == QLatin1String("modern") || rendererChoice == QLatin1String("tier2")) {
-        requestedTier = TierModern;
-        tierForced = true;
-      } else if (rendererChoice == QLatin1String("legacy") || rendererChoice == QLatin1String("compat")
-                 || rendererChoice == QLatin1String("tier1") || rendererChoice == QLatin1String("tier0")) {
-        requestedTier = TierLegacy;
-        tierForced = true;
+    const rendering::RendererTier requestedTier =
+      rendering::requestedRendererTier(tierForced);
+    const rendering::RendererTier resolvedTier =
+      rendering::resolveRendererTier(tierForced, requestedTier);
+    if (resolvedTier == rendering::RendererTier::Unavailable) {
+      // Design D7: a tier that is compiled out or unsupported but explicitly
+      // requested fails startup with a clear diagnostic instead of silently
+      // degrading (which would hide driver problems and make bug reports
+      // unreproducible). qFatal rather than a modal box: the misconfiguration
+      // is on the command line/environment, and the failure must be visible
+      // (and testable) in headless runs too.
+      if (tierForced) {
+        qFatal("The requested renderer tier '%s' (AVOGADRO_RENDERER) cannot be "
+               "used: it is not compiled into this build or this OpenGL context "
+               "does not meet its requirements. Remove AVOGADRO_RENDERER to let "
+               "Avogadro choose a supported tier.",
+               qPrintable(rendering::tierName(requestedTier)));
       } else {
-        qWarning() << "GLWidget: ignoring unknown AVOGADRO_RENDERER value" << rendererChoice
-                   << "(expected modern|tier2|legacy|compat|tier1|tier0); using capability probe.";
+        qFatal("No rendering tier can run on this system: the compiled-in tiers "
+               "do not support this OpenGL context and the legacy tier is not "
+               "part of this build (AVO_RENDERER_LEGACY). Rebuild with "
+               "AVO_RENDERER_LEGACY=ON or update the OpenGL driver.");
       }
     }
 
-    if (requestedTier == TierLegacy && tierForced) {
-      qInfo() << "GLWidget: AVOGADRO_RENDERER=" << rendererChoice
-              << "forces the legacy/compat fixed-function tier.";
-      d->useModernTier = false;
-    } else if (supportsGL33) {
+    d->rendererTier = resolvedTier;
+    d->useModernTier = (resolvedTier == rendering::RendererTier::Modern);
+
+    if (d->useModernTier) {
       d->backend = new rendering::ModernRendererBackend();
       d->backend->initialize();
-      if (d->backend->isInitialized()) {
-        d->useModernTier = true;
-        qDebug() << "GLWidget: modern rendering tier enabled (GL 3.3+).";
-      } else {
-        // Context is 3.3 but the backend could not build its shaders/VAOs;
-        // drop it and stay on the legacy tier rather than show a black screen.
+      if (!d->backend->isInitialized()) {
+        // Context is 3.3+ but the backend could not build its shaders/VAOs;
+        // drop it and stay on the fixed-function tier rather than show a
+        // black screen. This is an initialisation failure, not a capability
+        // probe result, so it is not a forced-tier violation.
         delete d->backend;
         d->backend = nullptr;
         d->useModernTier = false;
-        qDebug() << "GLWidget: modern backend failed to initialise; using legacy tier.";
-      }
-    } else {
-      d->useModernTier = false;
-      if (tierForced && requestedTier == TierModern) {
-        // An explicit modern request that the context cannot honour must fail
-        // loudly: silently degrading hides driver problems (design A8).
-        qWarning() << "GLWidget: AVOGADRO_RENDERER=" << rendererChoice
-                   << "requested the modern tier but this context is below GL 3.3;"
-                      " falling back to the legacy tier.";
-      } else {
-        qDebug() << "GLWidget: modern rendering tier unavailable (needs GL 3.3); using legacy tier.";
+        qDebug() << "GLWidget: modern backend failed to initialise; using the"
+                 << rendering::tierName(resolvedTier) << "tier.";
       }
     }
+
     qDebug() << "GLWidget initialised... renderer tier ="
-             << (d->useModernTier ? "modern (instanced)" : "legacy (fixed-function)");
+             << rendering::tierName(d->rendererTier)
+             << (d->useModernTier ? "(instanced)" : "(fixed-function)");
   }
 
   void GLWidget::paintGL()

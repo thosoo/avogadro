@@ -44,7 +44,7 @@
 
 ## 7. Tier framework (D7, D9)
 
-- [ ] 7.1 CMake options near `ENABLE_GLSL` (`CMakeLists.txt:441`): `AVO_RENDERER_TIER2/TIER1/LEGACY` (all ON, APPLE forces TIER2 OFF) as definitions on the `avogadro` library target (sources appended in `libavogadro/src/CMakeLists.txt:73+`); startup capability probe (3.3+/2.0+), `AVOGADRO_RENDERER` override before first GLWidget creation, tier+renderer logging via `force-dedicated-gpu` diagnostics; verify on this Linux machine: default = modern, override forces compat/legacy, unsupported+explicit fails with a clear diagnostic (design A8)
+- [x] 7.1 CMake options near `ENABLE_GLSL` (`CMakeLists.txt:441`): `AVO_RENDERER_TIER2/TIER1/LEGACY` (all ON, APPLE forces TIER2 OFF) as definitions on the `avogadro` library target (sources appended in `libavogadro/src/CMakeLists.txt:73+`); startup capability probe (3.3+/2.0+), `AVOGADRO_RENDERER` override before first GLWidget creation, tier+renderer logging via `force-dedicated-gpu` diagnostics; verify on this Linux machine: default = modern, override forces compat/legacy, unsupported+explicit fails with a clear diagnostic (design A8)
 - [ ] 7.2 Compat tier = batched fixed-function flush (client arrays/VBO) of the same chunk stores, legacy GL_SELECT picking per 4.2; verify forced-run basics: molecule renders, tools work, picking correct (spec "Compat tier basics"); Tier 0 code frozen — no changes beyond build guards (design D9)
 
 ## 8. Validation
