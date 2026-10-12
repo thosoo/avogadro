@@ -53,6 +53,7 @@ set(tests
   selectionset
   meshrevision
   meshstream
+  threadedparity
 #  hydrogenscommand
   forcefield
   insertfragmentextension
@@ -91,6 +92,11 @@ foreach (test ${tests})
     # legacy GL_SELECT picking path (task 4.2).
     list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)
   endif()
+  if (${test} STREQUAL "threadedparity")
+    # Compile the real ball-and-stick engine so the snapshot tessellator can
+    # be compared against the GUI-thread engine emission (task 6.1).
+    list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)
+  endif()
   # The ported engines are Qt plugins: their plugin metadata cannot be
   # duplicated inside one binary, so the legacy-vs-modern parity harness gets
   # one binary per engine. Compiling the engine .cpp also makes AUTOUIC
@@ -119,7 +125,7 @@ foreach (test ${tests})
   # The parity binaries drive a real GLWidget for the legacy tier, which
   # QOpenGLWidget does not support on the offscreen platform: they need a
   # real X display (run ctest under xvfb-run) with the default xcb platform.
-  if(${test} MATCHES "^(parity|compatibility|glselectoverflow|meshstream)")
+  if(${test} MATCHES "^(parity|compatibility|glselectoverflow|meshstream|threadedparity)")
     set(_test_env "LIBGL_ALWAYS_SOFTWARE=1")
   endif()
   if(${test} STREQUAL "forcefield")
