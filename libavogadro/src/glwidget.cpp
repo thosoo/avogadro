@@ -190,6 +190,7 @@ void GLWidget::updateViewport()
                         cellColor( 255,255,255 ),
                         molecule( 0 ),
                         camera( new Camera ),
+                        projection( GLWidget::Perspective ),
                         tool( 0 ),
                         toolGroup( 0 ),
                         selectBuf( 0 ),
@@ -622,7 +623,36 @@ GLWidget::GLWidget( Molecule *molecule,
     }
     delete d->backend;
     d->backend = nullptr;
-    if (supportsGL33) {
+
+    // Renderer-tier override (gpu-rendering-pipeline design A8). Read once at
+    // GL initialisation, i.e. before the first frame: "modern" (default when
+    // supported), "compat"/"legacy" force the fixed-function path. An explicit
+    // override wins over the capability probe so a broken driver can be
+    // bypassed, and an unsupported-but-forced request is honoured with a
+    // diagnostic rather than silently ignored.
+    enum RendererTier { TierModern, TierLegacy } requestedTier = TierModern;
+    bool tierForced = false;
+    const QByteArray rendererEnv = qgetenv("AVOGADRO_RENDERER");
+    const QString rendererChoice = QString::fromUtf8(rendererEnv).toLower().trimmed();
+    if (!rendererChoice.isEmpty()) {
+      if (rendererChoice == QLatin1String("modern") || rendererChoice == QLatin1String("tier2")) {
+        requestedTier = TierModern;
+        tierForced = true;
+      } else if (rendererChoice == QLatin1String("legacy") || rendererChoice == QLatin1String("compat")
+                 || rendererChoice == QLatin1String("tier1") || rendererChoice == QLatin1String("tier0")) {
+        requestedTier = TierLegacy;
+        tierForced = true;
+      } else {
+        qWarning() << "GLWidget: ignoring unknown AVOGADRO_RENDERER value" << rendererChoice
+                   << "(expected modern|tier2|legacy|compat|tier1|tier0); using capability probe.";
+      }
+    }
+
+    if (requestedTier == TierLegacy && tierForced) {
+      qInfo() << "GLWidget: AVOGADRO_RENDERER=" << rendererChoice
+              << "forces the legacy/compat fixed-function tier.";
+      d->useModernTier = false;
+    } else if (supportsGL33) {
       d->backend = new rendering::ModernRendererBackend();
       d->backend->initialize();
       if (d->backend->isInitialized()) {
@@ -638,10 +668,18 @@ GLWidget::GLWidget( Molecule *molecule,
       }
     } else {
       d->useModernTier = false;
-      qDebug() << "GLWidget: modern rendering tier unavailable (needs GL 3.3); using legacy tier.";
+      if (tierForced && requestedTier == TierModern) {
+        // An explicit modern request that the context cannot honour must fail
+        // loudly: silently degrading hides driver problems (design A8).
+        qWarning() << "GLWidget: AVOGADRO_RENDERER=" << rendererChoice
+                   << "requested the modern tier but this context is below GL 3.3;"
+                      " falling back to the legacy tier.";
+      } else {
+        qDebug() << "GLWidget: modern rendering tier unavailable (needs GL 3.3); using legacy tier.";
+      }
     }
-
-    qDebug() << "GLWidget initialised...";
+    qDebug() << "GLWidget initialised... renderer tier ="
+             << (d->useModernTier ? "modern (instanced)" : "legacy (fixed-function)");
   }
 
   void GLWidget::paintGL()
@@ -909,6 +947,7 @@ GLWidget::GLWidget( Molecule *molecule,
       d->backend->setModelViewProjection(mvp);
       d->backend->pushSpheres(d->builder.spheres());
       d->backend->pushBonds(d->builder.bonds());
+      d->backend->pushLines(d->builder.lines());
       d->backend->endFrame();
       d->backendDrawCalls = d->backend->drawCallsThisFrame();
       d->backendFrames = d->backend->framesSubmitted();

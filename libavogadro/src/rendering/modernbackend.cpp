@@ -69,12 +69,21 @@ void ModernRendererBackend::initialize(int maxSpheres, int maxBonds) {
       return;
     }
     vbo.buffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
+    // allocate() targets whatever is bound to GL_ARRAY_BUFFER; without an
+    // explicit bind it silently no-ops (GL_INVALID_OPERATION) and the buffer
+    // stays at size 0, so every subsequent write is dropped and the instanced
+    // draw reads radius 0 => degenerate triangles => nothing renders.
+    vbo.buffer.bind();
     vbo.buffer.allocate(bytes);
+    vbo.buffer.release();
     vbo.capacityBytes = bytes;
     vbo.created = true;
   };
   alloc(m_sphereVBO, sphereBytes);
   alloc(m_bondVBO, bondBytes);
+  // Lines are drawn as thin cylinders (the bond path), so they reserve their
+  // own instance buffer in the BondInstance layout.
+  alloc(m_lineVBO, bondBytes);
 
   // Shared geometry VAOs + shaders for the instanced draw (task 2.4). Built on
   // this context; rebuilt on context loss via initializeGL -> initialize().
@@ -92,7 +101,9 @@ void ModernRendererBackend::ensureCapacity(InstanceVBO &vbo,
       return;
     }
     vbo.buffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
+    vbo.buffer.bind(); // allocate() needs an explicit bind; see alloc() above.
     vbo.buffer.allocate(bytes);
+    vbo.buffer.release();
     vbo.capacityBytes = bytes;
     vbo.created = true;
   }
@@ -104,19 +115,27 @@ unsigned int ModernRendererBackend::pendingUploads() const {
 }
 
 bool ModernRendererBackend::beginFrame(const Camera * /*camera*/,
-                                       const QRect & /*viewport*/,
+                                       const QRect &viewport,
                                        int /*quality*/) {
   if (!m_ctx || !m_ctx->isValid() || !m_glInitialized)
     return false;
   m_ctx->makeCurrent(m_ctx->surface());
+  // makeCurrent() resets the GL viewport to the (offscreen) surface size,
+  // discarding whatever the caller set. Re-apply the viewport we were given,
+  // otherwise every draw is clipped to a 1x1 region and renders nothing.
+  if (viewport.isValid())
+    m_gl.glViewport(viewport.x(), viewport.y(), viewport.width(),
+                    viewport.height());
   m_sphereVBO.uploader.beginFrame();
   m_bondVBO.uploader.beginFrame();
+  m_lineVBO.uploader.beginFrame();
   m_uploadCalls = 0;
   m_maxChunkBytes = 0;
   // Per-frame state reset. The MVP is supplied separately via
   // setModelViewProjection(); without it drawInstances() is a no-op.
   m_sphereCount = 0;
   m_bondCount = 0;
+  m_lineCount = 0;
   m_drawCallsThisFrame = 0;
   return true;
 }
@@ -204,8 +223,49 @@ void ModernRendererBackend::pushBonds(const ChunkStore<BondInstance> &store) {
   m_bondCount = static_cast<unsigned int>(store.size());
 }
 
-void ModernRendererBackend::pushLines(const ChunkStore<LineInstance> & /*store*/) {
-  // Lines share the bond path in later tasks; none to chunk-upload in 2.2.
+void ModernRendererBackend::pushLines(const ChunkStore<LineInstance> &store) {
+  // Lines have no dedicated shader in this tier: each segment is converted to
+  // a thin cylinder (the bond instance layout) and drawn through the existing
+  // cylinder geometry + program. That keeps the wireframe engines on the
+  // instanced path without a second geometry/shader set, and the visual class
+  // matches the legacy fixed-function line at the widths engines actually use.
+  const std::size_t n = store.size();
+  if (n == 0) {
+    m_lineCount = 0;
+    return;
+  }
+  ensureCapacity(m_lineVBO, n * sizeof(BondInstance));
+  if (!m_lineVBO.created) {
+    m_lineCount = 0;
+    return;
+  }
+
+  ChunkStore<BondInstance> converted;
+  converted.reserve(n);
+  for (std::size_t i = 0; i < n; ++i) {
+    const LineInstance &line = store.at(i);
+    BondInstance bond;
+    bond.start[0] = line.start[0];
+    bond.start[1] = line.start[1];
+    bond.start[2] = line.start[2];
+    bond.end[0] = line.end[0];
+    bond.end[1] = line.end[1];
+    bond.end[2] = line.end[2];
+    // width is the legacy GL line width in pixels; a 1 px line is about a
+    // 0.02 A cylinder at typical molecular view scales.
+    bond.radius = 0.02f * line.width;
+    bond.color[0] = line.color[0];
+    bond.color[1] = line.color[1];
+    bond.color[2] = line.color[2];
+    bond.color[3] = line.color[3];
+    bond.order = 1;
+    bond.shift = 0.0;
+    converted.append(bond);
+  }
+  converted.markDirty(0, static_cast<unsigned int>(converted.size()));
+  pushDirtyRanges(converted, m_lineVBO);
+  fenceAfterUpload(m_lineVBO);
+  m_lineCount = static_cast<unsigned int>(converted.size());
 }
 
 void ModernRendererBackend::pushMeshes(
@@ -268,8 +328,15 @@ void ModernRendererBackend::buildGeometry()
       return;
     }
     m_sphereGeom.geometryVBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
+    // allocate() writes to whatever is currently bound to the target; with the
+    // VAO created (create() also binds it) and nothing bound to
+    // GL_ARRAY_BUFFER the upload silently no-ops with GL_INVALID_OPERATION and
+    // the VBO stays empty, so every vertex collapses onto aInstPos and the
+    // instanced draw rasterises zero triangles. Bind explicitly first.
+    m_sphereGeom.geometryVBO.bind();
     m_sphereGeom.geometryVBO.allocate(sphere.vertices().data(),
                                       sphere.vertices().size() * sizeof(GeometryVertex));
+    m_sphereGeom.geometryVBO.release();
     // Index buffer (GL_ELEMENT_ARRAY_BUFFER): must be an IndexBuffer-type VBO,
     // else ELEMENT_ARRAY_BUFFER stays at 0 and glDrawElements uses a null
     // client-side index pointer (SIGSEGV in the driver). A plain member is
@@ -278,12 +345,13 @@ void ModernRendererBackend::buildGeometry()
       QOpenGLBuffer indexVBO(QOpenGLBuffer::IndexBuffer);
       indexVBO.create();
       indexVBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
+      indexVBO.bind();
       indexVBO.allocate(sphere.indices().data(),
                         sphere.indices().size() * sizeof(unsigned short));
+      indexVBO.release();
       m_sphereGeom.indexVBO = std::move(indexVBO);
     }
     m_sphereGeom.indexCount = sphere.indexCount();
-
     if (!compileShaderProgram(m_sphereGeom.program, kSphereVertexShader,
                         kSphereFragmentShader)) {
       qWarning() << "ModernRendererBackend: sphere program compile/link failed";
@@ -333,14 +401,19 @@ void ModernRendererBackend::buildGeometry()
       return;
     }
     m_cylinderGeom.geometryVBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
+    // Same bind-before-allocate requirement as the sphere block above.
+    m_cylinderGeom.geometryVBO.bind();
     m_cylinderGeom.geometryVBO.allocate(cylinder.vertices().data(),
                                         cylinder.vertices().size() * sizeof(GeometryVertex));
+    m_cylinderGeom.geometryVBO.release();
     {
       QOpenGLBuffer indexVBO(QOpenGLBuffer::IndexBuffer);
       indexVBO.create();
       indexVBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
+      indexVBO.bind();
       indexVBO.allocate(cylinder.indices().data(),
                         cylinder.indices().size() * sizeof(unsigned short));
+      indexVBO.release();
       m_cylinderGeom.indexVBO = std::move(indexVBO);
     }
     m_cylinderGeom.indexCount = cylinder.indexCount();
@@ -384,6 +457,20 @@ void ModernRendererBackend::buildGeometry()
   }
 }
 
+//! Mirror the legacy lighting (global.h: LIGHT_AMBIENT, LIGHT0_*, LIGHT1_*)
+//! so the per-instance Phong lighting in the instanced fragment shaders produces
+//! a lit, non-black result. The legacy GLPainter set these per draw; the backend
+//! must set them explicitly because drawInstances() owns the draw.
+static void setLightingUniforms(QOpenGLShaderProgram *program) {
+  program->setUniformValue("uAmbient", 0.2f, 0.2f, 0.2f);
+  program->setUniformValue("uLight0Diff", 1.0f, 1.0f, 1.0f);
+  program->setUniformValue("uLight0Spec", 1.0f, 1.0f, 1.0f);
+  program->setUniformValue("uLight0Dir", 0.8f, 0.7f, 1.0f);
+  program->setUniformValue("uLight1Diff", 0.3f, 0.3f, 0.3f);
+  program->setUniformValue("uLight1Spec", 0.5f, 0.5f, 0.5f);
+  program->setUniformValue("uLight1Dir", -0.8f, 0.7f, -0.5f);
+}
+
 void ModernRendererBackend::drawInstances()
 {
   if (!m_glInitialized || !m_haveMvp)
@@ -404,6 +491,7 @@ void ModernRendererBackend::drawInstances()
       return;
     }
     m_sphereGeom.program.setUniformValue(m_sphereGeom.uMVPloc, m_mvp);
+    setLightingUniforms(&m_sphereGeom.program);
     // Re-establish every binding explicitly rather than relying on VAO state
     // to persist across the buildGeometry/drawInstances scope split: bind the
     // geometry VBO for attribs 0/1, the index VBO for ELEMENT_ARRAY_BUFFER,
@@ -417,6 +505,15 @@ void ModernRendererBackend::drawInstances()
     m_sphereGeom.program.setAttributeBuffer(2, GL_FLOAT, 0, 3, sizeof(SphereInstance));
     m_sphereGeom.program.setAttributeBuffer(3, GL_FLOAT, 12, 1, sizeof(SphereInstance));
     m_sphereGeom.program.setAttributeBuffer(4, GL_UNSIGNED_BYTE, 16, 4, sizeof(SphereInstance));
+    // Re-enable every array explicitly (the manual single-chunk render test
+    // does this and renders; relying on VAO restore across the
+    // buildGeometry/drawInstances split left the arrays disabled here and the
+    // draw produced zero fragments). Explicit enable is the proven-safe path.
+    m_gl.glEnableVertexAttribArray(0);
+    m_gl.glEnableVertexAttribArray(1);
+    m_gl.glEnableVertexAttribArray(2);
+    m_gl.glEnableVertexAttribArray(3);
+    m_gl.glEnableVertexAttribArray(4);
     m_gl.glVertexAttribDivisor(2, 1);
     m_gl.glVertexAttribDivisor(3, 1);
     m_gl.glVertexAttribDivisor(4, 1);
@@ -427,12 +524,15 @@ void ModernRendererBackend::drawInstances()
     m_sphereGeom.vao.release();
   }
 
-  if (m_cylinderGeom.valid && m_bondCount > 0) {
+  // Lines are drawn through the cylinder path, so bonds and lines must be
+  // considered together here.
+  if (m_cylinderGeom.valid && (m_bondCount > 0 || m_lineCount > 0)) {
     if (!m_cylinderGeom.program.bind()) {
       qWarning() << "ModernRendererBackend: cylinder program bind failed";
       return;
     }
     m_cylinderGeom.program.setUniformValue(m_cylinderGeom.uMVPloc, m_mvp);
+    setLightingUniforms(&m_cylinderGeom.program);
     m_cylinderGeom.vao.bind();
     m_cylinderGeom.geometryVBO.bind();
     m_cylinderGeom.indexVBO.bind();
@@ -450,7 +550,32 @@ void ModernRendererBackend::drawInstances()
     m_gl.glDrawElementsInstanced(GL_TRIANGLES, m_cylinderGeom.indexCount,
                                  GL_UNSIGNED_SHORT, nullptr,
                                  static_cast<GLsizei>(m_bondCount));
+    GLenum gerr = m_gl.glGetError();
+    if (gerr != GL_NO_ERROR)
+      qWarning() << "CYLINDER draw GL error:" << gerr;
     ++m_drawCallsThisFrame;
+
+    // Lines (converted to thin cylinders, same instance layout) draw through
+    // the very same cylinder VAO + program; only the instance buffer changes.
+    if (m_lineCount > 0) {
+      m_lineVBO.buffer.bind();
+      m_cylinderGeom.program.setAttributeBuffer(2, GL_FLOAT, 0, 3,
+                                                sizeof(BondInstance));
+      m_cylinderGeom.program.setAttributeBuffer(3, GL_FLOAT, 12, 3,
+                                                sizeof(BondInstance));
+      m_cylinderGeom.program.setAttributeBuffer(4, GL_FLOAT, 24, 1,
+                                                sizeof(BondInstance));
+      m_cylinderGeom.program.setAttributeBuffer(5, GL_UNSIGNED_BYTE, 28, 4,
+                                                sizeof(BondInstance));
+      m_gl.glVertexAttribDivisor(2, 1);
+      m_gl.glVertexAttribDivisor(3, 1);
+      m_gl.glVertexAttribDivisor(4, 1);
+      m_gl.glVertexAttribDivisor(5, 1);
+      m_gl.glDrawElementsInstanced(GL_TRIANGLES, m_cylinderGeom.indexCount,
+                                   GL_UNSIGNED_SHORT, nullptr,
+                                   static_cast<GLsizei>(m_lineCount));
+      ++m_drawCallsThisFrame;
+    }
     m_cylinderGeom.vao.release();
   }
 }

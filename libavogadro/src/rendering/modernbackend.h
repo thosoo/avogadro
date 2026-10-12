@@ -175,12 +175,16 @@ private:
   QPointer<QOpenGLContext> m_ctx;
   InstanceVBO m_sphereVBO;
   InstanceVBO m_bondVBO;
+  //! Lines rendered as thin cylinders (bond path), so the wire engine has a
+  //! modern-tier representation without a second shader/geometry set.
+  InstanceVBO m_lineVBO;
   PrimitiveGeometry m_sphereGeom;
   PrimitiveGeometry m_cylinderGeom;
   QMatrix4x4 m_mvp;
   bool m_haveMvp = false;
   unsigned int m_sphereCount = 0; // records drawn this frame (watermark)
   unsigned int m_bondCount = 0;
+  unsigned int m_lineCount = 0;
   unsigned int m_drawCallsThisFrame = 0;
   unsigned int m_framesSubmitted = 0;
   QOpenGLFunctions_3_3_Core m_gl;

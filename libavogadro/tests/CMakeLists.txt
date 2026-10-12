@@ -41,6 +41,10 @@ pkg_check_modules(XTB xtb)
 set(tests
   chunkstore
   scenebuilder
+  paritybsdy
+  paritysphere
+  paritystick
+  paritywire
   geometry
   modernrenderer
   drawcommand
@@ -72,6 +76,20 @@ foreach (test ${tests})
     # headlessly through the SceneBuilder emitter (task 1.2).
     list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)
   endif()
+  if (${test} STREQUAL "modernrenderer")
+    # Compile the real ball-and-stick engine so the parity test (task 3.1)
+    # can render a molecule through the modern backend's instanced path.
+    list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)
+  endif()
+  # The ported engines are Qt plugins: their plugin metadata cannot be
+  # duplicated inside one binary, so the legacy-vs-modern parity harness gets
+  # one binary per engine. Compiling the engine .cpp also makes AUTOUIC
+  # generate the settings-widget ui_*.h header its engine header includes.
+  foreach (_parity_engine "bsdy" "sphere" "stick" "wire")
+    if (${test} STREQUAL "parity${_parity_engine}")
+      list(APPEND test_SRCS ../src/engines/${_parity_engine}engine.cpp)
+    endif()
+  endforeach()
   add_executable(${test}test ${test_SRCS})
   target_link_libraries(${test}test
     PRIVATE
@@ -88,6 +106,12 @@ foreach (test ${tests})
   endif()
   add_test(${test}Test ${CMAKE_BINARY_DIR}/bin/${test}test)
   set(_test_env "QT_QPA_PLATFORM=offscreen")
+  # The parity binaries drive a real GLWidget for the legacy tier, which
+  # QOpenGLWidget does not support on the offscreen platform: they need a
+  # real X display (run ctest under xvfb-run) with the default xcb platform.
+  if(${test} MATCHES "^parity")
+    set(_test_env "LIBGL_ALWAYS_SOFTWARE=1")
+  endif()
   if(${test} STREQUAL "forcefield")
     list(APPEND _test_env
       "BABEL_DATADIR=${CMAKE_BINARY_DIR}/openbabel-install/share")
