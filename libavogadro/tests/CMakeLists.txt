@@ -54,6 +54,7 @@ set(tests
   meshrevision
   meshstream
   threadedparity
+  builderpool
 #  hydrogenscommand
   forcefield
   insertfragmentextension

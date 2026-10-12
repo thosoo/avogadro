@@ -125,6 +125,7 @@ set(libavogadro_SRCS
   rendering/scenebuilder.cpp
   rendering/geometry.cpp
   rendering/snapshottessellator.cpp  # snapshot-driven, thread-safe emission (6.1)
+  rendering/builderpool.cpp          # worker thread pool consuming build jobs (6.1)
   rendering/chunkeduploader.cpp  # chunked, budgeted upload scheduler (2.2)
   rendering/modernbackend.cpp    # modern-tier submit stage with fences (2.2)
   rendering/lod.cpp              # LOD zoom bands + hysteresis (2.3)

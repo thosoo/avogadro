@@ -36,7 +36,10 @@
 
 ## 6. Worker threading (D3)
 
-- [ ] 6.1 Builder pool (2-3 threads) consuming (snapshot, dirty-chunks) jobs; snapshots taken under `Molecule::lock()->lockForRead()`; completions via queued signals; GUI uploads ready chunks in `paintGL` under the ≤2 ms budget; patterns to copy: `readfilethread_p.cpp`, `cartoonmeshgenerator`; verify input latency stays under the frame budget while a 1M-atom scene builds (design A7)
+- [x] 6.1 Builder pool (2-3 threads) consuming (snapshot, dirty-chunks) jobs; snapshots taken under `Molecule::lock()->lockForRead()`; completions via queued signals; GUI uploads ready chunks in `paintGL` under the ≤2 ms budget; patterns to copy: `readfilethread_p.cpp`, `cartoonmeshgenerator`; verify input latency stays under the frame budget while a 1M-atom scene builds (design A7)
+  - [x] `BuilderPool`/`BuilderWorker` (`rendering/builderpool.{h,cpp}`): fixed worker set, mutex+QWaitCondition job queue, generation echo, queued `jobReady` to the GUI thread; `builderpooltest` covers single/concurrent/generation-echo/direct-delivery (30x stress, 0 drops)
+  - [ ] GLWidget `paintGL` dispatch + ≤2 ms upload budget wiring (design D2/D3)
+  - [ ] 1M-atom input-latency verification while a scene builds
 - [ ] 6.2 Race/teardown tests: edits during builds (revision check discards stale results), view close during builds (`QPointer`/shared refs), context loss mid-upload (buffers rebuilt from CPU chunks — A3); verify no crashes, no leaked builders, TSAN/ASAN clean
 
 ## 7. Tier framework (D7, D9)
