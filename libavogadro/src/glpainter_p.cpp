@@ -45,6 +45,10 @@
 #include <QDebug>
 #include <QColor>
 #include <QVarLengthArray>
+#include <QHash>
+#include <QPointer>
+#include <QtOpenGL/QOpenGLFunctions_1_5>
+#include <QSurfaceFormat>
 #include <Eigen/Geometry>
 #define _USE_MATH_DEFINES
 #include <cmath>
@@ -110,7 +114,27 @@ namespace Avogadro
     / ( PAINTER_CYLINDERS_SQRT_LIMIT_MAX_LEVEL - PAINTER_CYLINDERS_SQRT_LIMIT_MIN_LEVEL );
 //  const double   PAINTER_FRUSTUM_CULL_TRESHOLD = -0.8;
 
-  class GLPainterPrivate
+  //! Per-mesh GPU-buffer cache entry (gpu-rendering-pipeline task 5.1 / design
+//! A6). The VBOs are context-local, so the owning context is stored to detect
+//! context loss: on a new context the stale handles are dropped (never
+//! glDelete'd, since they belong to the dead context) and re-uploaded for the
+//! live one. The cache is keyed on the mesh pointer; the stored revision lets a
+//! regenerated mesh be detected so its buffers are re-uploaded once instead of
+//! every frame.
+struct MeshVBOCacheEntry
+  {
+    const Mesh *mesh = nullptr;
+    unsigned int revision = 0;
+    bool stable = false;
+    QPointer<QOpenGLContext> context = nullptr;
+    GLuint vboVertices = 0;
+    GLuint vboNormals = 0;
+    GLuint vboColors = 0; // 0 when the mesh is drawn without per-vertex colors
+    std::size_t count = 0;
+    bool colored = false;
+  };
+
+class GLPainterPrivate
   {
   public:
     GLPainterPrivate() : widget ( 0 ), newQuality(-1), quality ( 0 ), overflow(0),
@@ -119,6 +143,7 @@ namespace Avogadro
                          type(Primitive::OtherType), id ( -1 ), color(0)  {};
     ~GLPainterPrivate()
     {
+      deleteMeshVBOs();
       deleteObjects();
       delete textRenderer;
     }
@@ -149,6 +174,24 @@ namespace Avogadro
     void deleteObjects();
     void createObjects();
 
+    //! (Task 5.1) Ensure the mesh's VBOs are uploaded and return a pointer to
+    //! the cache entry, or nullptr when the caller should use the CPU-vector
+    //! fallback (no current context, unstable mesh, or buffers unavailable).
+    const MeshVBOCacheEntry *meshVBOEntryForDraw(const Mesh &mesh, bool colored);
+
+    //! (Task 5.1) Ensure the mesh's vertex/normal(+color) VBOs are uploaded for
+    //! the given (current) context, re-uploading once when the mesh becomes
+    //! stable, is regenerated (revision bump), or the context changed. Returns
+    //! true when VBOs are ready to draw from; false for an unstable mesh or if
+    //! the GL buffer functions could not be initialised (caller falls back to
+    //! client arrays read straight from the CPU vectors).
+    bool ensureMeshVBO(const Mesh &mesh, bool colored, QOpenGLContext *ctx);
+
+    //! (Task 5.1) glDelete any cached mesh VBOs whose context is still alive.
+    //! Handles bound to a lost context are skipped (they are owned by that
+    //! dead context and freed by the driver).
+    void deleteMeshVBOs();
+
     inline bool isValid();
 
     /**
@@ -160,6 +203,16 @@ namespace Avogadro
     Primitive::Type type;
     int id;
     Color color;
+
+    // (Task 5.1) Per-mesh VBO cache. QOpenGLFunctions_1_5 (not raw GLEW
+    // pointers) owns the buffer calls so mesh streaming works whether or not
+    // ENABLE_GLSL enabled GLEW's loader.
+    QHash<const Mesh *, MeshVBOCacheEntry> meshVBOCache;
+    QOpenGLFunctions_1_5 glBuffers;
+    bool glBuffersInitialized = false;
+    bool meshVBOWarned = false; // fallback warning emitted at most once (see
+                                // ensureMeshVBO); per-draw re-attempt would
+                                // otherwise flood the log on the fallback path.
   };
 
   inline bool GLPainterPrivate::isValid()
@@ -191,6 +244,167 @@ namespace Avogadro
       newQuality = -1;
     }
     return true;
+  }
+
+  bool GLPainterPrivate::ensureMeshVBO(const Mesh &mesh, bool colored,
+                                       QOpenGLContext *ctx)
+  {
+    const unsigned int rev = mesh.revision();
+    const bool stable = mesh.stable();
+
+    // The mesh draw path streams to VBOs and then draws with client-state
+    // entry points (glVertexPointer / glNormalPointer / glColorPointer /
+    // glEnableClientState). Those were removed in the OpenGL 3.3 Core profile,
+    // so a Core context can never use this path: fall back to client arrays by
+    // design rather than attempt (and silently invalidate) an unusable draw.
+    // This runner's QOpenGLWidget resolves a Core context even when a 3.3
+    // Compatibility format was requested, so the gate is checked against the
+    // resolved context profile, not the request.
+    if (ctx && ctx->format().profile() == QSurfaceFormat::CoreProfile)
+      return false;
+
+    // Load the GL 1.5 buffer entry points once. A draw always runs with the
+    // widget's context current, so this is safe here (and, unlike raw GLEW
+    // pointers, works regardless of ENABLE_GLSL).
+    if (!glBuffersInitialized) {
+      glBuffersInitialized = glBuffers.initializeOpenGLFunctions();
+      if (!glBuffersInitialized) {
+        if (!meshVBOWarned) {
+          meshVBOWarned = true;
+          qWarning("GLPainter: could not initialise GL buffer functions; "
+                   "falling back to client arrays for mesh drawing");
+        }
+        return false;
+      }
+    }
+
+    auto it = meshVBOCache.find(&mesh);
+    const bool contextLost = (it != meshVBOCache.end()
+                              && it->context != ctx);
+    const bool dataChanged = (it == meshVBOCache.end()
+                              || it->revision != rev
+                              || it->stable != stable
+                              || it->colored != colored);
+
+    // Already uploaded and unchanged for this mesh + live context: reuse.
+    if (it != meshVBOCache.end() && !dataChanged && !contextLost)
+      return true;
+
+    // (Re)upload required. Delete stale handles only when they still belong to
+    // a live (same) context; handles from a lost context are dropped without
+    // glDelete (they are owned by that dead context and freed by the driver,
+    // mirroring ModernRendererBackend's context-loss policy).
+    if (it != meshVBOCache.end()) {
+      if (!contextLost) {
+        if (it->vboVertices)
+          glBuffers.glDeleteBuffers(1, &it->vboVertices);
+        if (it->vboNormals)
+          glBuffers.glDeleteBuffers(1, &it->vboNormals);
+        if (it->vboColors)
+          glBuffers.glDeleteBuffers(1, &it->vboColors);
+      }
+      meshVBOCache.erase(it);
+    }
+
+    // Unstable meshes are regenerated in place; the engines only draw stable
+    // meshes, so refusing to upload here is defensive. No per-frame copy is
+    // made either way.
+    if (!stable)
+      return false;
+
+    const std::vector<Eigen::Vector3f> &v = mesh.vertices();
+    const std::vector<Eigen::Vector3f> &n = mesh.normals();
+    if (v.empty() || v.size() != n.size())
+      return false;
+
+    GLuint vboV = 0;
+    GLuint vboN = 0;
+    GLuint vboC = 0;
+
+    glBuffers.glGenBuffers(1, &vboV);
+    glBuffers.glBindBuffer(GL_ARRAY_BUFFER, vboV);
+    glBuffers.glBufferData(GL_ARRAY_BUFFER,
+                           static_cast<GLsizeiptr>(v.size()) * sizeof(Eigen::Vector3f),
+                           v.data(), GL_STATIC_DRAW);
+
+    glBuffers.glGenBuffers(1, &vboN);
+    glBuffers.glBindBuffer(GL_ARRAY_BUFFER, vboN);
+    glBuffers.glBufferData(GL_ARRAY_BUFFER,
+                           static_cast<GLsizeiptr>(n.size()) * sizeof(Eigen::Vector3f),
+                           n.data(), GL_STATIC_DRAW);
+
+    bool haveColors = colored;
+    if (colored) {
+      const std::vector<Color3f> &c = mesh.colors();
+      if (c.size() == v.size()) {
+        glBuffers.glGenBuffers(1, &vboC);
+        glBuffers.glBindBuffer(GL_ARRAY_BUFFER, vboC);
+        glBuffers.glBufferData(GL_ARRAY_BUFFER,
+                               static_cast<GLsizeiptr>(c.size()) * sizeof(Color3f),
+                               c.data(), GL_STATIC_DRAW);
+      } else {
+        haveColors = false; // no per-vertex colors to stream
+      }
+    }
+    glBuffers.glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+    MeshVBOCacheEntry entry;
+    entry.mesh = &mesh;
+    entry.revision = rev;
+    entry.stable = stable;
+    entry.context = ctx;
+    entry.vboVertices = vboV;
+    entry.vboNormals = vboN;
+    entry.vboColors = vboC;
+    entry.count = v.size();
+    entry.colored = haveColors;
+    meshVBOCache.insert(&mesh, entry);
+
+    return true;
+  }
+
+  const MeshVBOCacheEntry *GLPainterPrivate::meshVBOEntryForDraw(const Mesh &mesh,
+                                                                 bool colored)
+  {
+    QOpenGLContext *ctx = widget ? widget->context() : nullptr;
+    if (!ctx)
+      return nullptr;
+    if (!ensureMeshVBO(mesh, colored, ctx))
+      return nullptr;
+    // ensureMeshVBO just inserted this mesh's entry; it is stable for the rest
+    // of this draw (no further inserts happen before we consume the pointer).
+    return &meshVBOCache[&mesh];
+  }
+
+  void GLPainterPrivate::deleteMeshVBOs()
+  {
+    // Only touch contexts that are still valid; a lost context's buffers are
+    // not deleted here (see ensureMeshVBO).
+    if (!glBuffersInitialized)
+      return;
+    QOpenGLContext *live = QOpenGLContext::currentContext();
+    bool madeCurrent = false;
+    if (live && live->isValid()) {
+      if (live->makeCurrent(live->surface()))
+        madeCurrent = true;
+    }
+    for (auto it = meshVBOCache.constBegin(); it != meshVBOCache.constEnd(); ++it) {
+      if (it->context && it->context->isValid()) {
+        if (!madeCurrent) {
+          if (it->context->makeCurrent(it->context->surface()))
+            madeCurrent = true;
+        }
+        if (it->vboVertices)
+          glBuffers.glDeleteBuffers(1, &it->vboVertices);
+        if (it->vboNormals)
+          glBuffers.glDeleteBuffers(1, &it->vboNormals);
+        if (it->vboColors)
+          glBuffers.glDeleteBuffers(1, &it->vboColors);
+      }
+    }
+    if (madeCurrent)
+      QOpenGLContext::currentContext()->doneCurrent();
+    meshVBOCache.clear();
   }
 
   void GLPainterPrivate::deleteObjects()
@@ -1016,9 +1230,12 @@ namespace Avogadro
     d->color.apply();
     d->color.applyAsMaterials();
 
-    // Render the triangles of the mesh
-    std::vector<Eigen::Vector3f> v = mesh.vertices();
-    std::vector<Eigen::Vector3f> n = mesh.normals();
+    // Render the triangles of the mesh. Task 5.1: stream from a VBO that was
+    // uploaded once when the mesh became stable, instead of deep-copying the
+    // vertex/normal vectors every frame (which made the per-frame cost scale
+    // with the vertex count).
+    const std::vector<Eigen::Vector3f> &v = mesh.vertices();
+    const std::vector<Eigen::Vector3f> &n = mesh.normals();
 
     if (v.size() != n.size()) {
       qDebug() << "Vertices size does not equal normals size:" << v.size()
@@ -1026,13 +1243,29 @@ namespace Avogadro
       return;
     }
 
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glEnableClientState(GL_NORMAL_ARRAY);
-    glVertexPointer(3, GL_FLOAT, 0, &(v[0]));
-    glNormalPointer(GL_FLOAT, 0, &(n[0]));
-    glDrawArrays(GL_TRIANGLES, 0, v.size());
-    glDisableClientState(GL_VERTEX_ARRAY);
-    glDisableClientState(GL_NORMAL_ARRAY);
+    const MeshVBOCacheEntry *e = d->meshVBOEntryForDraw(mesh, false);
+    if (e) {
+      d->glBuffers.glBindBuffer(GL_ARRAY_BUFFER, e->vboNormals);
+      d->glBuffers.glNormalPointer(GL_FLOAT, 0, nullptr);
+      d->glBuffers.glBindBuffer(GL_ARRAY_BUFFER, e->vboVertices);
+      d->glBuffers.glVertexPointer(3, GL_FLOAT, 0, nullptr);
+      d->glBuffers.glEnableClientState(GL_VERTEX_ARRAY);
+      d->glBuffers.glEnableClientState(GL_NORMAL_ARRAY);
+      d->glBuffers.glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(e->count));
+      d->glBuffers.glDisableClientState(GL_VERTEX_ARRAY);
+      d->glBuffers.glDisableClientState(GL_NORMAL_ARRAY);
+      d->glBuffers.glBindBuffer(GL_ARRAY_BUFFER, 0);
+    } else if (!v.empty()) {
+      // Fallback: client arrays straight from the CPU vectors (unstable mesh,
+      // or GL buffer functions unavailable). No per-frame copy is made.
+      glEnableClientState(GL_VERTEX_ARRAY);
+      glEnableClientState(GL_NORMAL_ARRAY);
+      glVertexPointer(3, GL_FLOAT, 0, &v[0]);
+      glNormalPointer(GL_FLOAT, 0, &n[0]);
+      glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(v.size()));
+      glDisableClientState(GL_VERTEX_ARRAY);
+      glDisableClientState(GL_NORMAL_ARRAY);
+    }
 
     glPolygonMode(GL_FRONT, GL_FILL);
     glEnable(GL_LIGHTING);
@@ -1057,10 +1290,15 @@ namespace Avogadro
         break;
     }
 
-    // Render the triangles of the mesh
-    std::vector<Eigen::Vector3f> v = mesh.vertices();
-    std::vector<Eigen::Vector3f> n = mesh.normals();
-    std::vector<Color3f> c = mesh.colors();
+    // Task 5.1: the per-vertex glBegin/glVertex3fv loop below was O(n) CPU per
+    // frame (a per-vertex glMaterial call per vertex), so a colored surface's
+    // per-frame cost scaled with its vertex count. When the mesh is stable we
+    // stream its vertices/normals/colors to a VBO once and draw with
+    // glDrawArrays + GL_COLOR_MATERIAL, making the per-frame cost independent
+    // of the vertex count.
+    const std::vector<Eigen::Vector3f> &v = mesh.vertices();
+    const std::vector<Eigen::Vector3f> &n = mesh.normals();
+    const std::vector<Color3f> &c = mesh.colors();
 
     if (v.size() != n.size() || v.size() != c.size()) {
       qDebug() << "Vertices size does not equal normals size or color size:"
@@ -1070,30 +1308,41 @@ namespace Avogadro
 
     d->color.applyAsMaterials();
 
-    /* Need to work out issues with material properties, lighting etc...
-    glEnable(GL_COLOR_MATERIAL);
-    glEnableClientState(GL_VERTEX_ARRAY);
-    glEnableClientState(GL_NORMAL_ARRAY);
-    glEnableClientState(GL_COLOR_ARRAY);
-    glVertexPointer(3, GL_FLOAT, 0, &(v[0]));
-    glNormalPointer(GL_FLOAT, 0, &(n[0]));
-    glColorPointer(3, GL_FLOAT, 0, &(c[0]));
-    glDrawArrays(GL_TRIANGLES, 0, v.size());
-    glDisableClientState(GL_VERTEX_ARRAY);
-    glDisableClientState(GL_NORMAL_ARRAY);
-    glDisableClientState(GL_COLOR_ARRAY);
-    glDisable(GL_COLOR_MATERIAL);
-*/
-
-    float alpha = d->color.alpha();
-
-    glBegin(GL_TRIANGLES);
-    for(unsigned int i = 0; i < v.size(); ++i) {
-      applyAsMaterials(c[i], alpha);
-      glNormal3fv(n[i].data());
-      glVertex3fv(v[i].data());
+    const MeshVBOCacheEntry *e = d->meshVBOEntryForDraw(mesh, true);
+    if (e && e->colored && !v.empty()) {
+      // Per-vertex diffuse color tracks the color array (GL_COLOR_MATERIAL);
+      // ambient / specular / shininess come from the base applyAsMaterials()
+      // above. This replaces the old per-vertex immediate-mode loop.
+      d->glBuffers.glBindBuffer(GL_ARRAY_BUFFER, e->vboColors);
+      d->glBuffers.glColorPointer(3, GL_FLOAT, 0, nullptr);
+      d->glBuffers.glBindBuffer(GL_ARRAY_BUFFER, e->vboNormals);
+      d->glBuffers.glNormalPointer(GL_FLOAT, 0, nullptr);
+      d->glBuffers.glBindBuffer(GL_ARRAY_BUFFER, e->vboVertices);
+      d->glBuffers.glVertexPointer(3, GL_FLOAT, 0, nullptr);
+      d->glBuffers.glEnable(GL_COLOR_MATERIAL);
+      d->glBuffers.glColorMaterial(GL_FRONT, GL_DIFFUSE);
+      d->glBuffers.glEnableClientState(GL_VERTEX_ARRAY);
+      d->glBuffers.glEnableClientState(GL_NORMAL_ARRAY);
+      d->glBuffers.glEnableClientState(GL_COLOR_ARRAY);
+      d->glBuffers.glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(e->count));
+      d->glBuffers.glDisableClientState(GL_COLOR_ARRAY);
+      d->glBuffers.glDisableClientState(GL_NORMAL_ARRAY);
+      d->glBuffers.glDisableClientState(GL_VERTEX_ARRAY);
+      d->glBuffers.glDisable(GL_COLOR_MATERIAL);
+      d->glBuffers.glBindBuffer(GL_ARRAY_BUFFER, 0);
+    } else {
+      // Fallback: keep the original per-vertex immediate-mode loop so the
+      // visual result is unchanged when streaming is unavailable (unstable
+      // mesh, no per-vertex colors, or GL buffer functions unavailable).
+      float alpha = d->color.alpha();
+      glBegin(GL_TRIANGLES);
+      for (unsigned int i = 0; i < v.size(); ++i) {
+        applyAsMaterials(c[i], alpha);
+        glNormal3fv(n[i].data());
+        glVertex3fv(v[i].data());
+      }
+      glEnd();
     }
-    glEnd();
 
     glPolygonMode(GL_FRONT, GL_FILL);
     glEnable(GL_LIGHTING);

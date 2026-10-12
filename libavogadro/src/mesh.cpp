@@ -35,7 +35,7 @@ namespace Avogadro {
 
   Mesh::Mesh(QObject *parent) : Primitive(MeshType, parent), m_vertices(0),
     m_normals(0), m_colors(0), m_stable(true), m_other(FALSE_ID), m_cube(0),
-    m_lock(new QReadWriteLock)
+    m_revision(0), m_lock(new QReadWriteLock)
   {
     m_vertices.reserve(100);
     m_normals.reserve(100);
@@ -63,7 +63,7 @@ namespace Avogadro {
     m_stable = stable;
   }
 
-  bool Mesh::stable()
+  bool Mesh::stable() const
   {
     QReadLocker lock(m_lock);
     return m_stable;
@@ -86,7 +86,14 @@ namespace Avogadro {
     QWriteLocker lock(m_lock);
     m_vertices.clear();
     m_vertices = values;
+    ++m_revision;
     return true;
+  }
+
+  unsigned int Mesh::revision() const
+  {
+    QReadLocker lock(m_lock);
+    return m_revision;
   }
 
   bool Mesh::addVertices(const vector<Vector3f> &values)
@@ -99,6 +106,7 @@ namespace Avogadro {
       for (unsigned int i = 0; i < values.size(); ++i) {
         m_vertices.push_back(values.at(i));
       }
+      ++m_revision;
       return true;
     }
     else {
@@ -124,6 +132,7 @@ namespace Avogadro {
     QWriteLocker lock(m_lock);
     m_normals.clear();
     m_normals = values;
+    ++m_revision;
     return true;
   }
 
@@ -137,6 +146,7 @@ namespace Avogadro {
       for (unsigned int i = 0; i < values.size(); ++i) {
         m_normals.push_back(values.at(i));
       }
+      ++m_revision;
       return true;
     }
     else {
@@ -168,6 +178,7 @@ namespace Avogadro {
     QWriteLocker lock(m_lock);
     m_colors.clear();
     m_colors = values;
+    ++m_revision;
     return true;
   }
 
@@ -181,6 +192,7 @@ namespace Avogadro {
       for (unsigned int i = 0; i < values.size(); ++i) {
         m_colors.push_back(values.at(i));
       }
+      ++m_revision;
       return true;
     }
     else {
@@ -211,6 +223,7 @@ namespace Avogadro {
     m_vertices.clear();
     m_normals.clear();
     m_colors.clear();
+    ++m_revision;
     return true;
   }
 

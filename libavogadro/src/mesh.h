@@ -87,7 +87,7 @@ namespace Avogadro {
      * general using Mesh values from an unstable Mesh is not advisable.
      * @return True if the Mesh is complete, false if it is being modified.
      */
-    bool stable();
+    bool stable() const;
 
     /**
      * Set the iso value that was used to generate the Mesh.
@@ -173,6 +173,14 @@ namespace Avogadro {
     bool addNormals(const std::vector<Eigen::Vector3f> &values);
 
     /**
+     * @return A monotonically increasing counter that is bumped every time the
+     * mesh geometry changes (vertices, normals or colors are set or appended).
+     * Callers (e.g. the GLPainter mesh-VBO cache) use it to detect that a mesh
+     * has been regenerated and its GPU buffers must be re-uploaded.
+     */
+    unsigned int revision() const;
+
+    /**
      * @return Vector containing all of the colors in a one-dimensional array.
      */
     const std::vector<Color3f> & colors() const;
@@ -237,6 +245,7 @@ namespace Avogadro {
     float m_isoValue;
     unsigned int m_other; // Unique id of the other mesh if this is part of a pair
     unsigned int m_cube; // Unique id of the cube this mesh was generated from
+    unsigned int m_revision; // bumped on every geometry mutation (see mesh.cpp)
     QReadWriteLock *m_lock;
     Q_DECLARE_PRIVATE(Mesh)
   };
