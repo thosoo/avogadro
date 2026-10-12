@@ -16,7 +16,7 @@
 
 - [x] 3.1 Port BSDY ball-and-stick (`bsdyengine.cpp:132-395` — opaque/transparent/quick/pick variants) to the emitter API (atoms incl. `atomImages()` union, half-bond coloring, multi-bond split via `drawMultiCylinder` order/shift, selection halos); verify side-by-side parity screenshots vs legacy tier for a mixed-element molecule
 - [x] 3.2 Port sphere (`sphereengine.cpp`), stick (`stickengine.cpp:72-153`), wire engines; verify parity screenshots per engine and that settings widgets still affect rendering (opacity → transparent pass with per-instance alpha, design A9)
-- [ ] 3.3 Verify unported engines (labels, hbond, qtaim, …) still render through the fixed-function compatibility bridge alongside modern-tier passes in the same GL 3.3 compatibility context, without corrupting them (design D2, D4)
+- [x] 3.3 Verify unported engines (labels, hbond, qtaim, …) still render through the fixed-function compatibility bridge alongside modern-tier passes in the same GL 3.3 compatibility context, without corrupting them (design D2, D4)
 
 ## 4. Picking and selection (D5, D6)
 

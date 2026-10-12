@@ -45,6 +45,7 @@ set(tests
   paritysphere
   paritystick
   paritywire
+  compatibility
   geometry
   modernrenderer
   drawcommand
@@ -109,7 +110,7 @@ foreach (test ${tests})
   # The parity binaries drive a real GLWidget for the legacy tier, which
   # QOpenGLWidget does not support on the offscreen platform: they need a
   # real X display (run ctest under xvfb-run) with the default xcb platform.
-  if(${test} MATCHES "^parity")
+  if(${test} MATCHES "^(parity|compatibility)")
     set(_test_env "LIBGL_ALWAYS_SOFTWARE=1")
   endif()
   if(${test} STREQUAL "forcefield")
