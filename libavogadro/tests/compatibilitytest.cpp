@@ -29,6 +29,10 @@
 #include <avogadro/pluginmanager.h>
 #include <avogadro/plugin.h>
 #include <avogadro/engine.h>
+#include <avogadro/glhit.h>
+#include <avogadro/primitive.h>
+#include "libavogadro/src/global.h"
+#include <cmath>
 
 #include "libavogadro/src/rendering/scenebuilder.h"
 #include "libavogadro/src/rendering/modernbackend.h"
@@ -216,6 +220,8 @@ private Q_SLOTS:
   void testHBondEngineRendersThroughModernTier();
   void testUnportedEngineSurvivesPortedEngine();
   void testTextEngineDoesNotDisturbPortedEngine();
+  void testColourIdPickResolvesAtom();
+  void testRubberBandPickBeyondLegacyCapacity();
 
 private:
   //! Create an engine from the loaded plugin directory by identifier
@@ -341,6 +347,159 @@ void CompatibilityTest::testTextEngineDoesNotDisturbPortedEngine()
   QCOMPARE(withLabels, alone);
   delete bsdy;
   delete labels;
+}
+
+void CompatibilityTest::testColourIdPickResolvesAtom()
+{
+  // Task 4.1: the modern tier's colour-ID pass must resolve a pixel back to
+  // the primitive that produced it, as a GLHit(type, name) the existing tools
+  // can consume.
+  Engine *bsdy = makeEngine("Ball and Stick");
+  QVERIFY2(bsdy != nullptr, "Ball and Stick engine plugin not found");
+
+  // A single carbon at the origin, so the viewport centre is unambiguous.
+  Molecule mol;
+  Atom *carbon = mol.addAtom(6, Eigen::Vector3d(0.0, 0.0, 0.0));
+  mol.addAtom(8, Eigen::Vector3d(1.5, 0.0, 0.0));
+
+  QList<Engine *> engines{bsdy};
+  m_ctx->makeCurrent(m_surface);
+  SceneBuilder builder;
+  CompatPainterDevice device(&builder, &mol, &m_colorMap);
+  Eigen::Projective3d mv = Eigen::Projective3d::Identity();
+  mv.matrix()(2, 3) = -5.0;
+  device.m_camera.setModelview(mv);
+  builder.begin();
+  builder.clearStores();
+  foreach (Engine *e, engines) {
+    e->setMolecule(&mol);
+    e->setPainterDevice(&device);
+    e->setEnabled(true);
+    e->renderOpaque(&device);
+  }
+  builder.end();
+
+  ModernRendererBackend backend;
+  backend.initialize();
+  QVERIFY(backend.isInitialized());
+
+  QOpenGLFramebufferObject fbo(kW, kH);
+  fbo.bind();
+  QOpenGLFunctions_3_3_Core gl;
+  QVERIFY(gl.initializeOpenGLFunctions());
+  gl.glViewport(0, 0, kW, kH);
+  gl.glClearColor(kBackground.redF(), kBackground.greenF(),
+                  kBackground.blueF(), 1.0f);
+  gl.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glEnable(GL_DEPTH_TEST);
+  glDepthFunc(GL_LEQUAL);
+  QVERIFY(backend.beginFrame(nullptr, QRect(0, 0, kW, kH), builder.quality()));
+  backend.setModelViewProjection(compatMvp());
+  backend.pushSpheres(builder.spheres());
+  backend.pushBonds(builder.bonds());
+  backend.pushLines(builder.lines());
+  backend.endFrame();
+  gl.glFinish();
+
+  // The pick id of the first emitted sphere must be the carbon: the engine
+  // names it before drawing, so record 0 carries (AtomType, carbon->index()).
+  const quint32 expected = (static_cast<quint32>(Primitive::AtomType) << 28) |
+                           static_cast<quint32>(carbon->index());
+  QCOMPARE(static_cast<quint32>(builder.spherePickId(0) >> 28),
+           static_cast<quint32>(Primitive::AtomType));
+  QCOMPARE(static_cast<quint32>(builder.spherePickId(0) & 0x0FFFFFFFu),
+           static_cast<quint32>(carbon->index()));
+
+  // A cursor-sized pick at the viewport centre must resolve to that carbon.
+  QList<GLHit> hits = backend.pick(kW / 2 - 8, kH / 2 - 8, 16, 16);
+  QVERIFY2(!hits.isEmpty(), "pick at the molecule centre returned no hits");
+  const quint32 got = (static_cast<quint32>(hits.first().type()) << 28) |
+                      static_cast<quint32>(hits.first().name());
+  QVERIFY2(got == expected || hits.first().type() == Primitive::BondType,
+           qPrintable(QString("pick resolved type=%1 name=%2, expected the "
+                              "carbon atom (type=%3 name=%4) or a bond")
+                          .arg(hits.first().type())
+                          .arg(hits.first().name())
+                          .arg(Primitive::AtomType)
+                          .arg(carbon->index())));
+
+  fbo.release();
+  delete bsdy;
+}
+
+void CompatibilityTest::testRubberBandPickBeyondLegacyCapacity()
+{
+  // The legacy GL_SELECT buffer caps hits (global.h SEL_BUF_MAX_SIZE), so a
+  // rubber band over a very large scene silently truncates. The colour-ID pass
+  // has no such cap: the rect is small, only the pixels inside it are read.
+  Engine *bsdy = makeEngine("Ball and Stick");
+  QVERIFY2(bsdy != nullptr, "Ball and Stick engine plugin not found");
+
+  Molecule mol;
+  const int kCount = 120000; // well past the legacy 32k-hit capacity
+  const int side = static_cast<int>(std::sqrt(double(kCount)));
+  for (int i = 0; i < kCount; ++i) {
+    const int ix = i % side;
+    const int iy = i / side;
+    mol.addAtom(6, Eigen::Vector3d(ix * 0.35, iy * 0.35, 0.0));
+  }
+  qInfo().noquote() << "rubber-band scene atoms:" << mol.numAtoms();
+
+  QList<Engine *> engines{bsdy};
+  m_ctx->makeCurrent(m_surface);
+  SceneBuilder builder;
+  CompatPainterDevice device(&builder, &mol, &m_colorMap);
+  Eigen::Projective3d mv = Eigen::Projective3d::Identity();
+  mv.matrix()(2, 3) = -5.0;
+  device.m_camera.setModelview(mv);
+  builder.begin();
+  builder.clearStores();
+  foreach (Engine *e, engines) {
+    e->setMolecule(&mol);
+    e->setPainterDevice(&device);
+    e->setEnabled(true);
+    e->renderOpaque(&device);
+  }
+  builder.end();
+
+  ModernRendererBackend backend;
+  backend.initialize();
+  QVERIFY(backend.isInitialized());
+
+  QOpenGLFramebufferObject fbo(kW, kH);
+  fbo.bind();
+  QOpenGLFunctions_3_3_Core gl;
+  QVERIFY(gl.initializeOpenGLFunctions());
+  gl.glViewport(0, 0, kW, kH);
+  gl.glClearColor(kBackground.redF(), kBackground.greenF(),
+                  kBackground.blueF(), 1.0f);
+  gl.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glEnable(GL_DEPTH_TEST);
+  glDepthFunc(GL_LEQUAL);
+  QVERIFY(backend.beginFrame(nullptr, QRect(0, 0, kW, kH), builder.quality()));
+  backend.setModelViewProjection(compatMvp());
+  backend.pushSpheres(builder.spheres());
+  backend.pushBonds(builder.bonds());
+  backend.pushLines(builder.lines());
+  backend.endFrame();
+  gl.glFinish();
+
+  // The legacy GL_SELECT buffer holds SEL_BUF_MAX_SIZE bytes, 16 per single
+  // name hit, i.e. 16384 hits before glRenderMode() silently truncates. A
+  // full-frame rubber band over this scene must exceed that, which is only
+  // possible because the colour-ID pass reads one hit per covered pixel.
+  QList<GLHit> hits = backend.pick(0, 0, kW, kH);
+  qInfo().noquote() << "rubber-band hits:" << hits.size();
+  const int legacyCapacity =
+      Avogadro::SEL_BUF_MAX_SIZE / (4 * sizeof(GLuint));
+  QVERIFY2(hits.size() > legacyCapacity,
+           qPrintable(QString("rubber band returned %1 hits; the colour-ID pass "
+                              "must exceed the legacy GL_SELECT capacity of %2")
+                          .arg(hits.size())
+                          .arg(legacyCapacity)));
+
+  fbo.release();
+  delete bsdy;
 }
 
 QTEST_MAIN(CompatibilityTest)

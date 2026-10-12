@@ -127,6 +127,34 @@ public:
   Camera m_camera;
 };
 
+//! A PainterDevice that also reports selection, so the transparent pass's
+//! selection halos (atoms + bonds) can be exercised through the emitter.
+class SelectionPainterDevice : public Avogadro::PainterDevice {
+public:
+  SelectionPainterDevice(SceneBuilder *builder, Molecule *mol, Color *map)
+    : m_builder(builder), m_molecule(mol), m_colorMap(map) {}
+
+  Avogadro::Painter *painter() const override { return m_builder; }
+  Camera *camera() const override { return const_cast<Camera*>(&m_camera); }
+  bool isSelected(const Avogadro::Primitive *p) const override
+  {
+    return m_selected.contains(p);
+  }
+  double radius(const Avogadro::Primitive *) const override { return 0.3; }
+  const Molecule *molecule() const override { return m_molecule; }
+  Color *colorMap() const override { return m_colorMap; }
+  int width() override { return 800; }
+  int height() override { return 600; }
+
+  void setSelected(const Avogadro::Primitive *p) { m_selected.insert(p); }
+
+  SceneBuilder *m_builder;
+  Molecule *m_molecule;
+  Color *m_colorMap;
+  Camera m_camera;
+  QSet<const Avogadro::Primitive *> m_selected;
+};
+
 } // anonymous namespace
 
 class SceneBuilderTest : public QObject
@@ -140,6 +168,10 @@ class SceneBuilderTest : public QObject
     void testColorIsBakedIntoRecords();
     void testDirtyRangesAfterEmits();
     void testEngineThroughEmitter();
+    void testBSDYHalfBondColoring();
+    void testBSDYMultiBondSplit();
+    void testBSDYAtomImages();
+    void testBSDYSelectionHalos();
     void testNullBackendContract();
 };
 
@@ -280,6 +312,174 @@ void SceneBuilderTest::testEngineThroughEmitter()
   QVERIFY(builder.spheres().at(0).color[0] != 255 ||
           builder.spheres().at(0).color[1] != 255 ||
           builder.spheres().at(0).color[2] != 255);
+}
+
+void SceneBuilderTest::testBSDYHalfBondColoring()
+{
+  // Two different elements joined by a single bond: C-N. The bond is emitted
+  // as two halves, each coloured by its parent atom, so the halves must differ
+  // in colour (half-bond coloring) while both are non-white element colours.
+  Molecule mol;
+  Atom *c = mol.addAtom(6, Vector3d(0, 0, 0));
+  Atom *n = mol.addAtom(7, Vector3d(1.2, 0, 0));
+  c->setCustomColorName("red");
+  n->setCustomColorName("blue");
+  mol.addBond(c->id(), n->id(), 1);
+
+  SceneBuilder builder;
+  Color colorMap;
+  DeviceTestPainterDevice device(&builder, &mol, &colorMap);
+
+  BSDYEngine engine;
+  engine.setMolecule(&mol);
+  engine.setPainterDevice(&device);
+  engine.setEnabled(true);
+
+  builder.begin();
+  builder.clearStores();
+  engine.renderOpaque(&device);
+
+  // A single bond -> two halves (c->mid, mid->n).
+  QCOMPARE(builder.bonds().size(), 2u);
+
+  const BondInstance &half1 = builder.bonds().at(0);
+  const BondInstance &half2 = builder.bonds().at(1);
+  // The first half runs from the first atom (x ~ 0); the second from the mid
+  // point toward the second atom (x ~ 0.6+). Order along x confirms the
+  // atom->mid / mid->atom split.
+  QVERIFY(half1.start[0] < half2.start[0]);
+  // Half-bond coloring: half1 takes atom1's colour (red), half2 takes atom2's
+  // colour (blue) - distinct and matching the custom colours.
+  QCOMPARE(half1.color[0], 255);
+  QCOMPARE(half1.color[1], 0);
+  QCOMPARE(half1.color[2], 0);
+  QCOMPARE(half2.color[0], 0);
+  QCOMPARE(half2.color[1], 0);
+  QCOMPARE(half2.color[2], 255);
+}
+
+void SceneBuilderTest::testBSDYMultiBondSplit()
+{
+  // A double bond (C=C). With multi-bond display on, each side of the bond
+  // (atom->mid and mid->atom) splits into `order` parallel cylinders, so a
+  // double bond yields 4 bond instances, all flagged order == 2.
+  Molecule mol;
+  Atom *c1 = mol.addAtom(6, Vector3d(0, 0, 0));
+  Atom *c2 = mol.addAtom(6, Vector3d(1.3, 0, 0));
+  mol.addBond(c1->id(), c2->id(), 2);
+
+  SceneBuilder builder;
+  Color colorMap;
+  DeviceTestPainterDevice device(&builder, &mol, &colorMap);
+
+  BSDYEngine engine;
+  engine.setMolecule(&mol);
+  engine.setPainterDevice(&device);
+  engine.setEnabled(true);
+  // m_showMulti defaults to non-zero, so multi-bonds are split by default.
+
+  builder.begin();
+  builder.clearStores();
+  engine.renderOpaque(&device);
+
+  QCOMPARE(builder.bonds().size(), 4u);
+  for (size_t i = 0; i < builder.bonds().size(); ++i)
+    QCOMPARE(builder.bonds().at(i).order, 2);
+
+  // The two halves on each side are offset apart (parallel cylinders), so the
+  // vector between the pair's starts must be non-zero for both sides.
+  const BondInstance &sideA1 = builder.bonds().at(0);
+  const BondInstance &sideA2 = builder.bonds().at(1);
+  const BondInstance &sideB1 = builder.bonds().at(2);
+  const BondInstance &sideB2 = builder.bonds().at(3);
+  auto nonZero = [](const BondInstance &x, const BondInstance &y) {
+    const double dx = x.start[0] - y.start[0];
+    const double dy = x.start[1] - y.start[1];
+    const double dz = x.start[2] - y.start[2];
+    return dx * dx + dy * dy + dz * dz > 0.0;
+  };
+  QVERIFY(nonZero(sideA1, sideA2));
+  QVERIFY(nonZero(sideB1, sideB2));
+  // The atom->mid pair starts near c1 (x ~ 0); the mid->atom pair starts near
+  // the midpoint (x ~ 0.65), so the two pairs are separated along the axis.
+  QVERIFY(sideA1.start[0] < sideB1.start[0]);
+}
+
+void SceneBuilderTest::testBSDYAtomImages()
+{
+  // Atom images (e.g. double-bond markers) are rendered as extra spheres via
+  // atoms() + atomImages(); the modern tier treats them as plain instances.
+  Molecule mol;
+  Atom *a1 = mol.addAtom(6, Vector3d(0, 0, 0));
+  Atom *a2 = mol.addAtom(6, Vector3d(1.3, 0, 0));
+  mol.addBond(a1->id(), a2->id(), 1);
+
+  SceneBuilder builder;
+  Color colorMap;
+  DeviceTestPainterDevice device(&builder, &mol, &colorMap);
+
+  BSDYEngine engine;
+  engine.setMolecule(&mol);
+  engine.setPainterDevice(&device);
+  engine.setEnabled(true);
+
+  builder.begin();
+  builder.clearStores();
+  engine.renderOpaque(&device);
+
+  // Two atoms -> two spheres.
+  QCOMPARE(builder.spheres().size(), 2u);
+
+  // Add an atom image (from a separate molecule, as real images do) and
+  // re-render: it must appear as exactly one extra sphere, so the union
+  // atoms() + atomImages() grows by one.
+  Molecule imgMol;
+  Atom *image = imgMol.addAtom(6, Vector3d(0.65, 0.3, 0));
+  engine.addAtomImage(image);
+  QCOMPARE(engine.atomImages().size(), 1u);
+
+  builder.clearStores();
+  builder.begin();
+  engine.renderOpaque(&device);
+  QCOMPARE(builder.spheres().size(), 3u);
+}
+
+void SceneBuilderTest::testBSDYSelectionHalos()
+{
+  // With default alpha (opaque), the transparent pass renders selection halos
+  // only for the selected atom and bond: one halo sphere + one halo cylinder.
+  Molecule mol;
+  Atom *a = mol.addAtom(6, Vector3d(0, 0, 0));
+  Atom *b = mol.addAtom(6, Vector3d(1.3, 0, 0));
+  mol.addBond(a->id(), b->id(), 1);
+
+  SceneBuilder builder;
+  Color colorMap;
+  SelectionPainterDevice device(&builder, &mol, &colorMap);
+  device.setSelected(a);
+  device.setSelected(mol.bond(0));
+
+  BSDYEngine engine;
+  engine.setMolecule(&mol);
+  engine.setPainterDevice(&device);
+  engine.setEnabled(true);
+
+  // Opaque pass renders no selection halos (selection lives in the transparent
+  // pass), so it produces the plain atom spheres and bond halves only.
+  builder.begin();
+  builder.clearStores();
+  engine.renderOpaque(&device);
+  QCOMPARE(builder.spheres().size(), 2u);
+  QCOMPARE(builder.bonds().size(), 2u);
+
+  // Transparent pass renders the selected atom halo (sphere) and the selected
+  // bond halo (cylinder). Atoms/bonds are not themselves re-rendered at opaque
+  // alpha, so only the two halos appear.
+  builder.clearStores();
+  builder.begin();
+  engine.renderTransparent(&device);
+  QCOMPARE(builder.spheres().size(), 1u);
+  QCOMPARE(builder.bonds().size(), 1u);
 }
 
 void SceneBuilderTest::testNullBackendContract()

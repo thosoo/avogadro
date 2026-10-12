@@ -121,6 +121,11 @@ public:
   const ChunkStore<LineInstance> &lines() const { return m_lines; }
   const ChunkStore<MeshInstance> &meshes() const { return m_meshes; }
 
+  //! Packed (type << 28 | id) for record `index` of each primitive kind.
+  quint32 spherePickId(std::size_t index) const;
+  quint32 bondPickId(std::size_t index) const;
+  quint32 linePickId(std::size_t index) const;
+
 private:
   void appendBond(const Eigen::Vector3d &end1, const Eigen::Vector3d &end2,
                   double radius, int order, double shift);
@@ -131,6 +136,13 @@ private:
   ChunkStore<BondInstance> m_bonds;
   ChunkStore<LineInstance> m_lines;
   ChunkStore<MeshInstance> m_meshes;
+
+  //! Packed pick target per emitted record, in record order. Encoded as
+  //! (type << 28) | id so the picking pass can resolve a pixel back to the
+  //! primitive that produced it without a second name-stack pass.
+  QVector<quint32> m_spherePickIds;
+  QVector<quint32> m_bondPickIds;
+  QVector<quint32> m_linePickIds;
 
   int m_quality;
   bool m_dynamicScaling;

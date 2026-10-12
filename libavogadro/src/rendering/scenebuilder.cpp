@@ -32,6 +32,16 @@
 namespace Avogadro {
 namespace rendering {
 
+namespace {
+inline quint32 packPickTarget(Primitive::Type type, int id)
+{
+  // The pick pass reads a 32-bit value back from the framebuffer, so the type
+  // lives in the top nibble and the primitive id in the low 28 bits.
+  return (static_cast<quint32>(type) << 28) |
+         (static_cast<quint32>(id) & 0x0FFFFFFFu);
+}
+} // namespace
+
 SceneBuilder::SceneBuilder()
   : Painter()
   , m_quality(2)
@@ -105,6 +115,7 @@ void SceneBuilder::drawSphere(const Eigen::Vector3d &center, double radius)
   inst.color[2] = static_cast<unsigned char>(m_currentColor.blue());
   inst.color[3] = static_cast<unsigned char>(m_currentColor.alpha());
   m_spheres.append(inst);
+  m_spherePickIds.append(packPickTarget(m_currentType, m_currentId));
 }
 
 void SceneBuilder::drawCylinder(const Eigen::Vector3d &end1,
@@ -291,6 +302,27 @@ int SceneBuilder::drawText(const Eigen::Vector3d &, const QString &)
   return 0;
 }
 
+quint32 SceneBuilder::spherePickId(std::size_t index) const
+{
+  return index < m_spherePickIds.size()
+             ? m_spherePickIds[static_cast<int>(index)]
+             : 0u;
+}
+
+quint32 SceneBuilder::bondPickId(std::size_t index) const
+{
+  return index < m_bondPickIds.size()
+             ? m_bondPickIds[static_cast<int>(index)]
+             : 0u;
+}
+
+quint32 SceneBuilder::linePickId(std::size_t index) const
+{
+  return index < m_linePickIds.size()
+             ? m_linePickIds[static_cast<int>(index)]
+             : 0u;
+}
+
 void SceneBuilder::begin()
 {
   m_currentColor = QColor(255, 255, 255, 255);
@@ -308,6 +340,9 @@ void SceneBuilder::clearStores()
   m_bonds.clear();
   m_lines.clear();
   m_meshes.clear();
+  m_spherePickIds.clear();
+  m_bondPickIds.clear();
+  m_linePickIds.clear();
 }
 
 void SceneBuilder::appendBond(const Eigen::Vector3d &end1, const Eigen::Vector3d &end2,
@@ -348,6 +383,7 @@ void SceneBuilder::appendBond(const Eigen::Vector3d &end1, const Eigen::Vector3d
     inst.order = order;
     inst.shift = shift;
     m_bonds.append(inst);
+    m_bondPickIds.append(packPickTarget(m_currentType, m_currentId));
   }
 }
 
@@ -388,6 +424,7 @@ void SceneBuilder::appendLine(const Eigen::Vector3d &start, const Eigen::Vector3
     inst.order = order;
     inst.stipple = stipple;
     m_lines.append(inst);
+    m_linePickIds.append(packPickTarget(m_currentType, m_currentId));
   }
 }
 

@@ -21,6 +21,7 @@
 
 #include "geometry.h"
 #include "shaders.h"
+#include <avogadro/primitive.h>
 
 namespace Avogadro {
 namespace rendering {
@@ -123,9 +124,12 @@ bool ModernRendererBackend::beginFrame(const Camera * /*camera*/,
   // makeCurrent() resets the GL viewport to the (offscreen) surface size,
   // discarding whatever the caller set. Re-apply the viewport we were given,
   // otherwise every draw is clipped to a 1x1 region and renders nothing.
-  if (viewport.isValid())
+  if (viewport.isValid()) {
     m_gl.glViewport(viewport.x(), viewport.y(), viewport.width(),
                     viewport.height());
+    m_frameWidth = viewport.width();
+    m_frameHeight = viewport.height();
+  }
   m_sphereVBO.uploader.beginFrame();
   m_bondVBO.uploader.beginFrame();
   m_lineVBO.uploader.beginFrame();
@@ -302,11 +306,228 @@ void ModernRendererBackend::endFrame() {
   ++m_framesSubmitted;
 }
 
-QList<GLHit> ModernRendererBackend::pick(int /*x*/, int /*y*/, int /*w*/,
-                                         int /*h*/) {
-  // Color-ID picking is the modern tier's pick strategy (task 4.1). Not yet
-  // implemented in the 2.2 upload stage; returns empty until then.
-  return QList<GLHit>();
+void ModernRendererBackend::buildPickPrograms()
+{
+  if (m_pickProgramsValid)
+    return;
+  auto build = [&](QOpenGLShaderProgram &program,
+                   const QString &vertexSource) -> bool {
+    program.removeAllShaders();
+    if (!program.addShaderFromSourceCode(QOpenGLShader::Vertex, vertexSource))
+      return false;
+    if (!program.addShaderFromSourceCode(QOpenGLShader::Fragment,
+                                         kPickFragmentShader))
+      return false;
+    if (!program.link())
+      return false;
+    program.bind();
+    program.setUniformValue("uPickType", 0u);
+    program.setUniformValue("uPickBase", 0u);
+    program.release();
+    return true;
+  };
+  m_pickProgramsValid = build(m_spherePickProgram, kSpherePickVertexShader) &&
+                        build(m_cylinderPickProgram,
+                              kCylinderPickVertexShader);
+  if (!m_pickProgramsValid) {
+    qWarning() << "ModernRendererBackend: pick programs failed to build:"
+               << m_spherePickProgram.log() << m_cylinderPickProgram.log();
+  }
+}
+
+void ModernRendererBackend::destroyPickResources()
+{
+  if (!m_ctx || !m_ctx->isValid())
+    return;
+  m_ctx->makeCurrent(m_ctx->surface());
+  if (m_pickFbo) {
+    m_gl.glDeleteFramebuffers(1, &m_pickFbo);
+    m_pickFbo = 0;
+  }
+  if (m_pickColour) {
+    m_gl.glDeleteTextures(1, &m_pickColour);
+    m_pickColour = 0;
+  }
+  if (m_pickDepth) {
+    m_gl.glDeleteRenderbuffers(1, &m_pickDepth);
+    m_pickDepth = 0;
+  }
+  m_pickWidth = m_pickHeight = 0;
+}
+
+void ModernRendererBackend::ensurePickFbo(int width, int height)
+{
+  if (m_pickFbo && m_pickWidth == width && m_pickHeight == height)
+    return;
+  destroyPickResources();
+
+  m_gl.glGenTextures(1, &m_pickColour);
+  m_gl.glBindTexture(GL_TEXTURE_2D, m_pickColour);
+  m_gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA,
+                    GL_UNSIGNED_BYTE, nullptr);
+  m_gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  m_gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+  m_gl.glGenRenderbuffers(1, &m_pickDepth);
+  m_gl.glBindRenderbuffer(GL_RENDERBUFFER, m_pickDepth);
+  m_gl.glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width,
+                             height);
+
+  m_gl.glGenFramebuffers(1, &m_pickFbo);
+  m_gl.glBindFramebuffer(GL_FRAMEBUFFER, m_pickFbo);
+  m_gl.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                              GL_TEXTURE_2D, m_pickColour, 0);
+  m_gl.glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                                 GL_RENDERBUFFER, m_pickDepth);
+  m_gl.glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  m_pickWidth = width;
+  m_pickHeight = height;
+}
+
+QList<GLHit> ModernRendererBackend::readPickHitsRect(int x, int y, int width, int height)
+{
+  QList<GLHit> hits;
+  const int samples = width * height;
+  if (samples <= 0)
+    return hits;
+
+  // The pick framebuffer is small (a cursor-sized rect or a rubber band), so a
+  // single read is cheap; the PBO keeps the transfer asynchronous so the CPU
+  // does not stall on the driver for the full-rect rubber-band pass.
+  QVector<quint8> pixels(samples * 4);
+  GLuint pbo = 0;
+  m_gl.glGenBuffers(1, &pbo);
+  m_gl.glBindBuffer(GL_PIXEL_PACK_BUFFER, pbo);
+  m_gl.glBufferData(GL_PIXEL_PACK_BUFFER, pixels.size(), nullptr,
+                    GL_STREAM_READ);
+  m_gl.glReadPixels(x, y, width, height, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+  quint8 *mapped = static_cast<quint8 *>(
+      m_gl.glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY));
+  if (mapped)
+    memcpy(pixels.data(), mapped, pixels.size());
+  m_gl.glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
+  m_gl.glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
+  m_gl.glDeleteBuffers(1, &pbo);
+
+  for (int i = 0; i < samples; ++i) {
+    const quint8 *px = pixels.data() + i * 4;
+    const quint32 packed = static_cast<quint32>(px[0]) |
+                           (static_cast<quint32>(px[1]) << 8) |
+                           (static_cast<quint32>(px[2]) << 16) |
+                           (static_cast<quint32>(px[3]) << 24);
+    if (packed == 0xFFFFFFFFu)
+      continue; // the clear sentinel: nothing was drawn into this pixel
+    const quint32 type = packed >> 28;
+    const quint32 name = packed & 0x0FFFFFFFu;
+    const int col = i % width;
+    const int row = i / width;
+    GLfloat depth = 1.0f;
+    m_gl.glReadPixels(x + col, y + row, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT,
+                      &depth);
+    const GLuint z = static_cast<GLuint>(depth * 2147483647.0f);
+    hits.append(GLHit(type, name, z, z));
+  }
+
+  std::sort(hits.begin(), hits.end());
+  return hits;
+}
+
+QList<GLHit> ModernRendererBackend::pick(int x, int y, int w, int h) {
+  QList<GLHit> hits;
+  if (!m_ctx || !m_ctx->isValid() || !m_glInitialized || !m_haveMvp)
+    return hits;
+  if (w <= 0 || h <= 0)
+    return hits;
+  if (!m_sphereGeom.valid && !m_cylinderGeom.valid)
+    return hits;
+
+  m_ctx->makeCurrent(m_ctx->surface());
+  buildPickPrograms();
+  if (!m_pickProgramsValid)
+    return hits;
+  // The pick pass renders at frame resolution with the frame's MVP (so the
+  // geometry lands exactly where the visible frame put it) and uses the
+  // scissor to confine rasterisation to the requested rectangle. Only that
+  // rectangle is read back, so a cursor-sized pick stays cheap and a rubber
+  // band costs no more than the pixels it covers.
+  ensurePickFbo(m_frameWidth, m_frameHeight);
+
+  GLint restoreFbo = 0;
+  m_gl.glGetIntegerv(GL_FRAMEBUFFER_BINDING, &restoreFbo);
+  m_gl.glBindFramebuffer(GL_FRAMEBUFFER, m_pickFbo);
+  m_gl.glViewport(0, 0, m_frameWidth, m_frameHeight);
+  // All-ones can never be a valid (type << 28 | id) target, so it is an
+  // unambiguous "nothing here" sentinel after the clear.
+  m_gl.glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+  m_gl.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  m_gl.glEnable(GL_DEPTH_TEST);
+  m_gl.glDepthFunc(GL_LEQUAL);
+  m_gl.glDisable(GL_BLEND);
+  m_gl.glDisable(GL_LIGHTING);
+
+  // glScissor's origin is bottom-left; the caller's y is top-down.
+  const GLint sy = static_cast<GLint>(m_frameHeight) - (y + h);
+  m_gl.glEnable(GL_SCISSOR_TEST);
+  m_gl.glScissor(x, sy, w, h);
+
+  struct PickPass
+  {
+    QOpenGLShaderProgram *program;
+    PrimitiveGeometry *geometry;
+    InstanceVBO *vbo;
+    unsigned int count;
+    std::size_t recordSize;
+    quint32 type;
+  };
+  const PickPass passes[] = {
+      {&m_spherePickProgram, &m_sphereGeom, &m_sphereVBO, m_sphereCount,
+       sizeof(SphereInstance),
+       static_cast<quint32>(Primitive::AtomType)},
+      {&m_cylinderPickProgram, &m_cylinderGeom, &m_bondVBO, m_bondCount,
+       sizeof(BondInstance),
+       static_cast<quint32>(Primitive::BondType)},
+  };
+
+  for (const PickPass &pass : passes) {
+    if (!pass.geometry->valid || pass.count == 0)
+      continue;
+    if (!pass.program->bind()) {
+      qWarning() << "ModernRendererBackend: pick program bind failed";
+      continue;
+    }
+    pass.program->setUniformValue("uMVP", m_mvp);
+    // Uploaded explicitly: the unsigned-integer uniforms must go through
+    // glUniform1ui, and Qt's name-based overload does not guarantee that.
+    m_gl.glUniform1ui(pass.program->uniformLocation("uPickType"),
+                      static_cast<GLuint>(pass.type));
+    m_gl.glUniform1ui(pass.program->uniformLocation("uPickBase"), 0u);
+
+    pass.geometry->vao.bind();
+    pass.geometry->geometryVBO.bind();
+    pass.geometry->indexVBO.bind();
+    pass.program->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(GeometryVertex));
+    pass.program->setAttributeBuffer(1, GL_FLOAT, 12, 3, sizeof(GeometryVertex));
+    pass.vbo->buffer.bind();
+    pass.program->setAttributeBuffer(2, GL_FLOAT, 0, 3, pass.recordSize);
+    pass.program->setAttributeBuffer(3, GL_FLOAT, 12, 3, pass.recordSize);
+    for (int loc = 0; loc <= 3; ++loc)
+      m_gl.glEnableVertexAttribArray(loc);
+    m_gl.glVertexAttribDivisor(2, 1);
+    m_gl.glVertexAttribDivisor(3, 1);
+
+    m_gl.glDrawElementsInstanced(GL_TRIANGLES, pass.geometry->indexCount,
+                                 GL_UNSIGNED_SHORT, nullptr,
+                                 static_cast<GLsizei>(pass.count));
+    pass.program->release();
+    pass.geometry->vao.release();
+  }
+  m_gl.glDisable(GL_SCISSOR_TEST);
+
+  m_gl.glBindFramebuffer(GL_READ_FRAMEBUFFER, m_pickFbo);
+  hits = readPickHitsRect(x, sy, w, h);
+  m_gl.glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(restoreFbo));
+
+  return hits;
 }
 
 //! Compile + link a program from the sphere/cylinder shader sources, replacing

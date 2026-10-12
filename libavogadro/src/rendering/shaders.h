@@ -209,6 +209,75 @@ void main() {
 }
 )";
 
+//! Pick vertex shaders: the same instance transforms as the lit shaders, but
+//! instead of colour they carry the per-instance pick id down to the fragment
+//! stage. uPickBase lets a chunk start its instance ids at an arbitrary
+//! primitive. One per primitive kind, because the instance layouts differ.
+static const QString kSpherePickVertexShader = R"(
+#version 330
+layout(location = 0) in vec3 aPos;
+layout(location = 2) in vec3 aInstPos;
+layout(location = 3) in float aInstRadius;
+
+uniform mat4 uMVP;
+uniform uint uPickBase;
+
+flat out uint vPickId;
+
+void main() {
+  vPickId = uPickBase + uint(gl_InstanceID);
+  vec3 worldPos = aPos * aInstRadius + aInstPos;
+  gl_Position = uMVP * vec4(worldPos, 1.0);
+}
+)";
+
+static const QString kCylinderPickVertexShader = R"(
+#version 330
+layout(location = 0) in vec3 aPos;
+layout(location = 2) in vec3 aInstStart;
+layout(location = 3) in vec3 aInstEnd;
+layout(location = 4) in float aInstRadius;
+
+uniform mat4 uMVP;
+uniform uint uPickBase;
+
+flat out uint vPickId;
+
+void main() {
+  vPickId = uPickBase + uint(gl_InstanceID);
+  vec3 axis = normalize(aInstEnd - aInstStart);
+  vec3 up = abs(axis.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+  vec3 u = normalize(cross(up, axis));
+  vec3 v = cross(axis, u);
+  float len = length(aInstEnd - aInstStart);
+  vec3 worldPos =
+    0.5 * (aInstStart + aInstEnd)
+    + axis * (aPos.z * len)
+    + (aPos.x * u + aPos.y * v) * aInstRadius;
+  gl_Position = uMVP * vec4(worldPos, 1.0);
+}
+)";
+
+//! Pick fragment shader: writes the packed pick target as raw bytes so the CPU
+//! can read the exact (type << 28 | id) value back with glReadPixels.
+static const QString kPickFragmentShader = R"(
+#version 330
+flat in uint vPickId;
+uniform uint uPickType;
+out vec4 fragColor;
+
+void main() {
+  uint id = vPickId & 0x0FFFFFFFu;
+  uint type = uPickType & 0xFu;
+  uint encoded = (type << 28) | id;
+  fragColor = vec4(
+      float(encoded & 0xFFu) / 255.0,
+      float((encoded >> 8) & 0xFFu) / 255.0,
+      float((encoded >> 16) & 0xFFu) / 255.0,
+      float((encoded >> 24) & 0xFFu) / 255.0);
+}
+)";
+
 } // namespace rendering
 } // namespace Avogadro
 

@@ -20,7 +20,7 @@
 
 ## 4. Picking and selection (D5, D6)
 
-- [ ] 4.1 Color-ID picking (ID shader over chunk buffers, `(type<<28)|id` encoding, scissored ~16×16 at cursor, delayed PBO read; rubber band = full-rect pass) — MUST synthesize `GLHit(type,name,minZ,maxZ)` (`glhit.h:74`) so all tool consumers stay untouched (`drawtool.cpp:138,221,537`; `selectrotatetool.cpp:126,337,427`; `clickmeasuretool.cpp:84`; `aligntool.cpp:91,138`; `glwidget.cpp:2407-2445`); delete GL_SELECT from the modern tier; verify correct topmost picks in a >100k-atom scene and rubber-band selection beyond the legacy 32k-hit capacity (design A4)
+- [x] 4.1 Color-ID picking (ID shader over chunk buffers, `(type<<28)|id` encoding, scissored ~16×16 at cursor, delayed PBO read; rubber band = full-rect pass) — MUST synthesize `GLHit(type,name,minZ,maxZ)` (`glhit.h:74`) so all tool consumers stay untouched (`drawtool.cpp:138,221,537`; `selectrotatetool.cpp:126,337,427`; `clickmeasuretool.cpp:84`; `aligntool.cpp:91,138`; `glwidget.cpp:2407-2445`); delete GL_SELECT from the modern tier; verify correct topmost picks in a >100k-atom scene and rubber-band selection beyond the legacy 32k-hit capacity (design A4)
 - [ ] 4.2 Overflow detection in the GL_SELECT path (`glRenderMode(GL_RENDER)` returning −1 → report/refine instead of silent truncation at the `global.h:116` cap) for compat/legacy tiers; verify a forced-tier rubber-band selection exceeding capacity no longer mis-selects silently (design A4)
 - [ ] 4.3 `GLWidgetPrivate::selectedPrimitives` (`glwidget.cpp:249`) → `QSet<Primitive*>`, keep the public `PrimitiveList` API; empty-set early-out at the per-primitive check sites (`bsdyengine.cpp:216`, sphere/cartoon selection loops); verify select-all on a large scene changes frame rate by ~0% (design A5)
 

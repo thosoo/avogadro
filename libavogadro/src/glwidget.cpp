@@ -2493,6 +2493,18 @@ namespace Avogadro {
 
     if ( !molecule() ) return hits;
 
+    // The modern tier has no GL_SELECT name stack (task 4.1): its picking is a
+    // colour-ID pass over the same chunk buffers the frame was drawn with.
+    if (d->useModernTier && d->backend && d->backend->isInitialized()) {
+      QList<GLHit> modernHits = d->backend->pick(x, y, w, h);
+      if (!modernHits.isEmpty())
+        return modernHits;
+      // An empty result is a genuine miss: fall through to nothing rather
+      // than the legacy name-stack path, which would re-render with
+      // fixed-function engines the modern tier does not draw.
+      return hits;
+    }
+
     GLint viewport[4];
     unsigned int hit_count;
 

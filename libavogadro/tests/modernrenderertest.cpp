@@ -54,6 +54,15 @@
 #include "libavogadro/src/rendering/modernbackend.h"
 #include "libavogadro/src/rendering/lod.h"
 #include "libavogadro/src/rendering/frustum.h"
+#include "libavogadro/src/rendering/scenebuilder.h"
+
+#include <avogadro/molecule.h>
+#include <avogadro/atom.h>
+#include <avogadro/bond.h>
+#include <avogadro/color.h>
+#include <avogadro/painter.h>
+#include <avogadro/painterdevice.h>
+#include "libavogadro/src/engines/bsdyengine.h"
 
 using Avogadro::rendering::CylinderGeometry;
 using Avogadro::rendering::GeometryVertex;
@@ -152,6 +161,32 @@ void drawElementsInstanced(QOpenGLContext *ctx, GLenum mode, GLsizei count,
     fn(mode, count, type, offset, instancecount);
 }
 
+//! Minimal PainterDevice that routes painter() to a SceneBuilder so an engine
+//! can paint through the emitter exactly as GLWidget does in the modern tier.
+class EmitterRenderDevice : public Avogadro::PainterDevice {
+public:
+  EmitterRenderDevice(Avogadro::rendering::SceneBuilder *builder,
+                      Avogadro::Molecule *mol, Avogadro::Color *map)
+    : m_builder(builder), m_molecule(mol), m_colorMap(map) {}
+
+  Avogadro::Painter *painter() const override { return m_builder; }
+  Avogadro::Camera *camera() const override
+  {
+    return const_cast<Avogadro::Camera *>(&m_camera);
+  }
+  bool isSelected(const Avogadro::Primitive *) const override { return false; }
+  double radius(const Avogadro::Primitive *) const override { return 0.3; }
+  const Avogadro::Molecule *molecule() const override { return m_molecule; }
+  Avogadro::Color *colorMap() const override { return m_colorMap; }
+  int width() override { return kWidth; }
+  int height() override { return kHeight; }
+
+  Avogadro::rendering::SceneBuilder *m_builder;
+  Avogadro::Molecule *m_molecule;
+  Avogadro::Color *m_colorMap;
+  Avogadro::Camera m_camera;
+};
+
 //! Upload the shared lighting uniforms that the fragment shaders' lighting
 //! preamble consumes. Values mirror global.h (LIGHT_AMBIENT, LIGHT0_*,
 //! LIGHT1_*) so the modern tier matches the legacy fixed-function lighting.
@@ -183,6 +218,9 @@ class ModernRenderTest : public QObject
     void testChunkedUploaderBudget();
     void testUpload50kWithinBudget();
     void testDrawCallsBounded();
+    void testBSDYThroughModernBackend();
+    void testBackendSingleSphere();
+    void testDiagCoreProfile();
 
     // Task 2.3: LOD zoom bands + hysteresis and per-chunk AABB frustum culling.
     void testLodParams();
@@ -549,6 +587,191 @@ void ModernRenderTest::testSingleChunkRender()
   delete ctx;
 }
 
+// Real GL: render a mixed-element BSDY (ball-and-stick) molecule through the
+// real ModernRendererBackend and confirm each atom lands at its expected screen
+// position with its own colour. The BSDY engine is (mechanically) ported to the
+// emitter: it issues drawSphere/drawMultiCylinder/setColor to pd->painter(),
+// which the modern tier routes to the SceneBuilder, so this exercises the same
+// engine code path the legacy GLPainter drives - just submitted instanced.
+void ModernRenderTest::testBSDYThroughModernBackend()
+{
+  QOffscreenSurface *off = nullptr;
+  QOpenGLContext *ctx = makeGLContext(&off);
+  if (!ctx)
+    QSKIP("No GL 3.3+ context available on this runner; skipping BSDY render",
+          SkipSingle);
+
+  QOpenGLFunctions gl;
+  gl.initializeOpenGLFunctions();
+
+  // --- hand-built FBO (same pattern as testSingleChunkRender) --------------
+  GLuint fboID = 0, colorTexID = 0, depthRBID = 0;
+  gl.glGenFramebuffers(1, &fboID);
+  gl.glBindFramebuffer(GL_FRAMEBUFFER, fboID);
+  gl.glGenTextures(1, &colorTexID);
+  gl.glBindTexture(GL_TEXTURE_2D, colorTexID);
+  gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, kWidth, kHeight, 0, GL_RGB,
+                  GL_UNSIGNED_BYTE, nullptr);
+  gl.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                            GL_TEXTURE_2D, colorTexID, 0);
+  gl.glGenRenderbuffers(1, &depthRBID);
+  gl.glBindRenderbuffer(GL_RENDERBUFFER, depthRBID);
+  gl.glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, kWidth, kHeight);
+  gl.glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                               GL_RENDERBUFFER, depthRBID);
+  gl.glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  QVERIFY(fboID != 0);
+
+  // --- build a mixed-element BSDY molecule --------------------------------
+  // Carbon (red) at the origin projects to screen centre; oxygen (blue) on the
+  // +X axis projects to the right. Custom colours make the baked instance
+  // colours exact, so the lit result is a clean hue per atom.
+  Avogadro::Molecule mol;
+  Avogadro::Atom *c = mol.addAtom(6, Eigen::Vector3d(0, 0, 0));
+  Avogadro::Atom *o = mol.addAtom(8, Eigen::Vector3d(1.5, 0, 0));
+  c->setCustomColorName("red");
+  o->setCustomColorName("blue");
+  mol.addBond(c->id(), o->id(), 1);
+
+  Avogadro::rendering::SceneBuilder builder;
+  Avogadro::Color colorMap;
+  EmitterRenderDevice device(&builder, &mol, &colorMap);
+
+  Avogadro::BSDYEngine engine;
+  engine.setMolecule(&mol);
+  engine.setPainterDevice(&device);
+  engine.setEnabled(true);
+
+  builder.begin();
+  builder.clearStores();
+  engine.renderOpaque(&device);
+  // Two atoms -> two spheres; one single bond -> two halves.
+  QVERIFY(builder.spheres().size() >= 2u);
+  QVERIFY(builder.bonds().size() >= 2u);
+
+  // --- drive the modern backend -------------------------------------------
+  Avogadro::rendering::ModernRendererBackend backend;
+  backend.initialize();
+  QVERIFY(backend.isInitialized());
+
+  gl.glBindFramebuffer(GL_FRAMEBUFFER, fboID);
+  gl.glViewport(0, 0, kWidth, kHeight);
+  gl.glClearColor(kBackground[0], kBackground[1], kBackground[2], 1.0f);
+  gl.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  gl.glEnable(GL_DEPTH_TEST);
+  gl.glDepthFunc(GL_LEQUAL);
+
+  qInfo().noquote() << "SPHERES" << builder.spheres().size()
+                    << "DIRTY_RANGES" << builder.spheres().dirtyRanges().size()
+                    << "BONDS" << builder.bonds().size();
+  for (size_t i = 0; i < builder.spheres().size(); ++i)
+  {
+    const auto &s = builder.spheres().at(i);
+    qInfo().noquote() << "  sphere[" << i << "] pos=" << s.pos[0] << s.pos[1] << s.pos[2]
+                      << " radius=" << s.radius << " col=" << (int)s.color[0] << (int)s.color[1]
+                      << (int)s.color[2] << (int)s.color[3];
+  }
+  backend.beginFrame(nullptr, QRect(0, 0, kWidth, kHeight), 0);
+  {
+    GLint fboBound = -1;
+    gl.glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &fboBound);
+    qInfo().noquote() << "FBO_BINDING_after_beginFrame=" << fboBound
+                      << "expected=" << (GLint)fboID;
+    GLint vp[4] = {-1, -1, -1, -1};
+    gl.glGetIntegerv(GL_VIEWPORT, vp);
+    qInfo().noquote() << "VIEWPORT_after_beginFrame=" << vp[0] << vp[1] << vp[2]
+                      << vp[3] << "(expected 0 0 " << kWidth << " " << kHeight << ")";
+  }
+  backend.setModelViewProjection(viewProjection());
+  backend.pushSpheres(builder.spheres());
+  backend.pushBonds(builder.bonds());
+  backend.endFrame();
+  gl.glFlush();
+  qInfo().noquote() << "DRAW_CALLS" << backend.drawCallsThisFrame()
+                    << "PENDING" << backend.pendingUploads()
+                    << "HAS_MVP" << backend.isInitialized();
+  // Definitive: does any geometry write the depth buffer at the atom centres?
+  float dCenter = 9, dOxy = 9;
+  float cC[3] = {-1, -1, -1}, cO[3] = {-1, -1, -1};
+  gl.glPixelStorei(GL_PACK_ALIGNMENT, 1);
+  gl.glReadPixels(kWidth / 2, kHeight / 2, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &dCenter);
+  gl.glReadPixels(225, kHeight / 2, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &dOxy);
+  readPixel(&gl, kWidth / 2, kHeight / 2, cC);
+  readPixel(&gl, 225, kHeight / 2, cO);
+  qInfo().noquote() << "DEPTH_center=" << dCenter << " depth_oxygen=" << dOxy
+                    << " (1.0 == no geometry)";
+  qInfo().noquote() << "COLOR_center=" << cC[0] << cC[1] << cC[2]
+                    << " COLOR_oxygen=" << cO[0] << cO[1] << cO[2];
+  // Full depth scan: where (if anywhere) did geometry write depth < 0.99?
+  int dxmin = 999, dxmax = -1, dymin = 999, dymax = -1;
+  for (int y = 0; y < kHeight; y += 1)
+    for (int x = 0; x < kWidth; x += 1)
+    {
+      float d;
+      gl.glPixelStorei(GL_PACK_ALIGNMENT, 1);
+      gl.glReadPixels(x, y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &d);
+      if (d < 0.99f) {
+        dxmin = qMin(dxmin, x); dxmax = qMax(dxmax, x);
+        dymin = qMin(dymin, y); dymax = qMax(dymax, y);
+      }
+    }
+  qInfo().noquote() << "GEOM_DEPTH_BBOX=" << dxmin << "," << dymin << "-" << dxmax
+                    << "," << dymax << " (empty == nothing rendered anywhere)";
+
+  // --- DEBUG: scan the whole frame for any non-background pixel --------
+  int nonbg = 0;
+  float mn[3] = {9, 9, 9}, mx[3] = {-1, -1, -1};
+  for (int y = 0; y < kHeight; y += 4)
+    for (int x = 0; x < kWidth; x += 4)
+    {
+      float p[3];
+      readPixel(&gl, x, y, p);
+      for (int c = 0; c < 3; ++c) {
+        mn[c] = qMin(mn[c], p[c]); mx[c] = qMax(mx[c], p[c]);
+      }
+      if (p[0] > 0.1f || p[1] > 0.1f || p[2] > 0.1f) ++nonbg;
+    }
+  qInfo().noquote() << "NONBG_PIXELS(" << nonbg << ") channelRange=" << mn[0] << mx[0]
+                    << mn[1] << mx[1] << mn[2] << mx[2];
+
+  // --- verify: atom 1 (red) at centre, atom 2 (blue) to the right ---------
+  // Carbon at the origin projects to screen centre and must render lit red.
+  float c0[3];
+  readPixel(&gl, kWidth / 2, kHeight / 2, c0);
+  QVERIFY2(c0[0] > 0.15, "carbon must render lit red at centre");
+  QVERIFY(c0[0] > c0[2]); // red channel dominates over blue
+
+  // Oxygen at (1.5,0,0) projects to the right of centre (~x=235) and must
+  // render lit blue. That pixel is clear of carbon's disc.
+  float o0[3];
+  readPixel(&gl, 225, kHeight / 2, o0);
+  QVERIFY2(o0[2] > 0.12, "oxygen must render lit blue to the right");
+  QVERIFY(o0[2] > o0[0]); // blue channel dominates over red
+
+  // The two atoms render different hues: carbon is red-dominant, oxygen is
+  // blue-dominant - i.e. the molecule is not rendered in a single colour.
+  QVERIFY(c0[0] > c0[2]);
+  QVERIFY(o0[2] > o0[0]);
+
+  // Background stays clear.
+  float bg[3];
+  readPixel(&gl, 10, 10, bg);
+  QVERIFY(bg[0] < 0.1 && bg[1] < 0.1 && bg[2] < 0.1);
+
+  // --- tear down ----------------------------------------------------------
+  gl.glBindFramebuffer(GL_FRAMEBUFFER, fboID);
+  if (depthRBID != 0)
+    gl.glDeleteRenderbuffers(1, &depthRBID);
+  if (colorTexID != 0)
+    gl.glDeleteTextures(1, &colorTexID);
+  if (fboID != 0)
+    gl.glDeleteFramebuffers(1, &fboID);
+  gl.glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  ctx->makeCurrent(nullptr);
+  delete off;
+  delete ctx;
+}
+
 // Headless: the ChunkedUploader must slice a large dirty set against a fixed
 // per-frame budget and defer the overflow, while a small set fits whole.
 void ModernRenderTest::testChunkedUploaderBudget()
@@ -636,6 +859,173 @@ void ModernRenderTest::testUpload50kWithinBudget()
            qPrintable(QString("max single upload %1 us exceeded 2 ms budget")
                           .arg(backend.maxSingleUploadMicros(), 0, 'f', 1)));
 
+  ctx->makeCurrent(nullptr);
+  delete off;
+  delete ctx;
+}
+
+// ISOLATION: does the backend's own draw path render a single hardcoded sphere?
+// Renders one sphere at the origin straight through pushSpheres/endFrame (no
+// BSDY engine, no SceneBuilder). If this renders red, the backend is fine and
+// the BSDY parity failure is in the data path; if not, the backend's draw path
+// itself produces no fragments.
+void ModernRenderTest::testDiagCoreProfile()
+{
+  // TEMP diagnostic: does the backend render when the context is 3.3 CORE
+  // (vs Compatibility)? And are the instanced entry points resolved?
+  QOffscreenSurface *off = nullptr;
+  QOpenGLContext *context = new QOpenGLContext();
+  QSurfaceFormat format;
+  format.setVersion(3, 3);
+  format.setProfile(QSurfaceFormat::CoreProfile);
+  context->setFormat(format);
+  QOffscreenSurface *surface = new QOffscreenSurface();
+  surface->setFormat(format);
+  surface->create();
+  QVERIFY(context->create());
+  context->makeCurrent(surface);
+  QOpenGLFunctions_3_3_Core gl33;
+  QVERIFY(gl33.initializeOpenGLFunctions());
+  qWarning() << "DIAG drawElementsInstanced ptr" << (void*)context->getProcAddress("glDrawElementsInstanced")
+             << "divisor ptr" << (void*)context->getProcAddress("glVertexAttribDivisor");
+
+  GLuint fboID = 0, colorTexID = 0, depthRBID = 0;
+  gl33.glGenFramebuffers(1, &fboID);
+  gl33.glBindFramebuffer(GL_FRAMEBUFFER, fboID);
+  gl33.glGenTextures(1, &colorTexID);
+  gl33.glBindTexture(GL_TEXTURE_2D, colorTexID);
+  gl33.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, kWidth, kHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+  gl33.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexID, 0);
+  gl33.glGenRenderbuffers(1, &depthRBID);
+  gl33.glBindRenderbuffer(GL_RENDERBUFFER, depthRBID);
+  gl33.glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, kWidth, kHeight);
+  gl33.glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthRBID);
+  gl33.glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+  Avogadro::rendering::ModernRendererBackend backend;
+  backend.initialize();
+  QVERIFY(backend.isInitialized());
+
+  Avogadro::rendering::ChunkStore<Avogadro::rendering::SphereInstance> store;
+  Avogadro::rendering::SphereInstance s;
+  s.pos[0]=0; s.pos[1]=0; s.pos[2]=0; s.radius=0.5f;
+  s.color[0]=255; s.color[1]=0; s.color[2]=0; s.color[3]=255;
+  store.append(s);
+
+  gl33.glBindFramebuffer(GL_FRAMEBUFFER, fboID);
+  gl33.glViewport(0,0,kWidth,kHeight);
+  gl33.glClearColor(0.05f,0.05f,0.05f,1.0f);
+  gl33.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  gl33.glEnable(GL_DEPTH_TEST);
+  gl33.glDepthFunc(GL_LEQUAL);
+
+  backend.beginFrame(nullptr, QRect(0,0,kWidth,kHeight), 0);
+  backend.setModelViewProjection(viewProjection());
+  backend.pushSpheres(store);
+  backend.endFrame();
+  gl33.glFlush();
+  qWarning() << "DIAG GL error after draw:" << gl33.glGetError();
+  // Read from the DEFAULT framebuffer (fb 0 = the surface), in case the draw
+  // target differs from the FBO.
+  gl33.glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  float d = 9.0f;
+  gl33.glPixelStorei(GL_PACK_ALIGNMENT, 1);
+  gl33.glReadPixels(kWidth/2,kHeight/2,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&d);
+  qWarning() << "DIAG DEPTH_defaultfb (1.0=nothing)" << d;
+  float p[3]={-1,-1,-1};
+  QOpenGLFunctions glf;
+  glf.initializeOpenGLFunctions();
+  readPixel(&glf, kWidth/2, kHeight/2, p);
+  qWarning() << "DIAG color defaultfb" << p[0] << p[1] << p[2];
+  // Also read the FBO again (FBO still bound earlier) for comparison.
+  gl33.glBindFramebuffer(GL_FRAMEBUFFER, fboID);
+  float df = 9.0f;
+  gl33.glReadPixels(kWidth/2,kHeight/2,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&df);
+  qWarning() << "DIAG DEPTH_fbo" << df;
+
+  gl33.glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  if (depthRBID) gl33.glDeleteRenderbuffers(1,&depthRBID);
+  if (colorTexID) gl33.glDeleteTextures(1,&colorTexID);
+  if (fboID) gl33.glDeleteFramebuffers(1,&fboID);
+  context->makeCurrent(nullptr);
+  delete surface; delete context;
+  QSKIP("temp diag", SkipSingle);
+}
+
+void ModernRenderTest::testBackendSingleSphere()
+{
+  QOffscreenSurface *off = nullptr;
+  QOpenGLContext *ctx = makeGLContext(&off);
+  if (!ctx)
+    QSKIP("No GL 3.3+ context available on this runner; skipping GPU render",
+          SkipSingle);
+
+  QOpenGLFunctions gl;
+  gl.initializeOpenGLFunctions();
+
+  GLuint fboID = 0, colorTexID = 0, depthRBID = 0;
+  gl.glGenFramebuffers(1, &fboID);
+  gl.glBindFramebuffer(GL_FRAMEBUFFER, fboID);
+  gl.glGenTextures(1, &colorTexID);
+  gl.glBindTexture(GL_TEXTURE_2D, colorTexID);
+  gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, kWidth, kHeight, 0, GL_RGB,
+                  GL_UNSIGNED_BYTE, nullptr);
+  gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  gl.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                            GL_TEXTURE_2D, colorTexID, 0);
+  gl.glGenRenderbuffers(1, &depthRBID);
+  gl.glBindRenderbuffer(GL_RENDERBUFFER, depthRBID);
+  gl.glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, kWidth, kHeight);
+  gl.glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                               GL_RENDERBUFFER, depthRBID);
+  gl.glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  QVERIFY(fboID != 0);
+
+  Avogadro::rendering::ModernRendererBackend backend;
+  backend.initialize();
+  QVERIFY(backend.isInitialized());
+
+  // One sphere at the origin, red, opaque.
+  Avogadro::rendering::ChunkStore<Avogadro::rendering::SphereInstance> store;
+  store.reserve(4);
+  Avogadro::rendering::SphereInstance s;
+  s.pos[0] = 0.0f; s.pos[1] = 0.0f; s.pos[2] = 0.0f;
+  s.radius = 0.5f;
+  s.color[0] = 255; s.color[1] = 0; s.color[2] = 0; s.color[3] = 255;
+  store.append(s);
+
+  gl.glBindFramebuffer(GL_FRAMEBUFFER, fboID);
+  gl.glViewport(0, 0, kWidth, kHeight);
+  gl.glClearColor(0.05f, 0.05f, 0.05f, 1.0f);
+  gl.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  gl.glEnable(GL_DEPTH_TEST);
+  gl.glDepthFunc(GL_LEQUAL);
+
+  backend.beginFrame(nullptr, QRect(0, 0, kWidth, kHeight), 0);
+  backend.setModelViewProjection(viewProjection());
+  backend.pushSpheres(store);
+  backend.endFrame();
+  gl.glFlush();
+
+  GLint fboBound = -1;
+  gl.glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &fboBound);
+  qInfo().noquote() << "ISOLATION FBO_BINDING=" << fboBound << "(expect " << (GLint)fboID << ")";
+  GLint vp[4] = {-1,-1,-1,-1};
+  gl.glGetIntegerv(GL_VIEWPORT, vp);
+  qInfo().noquote() << "ISOLATION VIEWPORT=" << vp[0] << vp[1] << vp[2] << vp[3];
+
+  float d = 9;
+  gl.glPixelStorei(GL_PACK_ALIGNMENT, 1);
+  gl.glReadPixels(kWidth / 2, kHeight / 2, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &d);
+  qInfo().noquote() << "ISOLATION DEPTH_center=" << d << " (1.0 == nothing rendered)";
+
+  float p[3] = {-1, -1, -1};
+  readPixel(&gl, kWidth / 2, kHeight / 2, p);
+  qInfo().noquote() << "ISOLATION COLOR_center=" << p[0] << p[1] << p[2];
+  qInfo().noquote() << "ISOLATION DRAW_CALLS=" << backend.drawCallsThisFrame();
+
+  gl.glBindFramebuffer(GL_FRAMEBUFFER, 0);
   ctx->makeCurrent(nullptr);
   delete off;
   delete ctx;

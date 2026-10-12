@@ -173,6 +173,21 @@ private:
   //! dereferencing freed memory. The VBOs are GL objects bound to that context,
   //! so when the context is gone they are gone too - nothing to leak.
   QPointer<QOpenGLContext> m_ctx;
+  //! Pick pass: programs that write (type << 28 | id) instead of colour, plus
+  //! a small RGBA8 + depth framebuffer sized to the pick rectangle.
+  QOpenGLShaderProgram m_spherePickProgram;
+  QOpenGLShaderProgram m_cylinderPickProgram;
+  bool m_pickProgramsValid = false;
+  GLuint m_pickFbo = 0;
+  GLuint m_pickColour = 0;
+  GLuint m_pickDepth = 0;
+  int m_pickWidth = 0;
+  int m_pickHeight = 0;
+  void buildPickPrograms();
+  void destroyPickResources();
+  void ensurePickFbo(int width, int height);
+  QList<GLHit> readPickHitsRect(int x, int y, int width, int height);
+
   InstanceVBO m_sphereVBO;
   InstanceVBO m_bondVBO;
   //! Lines rendered as thin cylinders (bond path), so the wire engine has a
@@ -185,6 +200,10 @@ private:
   unsigned int m_sphereCount = 0; // records drawn this frame (watermark)
   unsigned int m_bondCount = 0;
   unsigned int m_lineCount = 0;
+  //! Frame dimensions from beginFrame; the pick pass needs them to map the
+  //! pick rectangle back into clip space.
+  int m_frameWidth = 0;
+  int m_frameHeight = 0;
   unsigned int m_drawCallsThisFrame = 0;
   unsigned int m_framesSubmitted = 0;
   QOpenGLFunctions_3_3_Core m_gl;
