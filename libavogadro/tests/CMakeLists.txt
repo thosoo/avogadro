@@ -49,6 +49,10 @@ set(tests
   geometry
   modernrenderer
   drawcommand
+  glselectoverflow
+  selectionset
+  meshrevision
+  meshstream
 #  hydrogenscommand
   forcefield
   insertfragmentextension
@@ -82,6 +86,11 @@ foreach (test ${tests})
     # can render a molecule through the modern backend's instanced path.
     list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)
   endif()
+  if (${test} STREQUAL "glselectoverflow")
+    # Compile the real ball-and-stick engine so the widget can drive the
+    # legacy GL_SELECT picking path (task 4.2).
+    list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)
+  endif()
   # The ported engines are Qt plugins: their plugin metadata cannot be
   # duplicated inside one binary, so the legacy-vs-modern parity harness gets
   # one binary per engine. Compiling the engine .cpp also makes AUTOUIC
@@ -110,7 +119,7 @@ foreach (test ${tests})
   # The parity binaries drive a real GLWidget for the legacy tier, which
   # QOpenGLWidget does not support on the offscreen platform: they need a
   # real X display (run ctest under xvfb-run) with the default xcb platform.
-  if(${test} MATCHES "^(parity|compatibility)")
+  if(${test} MATCHES "^(parity|compatibility|glselectoverflow|meshstream)")
     set(_test_env "LIBGL_ALWAYS_SOFTWARE=1")
   endif()
   if(${test} STREQUAL "forcefield")

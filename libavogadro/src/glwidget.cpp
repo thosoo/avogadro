@@ -35,9 +35,11 @@
 #include "glhit.h"
 
 #include "rendering/modernbackend.h"
+#include "rendering/selectrefine.h"
 #include "rendering/scenebuilder.h"
 
 #include <QMessageBox>
+#include <QSet>
 #include <QPen>
 #include <QPainter>
 #include <QPaintEngine>
@@ -266,7 +268,11 @@ void GLWidget::updateViewport()
     int                    selectBufSize;
 
     QList<QPair<QString, QPair<QList<unsigned int>, QList<unsigned int> > > > namedSelections;
-    PrimitiveList          selectedPrimitives;
+    // Task 4.3 (design D6): a QSet gives O(1) contains/remove, so selecting or
+    // checking every primitive on a large scene stays O(n) per frame rather than
+    // O(n^2) as it was with the QList-backed PrimitiveList. The public API still
+    // materializes a PrimitiveList (rare calls) so consumers are untouched.
+    QSet<Primitive *>      selectedPrimitives;
 
     QUndoStack            *undoStack;
 
@@ -2265,7 +2271,7 @@ namespace Avogadro {
   void GLWidget::unselectPrimitive(Primitive *p)
   {
     bool selectionDidChange = d->selectedPrimitives.contains(p);
-    d->selectedPrimitives.removeAll( p );
+    d->selectedPrimitives.remove( p );
     // The engine caches must be invalidated
     d->updateCache = true;
     if (selectionDidChange)
@@ -2505,11 +2511,15 @@ namespace Avogadro {
       return hits;
     }
 
-    GLint viewport[4];
-    unsigned int hit_count;
-
-    int cx = w/2 + x;
-    int cy = h/2 + y;
+    // The GL_SELECT selection buffer is capped at SEL_BUF_MAX_SIZE
+    // (global.h:116). glRenderMode(GL_RENDER) returns -1 when the buffer
+    // overflowed before every name was recorded. Never truncate silently
+    // (task 4.2 / design A4): detect the overflow, shrink the selection
+    // rectangle around its centre and retry, reporting each overflow.
+    const int maxRefineAttempts = 6;
+    int attempt = 0;
+    int hit_count = 0;
+    bool overflowReported = false;
 
     // setup the selection buffer
     int requiredSelectBufSize = (d->molecule->numAtoms() + d->molecule->numBonds()) * 8;
@@ -2524,60 +2534,82 @@ namespace Avogadro {
       d->selectBuf = new GLuint[d->selectBufSize];
     }
 
+    while ( true ) {
+      GLint viewport[4];
+      int cx = w/2 + x;
+      int cy = h/2 + y;
+
 #ifdef ENABLE_THREADED_GL
-    d->renderMutex.lock();
+      d->renderMutex.lock();
 #endif
-    makeCurrent();
-    //X   hits.clear();
+      makeCurrent();
+      //X   hits.clear();
 
-    glSelectBuffer( d->selectBufSize, d->selectBuf );
-    glRenderMode( GL_SELECT );
-    glInitNames();
+      glSelectBuffer( d->selectBufSize, d->selectBuf );
+      glRenderMode( GL_SELECT );
+      glInitNames();
 
-    // Setup a projection matrix for picking in the zone delimited by (x,y,w,h).
-    glGetIntegerv( GL_VIEWPORT, viewport );
-    glMatrixMode( GL_PROJECTION );
-    glPushMatrix();
-    glLoadIdentity();
-    gluPickMatrix( cx,viewport[3]-cy, w, h,viewport );
+      // Setup a projection matrix for picking in the zone delimited by (x,y,w,h).
+      glGetIntegerv( GL_VIEWPORT, viewport );
+      glMatrixMode( GL_PROJECTION );
+      glPushMatrix();
+      glLoadIdentity();
+      gluPickMatrix( cx,viewport[3]-cy, w, h,viewport );
 
-    // now multiply that projection matrix with the perspective of the camera
-    d->camera->applyProjection();
+      // now multiply that projection matrix with the perspective of the camera
+      d->camera->applyProjection();
 
-    // now load the modelview matrix from the camera
-    glMatrixMode( GL_MODELVIEW );
-    glPushMatrix();
-    glLoadIdentity();
-    d->camera->applyModelview();
+      // now load the modelview matrix from the camera
+      glMatrixMode( GL_MODELVIEW );
+      glPushMatrix();
+      glLoadIdentity();
+      d->camera->applyModelview();
 
-    // now actually render using low quality, "pickrender"
-    d->painter->begin(this);
+      // now actually render using low quality, "pickrender"
+      d->painter->begin(this);
 #ifdef ENABLE_GLSL
-        if (m_glslEnabled) glUseProgramObjectARB(0);
+          if (m_glslEnabled) glUseProgramObjectARB(0);
 #endif
-    foreach(Engine *engine, d->engines) {
-      if(engine->isEnabled()) {
-        engine->renderPick(d->pd);
+      foreach(Engine *engine, d->engines) {
+        if(engine->isEnabled()) {
+          engine->renderPick(d->pd);
+        }
       }
-    }
-    d->painter->end();
+      d->painter->end();
 
-    // returning to normal rendering mode
-    hit_count = glRenderMode( GL_RENDER );
+      // returning to normal rendering mode. A return value of -1 means the
+      // selection buffer overflowed (hit_count kept as int to detect it).
+      hit_count = glRenderMode( GL_RENDER );
 
-    glMatrixMode( GL_PROJECTION );
-    glPopMatrix();
-    glMatrixMode( GL_MODELVIEW );
-    glPopMatrix();
+      glMatrixMode( GL_PROJECTION );
+      glPopMatrix();
+      glMatrixMode( GL_MODELVIEW );
+      glPopMatrix();
 
 #ifdef ENABLE_THREADED_GL
-    doneCurrent();
-    d->renderMutex.unlock();
+      doneCurrent();
+      d->renderMutex.unlock();
 #endif
+
+      // A clean result (>= 0) finishes the loop; an overflow (-1) shrinks the
+      // box (centre fixed) and retries until it fits or attempts are exhausted.
+      // The decision is isolated in Avogadro::decideSelectRefine so it can be
+      // unit tested without a compatibility GL context (task 4.2 / design A4).
+      overflowReported = overflowReported || (hit_count == -1);
+      if (Avogadro::decideSelectRefine(hit_count, attempt, maxRefineAttempts,
+                                       x, y, w, h)
+              != Avogadro::SelectRefine::Retry)
+        break;
+    }
+
+    if ( overflowReported )
+      qDebug() << "GLSelect: selection buffer overflow detected; refined selection region after"
+               << attempt << "shrinking attempt(s)";
 
     // if no error occurred and there are hits, process them
     if ( hit_count > 0 ) {
-      unsigned int i, j;
+      int i;
+      unsigned int j;
       GLuint names, type, *ptr;
       GLuint minZ, maxZ;
       long name;
@@ -2700,11 +2732,11 @@ namespace Avogadro {
     bool selectionDidChange = false;
     foreach(Primitive *item, primitives) {
       if (select && !d->selectedPrimitives.contains(item)) {
-        d->selectedPrimitives.append( item );
+        d->selectedPrimitives.insert( item );
         selectionDidChange = true;
       }
       else if (!select && d->selectedPrimitives.contains(item)) {
-        d->selectedPrimitives.removeAll( item );
+        d->selectedPrimitives.remove( item );
         selectionDidChange = true;
       }
       // The engine caches must be invalidated
@@ -2717,7 +2749,9 @@ namespace Avogadro {
 
   PrimitiveList GLWidget::selectedPrimitives() const
   {
-    return d->selectedPrimitives.list();
+    // Materialize on demand: this is a rare call, so the O(n) copy is fine.
+    return PrimitiveList(QList<Primitive *>(d->selectedPrimitives.begin(),
+                                            d->selectedPrimitives.end()));
   }
 
   void GLWidget::toggleSelected( PrimitiveList primitives )
@@ -2726,11 +2760,11 @@ namespace Avogadro {
     foreach(Primitive *item, primitives)
     {
       if (d->selectedPrimitives.contains(item)) {
-        d->selectedPrimitives.removeAll( item );
+        d->selectedPrimitives.remove( item );
         selectionDidChange = true;
       }
       else {
-        d->selectedPrimitives.append(item);
+        d->selectedPrimitives.insert(item);
         selectionDidChange = true;
       }
     }
@@ -2748,22 +2782,22 @@ namespace Avogadro {
     foreach(Atom *a, d->molecule->atoms()) {
       Primitive *p = static_cast<Primitive *>(a);
       if (d->selectedPrimitives.contains(p)) {
-        d->selectedPrimitives.removeAll(p);
+        d->selectedPrimitives.remove(p);
         selectionDidChange = true;
       }
       else {
-        d->selectedPrimitives.append(p);
+        d->selectedPrimitives.insert(p);
         selectionDidChange = true;
       }
     }
     foreach(Bond *b, d->molecule->bonds()) {
       Primitive *p = static_cast<Primitive *>(b);
       if (d->selectedPrimitives.contains(p)) {
-        d->selectedPrimitives.removeAll(p);
+        d->selectedPrimitives.remove(p);
         selectionDidChange = true;
       }
       else {
-        d->selectedPrimitives.append(p);
+        d->selectedPrimitives.insert(p);
         selectionDidChange = true;
       }
     }
@@ -2785,7 +2819,13 @@ namespace Avogadro {
 
   bool GLWidget::isSelected( const Primitive *p ) const
   {
-    // Return true if the item is selected
+    // Empty-set early-out: when nothing is selected (the common case) this
+    // returns false without touching the hash set. Every per-primitive
+    // selection check in the engines funnels through here, so this single
+    // guard covers bsdyengine/sphereengine/cartoonengine render loops.
+    if (d->selectedPrimitives.isEmpty())
+      return false;
+    // Return true if the item is selected (O(1) lookup in the QSet).
     return d->selectedPrimitives.contains(const_cast<Primitive *>(p));
   }
 
