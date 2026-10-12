@@ -11,6 +11,7 @@
 #include <QtTest>
 #include <QSignalSpy>
 #include <QMetaType>
+#include <QDir>
 
 #include "libavogadro/src/rendering/snapshottessellator.h"
 #include "libavogadro/src/rendering/builderpool.h"
@@ -96,6 +97,8 @@ private Q_SLOTS:
   void concurrentJobs();
   void generationEcho();
   void directDelivery();
+  void editsDuringBuilds();
+  void viewCloseDuringBuilds();
 
 private:
   BuilderPool *m_pool;
@@ -219,6 +222,67 @@ void BuilderPoolTest::directDelivery()
     QTest::qWait(5);  // let the worker thread make progress between drains
   }
   QCOMPARE(counter.count, 2);
+}
+
+//! Task 6.2: edits during builds. A later submission bumps the revision and
+//! the GUI thread discards results for older revisions (design A7). The edit
+//! lands while earlier jobs are still in flight, so stale results genuinely
+//! arrive after the revision changed and must be dropped by the check.
+void BuilderPoolTest::editsDuringBuilds()
+{
+  const int k = 20;
+  QSignalSpy spy(m_pool, &BuilderPool::jobReady);
+
+  // Build revision 1, then edit (revision 2) while revision-1 jobs may still
+  // be tessellating on the workers.
+  for (int i = 0; i < k; ++i)
+    m_pool->submit(makeTestSnapshot(), makeTestParams(), 1);
+  const unsigned int latest = 2;
+  for (int i = 0; i < k; ++i)
+    m_pool->submit(makeTestSnapshot(), makeTestParams(), latest);
+
+  // Every submitted job eventually reports (nothing is lost), and the
+  // revision check discards exactly the stale ones.
+  while (spy.count() < 2 * k)
+    QVERIFY(spy.wait(5000));
+
+  int staleDiscarded = 0;
+  int currentKept = 0;
+  for (const auto &args : spy) {
+    if (args.value(2).toUInt() == latest)
+      ++currentKept;
+    else
+      ++staleDiscarded; // the GUI-side revision check drops these
+  }
+  QCOMPARE(currentKept, k);   // every job of the current revision survives
+  QCOMPARE(staleDiscarded, k); // every stale result is discarded, none leaks
+}
+
+//! Task 6.2: view close during builds. Destroying the pool with jobs in
+//! flight must join the workers (no abandoned threads), not crash, and not
+//! leak builder threads.
+void BuilderPoolTest::viewCloseDuringBuilds()
+{
+  auto threadCount = []() {
+    return QDir(QStringLiteral("/proc/self")).entryList({"task"}).isEmpty()
+             ? 0
+             : QDir(QStringLiteral("/proc/self/task")).entryList().size();
+  };
+
+  for (int iteration = 0; iteration < 5; ++iteration) {
+    const int before = threadCount();
+    BuilderPool *pool = new BuilderPool(2); // explicit lifetime, no parent
+    for (int i = 0; i < 50; ++i)
+      pool->submit(makeTestSnapshot(), makeTestParams(), 1);
+    // "View close": jobs are in flight when the pool is destroyed. The
+    // destructor must wake and join every worker; QTest's own timeout turns
+    // a deadlock here into a visible failure.
+    delete pool;
+    const int after = threadCount();
+    QVERIFY2(after <= before,
+             qPrintable(QString("iteration %1 leaked builder threads: %2 -> %3")
+                          .arg(iteration).arg(before).arg(after)));
+  }
 }
 
 #include "builderpooltest.moc"

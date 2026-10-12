@@ -220,6 +220,7 @@ class ModernRenderTest : public QObject
     void testDrawCallsBounded();
     void testBSDYThroughModernBackend();
     void testBackendSingleSphere();
+    void testContextLossRebuildsFromCpuChunks();
     void testDiagCoreProfile();
 
     // Task 2.3: LOD zoom bands + hysteresis and per-chunk AABB frustum culling.
@@ -950,6 +951,113 @@ void ModernRenderTest::testDiagCoreProfile()
   context->makeCurrent(nullptr);
   delete surface; delete context;
   QSKIP("temp diag", SkipSingle);
+}
+
+//! Task 6.2: context loss mid-upload (design A3). GPU buffer objects belong
+//! to the context, so a context loss destroys them. The CPU chunk stores are
+//! the source of truth: a freshly initialized backend rebuilt from the same,
+//! untouched CPU stores must reproduce the identical frame.
+void ModernRenderTest::testContextLossRebuildsFromCpuChunks()
+{
+  QOffscreenSurface *off = nullptr;
+  QOpenGLContext *ctx = makeGLContext(&off);
+  if (!ctx)
+    QSKIP("No GL 3.3+ context available on this runner; skipping GPU render",
+          SkipSingle);
+
+  QOpenGLFunctions gl;
+  gl.initializeOpenGLFunctions();
+
+  GLuint fboID = 0, colorTexID = 0, depthRBID = 0;
+  gl.glGenFramebuffers(1, &fboID);
+  gl.glBindFramebuffer(GL_FRAMEBUFFER, fboID);
+  gl.glGenTextures(1, &colorTexID);
+  gl.glBindTexture(GL_TEXTURE_2D, colorTexID);
+  gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, kWidth, kHeight, 0, GL_RGB,
+                  GL_UNSIGNED_BYTE, nullptr);
+  gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  gl.glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  gl.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                            GL_TEXTURE_2D, colorTexID, 0);
+  gl.glGenRenderbuffers(1, &depthRBID);
+  gl.glBindRenderbuffer(GL_RENDERBUFFER, depthRBID);
+  gl.glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, kWidth, kHeight);
+  gl.glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                               GL_RENDERBUFFER, depthRBID);
+  gl.glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  QVERIFY(fboID != 0);
+
+  // The CPU chunk store models the SceneBuilder output: the source of truth
+  // the GPU is (re)built from. renderModern() re-emits it every frame via
+  // clearStores(), so each frame's records arrive freshly dirty.
+  Avogadro::rendering::ChunkStore<Avogadro::rendering::SphereInstance> store;
+  store.reserve(4);
+  Avogadro::rendering::SphereInstance s;
+  s.pos[0] = 0.0f; s.pos[1] = 0.0f; s.pos[2] = 0.0f;
+  s.radius = 0.5f;
+  s.color[0] = 255; s.color[1] = 0; s.color[2] = 0; s.color[3] = 255;
+  store.append(s);
+  auto reemitScene = [&]() {
+    // clearStores() + engines re-emit: same content, freshly dirty.
+    store.clear();
+    store.append(s);
+  };
+
+  auto drawWith = [&](Avogadro::rendering::ModernRendererBackend &backend) {
+    gl.glBindFramebuffer(GL_FRAMEBUFFER, fboID);
+    gl.glViewport(0, 0, kWidth, kHeight);
+    gl.glClearColor(0.05f, 0.05f, 0.05f, 1.0f);
+    gl.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    gl.glEnable(GL_DEPTH_TEST);
+    gl.glDepthFunc(GL_LEQUAL);
+    backend.beginFrame(nullptr, QRect(0, 0, kWidth, kHeight), 0);
+    backend.setModelViewProjection(viewProjection());
+    backend.pushSpheres(store);
+    backend.endFrame();
+    gl.glFlush();
+  };
+  auto readCenter = [&](float *rgb, float *depth) {
+    gl.glPixelStorei(GL_PACK_ALIGNMENT, 1);
+    gl.glReadPixels(kWidth / 2, kHeight / 2, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT,
+                    depth);
+    readPixel(&gl, kWidth / 2, kHeight / 2, rgb);
+  };
+
+  // Frame 1: baseline upload + draw. The backend stays alive through the read
+  // (as in GLWidget: upload, draw, present, then maybe rebuild).
+  auto *backend = new Avogadro::rendering::ModernRendererBackend();
+  backend->initialize();
+  QVERIFY(backend->isInitialized());
+  drawWith(*backend);
+  float before[3] = {-1, -1, -1};
+  float depthBefore = 9;
+  readCenter(before, &depthBefore);
+  QVERIFY(depthBefore < 0.99f); // the sphere really drew
+
+  // Context loss: the backend owning the GPU buffer objects goes away (what
+  // initializeGL does before rebuilding). Its destructor releases context
+  // currency, so re-make the (recovered) context current first — exactly what
+  // happens before the rebuilt initializeGL runs. The acknowledged dirty
+  // state died with the old frame's store; the scene content did not.
+  delete backend;
+  backend = nullptr;
+  QVERIFY(ctx->makeCurrent(off));
+
+  // Frame 2: rebuilt backend + re-emitted CPU scene (renderModern contract).
+  reemitScene();
+  backend = new Avogadro::rendering::ModernRendererBackend();
+  backend->initialize();
+  QVERIFY(backend->isInitialized());
+  drawWith(*backend);
+  float after[3] = {-1, -1, -1};
+  float depthAfter = 9;
+  readCenter(after, &depthAfter);
+  delete backend;
+  backend = nullptr;
+
+  QVERIFY(depthAfter < 0.99f);
+  for (int c = 0; c < 3; ++c)
+    QCOMPARE(after[c], before[c]);
 }
 
 void ModernRenderTest::testBackendSingleSphere()

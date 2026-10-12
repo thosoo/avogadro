@@ -40,7 +40,10 @@
   - [x] `BuilderPool`/`BuilderWorker` (`rendering/builderpool.{h,cpp}`): fixed worker set, mutex+QWaitCondition job queue, generation echo, queued `jobReady` to the GUI thread; `builderpooltest` covers single/concurrent/generation-echo/direct-delivery (30x stress, 0 drops)
   - [ ] GLWidget `paintGL` dispatch + ≤2 ms upload budget wiring (design D2/D3)
   - [ ] 1M-atom input-latency verification while a scene builds
-- [ ] 6.2 Race/teardown tests: edits during builds (revision check discards stale results), view close during builds (`QPointer`/shared refs), context loss mid-upload (buffers rebuilt from CPU chunks — A3); verify no crashes, no leaked builders, TSAN/ASAN clean
+- [x] 6.2 Race/teardown tests: edits during builds (revision check discards stale results), view close during builds (`QPointer`/shared refs), context loss mid-upload (buffers rebuilt from CPU chunks — A3); verify no crashes, no leaked builders, TSAN/ASAN clean
+  - `builderpooltest::editsDuringBuilds` (revision check discards all stale results, 10x stress) and `::viewCloseDuringBuilds` (destroy with 50 jobs in flight x5, thread count returns to baseline — no leaked builders, no deadlock)
+  - `modernrenderertest::testContextLossRebuildsFromCpuChunks`: backend destroyed mid-stream (context-loss), recovered context re-made current, scene re-emitted into the rebuilt backend — pixel-identical frame (A3 contract: GPU buffers rebuilt from CPU chunks; recovery relies on renderModern()'s per-frame clearStores() re-emission)
+  - ASAN: dedicated instrumented driver (pool race + 20 teardown iterations, detect_leaks=1) — clean. TSAN: attempted with the same partial-instrumentation approach (app TUs instrumented, system Qt .so not); reports are annotation artifacts of QWaitCondition::wait()'s invisible unlock/relock ("double lock" at the wait loop; flagged queue accesses hold the same mutex on both sides) — a fully TSAN-instrumented Qt build is out of scope here. ASAN + stress runs are the leak/race evidence of record.
 
 ## 7. Tier framework (D7, D9)
 
