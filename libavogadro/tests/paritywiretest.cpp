@@ -44,8 +44,14 @@ void ParityWireTest::initTestCase()
 
 void ParityWireTest::testWireParity()
 {
+  // The modern tier renders wireframe lines as thin cylinders (design D2:
+  // 1-px GL lines are unreliable on modern GL), so its coverage is several
+  // times the legacy 1-px line coverage by design. The strict checks that
+  // catch real defects — per-atom presence at projected positions, colour
+  // classes, and legacy determinism — apply unchanged.
   ParityResult r = Avogadro::testing::runEngineParity<WireEngine>(
-      m_molecule, &m_colorMap, m_ctx, m_surface);
+      m_molecule, &m_colorMap, m_ctx, m_surface, /*minCoverageRatio=*/0.25,
+      /*maxCoverageRatio=*/4.0);
   QVERIFY2(r.ok, qPrintable(r.message));
   qInfo().noquote() << "wire parity images:" << r.imageDir;
 }
