@@ -37,7 +37,11 @@
 #include "rendering/modernbackend.h"
 #include "rendering/compatbackend.h"
 #include "rendering/renderertier.h"
+#include "rendering/builderpool.h"
+#include "rendering/scenesnapshot.h"
+#include "rendering/snapshottessellator.h"
 #include "rendering/selectrefine.h"
+#include <QOpenGLFunctions>
 #include "rendering/scenebuilder.h"
 
 #include <QMessageBox>
@@ -329,6 +333,24 @@ void GLWidget::updateViewport()
     //! stores the modern tier consumes, flushed through fixed function. Only
     //! created when the resolved tier is Compat; null otherwise.
     rendering::CompatRendererBackend *compatBackend = nullptr;
+    //! Worker pool (gpu-rendering-pipeline task 6.1, design A7/D3): rebuilds
+    //! the scene off the GUI thread while paintGL keeps presenting the last
+    //! ready chunks. Null until the first modern-tier frame creates it.
+    rendering::BuilderPool *builderPool = nullptr;
+    //! Revision currently submitted to the pool (0 = nothing submitted).
+    unsigned int submittedRevision = 0;
+    //! Newest worker result and the revision it was built for. Results are
+    //! tagged with the molecule revision; stale ones are discarded.
+    rendering::TessellationResult workerResult;
+    unsigned int readyRevision = 0;
+    bool hasWorkerResult = false;
+    //! Revision the backend's chunk stores currently reflect, and whether any
+    //! stores exist at all. Rotation frames skip re-emission entirely.
+    unsigned long emittedRevision = 0;
+    bool storesValid = false;
+    //! Set when an engine reports changed() (settings, selection colouring):
+    //! forces re-emission even though the molecule revision is unchanged.
+    bool enginesDirty = true;
     //! Backend counters exposed to the debug overlay (draw calls / frames of
     //! the most recent modern frame).
     unsigned int backendDrawCalls = 0;
@@ -494,6 +516,13 @@ GLWidget::GLWidget( Molecule *molecule,
     // Make sure we get keyboard events
     setFocusPolicy(Qt::StrongFocus);
 
+    // Worker pool (gpu-rendering-pipeline task 6.1, design A7): rebuilds the
+    // scene off the GUI thread. CPU-only, so it needs no GL context. Created
+    // for every widget (all constructors share this helper).
+    d->builderPool = new rendering::BuilderPool(2, this);
+    connect(d->builderPool, &rendering::BuilderPool::jobReady,
+            this, &GLWidget::builderResultReady, Qt::QueuedConnection);
+
     // New PainterDevice
     d->pd = new GLPainterDevice(this);
     if (shareWidget) {
@@ -532,6 +561,14 @@ GLWidget::GLWidget( Molecule *molecule,
 
   void GLWidget::renderNow()
   {
+    // paintGL issues GL calls, which need the widget's context current AND
+    // the widget's own framebuffer bound: QOpenGLWidget::makeCurrent() only
+    // makes the context current, and drawing into the default framebuffer
+    // would silently produce an empty frame.
+    makeCurrent();
+    if (QOpenGLContext *ctx = context())
+      ctx->functions()->glBindFramebuffer(GL_FRAMEBUFFER,
+                                          defaultFramebufferObject());
     paintGL();
   }
 
@@ -629,6 +666,18 @@ GLWidget::GLWidget( Molecule *molecule,
     d->backend = nullptr;
     delete d->compatBackend;
     d->compatBackend = nullptr;
+    // Context loss (A3): the GPU buffer objects died with the old context.
+    // The CPU-side stores survive, but the new backend starts with empty
+    // VBOs, so the scene must be rebuilt/resubmitted after the backend is
+    // recreated (design D3: the worker path resubmits; the synchronous path
+    // re-emits). Without this the rebuilt backend would push acknowledged
+    // (non-dirty) stores, upload nothing, and draw an empty scene.
+    d->storesValid = false;
+    d->enginesDirty = true;
+    d->emittedRevision = 0;
+    d->hasWorkerResult = false;
+    d->submittedRevision = 0;
+    d->readyRevision = 0;
     // Renderer-tier selection (gpu-rendering-pipeline design A8/D7, task 7.1).
     // The AVOGADRO_RENDERER override is read before the first frame is drawn;
     // without it the highest compiled-in tier the context supports runs. A
@@ -911,22 +960,92 @@ GLWidget::GLWidget( Molecule *molecule,
       return;
     }
     if (!d->backend) {
-      // Backend not initialised on this context yet (e.g. before initializeGL
-      // or after a context-loss rebuild); nothing to draw this frame.
+      // Backend not initialised on this context yet. initializeGL can run
+      // before the widget's context is current (observed on first show under
+      // GLX: the resize-driven paint precedes a usable context), so recover
+      // lazily on the first frame that does have one instead of staying
+      // fixed-function forever. A context-loss rebuild lands here too — the
+      // fresh backend has empty VBOs, so the scene is rebuilt/resubmitted.
+      if (d->rendererTier == rendering::RendererTier::Modern
+          && QOpenGLContext::currentContext()) {
+        d->backend = new rendering::ModernRendererBackend();
+        d->backend->initialize();
+        if (!d->backend->isInitialized()) {
+          delete d->backend;
+          d->backend = nullptr;
+        } else {
+          d->useModernTier = true; // recovered: the instanced path is live
+          d->storesValid = false;
+          d->enginesDirty = true;
+          d->emittedRevision = 0;
+          d->hasWorkerResult = false;
+          d->submittedRevision = 0;
+          d->readyRevision = 0;
+        }
+      }
+    }
+    if (!d->backend) {
+      // Still no backend (no current context): nothing to draw this frame.
       return;
     }
 
-    // Paint the engines into the SceneBuilder (a Painter) instead of issuing
-    // GL. The pd override routes every pd->painter()->draw* call to the
-    // SceneBuilder, which appends per-instance records to the chunk stores the
-    // backend uploads. Engines are already sorted by engineLessThan, so the
-    // opaque-then-transparent pass order matches the legacy path.
-    const QMatrix4x4 mvp = emitSceneToBuilder();
+    const unsigned int revision = d->molecule->revision();
+    const bool sceneChanged =
+      d->enginesDirty || !d->storesValid || revision != d->emittedRevision;
+
+    // Worker path (gpu-rendering-pipeline task 6.1, design A7/D3): while the
+    // scene is covered by the snapshot tessellator, rebuilds are dispatched
+    // to the builder pool and every frame presents the last ready state —
+    // a rebuild in flight never stalls input.
+    const bool workerPath = workerPathCapable();
+    if (workerPath && sceneChanged && revision != d->submittedRevision)
+      submitWorkerBuild(revision);
+
+    if (workerPath) {
+      if (d->hasWorkerResult && d->readyRevision == revision) {
+        // Adopt the worker-built chunks: pushing uploads only the dirty
+        // ranges, under the backend's ≤2 ms/frame budget (design D2/D3).
+        const QMatrix4x4 mvp = currentModelViewProjection();
+        if (d->backend->beginFrame(camera(), QRect(0, 0, width(), height()),
+                                   d->builder.quality())) {
+          d->backend->setModelViewProjection(mvp);
+          d->backend->pushSpheres(d->workerResult.spheres);
+          d->backend->pushBonds(d->workerResult.bonds);
+          d->backend->pushLines(d->workerResult.lines);
+          d->backend->endFrame();
+          d->backendDrawCalls = d->backend->drawCallsThisFrame();
+          d->backendFrames = d->backend->framesSubmitted();
+        }
+        d->emittedRevision = revision;
+        d->storesValid = true;
+        d->enginesDirty = false;
+        // Screen-space tool overlay still draws through the real painter,
+        // exactly as the synchronous emission path does.
+        if (d->tool)
+          d->tool->paint(this);
+        return;
+      }
+      if (sceneChanged) {
+        // Build still in flight: present the last ready chunks untouched.
+        drawLastReady();
+        return;
+      }
+    }
+
+    // Re-emit only when the scene actually changed (design A7): rotation
+    // frames reuse the previous frame's chunk stores — pushing stores with
+    // no dirty ranges uploads nothing, so the frame is pure instanced draws.
+    if (sceneChanged) {
+      emitSceneToBuilder();
+      d->emittedRevision = revision;
+      d->storesValid = true;
+      d->enginesDirty = false;
+    }
 
     // Upload the finished stores and issue the bounded instanced draws.
     if (d->backend->beginFrame(camera(), QRect(0, 0, width(), height()),
                                d->builder.quality())) {
-      d->backend->setModelViewProjection(mvp);
+      d->backend->setModelViewProjection(currentModelViewProjection());
       d->backend->pushSpheres(d->builder.spheres());
       d->backend->pushBonds(d->builder.bonds());
       d->backend->pushLines(d->builder.lines());
@@ -936,11 +1055,7 @@ GLWidget::GLWidget( Molecule *molecule,
     }
   }
 
-  //! Engines (plus the active tool) emit the scene into the chunk stores.
-  //! Shared by the modern tier (instanced shaders) and the compat tier
-  //! (fixed-function flush), so both tiers render byte-identical instance
-  //! sets and any engine migration lands on both at once (design D4).
-  QMatrix4x4 GLWidget::emitSceneToBuilder()
+  QMatrix4x4 GLWidget::currentModelViewProjection()
   {
     // The model*projection matrix is the one paintGL() set up on the GL stack
     // (projection * modelview). The backend's vertex shader evaluates
@@ -948,7 +1063,16 @@ GLWidget::GLWidget( Molecule *molecule,
     GLfloat mvMat[16], projMat[16];
     glGetFloatv(GL_MODELVIEW_MATRIX, mvMat);
     glGetFloatv(GL_PROJECTION_MATRIX, projMat);
-    const QMatrix4x4 mvp(QMatrix4x4(projMat) * QMatrix4x4(mvMat));
+    return QMatrix4x4(projMat) * QMatrix4x4(mvMat);
+  }
+
+  //! Engines (plus the active tool) emit the scene into the chunk stores.
+  //! Shared by the modern tier (instanced shaders) and the compat tier
+  //! (fixed-function flush), so both tiers render byte-identical instance
+  //! sets and any engine migration lands on both at once (design D4).
+  QMatrix4x4 GLWidget::emitSceneToBuilder()
+  {
+    const QMatrix4x4 mvp = currentModelViewProjection();
 
     // Paint the engines into the SceneBuilder (a Painter) instead of issuing
     // GL. The pd override routes every pd->painter()->draw* call to the
@@ -982,6 +1106,117 @@ GLWidget::GLWidget( Molecule *molecule,
     d->builder.end();
     d->pd->clearOverridePainter();
     return mvp;
+  }
+
+  bool GLWidget::workerPathCapable() const
+  {
+    // The tessellator reproduces the BSDY ball-and-stick output; any other
+    // enabled engine keeps the synchronous path (design D4 mixed pipeline).
+    if (!d->builderPool)
+      return false;
+    foreach (Engine *engine, d->engines) {
+      if (engine->isEnabled() && !engine->isSnapshotCovered())
+        return false;
+    }
+    return true;
+  }
+
+  void GLWidget::submitWorkerBuild(unsigned int revision)
+  {
+    // Take the snapshot under the molecule read lock (design A7): render()
+    // holds lockForRead for the duration of this call, and the snapshot must
+    // never reference the live vectors (Atom::pos() points into them).
+    rendering::SceneSnapshot snapshot;
+    snapshot.revision = revision;
+    const Molecule *mol = d->molecule;
+    if (!mol)
+      return;
+
+    const unsigned int n = mol->numAtoms();
+    snapshot.atoms.resize(n);
+    QHash<unsigned long, unsigned int> idToIndex;
+    idToIndex.reserve(n);
+    for (unsigned int i = 0; i < n; ++i) {
+      const Atom *a = mol->atom(i);
+      if (!a)
+        continue;
+      rendering::SnapshotAtom &sa = snapshot.atoms[i];
+      const Eigen::Vector3d &pos = *a->pos();
+      sa.pos[0] = static_cast<float>(pos[0]);
+      sa.pos[1] = static_cast<float>(pos[1]);
+      sa.pos[2] = static_cast<float>(pos[2]);
+      sa.atomicNumber = static_cast<unsigned char>(a->atomicNumber());
+      idToIndex.insert(a->id(), i);
+    }
+    for (unsigned int i = 0; i < mol->numBonds(); ++i) {
+      const Bond *b = mol->bond(i);
+      if (!b)
+        continue;
+      rendering::SnapshotBond sb;
+      sb.begin = idToIndex.value(b->beginAtomId(), 0);
+      sb.end = idToIndex.value(b->endAtomId(), 0);
+      sb.order = b->order();
+      snapshot.bonds.append(sb);
+    }
+
+    // Selection ids come from the widget's selection state (task 4.3).
+    QSet<unsigned int> selectedAtoms;
+    QSet<unsigned int> selectedBonds;
+    for (const Primitive *p : selectedPrimitives()) {
+      if (!p)
+        continue;
+      if (p->type() == Primitive::AtomType)
+        selectedAtoms.insert(p->id());
+      else if (p->type() == Primitive::BondType)
+        selectedBonds.insert(p->id());
+    }
+
+    rendering::JobParams params;
+    foreach (Engine *engine, d->engines) {
+      if (engine->isEnabled() && engine->isSnapshotCovered()) {
+        params = engine->captureJobParams(colorMap(), selectedAtoms,
+                                          selectedBonds);
+        break;
+      }
+    }
+
+    d->submittedRevision = revision;
+    d->builderPool->submit(snapshot, params, revision);
+  }
+
+  void GLWidget::builderResultReady(
+    unsigned long jobId, const rendering::TessellationResult &result,
+    unsigned int generation)
+  {
+    Q_UNUSED(jobId);
+    // Revision check (design A7): results for older revisions are discarded —
+    // the molecule changed while the worker was building.
+    if (!d->molecule || generation < d->molecule->revision()) {
+      return;
+    }
+    d->workerResult = result;
+    d->readyRevision = generation;
+    d->hasWorkerResult = true;
+    update(); // adopt the freshly built chunks on the next frame
+  }
+
+  void GLWidget::sceneContentsChanged()
+  {
+    d->enginesDirty = true;
+    update();
+  }
+
+  void GLWidget::drawLastReady()
+  {
+    // Present the last ready state (design D3): push the stores already held
+    // by the backend. Nothing is dirty after the adopting frame, so this is
+    // pure instanced draws — no emission, no uploads, no input stall.
+    if (d->backend->beginFrame(camera(), QRect(0, 0, width(), height()),
+                               d->builder.quality())) {
+      d->backend->endFrame();
+      d->backendDrawCalls = d->backend->drawCallsThisFrame();
+      d->backendFrames = d->backend->framesSubmitted();
+    }
   }
 
   //! Compat tier (task 7.2 / design D9): the same chunk stores the modern
@@ -1034,7 +1269,10 @@ GLWidget::GLWidget( Molecule *molecule,
     // draws. The compat tier (task 7.2) emits the same stores and flushes
     // them through fixed function. The frozen legacy tier keeps its own
     // per-primitive display-list/GL-painter path below.
-    if (d->useModernTier) {
+    // Dispatch on the resolved tier, not the backend state: the modern
+    // backend can recover lazily inside renderModern() when the first
+    // initializeGL ran without a current context (design D3 recovery).
+    if (d->rendererTier == rendering::RendererTier::Modern) {
       renderModern();
       return;
     }
@@ -2448,10 +2686,23 @@ namespace Avogadro {
     return d->engines;
   }
 
+  unsigned int GLWidget::backendDrawCallsLastFrame() const
+  {
+    return d->backendDrawCalls;
+  }
+
+  unsigned int GLWidget::backendFramesSubmitted() const
+  {
+    return d->backendFrames;
+  }
+
   void GLWidget::addEngine(Engine *engine)
   {
     connect(engine, SIGNAL(changed()), this, SLOT(update()));
     connect(engine, SIGNAL(changed()), this, SLOT(invalidateDLs()));
+    // Engine settings/selection changes invalidate the worker-built chunks
+    // even though the molecule revision is unchanged (task 6.1).
+    connect(engine, SIGNAL(changed()), this, SLOT(sceneContentsChanged()));
     connect(this, SIGNAL(moleculeChanged(Molecule *)),
             engine, SLOT(setMolecule(Molecule *)));
     d->engines.append(engine);

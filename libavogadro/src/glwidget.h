@@ -48,6 +48,11 @@ class QUndoStack;
 
 namespace Avogadro {
 
+  namespace rendering {
+    struct TessellationResult;
+    class BuilderPool;
+  }
+
   class Primitive;
   class Atom;
   class Bond;
@@ -225,6 +230,13 @@ namespace Avogadro {
        * @return a list of engines.
        */
       QList<Engine *> engines() const;
+
+      /** Debug-overlay counters (gpu-rendering-pipeline tasks 2.4 / 8.1):
+        * draw calls and fully submitted frames of the most recent modern-
+        * tier frame. Exposed so the FPS harness (and any external tooling)
+        * can read the same numbers the on-screen overlay shows. */
+      unsigned int backendDrawCallsLastFrame() const;
+      unsigned int backendFramesSubmitted() const;
 
       /**
        * Get the hits for a region starting at (x, y) of size (w * h).
@@ -661,6 +673,12 @@ namespace Avogadro {
       QMatrix4x4 emitSceneToBuilder();
 
       /**
+       * The model*projection matrix paintGL() left on the GL stack (used by
+       * renderModern() when adopting worker-built chunk stores).
+       */
+      QMatrix4x4 currentModelViewProjection();
+
+      /**
        * Render a full crystal cell
        * Called by render() automatically
        *
@@ -745,8 +763,47 @@ namespace Avogadro {
       /** Read settings and create required engines */
       void loadEngines(QSettings &settings);
 
+      /**
+       * Worker-path gating (gpu-rendering-pipeline task 6.1, design A7): the
+       * builder pool can rebuild the scene off-thread only while every
+       * enabled engine is snapshot-covered (the tessellator reproduces the
+       * BSDY ball-and-stick output). Any other enabled engine keeps the
+       * synchronous emission path (D4's mixed pipeline).
+       */
+      bool workerPathCapable() const;
+
+      /**
+       * Take a scene snapshot under the molecule read lock, capture the
+       * engine's render parameters, and submit a build job for `revision`.
+       * Results arrive via builderResultReady() on this thread.
+       */
+      void submitWorkerBuild(unsigned int revision);
+
+      /**
+       * Draw the chunk stores the backend already holds (no emission, no
+       * uploads when nothing is dirty) — design D3: a frame always presents
+       * the last ready state, so a rebuild in flight never stalls input.
+       */
+      void drawLastReady();
+
       bool              m_glslEnabled;
       Tool*             m_navigateTool; /// NavigateTool is a super tool
+
+    private Q_SLOTS:
+      /**
+       * A worker finished a build: keep the newest result (stale revisions
+       * are discarded by the revision check) and request a frame to adopt it.
+       */
+      void builderResultReady(unsigned long jobId,
+                              const Avogadro::rendering::TessellationResult &result,
+                              unsigned int generation);
+
+      /**
+       * An engine reported changed(): its settings or the selection colouring
+       * changed, so the built chunks no longer match the engine state. Forces
+       * re-emission / a worker rebuild on the next frame.
+       */
+      void sceneContentsChanged();
 
     public Q_SLOTS:
 

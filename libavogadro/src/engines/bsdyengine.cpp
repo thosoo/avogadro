@@ -198,6 +198,58 @@ namespace Avogadro
     return true;
   }
 
+  rendering::JobParams BSDYEngine::captureJobParams(
+    const Color *colorMap,
+    const QSet<unsigned int> &selectedAtomIds,
+    const QSet<unsigned int> &selectedBondIds) const
+  {
+    // Capture exactly what renderOpaque/renderTransparent would resolve per
+    // atom on the GUI thread, so the worker tessellation is byte-identical
+    // (gpu-rendering-pipeline task 6.1, design A7).
+    rendering::JobParams params;
+    params.settings.alpha = static_cast<float>(m_alpha);
+    params.settings.showMulti = m_showMulti;
+    params.settings.bondRadius = static_cast<float>(m_bondRadius);
+    params.settings.shift = 0.15f; // renderOpaque/renderTransparent use 0.15
+
+    const Molecule *mol = molecule();
+    if (!mol)
+      return params;
+
+    // Colours must be resolved here: Color::setFromPrimitive is GUI-affine.
+    Color *map = const_cast<Color *>(colorMap);
+    Color fallbackMap;
+    if (!map)
+      map = &fallbackMap;
+
+    params.atoms.resize(mol->numAtoms());
+    for (unsigned int i = 0; i < mol->numAtoms(); ++i) {
+      const Atom *a = mol->atom(i);
+      if (!a)
+        continue;
+      rendering::CapturedAtom ca;
+      ca.radius = static_cast<float>(radius(a));
+      ca.customColorName = a->customColorName();
+      if (ca.customColorName.isEmpty()) {
+        map->setFromPrimitive(a);
+        ca.rgba[0] = static_cast<float>(map->red());
+        ca.rgba[1] = static_cast<float>(map->green());
+        ca.rgba[2] = static_cast<float>(map->blue());
+        ca.rgba[3] = static_cast<float>(map->alpha());
+      } else {
+        const QColor c(ca.customColorName);
+        ca.rgba[0] = static_cast<float>(c.redF());
+        ca.rgba[1] = static_cast<float>(c.greenF());
+        ca.rgba[2] = static_cast<float>(c.blueF());
+        ca.rgba[3] = static_cast<float>(c.alphaF());
+      }
+      params.atoms[i] = ca;
+    }
+    params.selectedAtoms = selectedAtomIds;
+    params.selectedBonds = selectedBondIds;
+    return params;
+  }
+
   bool BSDYEngine::renderTransparent(PainterDevice *pd)
   {
     // Render selections when not renderquick

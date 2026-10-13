@@ -28,6 +28,10 @@
 #include <avogadro/global.h>
 #include <avogadro/engine.h>
 
+#include "../rendering/snapshottessellator.h"
+
+#include <QSet>
+
 #include "ui_bsdysettingswidget.h"
 
 namespace Avogadro {
@@ -60,6 +64,22 @@ namespace Avogadro {
       Engine::Layers layers() const;
 
       double radius(const PainterDevice *pd, const Primitive *p = 0) const;
+
+      /**
+       * Capture this engine's current settings and per-atom render parameters
+       * (radius, color) as a JobParams for the snapshot tessellator
+       * (gpu-rendering-pipeline task 6.1 / design A7). The worker threads
+       * build from (SceneSnapshot, JobParams) pairs, so the widget needs a
+       * faithful capture of exactly what renderOpaque/renderTransparent would
+       * resolve per atom. Selection sets are passed in by the caller (the
+       * widget owns the selection state).
+       */
+      rendering::JobParams captureJobParams(
+        const Color *colorMap,
+        const QSet<unsigned int> &selectedAtomIds,
+        const QSet<unsigned int> &selectedBondIds) const override;
+
+      bool isSnapshotCovered() const override { return true; }
 
       /**
        * @return a pointer to the BSDYEngine settings widget

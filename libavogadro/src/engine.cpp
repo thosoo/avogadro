@@ -25,6 +25,8 @@
 
 #include "engine.h"
 
+#include "rendering/snapshottessellator.h"
+
 #include <avogadro/painterdevice.h>
 #include <avogadro/molecule.h>
 #include <avogadro/atom.h>
@@ -344,6 +346,17 @@ namespace Avogadro {
         disconnect(m_molecule, 0, this, 0);
     }
     m_molecule = mol;
+  }
+
+  rendering::JobParams Engine::captureJobParams(
+    const Color *colorMap,
+    const QSet<unsigned int> &selectedAtomIds,
+    const QSet<unsigned int> &selectedBondIds) const
+  {
+    Q_UNUSED(colorMap);
+    Q_UNUSED(selectedAtomIds);
+    Q_UNUSED(selectedBondIds);
+    return rendering::JobParams();
   }
 
   void Engine::setMolecule(Molecule *molecule)

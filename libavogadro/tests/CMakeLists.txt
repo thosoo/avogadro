@@ -56,6 +56,7 @@ set(tests
   threadedparity
   builderpool
   renderertier
+  renderbench
 #  hydrogenscommand
   forcefield
   insertfragmentextension
@@ -94,9 +95,10 @@ foreach (test ${tests})
     # legacy GL_SELECT picking path (task 4.2).
     list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)
   endif()
-  if (${test} STREQUAL "threadedparity")
+  if (${test} STREQUAL "threadedparity" OR ${test} STREQUAL "renderbench")
     # Compile the real ball-and-stick engine so the snapshot tessellator can
-    # be compared against the GUI-thread engine emission (task 6.1).
+    # be compared against the GUI-thread engine emission (task 6.1), and so
+    # the render bench can drive the worker path through a real engine (8.1).
     list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)
   endif()
   # The ported engines are Qt plugins: their plugin metadata cannot be
@@ -127,7 +129,7 @@ foreach (test ${tests})
   # The parity binaries drive a real GLWidget for the legacy tier, which
   # QOpenGLWidget does not support on the offscreen platform: they need a
   # real X display (run ctest under xvfb-run) with the default xcb platform.
-  if(${test} MATCHES "^(parity|compatibility|glselectoverflow|meshstream|threadedparity)")
+  if(${test} MATCHES "^(parity|compatibility|glselectoverflow|meshstream|threadedparity|renderbench)")
     set(_test_env "LIBGL_ALWAYS_SOFTWARE=1")
   endif()
   if(${test} STREQUAL "forcefield")

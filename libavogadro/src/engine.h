@@ -38,6 +38,7 @@
 #include "plugin.h"
 
 #include <QList>
+#include <QSet>
 #include <QSettings>
 #include <QtPlugin>
 
@@ -61,6 +62,10 @@
     QString description() const { return c::staticDescription(); }
 
 namespace Avogadro {
+
+  namespace rendering {
+    struct JobParams;
+  }
 
   class PainterDevice;
   class Atom;
@@ -510,6 +515,23 @@ namespace Avogadro {
        * Slot to set the Molecule pointer for this engine.
        */
       virtual void setMolecule(Molecule *molecule);
+
+    public:
+      /**
+       * Worker-thread support (gpu-rendering-pipeline task 6.1, design A7).
+       * isSnapshotCovered(): the builder pool may rebuild this engine's
+       * output off the GUI thread from a scene snapshot. captureJobParams():
+       * capture the engine's current settings and per-atom render parameters
+       * for the snapshot tessellator; colours are resolved on the GUI thread
+       * here because Color resolution is GUI-affine. The base implementations
+       * report "not covered" (the synchronous emission path applies); the
+       * BSDY ball-and-stick engine overrides both.
+       */
+      virtual bool isSnapshotCovered() const { return false; }
+      virtual rendering::JobParams captureJobParams(
+        const Color *colorMap,
+        const QSet<unsigned int> &selectedAtomIds,
+        const QSet<unsigned int> &selectedBondIds) const;
 
     protected:
       EnginePrivate *const d;
