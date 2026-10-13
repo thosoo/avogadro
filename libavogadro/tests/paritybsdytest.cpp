@@ -23,7 +23,7 @@ private Q_SLOTS:
 
 private:
   Molecule m_molecule;
-  Color m_colorMap; // BISECT: plain colour map
+  Avogadro::testing::HarnessColor m_colorMap;
   QOpenGLContext *m_ctx = nullptr;
   QOffscreenSurface *m_surface = nullptr;
 };

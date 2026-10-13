@@ -200,6 +200,44 @@ inline FrameStats summarizeFrame(const QImage &img, const QColor &bg)
   return s;
 }
 
+//! Project an atom's world position through the shared MVP (parityMvp) and
+//! return the pixel coordinates. Y is flipped into top-down image order.
+inline QPointF projectAtom(const Eigen::Vector3d &world)
+{
+  const QMatrix4x4 mvp = parityMvp();
+  const QVector4D clip = mvp * QVector4D(float(world.x()), float(world.y()),
+                                         float(world.z()), 1.0f);
+  if (qFuzzyIsNull(clip.w()))
+    return QPointF(-1, -1);
+  const float ndcX = clip.x() / clip.w();
+  const float ndcY = clip.y() / clip.w();
+  return QPointF((ndcX * 0.5f + 0.5f) * kW,
+                 (1.0f - (ndcY * 0.5f + 0.5f)) * kH);
+}
+
+//! True when any pixel within `radius` of `centre` differs from the
+//! background: per-atom presence at its projected position. This catches a
+//! missing atom even when the whole-frame dominant channel is carried by
+//! other atoms, and it includes achromatic geometry (white/black/grey).
+inline bool atomPresentAt(const QImage &img, const QPointF &centre,
+                          const QColor &bg, int radius = 12)
+{
+  const int cx = int(centre.x());
+  const int cy = int(centre.y());
+  for (int dy = -radius; dy <= radius; ++dy)
+    for (int dx = -radius; dx <= radius; ++dx) {
+      const int x = cx + dx;
+      const int y = cy + dy;
+      if (x < 0 || y < 0 || x >= img.width() || y >= img.height())
+        continue;
+      const QColor c = img.pixelColor(x, y);
+      if (qAbs(c.red() - bg.red()) > 12 || qAbs(c.green() - bg.green()) > 12 ||
+          qAbs(c.blue() - bg.blue()) > 12)
+        return true;
+    }
+  return false;
+}
+
 //! True when the dominant colour channel agrees and is meaningfully present.
 //! Channel dominance encodes the element colour and is far more robust to
 //! lighting/tessellation differences than exact pixel equality.
@@ -438,13 +476,20 @@ QImage renderModernFrame(Molecule &mol, HarnessColor *colorMap,
 //! Full legacy-vs-modern parity run for one engine type.
 template <typename EngineT>
 ParityResult runEngineParity(Molecule &mol, HarnessColor *colorMap,
-                             QOpenGLContext *ctx, QOffscreenSurface *surface)
+                             QOpenGLContext *ctx, QOffscreenSurface *surface,
+                             double minCoverageRatio = 0.75,
+                             double maxCoverageRatio = 1.3333)
 {
   ParityResult r;
   const QColor &background = kBackground;
 
   bool ok = false;
   QString err;
+
+  // Resolve the colour map for every atom up front: the reference frame must
+  // never depend on uninitialised colour state.
+  for (unsigned int i = 0; i < mol.numAtoms(); ++i)
+    colorMap->setFromPrimitive(mol.atom(i));
 
   // AVO_SKIP_LEGACY=1 isolates the modern pass from any state the legacy
   // GLWidget render may leave behind.
@@ -457,6 +502,22 @@ ParityResult runEngineParity(Molecule &mol, HarnessColor *colorMap,
   } else {
     r.legacy = QImage(kW, kH, QImage::Format_RGB32);
     r.legacy.fill(kBackground);
+  }
+
+  // The legacy reference must be deterministic: render it twice and require
+  // pixel-identical frames (a reference that flips between runs cannot
+  // support a parity sign-off).
+  {
+    const QImage legacyAgain = renderLegacyFrame<EngineT>(mol, colorMap, &ok, &err);
+    if (!ok) {
+      r.message = err;
+      return r;
+    }
+    if (legacyAgain != r.legacy) {
+      r.message = "legacy reference is non-deterministic: two consecutive "
+                  "renders of the same scene differ";
+      return r;
+    }
   }
 
   r.modern = renderModernFrame<EngineT>(mol, colorMap, ctx, surface, &ok, &err);
@@ -489,19 +550,36 @@ ParityResult runEngineParity(Molecule &mol, HarnessColor *colorMap,
     return r;
   }
 
-  // Same visual class: comparable coverage (within an order of magnitude —
-  // tessellation differs by design) and the same dominant colour at the
-  // molecule's centre.
-  const double ratio = ls.coverageFraction() / ms.coverageFraction();
-  if (ratio <= 0.1 || ratio >= 10.0) {
-    r.message = QString("coverage differs by more than an order of magnitude "
-                        "(legacy %1 vs modern %2)")
+  // Same visual class: coverage within 25 % (same geometry, same camera;
+  // tessellation differs by design but not by 4x).
+  const double ratio = ls.coverageFraction() / qMax(ms.coverageFraction(), 1e-6);
+  if (ratio < minCoverageRatio || ratio > maxCoverageRatio) {
+    r.message = QString("coverage differs beyond the allowed band (legacy %1 "
+                        "vs modern %2)")
                     .arg(r.legacyCoverage, r.modernCoverage);
     return r;
   }
   if (!dominantChannelMatchesFrame(r.legacy, r.modern, background)) {
     r.message = "dominant colour channel over the frame differs between tiers";
     return r;
+  }
+
+  // Per-atom presence at each projected atom position: catches a missing
+  // atom even when other atoms carry the whole-frame dominant channel.
+  for (unsigned int i = 0; i < mol.numAtoms(); ++i) {
+    const QPointF screen = projectAtom(mol.atom(i)->pos()->cast<double>());
+    const bool inLegacy = atomPresentAt(r.legacy, screen, background);
+    const bool inModern = atomPresentAt(r.modern, screen, background);
+    if (!inLegacy || !inModern) {
+      r.message = QString("atom %1 missing at projected position (%2,%3): "
+                          "legacy=%4 modern=%5")
+                      .arg(i)
+                      .arg(screen.x(), 0, 'f', 0)
+                      .arg(screen.y(), 0, 'f', 0)
+                      .arg(inLegacy)
+                      .arg(inModern);
+      return r;
+    }
   }
 
   r.ok = true;
