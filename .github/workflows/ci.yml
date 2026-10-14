@@ -65,4 +65,10 @@ jobs:
         run: |
           export LD_LIBRARY_PATH="$PWD/build/openbabel-install/lib:$LD_LIBRARY_PATH"
           export PATH="$PWD/build/openbabel-install/bin:$PATH"
-          ctest --test-dir build --output-on-failure
+          # GL-dependent unit tests (rendering tier, parity, picking, mesh
+          # streaming) need a real OpenGL context. The offscreen Qt platform
+          # cannot create one, so run under a virtual X server with software
+          # Mesa; the tests capability-skip the ones that need a 3.3+ context
+          # when the software rasteriser cannot provide it.
+          export LIBGL_ALWAYS_SOFTWARE=1
+          xvfb-run -a ctest --test-dir build --output-on-failure

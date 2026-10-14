@@ -74,6 +74,12 @@ endif()
 foreach (test ${tests})
   message(STATUS "Test:  ${test}")
   set(test_SRCS ${test}test.cpp)
+  if (${test} STREQUAL "geometry")
+    # geometry.cpp defines SphereGeometry::generate() / CylinderGeometry::generate()
+    # as visibility-hidden members of the shared avogadro lib, so the import lib
+    # does not resolve them; compile the source directly into the test.
+    list(APPEND test_SRCS ../src/rendering/geometry.cpp)
+  endif()
   if (${test} STREQUAL "insertfragmentextension")
     list(APPEND test_SRCS
       ../src/extensions/insertfragmentextension.cpp
@@ -119,6 +125,7 @@ foreach (test ${tests})
     Qt6::Gui
     Qt6::Widgets
     Qt6::OpenGL
+    OpenGL::GL
     Qt6::OpenGLWidgets
     Qt6::Test
     avogadro)

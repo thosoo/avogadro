@@ -223,7 +223,6 @@ class ModernRenderTest : public QObject
     void testBackendSingleSphere();
     void testContextLossRebuildsFromCpuChunks();
     void testCompatBackendFlush();
-    void testDiagCoreProfile();
 
     // Task 2.3: LOD zoom bands + hysteresis and per-chunk AABB frustum culling.
     void testLodParams();
@@ -865,94 +864,6 @@ void ModernRenderTest::testUpload50kWithinBudget()
   ctx->makeCurrent(nullptr);
   delete off;
   delete ctx;
-}
-
-// ISOLATION: does the backend's own draw path render a single hardcoded sphere?
-// Renders one sphere at the origin straight through pushSpheres/endFrame (no
-// BSDY engine, no SceneBuilder). If this renders red, the backend is fine and
-// the BSDY parity failure is in the data path; if not, the backend's draw path
-// itself produces no fragments.
-void ModernRenderTest::testDiagCoreProfile()
-{
-  // TEMP diagnostic: does the backend render when the context is 3.3 CORE
-  // (vs Compatibility)? And are the instanced entry points resolved?
-  QOffscreenSurface *off = nullptr;
-  QOpenGLContext *context = new QOpenGLContext();
-  QSurfaceFormat format;
-  format.setVersion(3, 3);
-  format.setProfile(QSurfaceFormat::CoreProfile);
-  context->setFormat(format);
-  QOffscreenSurface *surface = new QOffscreenSurface();
-  surface->setFormat(format);
-  surface->create();
-  QVERIFY(context->create());
-  context->makeCurrent(surface);
-  QOpenGLFunctions_3_3_Core gl33;
-  QVERIFY(gl33.initializeOpenGLFunctions());
-  qWarning() << "DIAG drawElementsInstanced ptr" << (void*)context->getProcAddress("glDrawElementsInstanced")
-             << "divisor ptr" << (void*)context->getProcAddress("glVertexAttribDivisor");
-
-  GLuint fboID = 0, colorTexID = 0, depthRBID = 0;
-  gl33.glGenFramebuffers(1, &fboID);
-  gl33.glBindFramebuffer(GL_FRAMEBUFFER, fboID);
-  gl33.glGenTextures(1, &colorTexID);
-  gl33.glBindTexture(GL_TEXTURE_2D, colorTexID);
-  gl33.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, kWidth, kHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
-  gl33.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexID, 0);
-  gl33.glGenRenderbuffers(1, &depthRBID);
-  gl33.glBindRenderbuffer(GL_RENDERBUFFER, depthRBID);
-  gl33.glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, kWidth, kHeight);
-  gl33.glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthRBID);
-  gl33.glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-  Avogadro::rendering::ModernRendererBackend backend;
-  backend.initialize();
-  QVERIFY(backend.isInitialized());
-
-  Avogadro::rendering::ChunkStore<Avogadro::rendering::SphereInstance> store;
-  Avogadro::rendering::SphereInstance s;
-  s.pos[0]=0; s.pos[1]=0; s.pos[2]=0; s.radius=0.5f;
-  s.color[0]=255; s.color[1]=0; s.color[2]=0; s.color[3]=255;
-  store.append(s);
-
-  gl33.glBindFramebuffer(GL_FRAMEBUFFER, fboID);
-  gl33.glViewport(0,0,kWidth,kHeight);
-  gl33.glClearColor(0.05f,0.05f,0.05f,1.0f);
-  gl33.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  gl33.glEnable(GL_DEPTH_TEST);
-  gl33.glDepthFunc(GL_LEQUAL);
-
-  backend.beginFrame(nullptr, QRect(0,0,kWidth,kHeight), 0);
-  backend.setModelViewProjection(viewProjection());
-  backend.pushSpheres(store);
-  backend.endFrame();
-  gl33.glFlush();
-  qWarning() << "DIAG GL error after draw:" << gl33.glGetError();
-  // Read from the DEFAULT framebuffer (fb 0 = the surface), in case the draw
-  // target differs from the FBO.
-  gl33.glBindFramebuffer(GL_FRAMEBUFFER, 0);
-  float d = 9.0f;
-  gl33.glPixelStorei(GL_PACK_ALIGNMENT, 1);
-  gl33.glReadPixels(kWidth/2,kHeight/2,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&d);
-  qWarning() << "DIAG DEPTH_defaultfb (1.0=nothing)" << d;
-  float p[3]={-1,-1,-1};
-  QOpenGLFunctions glf;
-  glf.initializeOpenGLFunctions();
-  readPixel(&glf, kWidth/2, kHeight/2, p);
-  qWarning() << "DIAG color defaultfb" << p[0] << p[1] << p[2];
-  // Also read the FBO again (FBO still bound earlier) for comparison.
-  gl33.glBindFramebuffer(GL_FRAMEBUFFER, fboID);
-  float df = 9.0f;
-  gl33.glReadPixels(kWidth/2,kHeight/2,1,1,GL_DEPTH_COMPONENT,GL_FLOAT,&df);
-  qWarning() << "DIAG DEPTH_fbo" << df;
-
-  gl33.glBindFramebuffer(GL_FRAMEBUFFER, 0);
-  if (depthRBID) gl33.glDeleteRenderbuffers(1,&depthRBID);
-  if (colorTexID) gl33.glDeleteTextures(1,&colorTexID);
-  if (fboID) gl33.glDeleteFramebuffers(1,&fboID);
-  context->makeCurrent(nullptr);
-  delete surface; delete context;
-  QSKIP("temp diag", SkipSingle);
 }
 
 //! Task 6.2: context loss mid-upload (design A3). GPU buffer objects belong

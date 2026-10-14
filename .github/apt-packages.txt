@@ -9,6 +9,7 @@ libeigen3-dev
 zlib1g-dev
 libglu1-mesa-dev
 libglew-dev
+xvfb
 libcoordgen-dev
 libboost-python-dev
 libboost-iostreams-dev

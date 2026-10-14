@@ -77,7 +77,7 @@ public:
   CompatPainterDevice(Painter *p, Molecule *mol, Color *map)
     : m_painter(p), m_molecule(mol), m_colorMap(map) {}
   Painter *painter() const override { return m_painter; }
-  Camera *camera() const override { return &m_camera; }
+  Camera *camera() const override { return const_cast<Camera *>(&m_camera); }
   bool isSelected(const Primitive *) const override { return false; }
   double radius(const Primitive *) const override { return 0.3; }
   const Molecule *molecule() const override { return m_molecule; }

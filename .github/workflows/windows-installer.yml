@@ -330,7 +330,7 @@ jobs:
             -DENABLE_OPENMP=ON `
             -DCMAKE_INSTALL_PREFIX="$dist" `
             -DENABLE_AVO_PACKAGE=ON `
-            -DENABLE_GLSL=ON `
+            -DENABLE_GLSL=OFF `
             "-DBOOST_ROOT=$env:BOOST_ROOT" `
             "-DBOOST_INCLUDEDIR=$env:BOOST_INCLUDEDIR" `
             "-DBOOST_LIBRARYDIR=$env:BOOST_LIBRARYDIR" `

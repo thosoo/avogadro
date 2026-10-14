@@ -60,7 +60,7 @@ public:
     : m_painter(p), m_molecule(mol), m_colorMap(map) {}
 
   Avogadro::Painter *painter() const override { return m_painter; }
-  Camera *camera() const override { return &m_camera; }
+  Camera *camera() const override { return const_cast<Camera *>(&m_camera); }
   bool isSelected(const Avogadro::Primitive *) const override { return false; }
   double radius(const Avogadro::Primitive *) const override { return 0.3; }
   const Molecule *molecule() const override { return m_molecule; }

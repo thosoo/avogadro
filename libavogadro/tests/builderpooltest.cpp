@@ -12,6 +12,7 @@
 #include <QSignalSpy>
 #include <QMetaType>
 #include <QDir>
+#include <QElapsedTimer>
 
 #include "libavogadro/src/rendering/snapshottessellator.h"
 #include "libavogadro/src/rendering/builderpool.h"
@@ -278,10 +279,22 @@ void BuilderPoolTest::viewCloseDuringBuilds()
     // destructor must wake and join every worker; QTest's own timeout turns
     // a deadlock here into a visible failure.
     delete pool;
-    const int after = threadCount();
-    QVERIFY2(after <= before,
-             qPrintable(QString("iteration %1 leaked builder threads: %2 -> %3")
-                          .arg(iteration).arg(before).arg(after)));
+    // A just-joined QThread's /proc/task entry can linger a few ms before the
+    // kernel reaps it, so a single snapshot right after delete can over-count
+    // by one. Poll until the count settles at/below baseline. A real leak never
+    // settles (it stays above before), so this cannot mask one.
+    int after = threadCount();
+    const int settleMs = 2000;
+    QElapsedTimer settleClock;
+    settleClock.start();
+    while (after > before && settleClock.elapsed() < settleMs) {
+      QThread::msleep(2);
+      after = threadCount();
+    }
+    const int settled = after;
+    QVERIFY2(settled <= before,
+             qPrintable(QString("iteration %1 leaked builder threads: %2 -> %3 (settled %4, polled %5 ms)")
+                          .arg(iteration).arg(before).arg(after).arg(settled).arg(settleClock.elapsed())));
   }
 }
 

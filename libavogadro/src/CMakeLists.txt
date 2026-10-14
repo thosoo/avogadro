@@ -268,6 +268,14 @@ if(AVO_RENDERER_LEGACY)
   target_compile_definitions(avogadro PUBLIC AVO_RENDERER_LEGACY=1)
 endif()
 
+# The modern rendering tier (rendering/) is GLEW/GLSL-free: it uses Qt's
+# QOpenGLFunctions_3_3_Core, which self-resolves every GL entry point via
+# initializeOpenGLFunctions() (getProcAddress). GLEW is therefore only pulled
+# in on demand by the few legacy GL paths behind #ifdef ENABLE_GLSL, and that
+# path is off by default and on the Windows CI. If ENABLE_GLSL is ever turned
+# on again, GLEW must be found/linked here (below) and the affected TUs must
+# include <GL/glew.h> before Qt's GL/gl.h to avoid MSVC C1189.
+
 # Add the engiens, tools and extensions directories
 add_subdirectory(engines)
 add_subdirectory(tools)
