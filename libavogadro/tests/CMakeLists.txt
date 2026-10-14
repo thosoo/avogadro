@@ -85,6 +85,10 @@ foreach (test ${tests})
     # dllexported from avogadro.dll on Windows (LNK2019 otherwise); compile the
     # source directly into the test, exactly as for geometry.cpp above.
     list(APPEND test_SRCS ../src/rendering/builderpool.cpp)
+    # builderpooltest also calls snapshotTessellateBSDY (no A_EXPORT, not
+    # dllexported on Windows -> LNK2001), so compile the snapshot tessellator
+    # directly into the test as well.
+    list(APPEND test_SRCS ../src/rendering/snapshottessellator.cpp)
   endif()
   if (${test} STREQUAL "renderertier")
     # requestedRendererTier / resolveRendererTier / tierName live in
@@ -117,17 +121,20 @@ foreach (test ${tests})
       ../src/rendering/chunkeduploader.cpp
       ../src/rendering/compatbackend.cpp)
   endif()
-  if (${test} STREQUAL "meshstream")
-    # meshstreamtest instantiates the private GLPainter directly and calls its
-    # out-of-line methods (constructor, destructor, drawColorMesh, begin, end).
-    # These classes carry no A_EXPORT, so on Windows their methods are not
-    # dllexported from avogadro.dll and the link fails (LNK2019). Compile the
-    # private GL implementation directly into the test, exactly as for
-    # geometry.cpp above. GLPainter pulls in its rendering helpers (Sphere,
-    # Cylinder, TextRenderer) via createObjects/drawSphere/drawCylinder/
-    # drawText, so those private TUs are compiled too; GLPainterDevice and
-    # GLPainterPrivate stay resolved from avogadro. The four files are
-    # self-contained (no other avogadro-src includes), so this is a closed set.
+  if (${test} STREQUAL "meshstream" OR ${test} STREQUAL "visualparity")
+    # meshstreamtest and visualparitytest instantiate the private GLPainter
+    # directly and call its out-of-line methods (constructor, destructor,
+    # drawColorMesh, begin, end). GLPainter has no A_EXPORT, so on Windows its
+    # methods are not dllexported from avogadro.dll and the link fails
+    # (LNK2019). Compile the private GL implementation directly into the test,
+    # exactly as for geometry.cpp above. GLPainter pulls in its rendering
+    # helpers (Sphere, Cylinder, TextRenderer) via createObjects/drawSphere/
+    # drawCylinder/drawText, so those private TUs are compiled too;
+    # GLPainterDevice and GLPainterPrivate stay resolved from avogadro. The
+    # four files are self-contained (no other avogadro-src includes), so this
+    # is a closed set. visualparitytest also includes snapshottessellator.h
+    # (for the snapshot structs) but never calls snapshotTessellateBSDY, so it
+    # needs nothing from the tessellator TU.
     list(APPEND test_SRCS
       ../src/glpainter_p.cpp
       ../src/sphere_p.cpp
@@ -178,7 +185,11 @@ foreach (test ${tests})
   # are not dllexported), and glpainter_p.cpp calls GLU (gluNurbsProperty).
   # avogadro links GLU internally, but that does not propagate to a consumer
   # that pulls the TU in directly, so link it explicitly for this test only.
-  if(${test} STREQUAL "meshstream")
+  if(${test} STREQUAL "meshstream" OR ${test} STREQUAL "visualparity")
+    # These compile glpainter_p.cpp directly (its GLPainter methods are not
+    # dllexported), and glpainter_p.cpp calls GLU (gluNurbsProperty). avogadro
+    # links GLU internally, but that does not propagate to a consumer that
+    # pulls the TU in directly, so link it explicitly for these tests only.
     target_link_libraries(${test}test PRIVATE OpenGL::GLU)
   endif()
   if(TARGET openbabel_ext)
