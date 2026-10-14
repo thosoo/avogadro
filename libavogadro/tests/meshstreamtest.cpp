@@ -63,13 +63,16 @@ protected:
     const int kWarmup = 5;   // uploads the VBO once; subsequent draws are O(1)
     const int kFrames = 300;
 
-    Mesh *small = makeMesh(50000);
-    for (int i = 0; i < kWarmup; ++i) painter.drawColorMesh(*small, 0);
+    // Named smallMesh, not small: 'small' is a preprocessor macro in the
+    // Windows SDK headers (objbase.h/ocidl.h), which would corrupt the
+    // declaration on MSVC (C2062: type 'char' unexpected).
+    Mesh *smallMesh = makeMesh(50000);
+    for (int i = 0; i < kWarmup; ++i) painter.drawColorMesh(*smallMesh, 0);
     QElapsedTimer t; t.start();
-    for (int i = 0; i < kFrames; ++i) painter.drawColorMesh(*small, 0);
+    for (int i = 0; i < kFrames; ++i) painter.drawColorMesh(*smallMesh, 0);
     m_smallPerFrame = t.elapsed() / double(kFrames);
 
-    Mesh *big = makeMesh(500000);  // 10x the vertices of small
+    Mesh *big = makeMesh(500000);  // 10x the vertices of smallMesh
     for (int i = 0; i < kWarmup; ++i) painter.drawColorMesh(*big, 0);
     t.start();
     for (int i = 0; i < kFrames; ++i) painter.drawColorMesh(*big, 0);
