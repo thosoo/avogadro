@@ -796,18 +796,20 @@ void ModernRenderTest::testChunkedUploaderBudget()
   QVERIFY(!uploader.fullyAccepted());
 
   // A single 1-MB range fits entirely under the 2000 us budget.
-  Avogadro::rendering::ChunkedUploader small(2000);
+  // (Named smallUploader, not small: 'small' is a preprocessor macro in the
+  // Windows SDK headers, which would corrupt the declaration on MSVC.)
+  Avogadro::rendering::ChunkedUploader smallUploader(2000);
   std::vector<Avogadro::rendering::ChunkedUploader::Range> one;
   one.push_back({0, 1u << 20});
-  QCOMPARE(small.schedule(one, cost), 1);
-  QVERIFY(small.fullyAccepted());
-  QCOMPARE(small.deferredCount(), 0);
+  QCOMPARE(smallUploader.schedule(one, cost), 1);
+  QVERIFY(smallUploader.fullyAccepted());
+  QCOMPARE(smallUploader.deferredCount(), 0);
 
   // recordUploadMicros tracks the worst-case single upload, not the average.
-  small.recordUploadMicros(500.0);
-  small.recordUploadMicros(1500.0);
-  small.recordUploadMicros(900.0);
-  QCOMPARE(small.maxSingleUploadMicros(), 1500.0);
+  smallUploader.recordUploadMicros(500.0);
+  smallUploader.recordUploadMicros(1500.0);
+  smallUploader.recordUploadMicros(900.0);
+  QCOMPARE(smallUploader.maxSingleUploadMicros(), 1500.0);
 }
 
 // Real GL: upload a 50k-atom store through the modern backend in bounded

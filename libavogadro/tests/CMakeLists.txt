@@ -80,6 +80,18 @@ foreach (test ${tests})
     # does not resolve them; compile the source directly into the test.
     list(APPEND test_SRCS ../src/rendering/geometry.cpp)
   endif()
+  if (${test} STREQUAL "builderpool")
+    # BuilderPool has no A_EXPORT, so its out-of-line methods are not
+    # dllexported from avogadro.dll on Windows (LNK2019 otherwise); compile the
+    # source directly into the test, exactly as for geometry.cpp above.
+    list(APPEND test_SRCS ../src/rendering/builderpool.cpp)
+  endif()
+  if (${test} STREQUAL "renderertier")
+    # requestedRendererTier / resolveRendererTier / tierName live in
+    # renderertier.cpp, which has no A_EXPORT and is therefore not dllexported
+    # on Windows; compile it directly into the test.
+    list(APPEND test_SRCS ../src/rendering/renderertier.cpp)
+  endif()
   if (${test} STREQUAL "insertfragmentextension")
     list(APPEND test_SRCS
       ../src/extensions/insertfragmentextension.cpp
@@ -96,6 +108,14 @@ foreach (test ${tests})
     # Compile the real ball-and-stick engine so the parity test (task 3.1)
     # can render a molecule through the modern backend's instanced path.
     list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)
+    # SphereGeometry/CylinderGeometry, ChunkedUploader and CompatRendererBackend
+    # have no A_EXPORT, so on Windows their out-of-line methods are not
+    # dllexported from avogadro.dll (LNK2019 otherwise); compile the sources
+    # directly into the test, exactly as for bsdyengine.cpp above.
+    list(APPEND test_SRCS
+      ../src/rendering/geometry.cpp
+      ../src/rendering/chunkeduploader.cpp
+      ../src/rendering/compatbackend.cpp)
   endif()
   if (${test} STREQUAL "glselectoverflow")
     # Compile the real ball-and-stick engine so the widget can drive the
