@@ -120,11 +120,19 @@ foreach (test ${tests})
   if (${test} STREQUAL "meshstream")
     # meshstreamtest instantiates the private GLPainter directly and calls its
     # out-of-line methods (constructor, destructor, drawColorMesh, begin, end).
-    # GLPainter has no A_EXPORT, so on Windows those methods are not
+    # These classes carry no A_EXPORT, so on Windows their methods are not
     # dllexported from avogadro.dll and the link fails (LNK2019). Compile the
-    # private implementation directly into the test, exactly as for geometry.cpp
-    # above; GLPainterDevice/GLPainterPrivate remain resolved from avogadro.
-    list(APPEND test_SRCS ../src/glpainter_p.cpp)
+    # private GL implementation directly into the test, exactly as for
+    # geometry.cpp above. GLPainter pulls in its rendering helpers (Sphere,
+    # Cylinder, TextRenderer) via createObjects/drawSphere/drawCylinder/
+    # drawText, so those private TUs are compiled too; GLPainterDevice and
+    # GLPainterPrivate stay resolved from avogadro. The four files are
+    # self-contained (no other avogadro-src includes), so this is a closed set.
+    list(APPEND test_SRCS
+      ../src/glpainter_p.cpp
+      ../src/sphere_p.cpp
+      ../src/cylinder_p.cpp
+      ../src/textrenderer_p.cpp)
   endif()
   if (${test} STREQUAL "glselectoverflow")
     # Compile the real ball-and-stick engine so the widget can drive the
