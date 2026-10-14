@@ -117,6 +117,15 @@ foreach (test ${tests})
       ../src/rendering/chunkeduploader.cpp
       ../src/rendering/compatbackend.cpp)
   endif()
+  if (${test} STREQUAL "meshstream")
+    # meshstreamtest instantiates the private GLPainter directly and calls its
+    # out-of-line methods (constructor, destructor, drawColorMesh, begin, end).
+    # GLPainter has no A_EXPORT, so on Windows those methods are not
+    # dllexported from avogadro.dll and the link fails (LNK2019). Compile the
+    # private implementation directly into the test, exactly as for geometry.cpp
+    # above; GLPainterDevice/GLPainterPrivate remain resolved from avogadro.
+    list(APPEND test_SRCS ../src/glpainter_p.cpp)
+  endif()
   if (${test} STREQUAL "glselectoverflow")
     # Compile the real ball-and-stick engine so the widget can drive the
     # legacy GL_SELECT picking path (task 4.2).
@@ -149,6 +158,13 @@ foreach (test ${tests})
     Qt6::OpenGLWidgets
     Qt6::Test
     avogadro)
+  # meshstreamtest compiles glpainter_p.cpp directly (its GLPainter methods
+  # are not dllexported), and glpainter_p.cpp calls GLU (gluNurbsProperty).
+  # avogadro links GLU internally, but that does not propagate to a consumer
+  # that pulls the TU in directly, so link it explicitly for this test only.
+  if(${test} STREQUAL "meshstream")
+    target_link_libraries(${test}test PRIVATE OpenGL::GLU)
+  endif()
   if(TARGET openbabel_ext)
     add_dependencies(${test}test openbabel_ext)
   endif()
