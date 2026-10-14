@@ -145,6 +145,14 @@ foreach (test ${tests})
     # the render bench can drive the worker path through a real engine (8.1).
     list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)
   endif()
+  if (${test} STREQUAL "threadedparity")
+    # threadedparitytest calls snapshotTessellateBSDY, which has no A_EXPORT
+    # and is therefore not dllexported from avogadro.dll on Windows (LNK2019
+    # otherwise). Compile the snapshot tessellator directly into the test, as
+    # for bsdyengine.cpp above. renderbench/visualparity include the header
+    # but never call the function, so they need nothing extra.
+    list(APPEND test_SRCS ../src/rendering/snapshottessellator.cpp)
+  endif()
   # The ported engines are Qt plugins: their plugin metadata cannot be
   # duplicated inside one binary, so the legacy-vs-modern parity harness gets
   # one binary per engine. Compiling the engine .cpp also makes AUTOUIC
