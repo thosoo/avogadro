@@ -159,21 +159,19 @@ QScopedPointer<GLWidget> GLSelectOverflowTest::makeLegacyWidget(Molecule *mol, C
 
   // Probe GL availability before creating/showing the widget. On a headless
   // runner that cannot provide a GL 3.3 compatibility context, showing and
-  // rendering the widget produces no valid picking results (or crashes); skip
-  // instead. The overflow decision is still covered by the unit tests above.
+  // rendering the widget produces no valid picking results (or crashes); the
+  // caller skips in that case. The overflow decision is still covered by the
+  // unit tests above. (We return a null widget rather than QSKIP here because
+  // QSKIP is not treated as [[noreturn]] by MSVC's flow analysis in a
+  // value-returning helper, which would fail the build.)
   {
     QOffscreenSurface probeSurface;
     probeSurface.setFormat(fmt);
     probeSurface.create();
     QOpenGLContext probeCtx;
     probeCtx.setFormat(fmt);
-    if (!probeCtx.create() || !probeCtx.makeCurrent(&probeSurface)) {
-      // QSKIP is not recognised as [[noreturn]] by MSVC's flow analysis here,
-      // so provide a (runtime-unreachable) return path to satisfy the compiler.
-      QSKIP("No GL 3.3 compatibility context available on this runner; "
-            "skipping GL_SELECT end-to-end test; unit tests cover the overflow logic", SkipAll);
+    if (!probeCtx.create() || !probeCtx.makeCurrent(&probeSurface))
       return QScopedPointer<GLWidget>();
-    }
     probeCtx.makeCurrent(nullptr);
   }
 
@@ -272,6 +270,10 @@ void GLSelectOverflowTest::testLegacyPickingStillWorks()
   color.setFromRgba(1.0f, 1.0f, 1.0f, 1.0f);
   Molecule *mol = buildPickedMolecule();
   QScopedPointer<GLWidget> widget(makeLegacyWidget(mol, &color));
+  if (!widget)
+    QSKIP("No GL 3.3 compatibility context available on this runner; "
+          "skipping GL_SELECT end-to-end test; unit tests cover the overflow logic",
+          SkipAll);
 
   QVERIFY(widget->molecule() != nullptr);
 
@@ -313,6 +315,10 @@ void GLSelectOverflowTest::testOverflowDetectedAndReported()
   color.setFromRgba(1.0f, 1.0f, 1.0f, 1.0f);
   Molecule *mol = buildDenseMolecule(80000);
   QScopedPointer<GLWidget> widget(makeLegacyWidget(mol, &color));
+  if (!widget)
+    QSKIP("No GL 3.3 compatibility context available on this runner; "
+          "skipping GL_SELECT overflow test; unit tests cover the overflow logic",
+          SkipAll);
 
   // The -1 overflow path can only be exercised where GL_SELECT exists.
   if (glProfileMask(widget.data()) & GL_CONTEXT_PROFILE_CORE_MASK)

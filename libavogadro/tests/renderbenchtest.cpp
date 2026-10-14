@@ -108,20 +108,18 @@ class RenderBench : public QObject
 
     // Probe GL availability before creating/showing the widget. On a headless
     // runner that cannot provide a GL 3.3 compatibility context, showing and
-    // rendering the widget crashes (exit 0xc0000409 in CI); skip instead.
+    // rendering the widget crashes (exit 0xc0000409 in CI); the caller skips
+    // in that case. We return null rather than QSKIP here because QSKIP is not
+    // treated as [[noreturn]] by MSVC's flow analysis in a value-returning
+    // helper, which would fail the build.
     {
       QOffscreenSurface probeSurface;
       probeSurface.setFormat(fmt);
       probeSurface.create();
       QOpenGLContext probeCtx;
       probeCtx.setFormat(fmt);
-      if (!probeCtx.create() || !probeCtx.makeCurrent(&probeSurface)) {
-      // QSKIP is not recognised as [[noreturn]] by MSVC's flow analysis here,
-      // so provide a (runtime-unreachable) return path to satisfy the compiler.
-      QSKIP("No GL 3.3 compatibility context available on this runner; "
-            "skipping render benchmark", SkipAll);
-      return nullptr;
-    }
+      if (!probeCtx.create() || !probeCtx.makeCurrent(&probeSurface))
+        return nullptr;
       probeCtx.makeCurrent(nullptr);
     }
 
@@ -152,6 +150,9 @@ void RenderBench::workerAdoptionRendersScene()
   qInfo() << "scene build (4k atoms):" << timer.elapsed() << "ms";
 
   GLWidget *widget = makeWidget(mol);
+  if (!widget)
+    QSKIP("No GL 3.3 compatibility context available on this runner; "
+          "skipping render benchmark", SkipAll);
   QVERIFY(widget != nullptr);
 
   // The first renderModern submits the build; the queued result must be
@@ -192,6 +193,9 @@ void RenderBench::framesWhileBuilding()
   // completing (presenting the last ready state — design D3).
   Molecule *mol = makeCube(50000);
   GLWidget *widget = makeWidget(mol);
+  if (!widget)
+    QSKIP("No GL 3.3 compatibility context available on this runner; "
+          "skipping render benchmark", SkipAll);
 
   // Wait for the initial build to settle so the test measures a REbuild.
   pumpUntil([widget]() {
@@ -245,6 +249,9 @@ void RenderBench::orbitFps()
   Molecule *mol = makeCube(1000000);
   qInfo() << "1M scene build:" << timer.elapsed() << "ms";
   GLWidget *widget = makeWidget(mol);
+  if (!widget)
+    QSKIP("No GL 3.3 compatibility context available on this runner; "
+          "skipping render benchmark", SkipAll);
 
   const qint64 adoptMs = pumpUntil([widget]() {
     return widget->backendDrawCallsLastFrame() >= 2;
