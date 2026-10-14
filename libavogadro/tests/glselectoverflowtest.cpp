@@ -156,6 +156,22 @@ QScopedPointer<GLWidget> GLSelectOverflowTest::makeLegacyWidget(Molecule *mol, C
   fmt.setDepthBufferSize(24);
   QSurfaceFormat::setDefaultFormat(fmt);
 
+  // Probe GL availability before creating/showing the widget. On a headless
+  // runner that cannot provide a GL 3.3 compatibility context, showing and
+  // rendering the widget produces no valid picking results (or crashes); skip
+  // instead. The overflow decision is still covered by the unit tests above.
+  {
+    QOffscreenSurface probeSurface;
+    probeSurface.setFormat(fmt);
+    probeSurface.create();
+    QOpenGLContext probeCtx;
+    probeCtx.setFormat(fmt);
+    if (!probeCtx.create() || !probeCtx.makeCurrent(&probeSurface))
+      QSKIP("No GL 3.3 compatibility context available on this runner; "
+            "skipping GL_SELECT end-to-end test; unit tests cover the overflow logic", SkipAll);
+    probeCtx.makeCurrent(nullptr);
+  }
+
   GLWidget *widget = new GLWidget(mol, fmt, nullptr);
   widget->setColorMap(color);
   widget->resize(256, 256);

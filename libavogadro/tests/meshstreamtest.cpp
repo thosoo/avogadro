@@ -19,6 +19,7 @@
 
 #include <QtTest>
 #include <QOpenGLContext>
+#include <QOffscreenSurface>
 #include <QSurfaceFormat>
 #include <QElapsedTimer>
 #include <QScopedPointer>
@@ -142,6 +143,22 @@ void MeshStreamTest::initTestCase() {
   fmt.setProfile(QSurfaceFormat::CompatibilityProfile);
   fmt.setDepthBufferSize(24);
   QSurfaceFormat::setDefaultFormat(fmt);
+
+  // Probe GL availability before creating/showing the widget. On a headless
+  // runner that cannot provide a GL 3.3 compatibility context, showing and
+  // rendering the widget stalls for many minutes (the client-state VBO draw
+  // path neither completes nor fails cleanly); skip instead.
+  {
+    QOffscreenSurface probeSurface;
+    probeSurface.setFormat(fmt);
+    probeSurface.create();
+    QOpenGLContext probeCtx;
+    probeCtx.setFormat(fmt);
+    if (!probeCtx.create() || !probeCtx.makeCurrent(&probeSurface))
+      QSKIP("No GL 3.3 compatibility context available on this runner; "
+            "skipping mesh streaming perf test", SkipAll);
+    probeCtx.makeCurrent(nullptr);
+  }
 
   m_widget.reset(new MeshPaintWidget(fmt));
   m_widget->resize(256, 256);

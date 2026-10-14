@@ -292,6 +292,16 @@ void VisualParityTest::initTestCase()
           << "requested profile:"
           << m_ctx->format().profile() << "got profile:"
           << QOpenGLContext::currentContext()->format().profile();
+  // The legacy tier requires a Compatibility (fixed-function) context. On some
+  // runners the requested Compatibility profile falls back to Core, which the
+  // fixed-function tier cannot use; query the actual resolved profile and skip
+  // rather than fail. GL_CONTEXT_PROFILE_MASK = 0x9126, Core mask = 0x0001.
+  GLint profileMask = 0;
+  m_gl->glGetIntegerv(0x9126, &profileMask);
+  if (profileMask & 0x0001)
+    QSKIP("Requested GL 3.3 compatibility context resolved to a Core profile; "
+          "the fixed-function legacy tier is unavailable there; skipping parity",
+          SkipAll);
   m_mol = makeReferenceMolecule();
   m_map = new Color;
 }

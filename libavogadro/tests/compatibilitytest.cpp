@@ -252,11 +252,20 @@ void CompatibilityTest::initTestCase()
   fmt.setDepthBufferSize(24);
   m_ctx = new QOpenGLContext;
   m_ctx->setFormat(fmt);
-  QVERIFY(m_ctx->create());
+  // A GL 3.3 compatibility context is required to exercise the compat-tier
+  // flush. When the runner cannot provide one (e.g. a headless CI box with no
+  // usable GL), skip rather than failing: an invalid context used later would
+  // otherwise crash. Emission-level parity is still covered headlessly by
+  // threadedparitytest.
+  if (!m_ctx->create())
+    QSKIP("No GL 3.3 compatibility context available on this runner; "
+          "skipping compatibility test", SkipAll);
   m_surface = new QOffscreenSurface;
   m_surface->setFormat(fmt);
   m_surface->create();
-  QVERIFY(m_ctx->isValid());
+  if (!m_ctx->isValid())
+    QSKIP("Requested GL 3.3 compatibility context became invalid; "
+          "skipping compatibility test", SkipAll);
 
   qInfo().noquote() << "engine factories loaded:"
                     << PluginManager::instance()->factories(Plugin::EngineType).size();

@@ -27,6 +27,8 @@
 
 #include <QtTest>
 #include <QSurfaceFormat>
+#include <QOffscreenSurface>
+#include <QOpenGLContext>
 #include <QElapsedTimer>
 
 #include "libavogadro/src/glwidget.h"
@@ -103,6 +105,21 @@ class RenderBench : public QObject
     fmt.setProfile(QSurfaceFormat::CompatibilityProfile);
     fmt.setDepthBufferSize(24);
     QSurfaceFormat::setDefaultFormat(fmt);
+
+    // Probe GL availability before creating/showing the widget. On a headless
+    // runner that cannot provide a GL 3.3 compatibility context, showing and
+    // rendering the widget crashes (exit 0xc0000409 in CI); skip instead.
+    {
+      QOffscreenSurface probeSurface;
+      probeSurface.setFormat(fmt);
+      probeSurface.create();
+      QOpenGLContext probeCtx;
+      probeCtx.setFormat(fmt);
+      if (!probeCtx.create() || !probeCtx.makeCurrent(&probeSurface))
+        QSKIP("No GL 3.3 compatibility context available on this runner; "
+              "skipping render benchmark", SkipAll);
+      probeCtx.makeCurrent(nullptr);
+    }
 
     GLWidget *widget = new GLWidget(mol, fmt, nullptr);
     widget->setColorMap(new Color);
