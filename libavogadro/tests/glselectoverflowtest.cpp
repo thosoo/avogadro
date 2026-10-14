@@ -28,6 +28,7 @@
 
 #include <QtTest>
 #include <QOpenGLContext>
+#include <QOffscreenSurface>
 #include <QSurfaceFormat>
 #include <QMessageLogContext>
 #include <QScopedPointer>
