@@ -115,9 +115,13 @@ class RenderBench : public QObject
       probeSurface.create();
       QOpenGLContext probeCtx;
       probeCtx.setFormat(fmt);
-      if (!probeCtx.create() || !probeCtx.makeCurrent(&probeSurface))
-        QSKIP("No GL 3.3 compatibility context available on this runner; "
-              "skipping render benchmark", SkipAll);
+      if (!probeCtx.create() || !probeCtx.makeCurrent(&probeSurface)) {
+      // QSKIP is not recognised as [[noreturn]] by MSVC's flow analysis here,
+      // so provide a (runtime-unreachable) return path to satisfy the compiler.
+      QSKIP("No GL 3.3 compatibility context available on this runner; "
+            "skipping render benchmark", SkipAll);
+      return nullptr;
+    }
       probeCtx.makeCurrent(nullptr);
     }
 

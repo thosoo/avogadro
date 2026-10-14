@@ -167,9 +167,13 @@ QScopedPointer<GLWidget> GLSelectOverflowTest::makeLegacyWidget(Molecule *mol, C
     probeSurface.create();
     QOpenGLContext probeCtx;
     probeCtx.setFormat(fmt);
-    if (!probeCtx.create() || !probeCtx.makeCurrent(&probeSurface))
+    if (!probeCtx.create() || !probeCtx.makeCurrent(&probeSurface)) {
+      // QSKIP is not recognised as [[noreturn]] by MSVC's flow analysis here,
+      // so provide a (runtime-unreachable) return path to satisfy the compiler.
       QSKIP("No GL 3.3 compatibility context available on this runner; "
             "skipping GL_SELECT end-to-end test; unit tests cover the overflow logic", SkipAll);
+      return QScopedPointer<GLWidget>();
+    }
     probeCtx.makeCurrent(nullptr);
   }
 

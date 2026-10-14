@@ -1,0 +1,43 @@
+{
+  "version": "skillopt_sleep.tasks.v1",
+  "createdAt": "2026-10-06T05:37:25.711Z",
+  "goalId": "20261004054010-us7lat",
+  "train": [
+    {
+      "id": "train-job-0000000000000000000000000000muuvrjy7-00000002-85f204",
+      "prompt": "Before marking any GLLA task complete, verify that `openspec instructions apply --change [current-change] --json` reports {total:10, complete:10, remaining:0}. Never mark either side complete merely because work was attempted.",
+      "excerpt": "project_memory: Before marking any GLLA task complete, verify that `openspec instructions apply --change [current-change] --json` reports {total:10, complete:10, remaining:0}. Never mark either side complete merely because work was attempted.",
+      "reviewed": true
+    }
+  ],
+  "validation": [
+    {
+      "id": "val-0",
+      "prompt": "goal_started",
+      "excerpt": "{}",
+      "reviewed": true,
+      "controlCase": true
+    },
+    {
+      "id": "val-1",
+      "prompt": "completion_claim",
+      "excerpt": "{}",
+      "reviewed": true,
+      "controlCase": true
+    },
+    {
+      "id": "val-2",
+      "prompt": "audit_rejected",
+      "excerpt": "{}",
+      "reviewed": true,
+      "controlCase": true
+    },
+    {
+      "id": "val-3",
+      "prompt": "completion_claim",
+      "excerpt": "{}",
+      "reviewed": true,
+      "controlCase": true
+    }
+  ]
+}
