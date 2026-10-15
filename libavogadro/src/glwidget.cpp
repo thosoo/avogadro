@@ -1286,6 +1286,19 @@ GLWidget::GLWidget( Molecule *molecule,
       qDebug() << "GLWidget::render(): Could not get read lock on molecule.";
       return;
     }
+    // Release this read lock on EVERY exit path (RAII). The modern/compat
+    // tier dispatch below returns early without unlocking, which previously
+    // leaked one molecule read lock per frame. Since ENABLE_THREADED_GL is
+    // OFF by default rendering and the tools share the GUI thread, a leaked
+    // read lock blocks every writer: DrawTool/Manipulate tryLockForWrite()
+    // fails (cannot draw/move), updateGeometry() tryLockForRead() fails
+    // (camera refocus after fragment insert), and writers hang once Qt's
+    // recursive read-lock cap saturates (~25 locks). The callees take their
+    // own read lock; this one is only held for the dispatch itself.
+    struct ReadLockGuard {
+      QReadWriteLock *lock;
+      ~ReadLockGuard() { lock->unlock(); }
+    } readLockGuard{d->molecule->lock()};
 
     // Modern instanced tier (gpu-rendering-pipeline task 2.4): the engines
     // emit into the SceneBuilder and the backend issues bounded instanced
@@ -1426,7 +1439,8 @@ GLWidget::GLWidget( Molecule *molecule,
     renderTextOverlay();
 
     d->painter->end();
-    d->molecule->lock()->unlock();
+    // The read lock acquired at the top of render() is released by the RAII
+    // ReadLockGuard above; do not unlock here (would double-unlock).
   }
 
   void GLWidget::renderCrystal(GLuint displayList)

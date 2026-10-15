@@ -185,6 +185,9 @@ private Q_SLOTS:
   // --- Real-GL pixel/pick readback (QSKIP headlessly; see header) ---------
   void testPickRoundTripHiDpi();
   void testRubberBandHiDpi();
+
+  // --- Real-GL lock-leak regression guard ---------------------------------
+  void testRenderDoesNotLeakMoleculeReadLock();
 };
 
 void HiDpiViewportTest::testDeviceViewportRectHiDpi()
@@ -262,6 +265,49 @@ void HiDpiViewportTest::testFrameIsDevicePixelSizeHiDpi()
   // At dpr=2 the device frame must be larger than the logical widget: this is
   // what distinguishes post-fix (device rect) from pre-fix (logical rect).
   QVERIFY(widget->frameSize().width() > widget->width());
+}
+
+void HiDpiViewportTest::testRenderDoesNotLeakMoleculeReadLock()
+{
+  // Requires a real GL context (xcb + Xvfb), like the frame-size gate.
+  if (!endToEndRunnable())
+    QSKIP("QOpenGLWidget unsupported / no GL context on this runner",
+          SkipAll);
+
+  QScopedPointer<Molecule> mol(buildTestMolecule());
+  QScopedPointer<GLWidget> widget(makeHiDpiWidget(mol.data()));
+  QVERIFY(widget != nullptr);
+
+  // Prime a clean, populated frame before counting.
+  widget->renderNow();
+  GLWidget *primesWidget = widget.data();
+  pumpUntil([primesWidget]() {
+    return primesWidget->backendFramesSubmitted() >= 1;
+  });
+  const unsigned int framesBefore = widget->backendFramesSubmitted();
+  QVERIFY2(framesBefore >= 1, "no modern-tier frame submitted during prime");
+
+  // Drive many frames. Each iteration must (a) still allow a write lock
+  // (proves no read-lock leak is starving writers) and (b) keep advancing
+  // frame submission (proves renderModern()'s own tryLockForRead still
+  // succeeds). Pre-fix, the leaked read locks saturate Qt's recursive
+  // read-lock cap (~25) and both break -- the exact "cannot draw / cannot
+  // move / camera-inside-molecule" symptoms on real hardware.
+  const int frames = 200;
+  for (int i = 0; i < frames; ++i) {
+    QString lockFailMsg = "write lock failed after frame " + QString::number(i) +
+                          " -- GLWidget::render() leaked a molecule read lock";
+    QVERIFY2(mol->lock()->tryLockForWrite(), qPrintable(lockFailMsg));
+    mol->lock()->unlock();
+
+    widget->renderNow();
+    QCoreApplication::processEvents();
+  }
+
+  // Frame submission must have advanced past the priming frame.
+  QVERIFY2(widget->backendFramesSubmitted() > framesBefore,
+           "frame submission stopped advancing -- renderModern() read-lock "
+           "starved by leaked render() read locks");
 }
 
 void HiDpiViewportTest::testPickRoundTripHiDpi()
