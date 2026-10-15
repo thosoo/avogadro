@@ -847,6 +847,15 @@ GLWidget::GLWidget( Molecule *molecule,
   glViewport(0, 0, static_cast<GLint>(width * dpr), static_cast<GLint>(height * dpr));
   }
 
+  QRect GLWidget::deviceViewportRect() const
+  {
+    // HiDPI device-pixel framebuffer geometry (fix-hidpi-viewport-coordinates,
+    // design D1). Matches resizeGL's glViewport so the modern/compat frame
+    // submit, the pick pass and the camera projection all speak device px.
+    qreal dpr = devicePixelRatioF();
+    return QRect(0, 0, qRound(width() * dpr), qRound(height() * dpr));
+  }
+
   void GLWidget::setBackground( const QColor &background )
   {
 #ifdef ENABLE_THREADED_GL
@@ -959,6 +968,14 @@ GLWidget::GLWidget( Molecule *molecule,
       qDebug() << "GLWidget::renderModern(): Could not get read lock on molecule.";
       return;
     }
+    // HiDPI fix (task 2.1 / design D3): release the molecule read lock on
+    // every exit path via RAII. renderModern has several early returns (no
+    // backend, worker still building); hand-placed unlocks are the exact
+    // pattern that leaked in the modern paths and deadlocked writers.
+    struct ReadLockGuard {
+      QReadWriteLock *lock;
+      ~ReadLockGuard() { lock->unlock(); }
+    } readLockGuard{d->molecule->lock()};
     if (!d->backend) {
       // Backend not initialised on this context yet. initializeGL can run
       // before the widget's context is current (observed on first show under
@@ -1006,7 +1023,7 @@ GLWidget::GLWidget( Molecule *molecule,
         // Adopt the worker-built chunks: pushing uploads only the dirty
         // ranges, under the backend's ≤2 ms/frame budget (design D2/D3).
         const QMatrix4x4 mvp = currentModelViewProjection();
-        if (d->backend->beginFrame(camera(), QRect(0, 0, width(), height()),
+        if (d->backend->beginFrame(camera(), deviceViewportRect(),
                                    d->builder.quality())) {
           d->backend->setModelViewProjection(mvp);
           d->backend->pushSpheres(d->workerResult.spheres);
@@ -1043,7 +1060,7 @@ GLWidget::GLWidget( Molecule *molecule,
     }
 
     // Upload the finished stores and issue the bounded instanced draws.
-    if (d->backend->beginFrame(camera(), QRect(0, 0, width(), height()),
+    if (d->backend->beginFrame(camera(), deviceViewportRect(),
                                d->builder.quality())) {
       d->backend->setModelViewProjection(currentModelViewProjection());
       d->backend->pushSpheres(d->builder.spheres());
@@ -1211,7 +1228,7 @@ GLWidget::GLWidget( Molecule *molecule,
     // Present the last ready state (design D3): push the stores already held
     // by the backend. Nothing is dirty after the adopting frame, so this is
     // pure instanced draws — no emission, no uploads, no input stall.
-    if (d->backend->beginFrame(camera(), QRect(0, 0, width(), height()),
+    if (d->backend->beginFrame(camera(), deviceViewportRect(),
                                d->builder.quality())) {
       d->backend->endFrame();
       d->backendDrawCalls = d->backend->drawCallsThisFrame();
@@ -1233,6 +1250,12 @@ GLWidget::GLWidget( Molecule *molecule,
       qDebug() << "GLWidget::renderCompat(): Could not get read lock on molecule.";
       return;
     }
+    // HiDPI fix (task 2.1 / design D3): release the molecule read lock on
+    // every exit path via RAII (see renderModern for the rationale).
+    struct ReadLockGuard {
+      QReadWriteLock *lock;
+      ~ReadLockGuard() { lock->unlock(); }
+    } readLockGuard{d->molecule->lock()};
     if (!d->compatBackend || !d->compatBackend->isInitialized()) {
       // No compat stage on this context (before initializeGL or after a
       // context-loss rebuild that has not run yet); nothing to draw.
@@ -1241,7 +1264,7 @@ GLWidget::GLWidget( Molecule *molecule,
 
     const QMatrix4x4 mvp = emitSceneToBuilder();
 
-    if (d->compatBackend->beginFrame(camera(), QRect(0, 0, width(), height()),
+    if (d->compatBackend->beginFrame(camera(), deviceViewportRect(),
                                      d->builder.quality())) {
       d->compatBackend->setModelViewProjection(mvp); // no-op: FF reads the stack
       d->compatBackend->pushSpheres(d->builder.spheres());
@@ -2694,6 +2717,14 @@ namespace Avogadro {
   unsigned int GLWidget::backendFramesSubmitted() const
   {
     return d->backendFrames;
+  }
+
+  QSize GLWidget::frameSize() const
+  {
+    // d->backend is null when the widget has not rendered a modern-tier frame
+    // yet (or fell back to the legacy tier); report an invalid size so the
+    // caller can distinguish "no frame yet" from "a 0x0 frame".
+    return d->backend ? d->backend->frameSize() : QSize();
   }
 
   void GLWidget::addEngine(Engine *engine)

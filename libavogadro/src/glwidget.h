@@ -39,12 +39,18 @@
 
 #include <QOpenGLWidget>
 #include <QLabel>
+#include <QRect>
 
 class QOpenGLContext;
 class QShowEvent;
 class QMouseEvent;
 class QSettings;
 class QUndoStack;
+
+// Defined in hidpiviewporttest.cpp; granted access to GLWidget's private
+// deviceViewportRect() helper. Forward-declared here (global scope) so the
+// friend declaration inside Avogadro::GLWidget can resolve it.
+class HiDpiViewportTest;
 
 namespace Avogadro {
 
@@ -237,6 +243,12 @@ namespace Avogadro {
         * can read the same numbers the on-screen overlay shows. */
       unsigned int backendDrawCallsLastFrame() const;
       unsigned int backendFramesSubmitted() const;
+
+      //! Frame dimensions (device pixels) the modern backend rasterised into on
+      //! the most recent frame. The HiDPI regression test asserts this equals
+      //! the widget's device-pixel size at dpr != 1: pre-fix beginFrame was
+      //! handed the logical widget size, so the frame was squeezed.
+      QSize frameSize() const;
 
       /**
        * Get the hits for a region starting at (x, y) of size (w * h).
@@ -785,6 +797,18 @@ namespace Avogadro {
        * the last ready state, so a rebuild in flight never stalls input.
        */
       void drawLastReady();
+
+      /**
+       * HiDPI device-pixel viewport (fix-hidpi-viewport-coordinates, design
+       * D1): the widget's framebuffer size in device pixels, matching what
+       * resizeGL establishes. All beginFrame call sites use this so the GL
+       * viewport, pick pass and camera projection share one coordinate space.
+       */
+      QRect deviceViewportRect() const;
+
+      // HiDpiViewportTest needs to assert on the device-pixel viewport the
+      // helper returns (it is intentionally private); see hidpiviewporttest.
+      friend class ::HiDpiViewportTest;
 
       bool              m_glslEnabled;
       Tool*             m_navigateTool; /// NavigateTool is a super tool

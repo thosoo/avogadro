@@ -32,6 +32,7 @@
 #define AVOGADRO_RENDERING_MODERNBACKEND_H
 
 #include <QElapsedTimer>
+#include <QSize>
 #include <QPointer>
 #include <QMatrix4x4>
 #include <QtOpenGL/QOpenGLBuffer>
@@ -128,6 +129,13 @@ public:
 
   //! Number of frames fully submitted (endFrame reached) since the last reset.
   unsigned int framesSubmitted() const { return m_framesSubmitted; }
+
+  //! Frame dimensions (device pixels) recorded by the most recent beginFrame().
+  //! The GLWidget passes the device-pixel viewport here, so this is the exact
+  //! rectangle the backend rasterises into — the regression gate for the HiDPI
+  //! viewport fix (task 3): pre-fix it was the logical widget size, post-fix it
+  //! is the device-pixel size. Exposed for the HiDPI regression test.
+  QSize frameSize() const { return QSize(m_frameWidth, m_frameHeight); }
 
   //! Model*projection matrix for the frame, set by the caller (GLWidget) from
   //! the camera before beginFrame. Stored as a shader uniform; without it the

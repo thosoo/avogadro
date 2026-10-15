@@ -58,6 +58,7 @@ set(tests
   renderertier
   renderbench
   visualparity
+  hidpiviewport
 #  hydrogenscommand
   forcefield
   insertfragmentextension
@@ -141,9 +142,10 @@ foreach (test ${tests})
       ../src/cylinder_p.cpp
       ../src/textrenderer_p.cpp)
   endif()
-  if (${test} STREQUAL "glselectoverflow")
+  if (${test} STREQUAL "glselectoverflow" OR ${test} STREQUAL "hidpiviewport")
     # Compile the real ball-and-stick engine so the widget can drive the
-    # legacy GL_SELECT picking path (task 4.2).
+    # picking path (legacy GL_SELECT for glselectoverflow, the colour-ID
+    # pick pass for the HiDPI modern-tier test).
     list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)
   endif()
   if (${test} STREQUAL "threadedparity" OR ${test} STREQUAL "renderbench" OR ${test} STREQUAL "visualparity")
@@ -200,7 +202,7 @@ foreach (test ${tests})
   # The parity binaries drive a real GLWidget for the legacy tier, which
   # QOpenGLWidget does not support on the offscreen platform: they need a
   # real X display (run ctest under xvfb-run) with the default xcb platform.
-  if(${test} MATCHES "^(parity|compatibility|glselectoverflow|meshstream|threadedparity|renderbench|visualparity)")
+  if(${test} MATCHES "^(parity|compatibility|glselectoverflow|meshstream|threadedparity|renderbench|visualparity|hidpiviewport)")
     set(_test_env "LIBGL_ALWAYS_SOFTWARE=1")
   endif()
   if(${test} STREQUAL "forcefield")
