@@ -7,15 +7,13 @@
   is the headless correctness gate that must pass before the pool is wired in
   (design A7): it retires the parity risk before any threading exists.
 
-  The engine's renderOpaque issues fixed-function GL state calls
-  (glNormalize/glRescaleNormal), so a Compatibility context + offscreen
-  surface is required (mirroring paritybsdytest).
+  The test is fully headless: the BSDYEngine renders into a TestDevice
+  painter (not a GL surface) and SnapshotTessellator tessellates an immutable
+  snapshot, so no GL context is required. It therefore runs on any runner,
+  including headless CI.
  *****************************************************************/
 
 #include <QtTest>
-#include <QOpenGLContext>
-#include <QOffscreenSurface>
-#include <QSurfaceFormat>
 #include <QColor>
 #include <Eigen/Geometry>
 
@@ -113,35 +111,16 @@ private:
   JobParams captureParams(const BSDYEngine &engine, const Molecule &mol,
                           TestColorMap &map, TestDevice &radiusDevice);
 
-  QOpenGLContext *m_ctx = nullptr;
-  QOffscreenSurface *m_surface = nullptr;
 };
 
 void TessellatorParityTest::initTestCase()
 {
-  QSurfaceFormat fmt;
-  fmt.setVersion(3, 3);
-  fmt.setProfile(QSurfaceFormat::CompatibilityProfile);
-  fmt.setDepthBufferSize(24);
-  m_ctx = new QOpenGLContext;
-  m_ctx->setFormat(fmt);
-  QVERIFY(m_ctx->create());
-  m_surface = new QOffscreenSurface;
-  m_surface->setFormat(fmt);
-  m_surface->create();
-  QVERIFY(m_ctx->isValid());
-  m_ctx->makeCurrent(m_surface);
+  // Fully headless: no GL context is needed (see the header comment).
 }
 
 void TessellatorParityTest::cleanupTestCase()
 {
-  if (m_ctx) {
-    m_ctx->doneCurrent();
-    delete m_surface;
-    delete m_ctx;
-    m_ctx = nullptr;
-    m_surface = nullptr;
-  }
+  // No GL context to clean up.
 }
 
 SceneSnapshot TessellatorParityTest::makeSnapshot(const Molecule &mol)
