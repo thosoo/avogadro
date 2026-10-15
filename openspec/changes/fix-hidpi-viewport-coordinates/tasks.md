@@ -61,7 +61,10 @@
 ## 4. Validation
 
 - [x] 4.1 Full local matrix: `cmake --build build --parallel && xvfb-run ctest --test-dir build --output-on-failure` (all pass, 0 failed; new test runs under xvfb where a context exists) and `QT_QPA_PLATFORM=offscreen ctest` (all pass or skip). — Verify: **both green.** Full suite = 32/32 passed under xvfb; offscreen = 3 passed / 4 skipped (GL tests skip cleanly); `hidpiviewportTest` green via ctest. (all pass, 0 failed; new test runs under xvfb where a context exists) and `QT_QPA_PLATFORM=offscreen ctest` (all pass or skip). — Verify: both commands green.
-- [ ] 4.2 Windows CI green: push, watch the `windows-installer` workflow (both `installer` and `tests` jobs). The new test must PASS or SKIP under the CI's offscreen platform. — Verify: workflow run conclusion success.
+- [x] 4.2 Windows CI green: committed (`28ce8c45e`) and pushed to `origin/master`; the `windows-installer` workflow run [38718103116](https://github.com/thosoo/avogadro/actions/runs/38718103116) on that commit concluded **success**. Both matrix jobs completed `success`:
+  - `build-installer (installer)` — success
+  - `build-installer (tests)` — success (runs `QT_QPA_PLATFORM=offscreen ctest --output-on-failure`; a green run means every test passed or skipped cleanly — the HiDPI test's GL cases QSKIP under offscreen, never FAIL).
+  — Verify: workflow run conclusion success. ✅
 - [ ] 4.3 Real-hardware sign-off: ask the change author to re-run on their Windows HiDPI machine — scene fills the window, clicking atoms picks correctly, inserting a fragment bonds to the clicked atom and the camera never ends up inside new geometry, playing an animation while rendering does not hang. — Verify: author confirmation recorded here (this bug was found on real hardware; automated dpr=2 tests are necessary but the author's display is the acceptance gate).
 
 ## Notes for the implementing agent
