@@ -491,6 +491,14 @@ jobs:
         shell: pwsh
         run: |
           $env:PATH = "$PWD\build\openbabel-install\bin;$env:PATH"
+          # Headless runner: QOpenGLContext::create() succeeds but yields a
+          # GDI Generic OpenGL 1.1 context (no real rendering). Force the
+          # offscreen platform so GL backends can't initialise and every
+          # GL-dependent test's guard skips cleanly instead of crashing,
+          # hanging, or aborting. Headless emission-level parity is still
+          # covered by threadedparitytest.
+          $env:QT_QPA_PLATFORM = 'offscreen'
+          $env:QT_FORCE_STDERR_LOGGING = '1'
           ctest --test-dir build -C Release --output-on-failure
       - name: Upload installer
         if: matrix.target == 'installer'
