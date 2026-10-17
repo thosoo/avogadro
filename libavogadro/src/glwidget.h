@@ -52,6 +52,13 @@ class QUndoStack;
 // friend declaration inside Avogadro::GLWidget can resolve it.
 class HiDpiViewportTest;
 
+// Defined in modernrendertest.cpp; granted access to GLWidget's protected
+// composeModelViewProjection() helper so the modern-tier projection-matrix
+// fix can be verified without a live GL context. Forward-declared here
+// (global scope) so the friend declaration inside Avogadro::GLWidget can
+// resolve it.
+class ModernRenderTest;
+
 namespace Avogadro {
 
   namespace rendering {
@@ -691,6 +698,25 @@ namespace Avogadro {
       QMatrix4x4 currentModelViewProjection();
 
       /**
+       * Compose the model-view-projection matrix from the GL projection and
+       * modelview matrices, returning the standard `projection * modelview`
+       * product that the modern tier's vertex shader expects as `uMVP`.
+       *
+       * Qt's QMatrix4x4 raw-array constructor reads GL's column-major arrays
+       * as row-major, so a QMatrix4x4 built from a GL matrix holds it
+       * transposed; QMatrix4x4::operator* is the standard written-order
+       * product. Transposing each GL matrix back and multiplying in written
+       * order therefore yields `projection * modelview` (not the transposed,
+       * order-swapped `(modelview * projection)^T` that a naive
+       * `QMatrix4x4(proj) * QMatrix4x4(mv)` produces, which distorts the
+       * scene non-uniformly). This is the composition used by
+       * currentModelViewProjection(); kept separate so it can be tested
+       * without a live GL context.
+       */
+      static QMatrix4x4 composeModelViewProjection(const QMatrix4x4 &projMat,
+                                                   const QMatrix4x4 &mvMat);
+
+      /**
        * Render a full crystal cell
        * Called by render() automatically
        *
@@ -809,6 +835,11 @@ namespace Avogadro {
       // HiDpiViewportTest needs to assert on the device-pixel viewport the
       // helper returns (it is intentionally private); see hidpiviewporttest.
       friend class ::HiDpiViewportTest;
+
+      // ModernRenderTest asserts that currentModelViewProjection()'s
+      // composeModelViewProjection() equals the standard projection * modelview
+      // (see modernrendertest); the helper is intentionally protected.
+      friend class ::ModernRenderTest;
 
       bool              m_glslEnabled;
       Tool*             m_navigateTool; /// NavigateTool is a super tool

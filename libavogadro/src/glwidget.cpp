@@ -1080,7 +1080,17 @@ GLWidget::GLWidget( Molecule *molecule,
     GLfloat mvMat[16], projMat[16];
     glGetFloatv(GL_MODELVIEW_MATRIX, mvMat);
     glGetFloatv(GL_PROJECTION_MATRIX, projMat);
-    return QMatrix4x4(projMat) * QMatrix4x4(mvMat);
+    return composeModelViewProjection(QMatrix4x4(projMat), QMatrix4x4(mvMat));
+  }
+
+  QMatrix4x4 GLWidget::composeModelViewProjection(const QMatrix4x4 &projMat,
+                                                  const QMatrix4x4 &mvMat)
+  {
+    // QMatrix4x4's raw-array constructor reads GL's column-major arrays as
+    // row-major, so a QMatrix4x4 built from a GL matrix holds it transposed.
+    // operator* is the standard written-order product, so transposing each GL
+    // matrix back and multiplying in written order yields projection * modelview.
+    return projMat.transposed() * mvMat.transposed();
   }
 
   //! Engines (plus the active tool) emit the scene into the chunk stores.

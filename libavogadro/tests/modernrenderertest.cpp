@@ -44,6 +44,8 @@
 #include <QOffscreenSurface>
 #include <QtTest>
 
+#include <GL/glu.h>
+
 #include <Eigen/Geometry>
 
 #include "libavogadro/src/rendering/geometry.h"
@@ -56,6 +58,8 @@
 #include "libavogadro/src/rendering/lod.h"
 #include "libavogadro/src/rendering/frustum.h"
 #include "libavogadro/src/rendering/scenebuilder.h"
+
+#include "libavogadro/src/glwidget.h"
 
 #include <avogadro/molecule.h>
 #include <avogadro/atom.h>
@@ -232,6 +236,13 @@ class ModernRenderTest : public QObject
     void testLodHysteresis();
     void testFrustumCulling();
     void testChunkAABB();
+
+    // gpu-rendering-pipeline fix-modern-tier-non-uniform-distortion:
+    // the modern tier's uMVP must equal the standard projection * modelview
+    // (composeModelViewProjection), never the transposed, order-swapped
+    // (modelview * projection)^T that distorts the scene non-uniformly.
+    void testProjectionMatrixComposition();
+    void testProjectionMatchesNativeStack();
 };
 
 void ModernRenderTest::testShaderSources()
@@ -1480,6 +1491,136 @@ void ModernRenderTest::testChunkAABB()
   const auto visible = Avogadro::rendering::cullChunks(mins, maxs, f);
   QCOMPARE(static_cast<int>(visible.size()), 1);
   QCOMPARE(visible[0], 0);
+}
+
+// Column-major standard matrix multiply: R = A * B, element (i,j) at R[j*4+i].
+static void colMul(const float A[16], const float B[16], float R[16])
+{
+  for (int j = 0; j < 4; ++j)
+    for (int i = 0; i < 4; ++i) {
+      float s = 0.0f;
+      for (int k = 0; k < 4; ++k)
+        s += A[k * 4 + i] * B[j * 4 + k];
+      R[j * 4 + i] = s;
+    }
+}
+
+// Task 3 (fix-modern-tier-non-uniform-distortion): the composition that
+// GLWidget::currentModelViewProjection() uses must equal the standard
+// projection * modelview, not the transposed, order-swapped
+// (modelview * projection)^T that distorts the scene non-uniformly. Pure Qt,
+// no GL context: a distinct x/y perspective scale makes any transpose/order
+// error show up as non-uniform scale.
+void ModernRenderTest::testProjectionMatrixComposition()
+{
+  float proj[16] = {0};
+  const float ax = 1.0f / (0.5f * 1.5f); // aspect 1.5
+  const float ay = 1.0f / 0.5f;
+  proj[0] = ax; proj[5] = ay;
+  proj[10] = -1.1f; proj[11] = -2.1f; proj[14] = -1.0f;
+
+  float ang = -30.0f * (float)M_PI / 180.0f;
+  const float c = cosf(ang), s = sinf(ang);
+  float mv[16] = {0};
+  for (int i = 0; i < 4; ++i)
+    mv[i * 4 + i] = 1.0f;
+  mv[0] = c; mv[1] = s; mv[4] = -s; mv[5] = c; mv[13] = -5.0f; // ty at (1,3)
+
+  // Reference: the standard projection * modelview.
+  float ref[16];
+  colMul(proj, mv, ref);
+
+  // The composition currentModelViewProjection() delegates to.
+  const QMatrix4x4 got = Avogadro::GLWidget::composeModelViewProjection(
+      QMatrix4x4(proj), QMatrix4x4(mv));
+  for (int i = 0; i < 16; ++i)
+    QCOMPARE(got.data()[i], ref[i]);
+
+  // Sanity: the buggy order (QMatrix4x4(proj) * QMatrix4x4(mv)) must NOT
+  // equal the reference, otherwise the test could not catch a regression.
+  const QMatrix4x4 buggy(QMatrix4x4(proj) * QMatrix4x4(mv));
+  bool buggyMatches = true;
+  for (int i = 0; i < 16; ++i)
+    if (buggy.data()[i] != ref[i]) {
+      buggyMatches = false;
+      break;
+    }
+  QVERIFY(!buggyMatches);
+}
+
+// Task 3 (fix-modern-tier-non-uniform-distortion): on a live GL context with a
+// known projection and modelview, the modern tier's composeModelViewProjection()
+// must project world points to the same clip-space position as the native
+// fixed-function stack (gluProject), which internally uses projection * modelview.
+void ModernRenderTest::testProjectionMatchesNativeStack()
+{
+  QOffscreenSurface *off = nullptr;
+  QOpenGLContext *ctx = makeGLContext(&off);
+  if (!ctx)
+    QSKIP("No GL 3.3+ context available on this runner; skipping projection cross-check",
+          SkipSingle);
+
+  QOpenGLFunctions gl;
+  gl.initializeOpenGLFunctions();
+
+  QMatrix4x4 proj;
+  proj.perspective(45.0f, static_cast<float>(kWidth) / kHeight, 0.1f, 100.0f);
+  QMatrix4x4 mv;
+  mv.translate(0.0f, 0.0f, -5.0f);
+
+  gl.glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  gl.glViewport(0, 0, kWidth, kHeight);
+  // Fixed-function entry points are not exposed by QOpenGLFunctions; use the
+  // native GL symbols (OpenGL::GL is linked for this test).
+  glMatrixMode(GL_PROJECTION);
+  glLoadIdentity();
+  glLoadMatrixf(proj.constData());
+  glMatrixMode(GL_MODELVIEW);
+  glLoadIdentity();
+  glLoadMatrixf(mv.constData());
+
+  double world[3] = {0.3, 0.1, -0.2};
+  const GLint viewport[4] = {0, 0, kWidth, kHeight};
+
+  // gluProject takes column-major double arrays (GLU matches GL storage).
+  double projD[16], mvD[16];
+  for (int i = 0; i < 16; ++i) {
+    projD[i] = static_cast<double>(proj.constData()[i]);
+    mvD[i] = static_cast<double>(mv.constData()[i]);
+  }
+
+  // Reference: native stack via gluProject (projection * modelview internally).
+  GLdouble wx = 0, wy = 0, wz = 0;
+  int gluOk = gluProject(world[0], world[1], world[2], mvD, projD,
+                         viewport, &wx, &wy, &wz);
+  QVERIFY(gluOk == GL_TRUE);
+
+  // Modern tier's composition read from the same live stack.
+  float projMat[16], mvMat[16];
+  gl.glGetFloatv(GL_PROJECTION_MATRIX, projMat);
+  gl.glGetFloatv(GL_MODELVIEW_MATRIX, mvMat);
+  const QMatrix4x4 mvp = Avogadro::GLWidget::composeModelViewProjection(
+      QMatrix4x4(projMat), QMatrix4x4(mvMat));
+
+  // Apply the modern mvp to the world point -> clip space.
+  const QVector4D clip = mvp * QVector4D(world[0], world[1], world[2], 1.0f);
+  const float invW = 1.0f / clip.w();
+  const float ndcX = clip.x() * invW;
+  const float ndcY = clip.y() * invW;
+  const float ndcZ = clip.z() * invW;
+
+  // Convert the modern ndc through the same viewport transform gluProject uses
+  // and compare to gluProject's window output.
+  const float winX = viewport[0] + (ndcX + 1.0f) * viewport[2] / 2.0f;
+  const float winY = viewport[1] + (ndcY + 1.0f) * viewport[3] / 2.0f;
+  const float winZ = (ndcZ + 1.0f) / 2.0f;
+  QCOMPARE(winX, static_cast<float>(wx));
+  QCOMPARE(winY, static_cast<float>(wy));
+  QCOMPARE(winZ, static_cast<float>(wz));
+
+  ctx->makeCurrent(nullptr);
+  delete off;
+  delete ctx;
 }
 
 QTEST_MAIN(ModernRenderTest)

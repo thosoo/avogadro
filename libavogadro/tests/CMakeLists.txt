@@ -194,6 +194,13 @@ foreach (test ${tests})
     # pulls the TU in directly, so link it explicitly for these tests only.
     target_link_libraries(${test}test PRIVATE OpenGL::GLU)
   endif()
+  if(${test} STREQUAL "modernrenderer")
+    # modernrendertest uses gluProject (GLU) to cross-check the modern tier's
+    # composed uMVP against the native fixed-function stack. avogadro links GLU
+    # internally, but that does not propagate to a consumer that calls it
+    # directly, so link it explicitly for this test only.
+    target_link_libraries(${test}test PRIVATE OpenGL::GLU)
+  endif()
   if(TARGET openbabel_ext)
     add_dependencies(${test}test openbabel_ext)
   endif()
