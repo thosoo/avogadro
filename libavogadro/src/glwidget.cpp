@@ -625,7 +625,6 @@ GLWidget::GLWidget( Molecule *molecule,
     glEnable( GL_DEPTH_TEST );
     glDepthFunc( GL_LEQUAL );
     glEnable( GL_CULL_FACE );
-    glEnable( GL_COLOR_SUM_EXT );
 
     // Used to display semi-transparent selection rectangle
     //  glBlendFunc(GL_ONE, GL_ONE);
@@ -633,13 +632,12 @@ GLWidget::GLWidget( Molecule *molecule,
 
     glEnable( GL_NORMALIZE );
 
-    glLightModeli( GL_LIGHT_MODEL_COLOR_CONTROL_EXT,
-                   GL_SEPARATE_SPECULAR_COLOR_EXT );
-
-    // Due to the bug found with Mesa 6.5.3 in the Radeon DRI driver
-    // in radeon_state.c in radeonUpdateSpecular(),
-    // it is important to set GL_SEPARATE_SPECULAR_COLOR_EXT
-    // _before_ enabling lighting
+    // Fixed-function lighting state. The legacy GLPainter (and the compat tier)
+    // enable lighting themselves but rely on these ambient/diffuse/specular/
+    // position values set here; removing them would darken the legacy render
+    // (GL's default ambient is black) and break modern-vs-legacy visual parity,
+    // so this block is retained. It is valid on a GL 3.3 compatibility context
+    // and does not generate GL_INVALID_ENUM (see design.md D2).
     glEnable( GL_LIGHTING );
 
     glLightfv( GL_LIGHT0, GL_AMBIENT, LIGHT_AMBIENT );

@@ -706,6 +706,16 @@ void ModernRendererBackend::drawInstances()
   if (!m_glInitialized || !m_haveMvp)
     return; // no matrix yet: a frame with a stale matrix must not draw
 
+  // Drain any GL error left on the shared context by code outside the modern
+  // tier's draw (e.g. shared context initialization). GL errors are sticky, so
+  // a stale error from before this frame would otherwise be reported by the
+  // post-cylinder check below and mislabeled as a cylinder-draw error. Draining
+  // once here — after the early return and before any of the modern tier's own
+  // draws — preserves detection of genuine errors set by the sphere/cylinder/
+  // line draws that run later in this same frame.
+  while (m_gl.glGetError() != GL_NO_ERROR)
+    ;
+
   // Blending + depth test so transparent (alpha < 1) instances composite over
   // opaque ones. Exact back-to-front sorting is out of scope for 2.4 (D2
   // allows "same visual class"); per-instance alpha already carries the
