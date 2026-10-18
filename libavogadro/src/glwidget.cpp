@@ -641,7 +641,6 @@ GLWidget::GLWidget( Molecule *molecule,
     // Core context, so the D3 drain in ModernRendererBackend::drawInstances()
     // clears it before the cylinder check (see design.md D2).
     glEnable( GL_LIGHTING );
-    glEnable( GL_LIGHTING );
 
     glLightfv( GL_LIGHT0, GL_AMBIENT, LIGHT_AMBIENT );
     glLightfv( GL_LIGHT0, GL_DIFFUSE, LIGHT0_DIFFUSE );
