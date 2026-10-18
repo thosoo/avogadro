@@ -13,10 +13,10 @@
 - [x] 3.1 Drain pending GL errors once at the start of `ModernRendererBackend::drawInstances()` before any sphere/cylinder/line draw
   Verify: a `while (m_gl.glGetError() != GL_NO_ERROR) {}` loop at the top of `drawInstances()`; the existing post-cylinder `glGetError()` check remains intact.
 
-## 4. Remove the dead fixed-function lighting block (design D2 — optional cleanup)
+## 4. Decide on the dead fixed-function lighting block (design D2 — optional cleanup)
 
-- [x] 4.1 Remove the `glEnable(GL_LIGHTING)` / `glLightfv(GL_LIGHT0/1, …)` / `glEnable(GL_LIGHT0/1)` block from `GLWidget::initializeGL()`
-  Verify: build still runs and the modern/compat/legacy tiers still render; if any visual lighting regression appears, revert this task and keep the block.
+- [x] 4.1 Evaluate removing the `glEnable(GL_LIGHTING)` / `glLightfv(GL_LIGHT0/1, …)` / `glEnable(GL_LIGHT0/1)` block from `GLWidget::initializeGL()`; retain it for legacy/compat visual parity
+  Verify: build still runs and the modern/compat/legacy tiers still render; the legacy `GLPainter` sets no light values, so removing the block would darken the legacy render and break parity — the removal was attempted and reverted (revert-and-keep clause), block retained. The block is valid on a CompatibilityProfile context but emits GL_INVALID_ENUM on a Core context; the D3 drain isolates that sticky error before the cylinder check (see design.md D2 caveat).
 
 ## 5. Verify fix and parity
 

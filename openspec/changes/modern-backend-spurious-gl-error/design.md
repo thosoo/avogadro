@@ -13,9 +13,20 @@ Investigated facts that fix the ambiguity:
   modern backend's `QOpenGLFunctions_3_3_Core` pointers leniently from the compat context,
   which is why the modern backend initializes despite the compat profile.
 - **The driver does not expose** `GL_EXT_vertex_coloring` or
-  `GL_ARB_separate_specular_color` (confirmed via `eglinfo` — empty match). On a compat
-  3.3 context the fixed-function lighting calls (`GL_LIGHTING`, `GL_LIGHT0`, `glLightfv`)
-  are *valid*; only the two `EXT` enums are unsupported and generate `GL_INVALID_ENUM`.
+  `GL_ARB_separate_specular_color` (confirmed via `eglinfo` — empty match). On a full
+  CompatibilityProfile 3.3 context the fixed-function lighting calls (`GL_LIGHTING`,
+  `GL_LIGHT0`, `glLightfv`) are *valid*; only the two `EXT` enums are unsupported and
+  generate `GL_INVALID_ENUM`.
+- **Profile-sensitivity caveat (verified in-container).** Qt requests a CompatibilityProfile
+  context, but the container's Mesa on xcb resolves that request to a **Core** profile
+  (`visualparitytest` logs: "requested profile: CompatibilityProfile got profile:
+  CoreProfile"; `glGetString(GL_VERSION)` = 4.5 Core). On that resolved Core context the
+  fixed-function block is *not* valid: `glEnable(GL_LIGHTING)` and `glEnable(GL_LIGHT0)`
+  emit `GL_INVALID_ENUM` (1280) and `glLightfv` emits `GL_INVALID_OPERATION` (1282). So the
+  block is valid only on a real CompatibilityProfile driver (the target radeonsi/Mesa
+  desktop); it errors on Core. The D3 drain clears this sticky error before the cylinder
+  check, so the CYLINDER warning does not fire even on Core (scenario 1 passes on :3/:4).
+  This container cannot deliver a full compat context (see 5.2 capability-skip).
 - **The lighting block is dead state.** Every render path disables and re-manages lighting
   itself — `glpainter_p.cpp`, `compatbackend.cpp:174`, `modernbackend.cpp:475`,
   `textrenderer_p.cpp`, and the tools all `glDisable(GL_LIGHTING)` around their draws. No
@@ -58,9 +69,19 @@ extensions are absent on the target radeonsi/Mesa stack anyway.
 Remove the `glEnable(GL_LIGHTING)` / `glLightfv(GL_LIGHT0/1, …)` / `glEnable(GL_LIGHT0/1)`
 block. *Rationale:* every render path disables lighting and sets its own state (see Context);
 the modern tier disables lighting explicitly at modernbackend.cpp:475. The block is valid on
-compat, so this is hygiene, not an error fix — therefore **optional** and separated from D1.
-*Mitigation:* run the parity harness / a visual check after removal to confirm no lighting
-regression. If any regression appears, retain the block (it does not generate errors on compat).
+a full CompatibilityProfile context, so this is hygiene, not an error fix — therefore
+**optional** and separated from D1.
+*Mitigation:* retain the block for legacy/compat visual parity — the legacy `GLPainter`
+(`glpainter_p.cpp`) calls `glEnable(GL_LIGHTING)` but sets no light values, so it relies on
+the ambient/diffuse/specular/position values configured here; removing them would darken the
+legacy render (GL's default ambient is black) and break modern-vs-legacy parity. The block
+is valid on a real CompatibilityProfile driver but emits `GL_INVALID_ENUM`/`GL_INVALID_OPERATION`
+on a Core context; the D3 drain isolates that sticky error before the cylinder check, so it
+is not a rendering defect and does not re-surface the CYLINDER warning. **Decision: retain**
+the block (D2 revert-and-keep clause triggered — parity preserved).
+*Note:* `glEnable(GL_LIGHTING)` emits `GL_INVALID_ENUM` on Core, so D2 cannot be a pure
+"remove dead state" cleanup on a Core-resolved context; retention is the parity-preserving
+choice.
 
 **D3 — Drain stale GL errors at the start of the modern draw pass (error isolation).**
 At the entry of `drawInstances()`, drain any pending GL error in a small `while

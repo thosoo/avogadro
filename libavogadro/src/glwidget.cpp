@@ -636,8 +636,11 @@ GLWidget::GLWidget( Molecule *molecule,
     // enable lighting themselves but rely on these ambient/diffuse/specular/
     // position values set here; removing them would darken the legacy render
     // (GL's default ambient is black) and break modern-vs-legacy visual parity,
-    // so this block is retained. It is valid on a GL 3.3 compatibility context
-    // and does not generate GL_INVALID_ENUM (see design.md D2).
+    // so this block is retained (D2 revert-and-keep clause). It is valid on a
+    // GL 3.3 CompatibilityProfile context; note it emits GL_INVALID_ENUM on a
+    // Core context, so the D3 drain in ModernRendererBackend::drawInstances()
+    // clears it before the cylinder check (see design.md D2).
+    glEnable( GL_LIGHTING );
     glEnable( GL_LIGHTING );
 
     glLightfv( GL_LIGHT0, GL_AMBIENT, LIGHT_AMBIENT );
