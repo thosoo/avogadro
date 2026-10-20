@@ -104,6 +104,11 @@ namespace Avogadro {
       int addHydrogens() const;
 
     public Q_SLOTS:
+      //! Called by the ToolGroup when another tool is activated. Releases an
+      //! in-flight draw stroke's transient force-field markers so the anchor
+      //! atom is not left frozen/ignored under the new tool.
+      void toolActivated(Tool *tool);
+
       void setAddHydrogens( int state );
 
       void elementChanged( int index );
@@ -119,6 +124,7 @@ namespace Avogadro {
       Qt::MouseButtons    m_buttons;
 
       bool                m_movedSinceButtonPressed;
+      bool                m_toolActivatedConnected;
 
       QPoint              m_initialDraggingPosition;
       QPoint              m_lastDraggingPosition;

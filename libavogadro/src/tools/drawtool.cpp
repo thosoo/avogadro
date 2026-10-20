@@ -38,6 +38,7 @@
 #include <avogadro/color.h>
 #include <avogadro/glhit.h>
 #include <avogadro/glwidget.h>
+#include <avogadro/toolgroup.h>
 #include <avogadro/undosequence.h>
 
 #include <avogadro/elementtranslator.h>
@@ -69,6 +70,7 @@ using OpenBabel::OBForceField;
 namespace Avogadro {
 
   DrawTool::DrawTool(QObject *parent) : Tool(parent),
+                                        m_toolActivatedConnected(false),
                                         m_beginAtomAdded(false),
                                         m_endAtomAdded(false),
                                         m_beginAtom(0),
@@ -103,8 +105,64 @@ namespace Avogadro {
 
   DrawTool::~DrawTool()
   {
+    // If a stroke was still in flight when the tool is torn down, release any
+    // transient force-field markers so no stale fix/ignore survives into a
+    // later tool or molecule.
+    if (m_beginAtom || m_endAtom || m_bond) {
+      if (m_forceField) {
+        m_forceField->UnsetIgnoreAtom();
+        m_forceField->UnsetFixAtom();
+      }
+    }
+
     if(m_settingsWidget) {
       m_settingsWidget->deleteLater();
+    }
+  }
+
+  void DrawTool::toolActivated(Tool *tool)
+  {
+    // A different tool was activated while a draw stroke was still in flight
+    // (begin/end atom or a bond in progress). Release the transient force-field
+    // markers and reset stroke state without pushing an undo command, so the
+    // anchor atom is not left frozen/ignored under the new tool.
+    if (tool == this)
+      return;
+
+    if (m_beginAtom || m_endAtom || m_bond) {
+      // Restore the alchemy-edited begin atom to its original element. The
+      // normal release path relies on an undo command for this; we push none
+      // here, so restore in place. Raw setAtomicNumber skips adjust-hydrogens,
+      // which is acceptable for an abandoned stroke (precedent: mouseMoveEvent
+      // does raw sets under a write lock). Freshly-drawn atoms never captured
+      // m_prevAtomElement, so they are left with the drawn element.
+      if (m_beginAtom && m_prevAtomElement) {
+        Molecule *mol = m_beginAtom->molecule();
+        if (mol && mol->lock()->tryLockForWrite()) {
+          m_beginAtom->setAtomicNumber(m_prevAtomElement);
+          mol->lock()->unlock();
+        }
+      }
+
+      if (m_forceField) {
+        m_forceField->UnsetIgnoreAtom();
+        m_forceField->UnsetFixAtom();
+      }
+
+      // m_hydrogenCommand was never handed to an UndoSequence or returned as
+      // undo here, so this tool owns it and must free it (the normal release
+      // paths transfer ownership).
+      delete m_hydrogenCommand;
+      m_beginAtom = 0;
+      m_endAtom = 0;
+      m_bond = 0;
+      m_bondOrder = 1;
+      m_prevBond = 0;
+      m_prevBondOrder = 0;
+      m_prevAtomElement = 0;
+      m_beginAtomAdded = false;
+      m_endAtomAdded = false;
+      m_hydrogenCommand = 0;
     }
   }
 
@@ -116,6 +174,15 @@ namespace Avogadro {
   // Handle a user click
   QUndoCommand* DrawTool::mousePressEvent(GLWidget *widget, QMouseEvent *event)
   {
+    // Lazily connect to tool switches (UniqueConnection makes this idempotent)
+    // so an in-flight stroke is released when the user switches tools mid-drag;
+    // the anchor atom must not stay frozen/ignored under the new tool.
+    if (!m_toolActivatedConnected && widget->toolGroup()) {
+      connect(widget->toolGroup(), SIGNAL(toolActivated(Tool *)),
+              this, SLOT(toolActivated(Tool *)), Qt::UniqueConnection);
+      m_toolActivatedConnected = true;
+    }
+
     // check if we are still doing a drag (prevents crash when clicking the right button while dragging)
     if (m_beginAtom || m_endAtom) {
       event->accept();

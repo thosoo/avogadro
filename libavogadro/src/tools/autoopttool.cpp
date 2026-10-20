@@ -248,13 +248,51 @@ namespace Avogadro {
             tr("AutoOpt: E = %1 %2 (dE = %3)").arg(energy).
             arg("kJ/mol").
             arg( fabs(m_lastEnergy - energy) ));
+        // HUD: report the number of fixed and ignored atoms from the
+        // per-instance constraint state (the transient markers counted too).
+        OBFFConstraints &constraints = m_forceField->GetConstraints();
+        unsigned int fixed = constraints.GetFixedBitVec().CountBits();
+        unsigned int ignored = constraints.GetIgnoredBitVec().CountBits();
+        if (m_forceField->GetFixAtom())
+          ++fixed;
+        if (m_forceField->GetIgnoreAtom())
+          ++ignored;
         widget->painter()->drawText(debugPos,
-                                    tr("Num Constraints: %1").arg(m_forceField->GetConstraints().Size()));
+            tr("Fixed: %1 Ignored: %2").arg(fixed).arg(ignored));
         m_lastEnergy = energy;
       }
     }
 
     m_glwidget = widget;
+
+    // Per-atom overlay halos while running: warm red/orange marks fixed (frozen)
+    // atoms, blue marks ignored (dummy/halo) atoms. The atom being dragged
+    // (m_clickedAtom) is skipped - the bright click halo below already marks it.
+    if (m_running && m_glwidget && m_glwidget->molecule()) {
+      Molecule *mol = m_glwidget->molecule();
+      foreach(Atom *atom, mol->atoms()) {
+        unsigned int idx = atom->index() + 1;
+        bool isFixed = m_forceField->GetConstraints().IsFixed(idx) ||
+                       m_forceField->GetFixAtom() == idx;
+        bool isIgnored = m_forceField->GetConstraints().IsIgnored(idx) ||
+                         m_forceField->GetIgnoreAtom() == idx;
+        if (!isFixed && !isIgnored)
+          continue;
+        if (m_clickedAtom != 0 && m_clickedAtom->index() == atom->index())
+          continue;
+
+        double renderRadius = widget->radius(atom);
+        renderRadius += 0.10;
+        glEnable(GL_BLEND);
+        if (isFixed)
+          widget->painter()->setColor(1.0, 0.5, 0.0, 0.4); // warm orange
+        else
+          widget->painter()->setColor(0.2, 0.4, 1.0, 0.4); // blue
+        widget->painter()->drawSphere(atom->pos(), renderRadius);
+        glDisable(GL_BLEND);
+      }
+    }
+
     if(m_leftButtonPressed) {
       if(m_running && m_clickedAtom) {
         // Don't highlight the atom on right mouse unless there is a selection
@@ -366,6 +404,22 @@ namespace Avogadro {
       return;
 
     if(!m_running) {
+      // Re-find the force field by the current combo selection (same lookup as
+      // timerEvent) so a user-changed force field is honoured on start.
+      m_forceField = OBForceField::FindForceField(
+                      m_forceFieldList[m_comboFF->currentIndex()]);
+      if (!m_forceField) {
+        emit setupFailed();
+        return;
+      }
+
+      // Clear any stale per-instance constraint state left by a previous tool
+      // session (drag markers, dummy-atom ignores) so a fresh run starts clean
+      // instead of inheriting frozen/ignored atoms from an earlier tool.
+      m_forceField->GetConstraints().Clear();
+      m_forceField->UnsetFixAtom();
+      m_forceField->UnsetIgnoreAtom();
+
       connect(m_glwidget->molecule(), SIGNAL(destroyed()), this, SLOT(abort()));
       m_thread->setup(m_glwidget->molecule(), m_forceField,
                       m_comboAlgorithm->currentIndex(),
@@ -387,6 +441,13 @@ namespace Avogadro {
     killTimer(m_timerId);
     m_thread->quit();
     m_running = false;
+    // Clear transient constraint markers so no stale fix/ignore survives a hard
+    // stop (e.g. molecule destroyed). Null-check: the force field may be reset
+    // before teardown.
+    if (m_forceField) {
+      m_forceField->UnsetIgnoreAtom();
+      m_forceField->GetConstraints().Clear();
+    }
   }
 
   void AutoOptTool::disable()
@@ -405,6 +466,8 @@ namespace Avogadro {
 
       m_clickedAtom = 0;
       m_forceField->UnsetFixAtom();
+      m_forceField->UnsetIgnoreAtom();
+      m_forceField->GetConstraints().Clear();
       m_leftButtonPressed = false;
       m_midButtonPressed = false;
       m_rightButtonPressed = false;
@@ -534,7 +597,11 @@ namespace Avogadro {
 
     OBMol mol = m_molecule->OBMol();
 
-    // Ignore all atoms with atomic # less than 1
+    // Reset transient ignore markers each tick (bounded state), then re-scan
+    // for excluded/halo dummy atoms (atomicNumber < 1). This self-heals the
+    // addAtom -> setAtomicNumber race within one tick instead of letting the
+    // "Num Constraints" counter grow without bound.
+    m_forceField->GetConstraints().Clear();
     foreach(const Atom *atom, m_molecule->atoms()) {
       if (atom->atomicNumber() < 1)
         m_forceField->GetConstraints().AddIgnore(atom->index() + 1);
