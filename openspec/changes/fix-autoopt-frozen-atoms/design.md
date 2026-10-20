@@ -265,6 +265,21 @@ Automated: Avogadro `ctest --test-dir build --output-on-failure` (clean
 reconfigure after the submodule bump — old build dirs keep stale
 ExternalProject state per AGENTS.md); fork ctest as in section A.
 
+> **Clean-reconfigure reproducible (verified).** A from-scratch
+> `rm -rf build && cmake -S . -B build -DENABLE_TESTS=ON && cmake --build
+> build --parallel && xvfb-run -a ctest --test-dir build --output-on-failure`
+> completes with `33/33 tests passed`. The fork's versioned-library install
+> rule (`src/forcefield.cpp` de-static landed in commit `8fa6c949f`) installs
+> `libopenbabel.so.7.0.0` cleanly on a fresh build; the earlier clean-reconfigure
+> failure was corrupted incremental state left by hand-completed
+> `openbabel_ext` build stamps from a prior round, not a flaw in the install
+> rule. No hand-completed-stamp workaround is needed: a clean build dir per
+> AGENTS.md reproduces task 2.2. The repro matrix is covered by the automated
+> `autooptreproTest` (libavogadro/tests/autooptreprotest.cpp): per-instance
+> independence, dummy-atom rescan over 1000+ ticks, enable/disable clearing,
+> stroke-while-running, tool-switched-mid-stroke, delete-while-run, and 20x
+> start/stop stability.
+
 ## Risks / Trade-offs
 
 - [Hidden dependence on cross-instance sharing inside OpenBabel] → audit found

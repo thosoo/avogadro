@@ -121,6 +121,11 @@ namespace Avogadro {
       void clearKeyPressBuffer();
 
     private:
+      // Test hook: the repro test drives the in-flight stroke state machine
+      // (private members) directly and asserts on the toolActivated() release
+      // path without depending on GL picking under xvfb.
+      friend class DrawToolExposed;
+
       Qt::MouseButtons    m_buttons;
 
       bool                m_movedSinceButtonPressed;
