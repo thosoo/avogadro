@@ -94,10 +94,21 @@ foreach (test ${tests})
     list(APPEND test_SRCS ../src/rendering/snapshottessellator.cpp)
   endif()
   if (${test} STREQUAL "autooptrepro")
-    # AutoOptTool / AutoOptThread live in the standalone autoopttool plugin
-    # (not exported from libavogadro.so), so compile the source directly, as
-    # for geometry.cpp above.
+    # DrawTool and AutoOptTool live in standalone MODULE plugins (not exported
+    # from libavogadro.so), so their sources are compiled directly into the
+    # test. Compiling both drawtool.cpp and autoopttool.cpp collides the two
+    # AVOGADRO_TOOL_FACTORY plugin-export symbols (qt_plugin_instance etc.), so
+    # skip DrawToolFactory's Q_PLUGIN_METADATA for this build only (the test
+    # instantiates the factory directly, never via Qt's plugin loader); the
+    # guard is in drawtool.h under AVOGADRO_TEST_NOPLUGIN. This is
+    # cross-platform (no -l:drawtool.so, which the MSVC linker rejects).
+    # (target_compile_definitions for that macro is applied after add_executable.)
     list(APPEND test_SRCS ../src/tools/autoopttool.cpp)
+    list(APPEND test_SRCS ../src/tools/drawtool.cpp)
+    # drawtool.cpp references the change-element command (and the other
+    # draw commands) defined in drawcommand.cpp, which has no plugin factory
+    # so it is safe to compile directly into the test.
+    list(APPEND test_SRCS ../src/tools/drawcommand.cpp)
   endif()
   if (${test} STREQUAL "renderertier")
     # requestedRendererTier / resolveRendererTier / tierName live in
@@ -213,20 +224,11 @@ foreach (test ${tests})
     add_dependencies(${test}test openbabel_ext)
   endif()
   if(${test} STREQUAL "autooptrepro")
-    # DrawTool lives in the standalone drawtool MODULE plugin (not exported
-    # from libavogadro.so). It is linked here rather than compiled into the
-    # test: compiling drawtool.cpp alongside autoopttool.cpp collides the two
-    # AVOGADRO_TOOL_FACTORY plugin-export symbols (qt_plugin_instance etc.).
-    # The drawtool plugin exports DrawTool's symbols, so linking resolves
-    # DrawToolExposed's references to them. The plugin is a Qt MODULE named
-    # "drawtool.so" (no lib prefix), so plain -l would look for libdrawtool.so.
-    # -l:drawtool.so links the exact file. build/lib is already on the search
-    # path and add_dependencies ensures the plugin is built first (survives a
-    # clean reconfigure, where the .so is absent at configure time).
-    add_dependencies(${test}test drawtool)
-    # drawtool.so lives in build/lib, which is not on this test's search path.
-    target_link_directories(${test}test PRIVATE ${CMAKE_BINARY_DIR}/lib)
-    target_link_libraries(${test}test PRIVATE -l:drawtool.so)
+    # Skip DrawToolFactory's Q_PLUGIN_METADATA for this build only (see the
+    # test_SRCS block above): compiling drawtool.cpp alongside autoopttool.cpp
+    # would otherwise collide the two AVOGADRO_TOOL_FACTORY plugin-export
+    # symbols. The guard is in drawtool.h under this macro.
+    target_compile_definitions(${test}test PRIVATE AVOGADRO_TEST_NOPLUGIN)
   endif()
   add_test(${test}Test ${CMAKE_BINARY_DIR}/bin/${test}test)
   set(_test_env "QT_QPA_PLATFORM=offscreen")

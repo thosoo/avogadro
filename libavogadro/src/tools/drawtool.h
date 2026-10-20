@@ -181,7 +181,17 @@ namespace Avogadro {
   {
     Q_OBJECT
     Q_INTERFACES(Avogadro::PluginFactory)
+    // The repro test (libavogadro/tests/autooptreprotest.cpp) compiles both
+    // drawtool.cpp and autoopttool.cpp into one executable. Both factories
+    // declare Q_PLUGIN_METADATA, whose moc generates the Qt plugin-export
+    // symbols (qt_plugin_instance etc.); defining both in one TU set would
+    // collide. The test instantiates the factory directly (never via Qt's
+    // plugin loader), so its plugin metadata is unnecessary there. Skip it for
+    // that build only via the AVOGADRO_TEST_NOPLUGIN compile definition, which
+    // is set on the test target and is never defined for the plugin build.
+#ifndef AVOGADRO_TEST_NOPLUGIN
     Q_PLUGIN_METADATA(IID "net.sourceforge.avogadro.pluginfactory/1.5")
+#endif
     AVOGADRO_TOOL_FACTORY(DrawTool)
   };
 
