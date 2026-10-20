@@ -13,11 +13,24 @@
  * These cases reproduce the design.md section D repro matrix (steps 1, 2, 5,
  * 7 and the per-instance independence invariant) by driving the real tool
  * state machines.
+ *
+ * NOTE (concurrency-blindness): every existing case here drives the worker
+ * synchronously via `thread.update()` (or, for the tool lifecycle cases,
+ * `disable()` calls `m_thread->wait()` before the assertions run). That
+ * pattern (see the comment at autooptreprotest.cpp:271) stops the worker so
+ * no background update() races the assertions, which makes the suite
+ * structurally blind to the cross-thread force-field race fixed by
+ * fix-autoopt-concurrency. autoOptConcurrencyRaces() is the counterpoint: it
+ * runs a REAL started QThread and exercises update() concurrently with
+ * snapshot() reads, setPendingFixAtom() writes and molecule mutations.
  ***********************************************************************/
 
 #include <QtTest/QTest>
 #include <QtWidgets/QApplication>
 #include <QtGui/QSurfaceFormat>
+#include <QCoreApplication>
+#include <QMetaObject>
+#include <QDeadlineTimer>
 
 #include <avogadro/glwidget.h>
 #include <avogadro/molecule.h>
@@ -141,6 +154,13 @@ private slots:
 
   // Step 7: 20x start/stop keeps the HUD at 0 0 with no count growth.
   void startStop20xStable();
+
+  // Concurrency regression net for fix-autoopt-concurrency: a real started
+  // worker thread driven via queued update() while the test thread hammers
+  // snapshot(), setPendingFixAtom() and molecule mutations, then a quiesced
+  // disable()/enable() teardown. Asserts snapshot invariants and clean,
+  // deadlock-free teardown (spec: AutoOpt force-field access is thread-confined).
+  void autoOptConcurrencyRaces();
 };
 
 void AutoOptReproTest::initTestCase()
@@ -424,6 +444,146 @@ void AutoOptReproTest::startStop20xStable()
     tool.disable();
     QVERIFY(!tool.running());
   }
+
+  delete mol;
+}
+
+void AutoOptReproTest::autoOptConcurrencyRaces()
+{
+  // Drives a REAL started AutoOptThread (the worker) directly, so the
+  // finished() signal has no GUI handler and cannot mutate the molecule from
+  // the test thread. This isolates exactly what fix-autoopt-concurrency
+  // fixes: the worker's live force-field access, the published snapshot, the
+  // drag pending-marker path, the worker-side molecule read lock, and
+  // quiesced teardown. (The tool-level enable()/disable() lifecycle is
+  // covered by startStop20xStable and by the teardown below.)
+  Molecule *mol = makeCarbonChain();
+  QVERIFY(mol);
+
+  AutoOptThread thread;
+  thread.setup(mol, uff(), AutoOptConjugateGradients, 1);
+  thread.start();
+  QVERIFY(thread.isRunning());
+
+  // Let one tick run and publish a fresh snapshot (the worker publishes
+  // asynchronously, so poll rather than read a stale default). The fresh
+  // snapshot is valid and constraint-free.
+  // QDeadlineTimer guards the whole test against deadlock/hang: if the worker
+  // never publishes (e.g. a persistent Setup failure) or quiesced teardown
+  // hangs, this fires and the assertion fails instead of hanging the suite.
+  QDeadlineTimer deadline(20000);
+
+  QMetaObject::invokeMethod(&thread, "update", Qt::QueuedConnection);
+  while (!thread.snapshot().valid && !deadline.hasExpired())
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+  {
+    const AutoOptThread::ConstraintSnapshot snap = thread.snapshot();
+    QVERIFY(snap.valid);
+    QCOMPARE(snap.fixAtom, 0u);
+    QCOMPARE(snap.ignoreAtom, 0u);
+    QVERIFY(snap.ignored.CountBits() <= (unsigned int)mol->numAtoms());
+    QVERIFY(snap.fixed.CountBits() <= (unsigned int)mol->numAtoms());
+  }
+
+  const int iterations = 400;
+  for (int i = 0; i < iterations; ++i) {
+    // Queue a tick on the worker thread (the race surface).
+    QMetaObject::invokeMethod(&thread, "update", Qt::QueuedConnection);
+
+    // Hammer the snapshot read path (the GUI-thread paint path). No snapshot
+    // read may ever see torn data or crash while the worker rebuilds the FF.
+    for (int j = 0; j < 16; ++j) {
+      const AutoOptThread::ConstraintSnapshot snap = thread.snapshot();
+      // Invariant: published constraint bits never exceed the atom count at
+      // publish time; fix/ignore markers are 0 or a valid 1-based index.
+      QVERIFY(snap.ignored.CountBits() <= (unsigned int)mol->numAtoms());
+      QVERIFY(snap.fixed.CountBits() <= (unsigned int)mol->numAtoms());
+      if (snap.fixAtom != 0u)
+        QVERIFY(snap.fixAtom <= (unsigned int)mol->numAtoms());
+      if (snap.ignoreAtom != 0u)
+        QVERIFY(snap.ignoreAtom <= (unsigned int)mol->numAtoms());
+    }
+
+    // Interleave a drag fix-marker write (GUI -> worker pending value).
+    if (i % 4 == 0)
+      thread.setPendingFixAtom((unsigned)((i % mol->numAtoms()) + 1));
+    else
+      thread.setPendingFixAtom(0u);
+
+    // Mutate the topology under the write lock, mirroring DrawTool, so the
+    // worker's OBMol() copy + dummy rescan cannot race live molecule storage.
+    // Real carbons keep UFF Setup() succeeding (a dummy, atomicNumber 0, would
+    // make Setup fail and publish an invalid snapshot -- that path is covered
+    // by the synchronous cases). Bond each new atom so the molecule stays
+    // connected and topologically valid for the force field.
+    if (i % 30 == 0) {
+      if (mol->lock()->tryLockForWrite()) {
+        Atom *tmp = mol->addAtom();
+        tmp->setAtomicNumber(6); // carbon
+        tmp->setPos(Eigen::Vector3d(6.0, 0.0, 0.0));
+        mol->addBond(0, tmp->id(), 1);
+        mol->lock()->unlock();
+      }
+    }
+
+    QVERIFY(!deadline.hasExpired());
+  }
+
+  // Quiesced teardown: stop requesting ticks, then wait for the in-flight tick
+  // to finish (spec: teardown quiesces the worker before touching shared
+  // state). The m_stop early-out makes the drained ticks cheap, so wait()
+  // is bounded. A timeout here fails the test instead of hanging the suite.
+  thread.stop();
+  thread.quit();
+  // wait() returns false on timeout; terminate first so we never destroy a
+  // running QThread (Qt's qFatal would abort the whole binary and mask the
+  // remaining assertions).
+  bool quiesced = thread.wait(10000);
+  if (!quiesced) {
+    thread.terminate();
+    thread.wait();
+  }
+  QVERIFY(quiesced);
+  QVERIFY(!deadline.hasExpired());
+
+  // 20x teardown-mid-tick cycles (spec: tool switch / document close while
+  // running): start, immediately quiesce mid-tick, then restart. Each cycle
+  // must complete without deadlock or crash and re-Start cleanly. The m_stop
+  // early-out keeps each wait() bounded. This is the worker-level analogue of
+  // AutoOptTool::disable()/abort() quiesced shutdown under a running tick.
+  bool allCyclesOk = true;
+  for (int cycle = 0; cycle < 20 && !deadline.hasExpired(); ++cycle) {
+    thread.setup(mol, uff(), AutoOptConjugateGradients, 1);
+    thread.start();
+    QVERIFY(thread.isRunning());
+    QMetaObject::invokeMethod(&thread, "update", Qt::QueuedConnection);
+    // Let one tick publish a valid snapshot (proves the re-Start ran).
+    bool validSeen = false;
+    while (!deadline.hasExpired()) {
+      if (thread.snapshot().valid) {
+        validSeen = true;
+        break;
+      }
+      QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+    }
+    if (!validSeen) {
+      allCyclesOk = false;
+      break;
+    }
+    // Immediate quiesce mid-tick.
+    thread.stop();
+    thread.quit();
+    if (!thread.wait(10000)) {
+      allCyclesOk = false;
+      break;
+    }
+  }
+  QVERIFY(allCyclesOk);
+  QVERIFY(!deadline.hasExpired());
+
+  // Singleton hygiene: the drained ticks may have left a residual transient
+  // fix marker on the shared UFF instance used by other tests.
+  uff()->UnsetFixAtom();
 
   delete mol;
 }
