@@ -181,7 +181,7 @@ void AutoOptReproTest::initTestCase()
   // This is process-global and applied before any force field is set up, so
   // every test benefits.
   {
-#ifdef MSVC
+#ifdef _MSC_VER
     static const char kDataSubpath[] = "/../openbabel-install/bin/data";
 #else
     static const char kDataSubpath[] = "/../openbabel-install/share/openbabel";
