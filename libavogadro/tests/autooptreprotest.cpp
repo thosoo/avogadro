@@ -29,6 +29,7 @@
 #include <QtWidgets/QApplication>
 #include <QtGui/QSurfaceFormat>
 #include <QCoreApplication>
+#include <QDir>
 #include <QMetaObject>
 #include <QDeadlineTimer>
 
@@ -165,6 +166,21 @@ private slots:
 
 void AutoOptReproTest::initTestCase()
 {
+  // Locate the bundled OpenBabel data files (UFF.prm, ...). The OpenBabel
+  // ExternalProject installs them under <build>/openbabel-install/share/
+  // openbabel; OpenBabel appends the version subdir (3.1.1) and the file
+  // name when resolving a data file. The platform's compiled-in BABEL_DATADIR
+  // is not guaranteed to resolve on every CI runner (e.g. the Windows
+  // installer build), so override it explicitly via the BABEL_DATADIR
+  // environment variable (the name OpenBabel's OpenDatafile() consults).
+  // This is process-global and applied before any force field is set up, so
+  // every test benefits.
+  {
+    QString dataBase = QDir::cleanPath(QCoreApplication::applicationDirPath())
+        + QStringLiteral("/../openbabel-install/share/openbabel");
+    qputenv("BABEL_DATADIR", dataBase.toLocal8Bit().constData());
+  }
+
   // QApplication is created by QTEST_MAIN; the OpenBabel force-field plugin
   // registry is available without any extra initialization.
   QVERIFY(uff() != nullptr);
