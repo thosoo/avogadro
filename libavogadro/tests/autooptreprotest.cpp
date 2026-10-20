@@ -167,17 +167,24 @@ private slots:
 void AutoOptReproTest::initTestCase()
 {
   // Locate the bundled OpenBabel data files (UFF.prm, ...). The OpenBabel
-  // ExternalProject installs them under <build>/openbabel-install/share/
-  // openbabel; OpenBabel appends the version subdir (3.1.1) and the file
-  // name when resolving a data file. The platform's compiled-in BABEL_DATADIR
-  // is not guaranteed to resolve on every CI runner (e.g. the Windows
-  // installer build), so override it explicitly via the BABEL_DATADIR
-  // environment variable (the name OpenBabel's OpenDatafile() consults).
+  // ExternalProject installs them under <build>/openbabel-install, but the
+  // subdirectory differs by toolchain: non-MSVC puts them in
+  // share/openbabel/<version>/ (OpenBabel appends the version when it
+  // resolves a data file), while MSVC puts them directly in bin/data/.
+  // OpenBabel's compiled-in BABEL_DATADIR is not guaranteed to resolve on
+  // every CI runner (the Windows installer build is the known failure), so
+  // override it explicitly via the BABEL_DATADIR environment variable, the
+  // name OpenBabel's OpenDatafile() consults before the compiled-in path.
   // This is process-global and applied before any force field is set up, so
   // every test benefits.
   {
+#ifdef MSVC
+    static const char kDataSubpath[] = "/../openbabel-install/bin/data";
+#else
+    static const char kDataSubpath[] = "/../openbabel-install/share/openbabel";
+#endif
     QString dataBase = QDir::cleanPath(QCoreApplication::applicationDirPath())
-        + QStringLiteral("/../openbabel-install/share/openbabel");
+        + QString::fromUtf8(kDataSubpath);
     qputenv("BABEL_DATADIR", dataBase.toLocal8Bit().constData());
   }
 
