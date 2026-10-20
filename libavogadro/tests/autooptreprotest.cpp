@@ -33,6 +33,9 @@
 #include <QMetaObject>
 #include <QDeadlineTimer>
 
+#include <cstdlib>   // getenv, putenv
+#include <string>    // std::string
+
 #include <avogadro/glwidget.h>
 #include <avogadro/molecule.h>
 #include <avogadro/atom.h>
@@ -183,9 +186,26 @@ void AutoOptReproTest::initTestCase()
 #else
     static const char kDataSubpath[] = "/../openbabel-install/share/openbabel";
 #endif
-    QString dataBase = QDir::cleanPath(QCoreApplication::applicationDirPath())
-        + QString::fromUtf8(kDataSubpath);
-    qputenv("BABEL_DATADIR", dataBase.toLocal8Bit().constData());
+    QString dataBase = QDir::cleanPath(
+        QCoreApplication::applicationDirPath() + QString::fromUtf8(kDataSubpath));
+
+    // OpenBabel's OpenDatafile() resolves parameter files with the narrow
+    // C-runtime getenv("BABEL_DATADIR"). Qt's qputenv() writes the WIDE
+    // environment on Windows (via wputenv), which that narrow getenv() does
+    // not observe - leaving UFF.prm unfindable on the Windows CI runner. Drive
+    // the narrow environment directly with putenv() so getenv() actually sees
+    // the value. The buffer must persist (putenv stores a pointer), so keep it
+    // in a static and dup it once.
+    std::string kv = std::string("BABEL_DATADIR=") + dataBase.toLocal8Bit().toStdString();
+    static char *kvStorage = nullptr;
+    if (!kvStorage) {
+      kvStorage = strdup(kv.c_str());
+    }
+    putenv(kvStorage);
+
+    qWarning().noquote() << "AutoOptReproTest BABEL_DATADIR=" << dataBase
+                         << " getenv="
+                         << (getenv("BABEL_DATADIR") ? getenv("BABEL_DATADIR") : "(null)");
   }
 
   // QApplication is created by QTEST_MAIN; the OpenBabel force-field plugin
