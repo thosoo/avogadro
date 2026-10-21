@@ -48,6 +48,14 @@
 ## 3. Optional: builder queue coalescing
 
 - [x] 3.1 In `libavogadro/src/rendering/builderpool.cpp` `submit()`: under
+      SKIPPED (design-allowed): the optional queue coalescing was reverted
+      because erasing queued older-generation jobs in submit() breaks
+      builderpooltest.cpp — `concurrentJobs`, `generationEcho` and
+      `editsDuringBuilds` submit several older-generation jobs and assert all
+      of them report. The core fix (count persistence + drawLastReady MVP +
+      lock-fail present) does not depend on coalescing; the discarded-on-
+      arrival guard in builderResultReady() already bounds the queue's value.
+      BuilderPool::submit() left at its original append semantics.
       the mutex, before appending the new job, erase queued jobs with
       `job.generation < generation` and decrement `m_pending` for each
       dropped job. Keep the worker loop untouched. Verify: under a sustained
