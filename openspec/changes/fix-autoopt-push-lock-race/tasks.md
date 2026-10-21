@@ -69,23 +69,39 @@
 - [x] 3.5 `emptyMoleculeStartIdle`: Start on a 0-atom molecule, run the timer for ~10 s,
       assert no crash and zero `setupFailed` emissions (the per-tick timerEvent gates on
       `numAtoms() < 2`, so no Setup runs); then Stop.
-- [ ] 3.6 Run the full scenario matrix under AddressSanitizer on CI. Verify:
-      `ctest --test-dir build --output-on-failure -R autooptreprotest` green under ASan.
-      NOTE: not rebuilt under ASan this session (no ASan in CI config; fresh ASan build dir
-      is heavy under the -j8 RAM constraint). The scenario matrix is ASan-sensitive by
-      design (3.1 would surface a UAF as a hard error pre-fix) and passes deterministically
-      without ASan (15/15, stable across repeated runs).
+- [x] 3.6 Run the full scenario matrix under AddressSanitizer on CI. Verify:
+      `ctest --test-dir build --output-on-failure -R autooptreproTest` green under ASan.
+      DONE: added an `AVOGADRO_SANITIZER=address` CMake option (libavogadro build + the
+      bundled OpenBabel ExternalProject, since the freed atoms are OpenBabel-allocated
+      OBAtoms and their new/delete must be instrumented to catch the UAF) and a dedicated
+      `asan` job in `.github/workflows/ci.yml`. Build serially (`-j 1`) to avoid the
+      ExternalProject install/link race on OpenBabel's versioned soname and to keep ASan's
+      ~2x RAM within the runner's 7 GB; only the `autooptreproTest` target is built. The
+      test step sets `ASAN_OPTIONS=detect_odr_violation=0:detect_leaks=0:abort_on_error=1`
+      to quiet two pre-existing, fix-unrelated OpenBabel/Qt noises (plugin-global ODR
+      violations such as `_pDefault` in cdxmlformat.so; exit-time leaks) while keeping UAF/
+      overflow detection — the gate's actual purpose — enabled. Verified locally: fresh
+      serial ASan build + `ctest -R autooptreproTest` → 15/15 passed. (The test name is
+      `autooptreproTest`, capital T — `add_test(${test}Test ...)` — so the regex is case
+      sensitive.)
 
 ## 4. Extras (audit/hardening, same surface)
 
-- [ ] 4.1 Audit `AutoOptCommand` (partial `Molecule` copy — upstream FIXME — and the
+- [x] 4.1 Audit `AutoOptCommand` (partial `Molecule` copy — upstream FIXME — and the
       `*m_molecule = m_moleculeCopy` undo assignment): enumerate what the copy drops
       (charges, labels, cubes, conformers) and what dangles (selection set, engine caches);
       document findings and either fix within scope or file the follow-up change with the
       list. Verify: written audit + disposition (fix or follow-up change link).
-      DEFERRED to a follow-up change (out of scope for the push-lock race fix; the copy is a
-      documented upstream FIXME and its undo assignment races nothing now that the worker is
-      quiesced).
+      DONE: full audit written in design.md "AutoOptCommand partial-copy audit" —
+      `Molecule::operator=` (molecule.cpp:1738) carries `FIXME: Copy all the other stuff`;
+      it copies only atoms, bonds, residues, conformer geometry and unit cell. Dropped:
+      partial charges, aromaticity, cubes, meshes, Z-matrices, rings, energies, dipole
+      moment, and all OpenBabel extension data (vib/DOS/electronic-transition/Orca/
+      conformer data). On undo the depleted copy overwrites the live molecule, destroying
+      anything added after the command; selection set + engine caches are outside the copy
+      and not restored. DISPOSITION: DEFERRED to a follow-up change (out of scope for the
+      push-lock race fix; the copy is a documented upstream FIXME and its undo assignment
+      races nothing now that the worker is quiesced).
 - [x] 4.2 Stop re-resolving `m_forceField` from the GUI thread each tick
       (`timerEvent`'s `FindForceField` write outside `m_mutex`): resolve once at enable()
       (already done there) and drop the per-tick reassignment, or move it under the

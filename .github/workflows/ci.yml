@@ -72,3 +72,64 @@ jobs:
           # when the software rasteriser cannot provide it.
           export LIBGL_ALWAYS_SOFTWARE=1
           xvfb-run -a ctest --test-dir build --output-on-failure
+
+  # AddressSanitizer gate. The push-lock fix prevents a cross-thread
+  # heap-use-after-free (the AutoOpt worker dereferencing atoms freed by a
+  # GUI-side undo mutation). This job rebuilds the whole race surface under
+  # ASan - OpenBabel included, since the freed atoms are OpenBabel-allocated
+  # OBAtoms - and runs only the ASan-sensitive scenario matrix. A regression
+  # reintroduces the UAF, which ASan turns into a hard error here.
+  asan:
+    name: asan (autooptrepro)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Compute OpenBabel pin
+        id: obpin
+        run: echo "commit=$(git rev-parse HEAD:extern/openbabel)" >> "$GITHUB_OUTPUT"
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-qt6-apt-asan-${{ hashFiles('.github/apt-packages.txt') }}
+          restore-keys: ${{ runner.os }}-qt6-apt-
+      - name: Cache bundled thosoo OpenBabel (ASan build)
+        uses: actions/cache@v4
+        with:
+          path: build/openbabel-install
+          key: ${{ runner.os }}-gcc-thosoo-openbabel-${{ steps.obpin.outputs.commit }}-${{ env.OPENBABEL_CACHE_LAYOUT }}-asan
+          restore-keys: |
+            ${{ runner.os }}-gcc-thosoo-openbabel-${{ steps.obpin.outputs.commit }}-${{ env.OPENBABEL_CACHE_LAYOUT }}-asan-
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo xargs -a .github/apt-packages.txt apt-get install -y
+      - name: Configure (AddressSanitizer)
+        run: |
+          cmake -S . -B build 
+            -DCMAKE_BUILD_TYPE=Debug 
+            -DENABLE_TESTS=ON 
+            -DAVOGADRO_SANITIZER=address
+      - name: Build (autooptrepro target only)
+        # Serial (-j 1): two reasons. (1) OpenBabel is a versioned-soname shared
+        # library built through an ExternalProject; under parallelism its install
+        # step races the link and cannot find libopenbabel.so.7.0.0. (2) ASan's
+        # ~2x memory footprint must fit the 7 GB runner. Only the push-lock
+        # scenario matrix is in scope, so the whole project is not built.
+        run: cmake --build build --target autooptreprotest -j 1
+      - name: Test (ASan-sensitive matrix)
+        run: |
+          export LD_LIBRARY_PATH="$PWD/build/openbabel-install/lib:$LD_LIBRARY_PATH"
+          export PATH="$PWD/build/openbabel-install/bin:$PATH"
+          export QT_QPA_PLATFORM=offscreen
+          # OpenBabel is instrumented too (the freed atoms in the race are
+          # OpenBabel-allocated OBAtoms, so its new/delete must be seen by ASan).
+          # That surfaces two pre-existing, fix-unrelated noises which we quiet
+          # while keeping UAF/overflow detection (the gate's actual purpose) on:
+          #   detect_odr_violation=0  - OpenBabel plugin globals (e.g. _pDefault
+          #                             in cdxmlformat.so) trip ODR detection;
+          #   detect_leaks=0          - OpenBabel/Qt exit-time leaks.
+          export ASAN_OPTIONS="detect_odr_violation=0:detect_leaks=0:abort_on_error=1"
+          ctest --test-dir build --output-on-failure -R autooptreproTest
