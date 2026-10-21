@@ -132,4 +132,13 @@ jobs:
           #                             in cdxmlformat.so) trip ODR detection;
           #   detect_leaks=0          - OpenBabel/Qt exit-time leaks.
           export ASAN_OPTIONS="detect_odr_violation=0:detect_leaks=0:abort_on_error=1"
-          ctest --test-dir build --output-on-failure -R autooptreproTest
+          # Fail loudly if the regex matches nothing: a silent no-op run would
+          # otherwise report success while validating nothing.
+          ctest --test-dir build --output-on-failure -R autooptreproTest > /tmp/asan_ctest.log 2>&1
+          rc=$?
+          if grep -q "No tests were found" /tmp/asan_ctest.log; then
+            echo "ERROR: autooptreproTest matched no tests; gate is a no-op" >&2
+            cat /tmp/asan_ctest.log >&2
+            exit 2
+          fi
+          exit $rc
