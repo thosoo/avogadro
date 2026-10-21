@@ -965,7 +965,19 @@ GLWidget::GLWidget( Molecule *molecule,
       return;
     }
     if (!d->molecule->lock()->tryLockForRead()) {
-      qDebug() << "GLWidget::renderModern(): Could not get read lock on molecule.";
+      // Read lock unavailable (design D3 / fix-modern-tier-frame-presentation):
+      // present the retained frame instead of a cleared one. beginFrame() does
+      // not zero the draw counts, so endFrame() re-presents the last pushed
+      // geometry with the current camera transform. We bare-return after this;
+      // emittedRevision / storesValid / enginesDirty are left untouched because
+      // no result was adopted on this path. The backend may not be initialised
+      // yet on this path (initialisation happens below), so only present when
+      // there is a live backend to draw with.
+      if (d->backend && d->backend->beginFrame(camera(), deviceViewportRect(),
+                                               d->builder.quality())) {
+        d->backend->setModelViewProjection(currentModelViewProjection());
+        d->backend->endFrame();
+      }
       return;
     }
     // HiDPI fix (task 2.1 / design D3): release the molecule read lock on
@@ -1217,7 +1229,11 @@ GLWidget::GLWidget( Molecule *molecule,
   {
     Q_UNUSED(jobId);
     // Revision check (design A7): results for older revisions are discarded —
-    // the molecule changed while the worker was building.
+    // the molecule changed while the worker was building. This orders the
+    // out-of-order results from the 2-thread worker pool and must stay.
+    // (fix-modern-tier-frame-presentation) Retention makes this discard cost
+    // latency, not blanking: a superseded result is simply not uploaded, and
+    // the last adopted geometry keeps being presented in the meantime.
     if (!d->molecule || generation < d->molecule->revision()) {
       return;
     }
@@ -1235,11 +1251,19 @@ GLWidget::GLWidget( Molecule *molecule,
 
   void GLWidget::drawLastReady()
   {
-    // Present the last ready state (design D3): push the stores already held
-    // by the backend. Nothing is dirty after the adopting frame, so this is
-    // pure instanced draws — no emission, no uploads, no input stall.
+    // Present the last ready state (design D3 / fix-modern-tier-frame-presentation):
+    // re-present the geometry the backend already holds in its GPU-resident VBOs.
+    // beginFrame() no longer zeroes the draw counts, so an endFrame() with no
+    // push re-presents the previously pushed geometry instead of a cleared
+    // frame. The MVP is set from the live camera so the retained scene keeps
+    // tracking rotation while a rebuild is in flight; without it the picture
+    // would freeze at the last pose. No molecule lock is needed — this is GL
+    // state, not molecule data, and the same reads happen unconditionally in
+    // the adopt/sync paths. Nothing is dirty after the adopting frame, so this
+    // is pure instanced draws — no emission, no uploads, no input stall.
     if (d->backend->beginFrame(camera(), deviceViewportRect(),
                                d->builder.quality())) {
+      d->backend->setModelViewProjection(currentModelViewProjection());
       d->backend->endFrame();
       d->backendDrawCalls = d->backend->drawCallsThisFrame();
       d->backendFrames = d->backend->framesSubmitted();

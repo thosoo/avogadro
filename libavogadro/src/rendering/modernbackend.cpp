@@ -95,6 +95,14 @@ void ModernRendererBackend::initialize(int maxSpheres, int maxBonds) {
   // own instance buffer in the BondInstance layout.
   alloc(m_lineVBO, bondBytes);
 
+  // Count persistence (fix-modern-tier-frame-presentation): beginFrame() no
+  // longer zeroes the per-primitive draw counts, so they survive across frames.
+  // On a fresh or context-lost backend the VBOs are brand new and hold nothing,
+  // so zero the counts here — nothing may draw until the first adopt pushes.
+  m_sphereCount = 0;
+  m_bondCount = 0;
+  m_lineCount = 0;
+
   // Shared geometry VAOs + shaders for the instanced draw (task 2.4). Built on
   // this context; rebuilt on context loss via initializeGL -> initialize().
   buildGeometry();
@@ -144,11 +152,19 @@ bool ModernRendererBackend::beginFrame(const Camera * /*camera*/,
   m_lineVBO.uploader.beginFrame();
   m_uploadCalls = 0;
   m_maxChunkBytes = 0;
-  // Per-frame state reset. The MVP is supplied separately via
+  // Retention contract (fix-modern-tier-frame-presentation): the per-primitive
+  // draw counts are deliberately NOT reset here. They are owned by the last
+  // push — pushSpheres / pushBonds set count = store.size(), pushLines sets 0
+  // on an empty store — and the stale-instance watermark already lives at push
+  // time, so a smaller scene after a larger one never draws stale garbage.
+  // beginFrame() only resets per-frame upload bookkeeping and the draw-call
+  // counter, so an endFrame() with no intervening push re-presents the
+  // GPU-resident geometry the last push uploaded (the VBO contents are
+  // unchanged by begin/end without pushes). Zeroing the counts here would
+  // blank every in-flight frame, which is the flicker this change removes.
+  // (Counts are zeroed in initialize() for a fresh / context-lost backend,
+  // whose new VBOs hold nothing to draw.) The MVP is supplied separately via
   // setModelViewProjection(); without it drawInstances() is a no-op.
-  m_sphereCount = 0;
-  m_bondCount = 0;
-  m_lineCount = 0;
   m_drawCallsThisFrame = 0;
   return true;
 }

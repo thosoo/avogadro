@@ -109,6 +109,19 @@ void BuilderPool::submit(const SceneSnapshot &snapshot, const JobParams &params,
   job.generation = generation;
   {
     QMutexLocker locker(&m_mutex);
+    // Queue coalescing (fix-modern-tier-frame-presentation): drop any queued
+    // job older than this one before appending. Those stale jobs will be
+    // discarded on arrival (builderResultReady's generation < revision check),
+    // so tessellating them wastes worker time and snapshot memory. m_pending is
+    // decremented per dropped job so pendingCount() still reflects only jobs
+    // that can produce a useful result. The worker loop is left untouched.
+    for (int i = m_queue.size() - 1; i >= 0; --i) {
+      if (m_queue[i].generation < generation) {
+        m_queue.remove(i);
+        if (m_pending > 0)
+          --m_pending;
+      }
+    }
     m_queue.append(job);
     m_pending += 1;
     m_workAvailable.wakeOne();
