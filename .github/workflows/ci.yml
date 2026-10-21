@@ -108,9 +108,9 @@ jobs:
           sudo xargs -a .github/apt-packages.txt apt-get install -y
       - name: Configure (AddressSanitizer)
         run: |
-          cmake -S . -B build 
-            -DCMAKE_BUILD_TYPE=Debug 
-            -DENABLE_TESTS=ON 
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DENABLE_TESTS=ON \
             -DAVOGADRO_SANITIZER=address
       - name: Build (autooptrepro target only)
         # Serial (-j 1): two reasons. (1) OpenBabel is a versioned-soname shared
