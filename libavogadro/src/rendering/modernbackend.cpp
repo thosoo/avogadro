@@ -612,6 +612,7 @@ void ModernRendererBackend::buildGeometry()
       return;
     }
     m_sphereGeom.uMVPloc = m_sphereGeom.program.uniformLocation("uMVP");
+    m_sphereGeom.uMVloc = m_sphereGeom.program.uniformLocation("uModelView");
     m_sphereGeom.vao.bind();
     m_sphereGeom.geometryVBO.bind();
     m_gl.glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
@@ -675,6 +676,7 @@ void ModernRendererBackend::buildGeometry()
       return;
     }
     m_cylinderGeom.uMVPloc = m_cylinderGeom.program.uniformLocation("uMVP");
+    m_cylinderGeom.uMVloc = m_cylinderGeom.program.uniformLocation("uModelView");
     m_cylinderGeom.vao.bind();
     m_cylinderGeom.geometryVBO.bind();
     m_gl.glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE,
@@ -719,8 +721,10 @@ static void setLightingUniforms(QOpenGLShaderProgram *program) {
 
 void ModernRendererBackend::drawInstances()
 {
-  if (!m_glInitialized || !m_haveMvp)
-    return; // no matrix yet: a frame with a stale matrix must not draw
+  if (!m_glInitialized || !m_haveMvp || !m_haveModelView)
+    return; // missing a required matrix: a frame with a stale matrix must not
+            // draw. Both the composed MVP and the modelview are required — the
+            // lit sphere/cylinder shaders need both to shade correctly.
 
   // Drain any GL error left on the shared context by code outside the modern
   // tier's draw (e.g. shared context initialization). GL errors are sticky, so
@@ -747,6 +751,7 @@ void ModernRendererBackend::drawInstances()
       return;
     }
     m_sphereGeom.program.setUniformValue(m_sphereGeom.uMVPloc, m_mvp);
+    m_sphereGeom.program.setUniformValue(m_sphereGeom.uMVloc, m_modelView);
     setLightingUniforms(&m_sphereGeom.program);
     // Re-establish every binding explicitly rather than relying on VAO state
     // to persist across the buildGeometry/drawInstances scope split: bind the
@@ -788,6 +793,7 @@ void ModernRendererBackend::drawInstances()
       return;
     }
     m_cylinderGeom.program.setUniformValue(m_cylinderGeom.uMVPloc, m_mvp);
+    m_cylinderGeom.program.setUniformValue(m_cylinderGeom.uMVloc, m_modelView);
     setLightingUniforms(&m_cylinderGeom.program);
     m_cylinderGeom.vao.bind();
     m_cylinderGeom.geometryVBO.bind();

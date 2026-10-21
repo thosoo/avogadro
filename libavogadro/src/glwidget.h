@@ -717,6 +717,16 @@ namespace Avogadro {
                                                    const QMatrix4x4 &mvMat);
 
       /**
+       * The model-view matrix paintGL() left on the GL stack (used by
+       * renderModern() to feed the modern tier's uModelView uniform so the
+       * lit sphere/cylinder vertex shaders can transform surface normals from
+       * object space into view space). Reads GL_MODELVIEW_MATRIX directly and
+       * applies the same .transposed() convention as composeModelViewProjection
+       * (Qt's raw-array constructor reads GL's column-major array as row-major).
+       */
+      QMatrix4x4 currentModelView();
+
+      /**
        * Render a full crystal cell
        * Called by render() automatically
        *

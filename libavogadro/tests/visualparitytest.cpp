@@ -136,6 +136,17 @@ void setSharedView(QOpenGLFunctions &gl, QMatrix4x4 &mvpOut)
   mvpOut.translate(0.0f, 0.0f, -5.0f);
 }
 
+//! The modelview half of the shared view: a pure pull-back translation
+//! (z = -5), 3x3 identity. Feeding it to setModelView() satisfies the
+//! backend's "both matrices required" gate so the instanced modern tier draws
+//! while keeping the fragment lighting identical to the legacy tier.
+inline QMatrix4x4 mvpModelView()
+{
+  QMatrix4x4 mv;
+  mv.translate(0.0f, 0.0f, -5.0f);
+  return mv;
+}
+
 //! The widget's fixed-function two-light setup (global.h values).
 void setFixedFunctionLights(QOpenGLFunctions &gl)
 {
@@ -351,6 +362,7 @@ void VisualParityTest::opaqueParity()
 
   backend.beginFrame(nullptr, QRect(0, 0, kW, kH), 0);
   backend.setModelViewProjection(mvp);
+  backend.setModelView(mvpModelView());
   backend.pushSpheres(builder.spheres());
   backend.pushBonds(builder.bonds());
   backend.pushLines(builder.lines());
@@ -482,6 +494,7 @@ void VisualParityTest::transparencyClassParity()
   m_gl->glEnable(GL_DEPTH_TEST);
   backend.beginFrame(nullptr, QRect(0, 0, kW, kH), 0);
   backend.setModelViewProjection(mvp);
+  backend.setModelView(mvpModelView());
   backend.pushSpheres(builder.spheres());
   backend.pushBonds(builder.bonds());
   backend.pushLines(builder.lines());

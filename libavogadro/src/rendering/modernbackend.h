@@ -73,6 +73,7 @@ struct PrimitiveGeometry {
   QOpenGLBuffer indexVBO; // GL_ELEMENT_ARRAY_BUFFER; IndexBuffer type is fixed at
                           // construction, so buildGeometry move-assigns it
   GLuint uMVPloc = 0;  // "uMVP" uniform location for this program
+  GLuint uMVloc = 0;   // "uModelView" uniform location for this program
   QOpenGLShaderProgram program;
   int indexCount = 0; // triangles * 3 for the indexed draw
   bool valid = false;
@@ -142,6 +143,16 @@ public:
   //! draw path is a no-op so a frame with a stale matrix never draws garbage.
   void setModelViewProjection(const QMatrix4x4 &mvp) { m_mvp = mvp; m_haveMvp = true; }
 
+  //! Model-view matrix for the frame, set by the caller (GLWidget) from the
+  //! live GL GL_MODELVIEW stack alongside setModelViewProjection. The lit
+  //! sphere/cylinder vertex shaders transform their surface normals from
+  //! object space into view space with it, so fragment lighting is evaluated
+  //! in a single consistent space (view space) and the highlight stays fixed
+  //! relative to the viewer while the scene rotates (headlamp parity with the
+  //! fixed-function tiers). Stored as a shader uniform; without it the draw
+  //! path is a no-op.
+  void setModelView(const QMatrix4x4 &mv) { m_modelView = mv; m_haveModelView = true; }
+
   // RendererBackend interface.
   bool beginFrame(const Camera *camera, const QRect &viewport,
                   int quality) override;
@@ -205,6 +216,8 @@ private:
   PrimitiveGeometry m_cylinderGeom;
   QMatrix4x4 m_mvp;
   bool m_haveMvp = false;
+  QMatrix4x4 m_modelView;
+  bool m_haveModelView = false;
   unsigned int m_sphereCount = 0; // records drawn this frame (watermark)
   unsigned int m_bondCount = 0;
   unsigned int m_lineCount = 0;

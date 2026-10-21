@@ -118,6 +118,17 @@ QMatrix4x4 compatMvp()
   return mvp;
 }
 
+//! The modelview half of compatMvp(): a pure pull-back translation (z = -5),
+//! 3x3 identity. Feeding it to setModelView() satisfies the backend's "both
+//! matrices required" gate so the instanced modern tier draws in these tests.
+
+inline QMatrix4x4 compatModelView()
+{
+  QMatrix4x4 mv;
+  mv.translate(0.0f, 0.0f, -5.0f);
+  return mv;
+}
+
 int nonBackground(const QImage &img)
 {
   int n = 0;
@@ -187,6 +198,7 @@ QImage renderModern(Molecule &mol, CompatColor &colorMap,
   if (!backend.beginFrame(nullptr, QRect(0, 0, kW, kH), builder.quality()))
     return QImage();
   backend.setModelViewProjection(compatMvp());
+  backend.setModelView(compatModelView());
   backend.pushSpheres(builder.spheres());
   backend.pushBonds(builder.bonds());
   backend.pushLines(builder.lines());
@@ -404,6 +416,7 @@ void CompatibilityTest::testColourIdPickResolvesAtom()
   glDepthFunc(GL_LEQUAL);
   QVERIFY(backend.beginFrame(nullptr, QRect(0, 0, kW, kH), builder.quality()));
   backend.setModelViewProjection(compatMvp());
+  backend.setModelView(compatModelView());
   backend.pushSpheres(builder.spheres());
   backend.pushBonds(builder.bonds());
   backend.pushLines(builder.lines());
@@ -487,6 +500,7 @@ void CompatibilityTest::testRubberBandPickBeyondLegacyCapacity()
   glDepthFunc(GL_LEQUAL);
   QVERIFY(backend.beginFrame(nullptr, QRect(0, 0, kW, kH), builder.quality()));
   backend.setModelViewProjection(compatMvp());
+  backend.setModelView(compatModelView());
   backend.pushSpheres(builder.spheres());
   backend.pushBonds(builder.bonds());
   backend.pushLines(builder.lines());

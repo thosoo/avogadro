@@ -117,11 +117,16 @@ out vec3 vNormal;
 out vec4 vColor;
 
 uniform mat4 uMVP;
+uniform mat4 uModelView;
 
 void main() {
   // Scale the unit sphere by the per-instance radius and centre it.
   vec3 worldPos = aPos * aInstRadius + aInstPos;
-  vNormal = aNormal; // uniform scale => normal unchanged
+  // Transform the object-space normal into view space with the modelview
+  // rotation so lighting is evaluated in a single (view) space. The modelview
+  // carries rotation + translation + uniform zoom, so mat3() is a valid normal
+  // transform; the fragment stage renormalizes the (possibly scaled) result.
+  vNormal = mat3(uModelView) * aNormal;
   vColor = aInstColor;
   gl_Position = uMVP * vec4(worldPos, 1.0);
 }
@@ -166,6 +171,7 @@ out vec3 vNormal;
 out vec4 vColor;
 
 uniform mat4 uMVP;
+uniform mat4 uModelView;
 
 void main() {
   vec3 axis = normalize(aInstEnd - aInstStart);
@@ -176,13 +182,17 @@ void main() {
 
   float len = length(aInstEnd - aInstStart);
   // Local z maps onto the axis (centred), local x/y are the radial directions.
+  // (u/v basis and worldPos stay object space: aPos is object space.)
   vec3 worldPos =
     0.5 * (aInstStart + aInstEnd)
     + axis * (aPos.z * len)
     + (aPos.x * u + aPos.y * v) * aInstRadius;
 
-  // Cylinder normal is radial, so it maps to the same u/v combination.
-  vNormal = normalize(aPos.x * u + aPos.y * v);
+  // Cylinder normal is radial, so it maps to the same u/v combination in object
+  // space; rotate it into view space with the modelview so lighting is evaluated
+  // in a single (view) space. No pre-normalize needed: the fragment stage
+  // renormalizes, absorbing the uniform-scale magnitude of the modelview's 3x3.
+  vNormal = mat3(uModelView) * (aPos.x * u + aPos.y * v);
   vColor = aInstColor;
   gl_Position = uMVP * vec4(worldPos, 1.0);
 }

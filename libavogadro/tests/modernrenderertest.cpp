@@ -99,6 +99,17 @@ QMatrix4x4 viewProjection()
   return m;
 }
 
+//! The modelview half of viewProjection(): a pure pull-back translation
+//! (z = -5). Its 3x3 is identity, so mat3(uModelView) leaves the lit normals
+//! unchanged; feeding it to setModelView() satisfies the backend's "both
+//! matrices required" gate so the instanced modern tier draws in these tests.
+inline QMatrix4x4 viewProjectionModelView()
+{
+  QMatrix4x4 mv;
+  mv.translate(0.0f, 0.0f, -5.0f);
+  return mv;
+}
+
 //! Try to obtain a current GL 3.3+ context on an offscreen GLX/ES surface.
 //! Heap-allocates both objects (so they outlive the call) and returns them via
 //! the out-params; the caller owns and must delete them. Returns nullptr and
@@ -504,6 +515,10 @@ void ModernRenderTest::testSingleChunkRender()
   // Use viewProjection (camera outside the sphere) so the sphere renders as a
   // normal disc and colour can be read at its centre.
   program.setUniformValue(uMVP, mvp);
+  // The modelview half of mvp is a pure pull-back translation (3x3 identity),
+  // so uModelView is set to the identity matrix: mat3(uModelView) leaves the
+  // lit normals unchanged, isolating this test's geometry/lighting math.
+  program.setUniformValue(program.uniformLocation("uModelView"), QMatrix4x4());
   // The index buffer is bound to the VAO's ELEMENT_ARRAY_BUFFER target during
   // VAO setup above; draw the instanced sphere.
   drawElementsInstanced(ctx, GL_TRIANGLES, sphere.indexCount(),
@@ -552,6 +567,7 @@ void ModernRenderTest::testSingleChunkRender()
   setDivisor(ctx, 5, 1);
   setLightingUniforms(&bprogram);
   bprogram.setUniformValue(bMVP, mvp);
+  bprogram.setUniformValue(bprogram.uniformLocation("uModelView"), QMatrix4x4());
   // Draw the single white bond instance (origin -> (1,0,0)).
   drawElementsInstanced(ctx, GL_TRIANGLES, cylinder.indexCount(),
                         GL_UNSIGNED_SHORT, nullptr, 1);
@@ -696,6 +712,7 @@ void ModernRenderTest::testBSDYThroughModernBackend()
                       << vp[3] << "(expected 0 0 " << kWidth << " " << kHeight << ")";
   }
   backend.setModelViewProjection(viewProjection());
+  backend.setModelView(viewProjectionModelView());
   backend.pushSpheres(builder.spheres());
   backend.pushBonds(builder.bonds());
   backend.endFrame();
@@ -938,6 +955,7 @@ void ModernRenderTest::testContextLossRebuildsFromCpuChunks()
     gl.glDepthFunc(GL_LEQUAL);
     backend.beginFrame(nullptr, QRect(0, 0, kWidth, kHeight), 0);
     backend.setModelViewProjection(viewProjection());
+    backend.setModelView(viewProjectionModelView());
     backend.pushSpheres(store);
     backend.endFrame();
     gl.glFlush();
@@ -1153,6 +1171,7 @@ void ModernRenderTest::testBackendSingleSphere()
 
   backend.beginFrame(nullptr, QRect(0, 0, kWidth, kHeight), 0);
   backend.setModelViewProjection(viewProjection());
+  backend.setModelView(viewProjectionModelView());
   backend.pushSpheres(store);
   backend.endFrame();
   gl.glFlush();
@@ -1223,6 +1242,7 @@ void ModernRenderTest::testDrawCallsBounded()
   //    per primitive type, regardless of the atom count.
   backend.beginFrame(nullptr, QRect(0, 0, kWidth, kHeight), 0);
   backend.setModelViewProjection(viewProjection());
+  backend.setModelView(viewProjectionModelView());
   {
     SphereStore spheres;
     spheres.reserve(1 << 20);

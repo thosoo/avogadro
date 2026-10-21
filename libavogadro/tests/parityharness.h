@@ -159,6 +159,18 @@ inline QMatrix4x4 parityMvp()
   return mvp;
 }
 
+//! The modelview half of parityMvp(): a pure pull-back translation (z = -5),
+//! so its 3x3 is identity and mat3(uModelView) leaves the lit normals unchanged.
+//! Feeding this to ModernRendererBackend::setModelView() satisfies the backend's
+//! "both matrices required" gate so the instanced modern tier draws, while
+//! keeping the fragment lighting identical to the fixed-function legacy tier.
+inline QMatrix4x4 parityModelView()
+{
+  QMatrix4x4 mv;
+  mv.translate(0.0f, 0.0f, -5.0f);
+  return mv;
+}
+
 //! The matching modelview, built explicitly as a matrix (translation is the
 //! last column in Eigen's column-major layout). Engines frustum-cull against
 //! pd->camera()->modelview(), so the device camera must agree with the MVP
@@ -442,6 +454,7 @@ QImage renderModernFrame(Molecule &mol, HarnessColor *colorMap,
     return QImage();
   }
   backend.setModelViewProjection(parityMvp());
+  backend.setModelView(parityModelView());
   backend.pushSpheres(builder.spheres());
   backend.pushBonds(builder.bonds());
   backend.pushLines(builder.lines());

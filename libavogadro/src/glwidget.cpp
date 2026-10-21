@@ -976,6 +976,7 @@ GLWidget::GLWidget( Molecule *molecule,
       if (d->backend && d->backend->beginFrame(camera(), deviceViewportRect(),
                                                d->builder.quality())) {
         d->backend->setModelViewProjection(currentModelViewProjection());
+        d->backend->setModelView(currentModelView());
         d->backend->endFrame();
       }
       return;
@@ -1038,6 +1039,7 @@ GLWidget::GLWidget( Molecule *molecule,
         if (d->backend->beginFrame(camera(), deviceViewportRect(),
                                    d->builder.quality())) {
           d->backend->setModelViewProjection(mvp);
+          d->backend->setModelView(currentModelView());
           d->backend->pushSpheres(d->workerResult.spheres);
           d->backend->pushBonds(d->workerResult.bonds);
           d->backend->pushLines(d->workerResult.lines);
@@ -1075,6 +1077,7 @@ GLWidget::GLWidget( Molecule *molecule,
     if (d->backend->beginFrame(camera(), deviceViewportRect(),
                                d->builder.quality())) {
       d->backend->setModelViewProjection(currentModelViewProjection());
+      d->backend->setModelView(currentModelView());
       d->backend->pushSpheres(d->builder.spheres());
       d->backend->pushBonds(d->builder.bonds());
       d->backend->pushLines(d->builder.lines());
@@ -1093,6 +1096,17 @@ GLWidget::GLWidget( Molecule *molecule,
     glGetFloatv(GL_MODELVIEW_MATRIX, mvMat);
     glGetFloatv(GL_PROJECTION_MATRIX, projMat);
     return composeModelViewProjection(QMatrix4x4(projMat), QMatrix4x4(mvMat));
+  }
+
+  QMatrix4x4 GLWidget::currentModelView()
+  {
+    // The model-view matrix paintGL() left on the GL stack. The backend's lit
+    // vertex shaders evaluate mat3(uModelView) * normal, so this must be the
+    // live modelview. Same .transposed() convention as composeModelViewProjection:
+    // Qt's raw-array constructor reads GL's column-major array as row-major.
+    GLfloat mvMat[16];
+    glGetFloatv(GL_MODELVIEW_MATRIX, mvMat);
+    return QMatrix4x4(mvMat).transposed();
   }
 
   QMatrix4x4 GLWidget::composeModelViewProjection(const QMatrix4x4 &projMat,
@@ -1264,6 +1278,7 @@ GLWidget::GLWidget( Molecule *molecule,
     if (d->backend->beginFrame(camera(), deviceViewportRect(),
                                d->builder.quality())) {
       d->backend->setModelViewProjection(currentModelViewProjection());
+      d->backend->setModelView(currentModelView());
       d->backend->endFrame();
       d->backendDrawCalls = d->backend->drawCallsThisFrame();
       d->backendFrames = d->backend->framesSubmitted();
