@@ -70,6 +70,7 @@
 #include <avogadro/primitive.h>
 #include <avogadro/atom.h>
 #include <avogadro/bond.h>
+#include <avogadro/undostack.h>
 
 #include <avogadro/toolgroup.h>
 #include <avogadro/color.h>
@@ -428,7 +429,7 @@ protected:
 
     QString    fileName;
     QString    fileDialogPath;
-    QUndoStack *undoStack;
+    UndoStack  *undoStack;
 
     QVBoxLayout *toolsLayout;
 
@@ -546,7 +547,7 @@ protected:
     d->bottomFlat = new FlatTabWidget(this);
     d->centralLayout->addWidget(d->bottomFlat);
 
-    d->undoStack = new QUndoStack( this );
+    d->undoStack = new UndoStack( d->molecule, this );
 
     d->toolGroup = new ToolGroup( this );
     connect(&(d->pluginManager), SIGNAL(reloadPlugins()),
@@ -3372,6 +3373,11 @@ protected:
     d->undoStack->clear();
 
     d->molecule = molecule;
+
+    // Keep the molecule-aware undo stack guarding the active document's
+    // molecule: push() serializes command application against this molecule's
+    // write lock (fix-autoopt-push-lock-race).
+    d->undoStack->setMolecule(molecule);
 
     QString newFileName = molecule->fileName();
     setFileName(newFileName);

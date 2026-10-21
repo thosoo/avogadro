@@ -34,6 +34,7 @@
 
 #include <avogadro/color.h>
 #include <avogadro/glwidget.h>
+#include <avogadro/undostack.h>
 #include <avogadro/camera.h>
 
 #include <QtPlugin>
@@ -102,7 +103,7 @@ namespace Avogadro {
     // Before doing anything, save an undo state
     // Get the current GLWidget for the manipulation
     GLWidget *widget = GLWidget::current();
-    QUndoStack *stack = widget->undoStack();
+    UndoStack *stack = widget->undoStack();
     QUndoCommand* undo = new MoveAtomCommand(widget->molecule());
     if(stack && undo)
         stack->push(undo);

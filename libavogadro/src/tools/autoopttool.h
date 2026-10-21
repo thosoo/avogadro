@@ -62,7 +62,8 @@ namespace Avogadro {
       AutoOptThread(QObject *parent=0);  // m_molecule/m_forceField initialised in the .cpp
 
       void setup(Molecule *molecule, OpenBabel::OBForceField* forceField,
-                 int algorithm, /* int convergence, */ int steps);
+                 int algorithm, /* int convergence, */ int steps,
+                 bool newSession = true);
 
       void run();
 
@@ -83,6 +84,17 @@ namespace Avogadro {
       ConstraintSnapshot snapshot() const {
         QMutexLocker locker(&m_snapshotMutex);
         return m_snapshot;
+      }
+
+      // Force field the optimizer currently runs on, read under m_mutex. The
+      // GUI thread (finished()) uses this rather than its own cached copy so it
+      // always reads the instance the worker actually optimized with, even
+      // after a mid-run force-field switch (task 4.2). Pointer-copy hold time
+      // is bounded by the mutex lock (consistent with the thread-confined
+      // force-field requirement).
+      OpenBabel::OBForceField *forceField() const {
+        QMutexLocker locker(&m_mutex);
+        return m_forceField;
       }
 
     public Q_SLOTS:
