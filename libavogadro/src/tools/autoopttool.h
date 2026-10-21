@@ -32,6 +32,7 @@
 #include <openbabel/mol.h>
 #include <openbabel/forcefield.h>
 
+#include <climits>
 #include <QMutex>
 #include <QThread>
 #include <QAction>
@@ -58,16 +59,41 @@ namespace Avogadro {
     Q_OBJECT
 
     public:
-      AutoOptThread(QObject *parent=0);
+      AutoOptThread(QObject *parent=0);  // m_molecule/m_forceField initialised in the .cpp
 
       void setup(Molecule *molecule, OpenBabel::OBForceField* forceField,
                  int algorithm, /* int convergence, */ int steps);
 
       void run();
 
+      // Immutable snapshot of the force-field state the GUI thread needs to
+      // report (energy, fixed/ignored atoms, drag markers). The worker thread
+      // publishes a fresh copy at the end of every update() under
+      // m_snapshotMutex; the GUI thread reads only through snapshot().
+      struct ConstraintSnapshot {
+        OpenBabel::OBBitVec fixed, ignored;
+        unsigned int fixAtom = 0, ignoreAtom = 0;
+        double energyKJ = 0.0;   // already unit-converted
+        bool valid = false;
+      };
+
+      // Snapshot accessor: copy the current snapshot under the mutex. ALL
+      // snapshot reads MUST go through this; direct m_snapshot access outside
+      // the mutex is forbidden.
+      ConstraintSnapshot snapshot() const {
+        QMutexLocker locker(&m_snapshotMutex);
+        return m_snapshot;
+      }
+
     public Q_SLOTS:
       void update();
       void stop();
+      // Drag-path marker: the GUI thread records the atom it wants fixed while
+      // dragging; the worker applies it to the live force field on the next
+      // tick (worker is the only thread that touches the live FF). Stored under
+      // m_pendingFixMutex, independent of m_mutex, so a drag press/release does
+      // not block on the worker's per-tick optimization work.
+      void setPendingFixAtom(unsigned idx);
 
     Q_SIGNALS:
       void finished(bool calculated);
@@ -77,6 +103,9 @@ namespace Avogadro {
 
 
     private:
+      // Drag-path fix sentinel (no pending marker).
+      static constexpr unsigned int kNoPendingFix = UINT_MAX;
+
       Molecule *m_molecule;
       OpenBabel::OBForceField * m_forceField;
       bool m_velocities;
@@ -85,6 +114,13 @@ namespace Avogadro {
       int m_steps;
       bool m_stop;
       QMutex m_mutex;
+      // Guards m_snapshot (published by update(), read by snapshot()).
+      mutable QMutex m_snapshotMutex;
+      ConstraintSnapshot m_snapshot;
+      // Pending drag fix marker applied by the worker on the next tick.
+      unsigned int m_pendingFixAtom;
+      // Guards m_pendingFixAtom, decoupled from m_mutex (see setPendingFixAtom).
+      mutable QMutex m_pendingFixMutex;
   };
 
   /**

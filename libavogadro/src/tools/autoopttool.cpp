@@ -157,17 +157,19 @@ namespace Avogadro {
     if(m_clickedAtom != 0 && m_leftButtonPressed && m_running)
     {
       event->accept();
-      if (m_forceField->GetConstraints().IsIgnored(m_clickedAtom->index()+1) &&
-          !m_ignoredMovable->isChecked()) {
+      // Read the worker-published snapshot (GUI never calls into the live FF).
+      const AutoOptThread::ConstraintSnapshot snap = m_thread->snapshot();
+      const unsigned int idx = m_clickedAtom->index() + 1;
+      if (snap.ignored.BitIsSet(idx) && !m_ignoredMovable->isChecked()) {
         m_clickedAtom = 0;
       }
-      else if (m_forceField->GetConstraints().IsFixed(m_clickedAtom->index()+1) &&
-               !m_fixedMovable->isChecked()) {
+      else if (snap.fixed.BitIsSet(idx) && !m_fixedMovable->isChecked()) {
         m_clickedAtom = 0;
       }
 
+      // Route the drag fix marker through the worker (single FF caller).
       if (m_clickedAtom)
-        m_forceField->SetFixAtom(m_clickedAtom->index()+1);
+        m_thread->setPendingFixAtom(idx);
     }
 
     widget->update();
@@ -183,7 +185,8 @@ namespace Avogadro {
     m_rightButtonPressed = false;
 
     m_clickedAtom = 0;
-    m_forceField->UnsetFixAtom();
+    // Route the marker release through the worker (single FF caller).
+    m_thread->setPendingFixAtom(0);
 
     widget->update();
     return 0;
@@ -234,28 +237,30 @@ namespace Avogadro {
     QPoint labelPos(10, 10);
     QPoint debugPos(10, 50);
     glColor3f(1.0,1.0,1.0);
+    // Read the worker-published snapshot once per frame. The GUI thread never
+    // calls into the live force field while running; all reporting flows
+    // through this immutable snapshot (see design decision 1).
+    const AutoOptThread::ConstraintSnapshot snap = m_thread->snapshot();
     if (m_running) {
       if (m_setupFailed) {
         widget->painter()->drawText(labelPos,
                                     tr("AutoOpt: Could not setup force field...."));
       }
-      else {
-        double energy = m_forceField->Energy(false);
-        if (m_forceField->GetUnit().find("kcal") != string::npos)
-          energy *= KCAL_TO_KJ;
+      else if (snap.valid) {
+        // Energy is the last tick's value (unit-converted by the worker).
+        double energy = snap.energyKJ;
         widget->molecule()->setEnergy(energy);
         widget->painter()->drawText(labelPos,
             tr("AutoOpt: E = %1 %2 (dE = %3)").arg(energy).
             arg("kJ/mol").
             arg( fabs(m_lastEnergy - energy) ));
         // HUD: report the number of fixed and ignored atoms from the
-        // per-instance constraint state (the transient markers counted too).
-        OBFFConstraints &constraints = m_forceField->GetConstraints();
-        unsigned int fixed = constraints.GetFixedBitVec().CountBits();
-        unsigned int ignored = constraints.GetIgnoredBitVec().CountBits();
-        if (m_forceField->GetFixAtom())
+        // snapshot (the transient drag markers counted too).
+        unsigned int fixed = snap.fixed.CountBits();
+        unsigned int ignored = snap.ignored.CountBits();
+        if (snap.fixAtom)
           ++fixed;
-        if (m_forceField->GetIgnoreAtom())
+        if (snap.ignoreAtom)
           ++ignored;
         widget->painter()->drawText(debugPos,
             tr("Fixed: %1 Ignored: %2").arg(fixed).arg(ignored));
@@ -272,10 +277,9 @@ namespace Avogadro {
       Molecule *mol = m_glwidget->molecule();
       foreach(Atom *atom, mol->atoms()) {
         unsigned int idx = atom->index() + 1;
-        bool isFixed = m_forceField->GetConstraints().IsFixed(idx) ||
-                       m_forceField->GetFixAtom() == idx;
-        bool isIgnored = m_forceField->GetConstraints().IsIgnored(idx) ||
-                         m_forceField->GetIgnoreAtom() == idx;
+        // Test fixed/ignored via the snapshot, not the live force field.
+        bool isFixed = snap.fixed.BitIsSet(idx) || snap.fixAtom == idx;
+        bool isIgnored = snap.ignored.BitIsSet(idx) || snap.ignoreAtom == idx;
         if (!isFixed && !isIgnored)
           continue;
         if (m_clickedAtom != 0 && m_clickedAtom->index() == atom->index())
@@ -420,7 +424,8 @@ namespace Avogadro {
       m_forceField->UnsetFixAtom();
       m_forceField->UnsetIgnoreAtom();
 
-      connect(m_glwidget->molecule(), SIGNAL(destroyed()), this, SLOT(abort()));
+      connect(m_glwidget->molecule(), SIGNAL(destroyed()), this, SLOT(abort()),
+              Qt::UniqueConnection);
       m_thread->setup(m_glwidget->molecule(), m_forceField,
                       m_comboAlgorithm->currentIndex(),
                       m_stepsSpinBox->value());
@@ -438,12 +443,22 @@ namespace Avogadro {
 
   void AutoOptTool::abort()
   {
-    killTimer(m_timerId);
-    m_thread->quit();
+    // Quiesce the worker BEFORE touching shared force-field state: stop
+    // requesting ticks and wait for the in-flight tick to finish. Because
+    // molecule destroyed -> abort(), the worker is quiesced before the GUI
+    // clears constraint state below. (A molecule destroyed mid-tick is still
+    // handled by the worker-side molecule read lock + null-check in update();
+    // a pre-~Molecule quiesce would be a separate lifecycle fix.)
     m_running = false;
-    // Clear transient constraint markers so no stale fix/ignore survives a hard
-    // stop (e.g. molecule destroyed). Null-check: the force field may be reset
-    // before teardown.
+    killTimer(m_timerId);
+    m_timerId = 0;
+    m_thread->stop();
+    m_thread->quit();
+    if (m_thread->isRunning())
+      m_thread->wait();
+    // Clear transient constraint markers so no stale fix/ignore survives a
+    // hard stop (e.g. molecule destroyed). Null-check: the force field may be
+    // reset before teardown.
     if (m_forceField) {
       m_forceField->UnsetIgnoreAtom();
       m_forceField->GetConstraints().Clear();
@@ -453,13 +468,18 @@ namespace Avogadro {
   void AutoOptTool::disable()
   {
     if(m_running) {
-      if(m_timerId) {
-        killTimer(m_timerId);
-        m_timerId = 0;
-      }
-      m_thread->quit();
       m_running = false;
       m_setupFailed = false;
+      killTimer(m_timerId);
+      m_timerId = 0;
+      // Quiesce the worker before mutating shared force-field state (see
+      // design decision 2): stop requesting ticks and wait for the in-flight
+      // tick to finish, so teardown cannot race an in-flight update().
+      m_thread->stop();
+      m_thread->quit();
+      if (m_thread->isRunning())
+        m_thread->wait();
+
       m_buttonStartStop->setText(tr("Start"));
 
       m_glwidget->update(); // redraw AutoOpt label
@@ -503,6 +523,9 @@ namespace Avogadro {
       QList<Atom*> atoms = m_glwidget->molecule()->atoms();
 
       OBMol mol = m_glwidget->molecule()->OBMol();
+      // Documented safe: m_block + queued finished() delivery strictly
+      // serialize update() <-> finished(); the next update() cannot be queued
+      // until this finished() clears m_block. Do not restructure.
       m_forceField->GetCoordinates( mol );
       // forces
       if (mol.HasData(OBGenericDataType::ConformerData)) {
@@ -557,8 +580,13 @@ namespace Avogadro {
 
   AutoOptThread::AutoOptThread(QObject*)
   {
+    // Initialise the pointers so update()'s null-check is meaningful even for
+    // a queued update() before any setup() has run (undefined otherwise).
+    m_molecule = 0;
+    m_forceField = 0;
     m_stop = false;
     m_velocities = false;
+    m_pendingFixAtom = kNoPendingFix;
   }
 
   void AutoOptThread::setup(Molecule *molecule,
@@ -590,10 +618,42 @@ namespace Avogadro {
     if (!m_forceField)
       return;
 
+    // A stop request skips a whole queued tick's cycle. Combined with the
+    // quiesced teardown (disable/abort wait for the in-flight tick), this
+    // bounds GUI blocking to a single tick on shutdown.
+    if (m_stop)
+      return;
+
+    // Read the drag fix marker recorded by the GUI thread under its own mutex
+    // (before taking m_mutex) so a drag press/release never blocks on the
+    // worker's per-tick optimization work. The marker is applied below under
+    // m_mutex, where the live force field is mutated.
+    unsigned int pendingFix = kNoPendingFix;
+    {
+      QMutexLocker pl(&m_pendingFixMutex);
+      pendingFix = m_pendingFixAtom;
+      m_pendingFixAtom = kNoPendingFix;
+    }
+
     m_mutex.lock();
 
     m_forceField->SetLogFile(NULL);
     m_forceField->SetLogLevel(OBFF_LOGLVL_NONE);
+
+    // Guard against a dangling/empty molecule pointer. m_molecule can only
+    // dangle after Molecule::destroyed() -> abort(); quiesced teardown makes
+    // abort() wait for the in-flight tick, but the null-check keeps this
+    // worker-side read safe on its own (the ctor zero-initialises it).
+    if (!m_molecule) {
+      m_mutex.unlock();
+      return;
+    }
+
+    // Worker-side reads of the live molecule (OBMol() copy + dummy-atom
+    // rescan) hold the molecule read lock so they cannot race GUI-thread
+    // addAtom/removeAtom/setPos during draw strokes. The lock is released
+    // BEFORE Setup() so the optimizer works only on the private copy.
+    QReadLocker molLock(m_molecule->lock());
 
     OBMol mol = m_molecule->OBMol();
 
@@ -607,8 +667,27 @@ namespace Avogadro {
         m_forceField->GetConstraints().AddIgnore(atom->index() + 1);
     }
 
+    molLock.unlock();
+
+    // Apply the drag-path fix marker (worker is the only thread that mutates
+    // the live force field). The GUI read of the snapshot lags at most one
+    // tick, matching the drag's existing one-tick latency.
+    if (pendingFix != kNoPendingFix) {
+      if (pendingFix == 0)
+        m_forceField->UnsetFixAtom();
+      else
+        m_forceField->SetFixAtom(pendingFix);
+    }
+
     if (!m_forceField->Setup(mol)) {
       m_stop = true;
+      // Publish an invalid snapshot so the HUD degrades to hiding rather
+      // than showing stale numbers after a setup failure.
+      {
+        QMutexLocker locker(&m_snapshotMutex);
+        m_snapshot = ConstraintSnapshot();
+        m_snapshot.valid = false;
+      }
       emit setupFailed();
       emit finished(false);
       m_mutex.unlock();
@@ -646,6 +725,25 @@ namespace Avogadro {
         break;
     }
 
+    // Publish the constraint/energy snapshot for the GUI thread under the
+    // dedicated snapshot mutex. Hold time is microseconds (small struct copy),
+    // so 60 fps paints never wait on optimizer work. Must happen under
+    // m_mutex so the snapshot is consistent, before unlocking.
+    {
+      ConstraintSnapshot snap;
+      snap.fixed = m_forceField->GetConstraints().GetFixedBitVec();
+      snap.ignored = m_forceField->GetConstraints().GetIgnoredBitVec();
+      snap.fixAtom = m_forceField->GetFixAtom();
+      snap.ignoreAtom = m_forceField->GetIgnoreAtom();
+      double energy = m_forceField->Energy(false);
+      if (m_forceField->GetUnit().find("kcal") != std::string::npos)
+        energy *= KCAL_TO_KJ;
+      snap.energyKJ = energy;
+      snap.valid = true;
+      QMutexLocker locker(&m_snapshotMutex);
+      m_snapshot = snap;
+    }
+
     m_mutex.unlock();
 
     emit finished(m_stop ? false : true);
@@ -654,6 +752,14 @@ namespace Avogadro {
   void AutoOptThread::stop()
   {
     m_stop = true;
+  }
+
+  void AutoOptThread::setPendingFixAtom(unsigned idx)
+  {
+    // Store under the dedicated pending mutex, not m_mutex, so the GUI thread
+    // never blocks on the worker's per-tick optimization work.
+    QMutexLocker pl(&m_pendingFixMutex);
+    m_pendingFixAtom = idx;
   }
 
   AutoOptCommand::AutoOptCommand(Molecule *molecule, AutoOptTool *tool,
