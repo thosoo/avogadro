@@ -712,10 +712,17 @@ namespace Avogadro {
         }
         std::this_thread::yield();
       }
+      // Local RAII read-lock holder. The constructor takes ownership of the
+      // already-acquired lock WITHOUT re-acquiring (QReadLocker would deadlock:
+      // QReadWriteLock is not re-entrant on the same thread). A named
+      // constructor is used instead of aggregate init so this compiles on MSVC,
+      // which rejects aggregate-init of a class with a user-provided destructor
+      // (GCC/Clang tolerate it, but the Windows installer build is strict here).
       struct ReadLockGuard {
+        explicit ReadLockGuard(QReadWriteLock *l) : lock(l) {}
+        ~ReadLockGuard() { if (lock) lock->unlock(); }
         QReadWriteLock *lock;
-        ~ReadLockGuard() { lock->unlock(); }
-      } readLockGuard{m_molecule->lock()};
+      } readLockGuard(m_molecule->lock());
 
       mol = m_molecule->OBMol();
 
