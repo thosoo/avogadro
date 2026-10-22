@@ -125,7 +125,13 @@ namespace Avogadro {
       //double m_convergence;
       int m_steps;
       bool m_stop;
-      QMutex m_mutex;
+      // Guards the optimizer state below. mutable because forceField() reads
+      // this mutex from a const method; a non-mutable QMutex yields a const
+      // QMutex* in a const method, which MSVC rejects for QMutexLocker
+      // (error C2662: cannot convert 'this' from 'const QMutex'). The two other
+      // state-guarding mutexes here are mutable for the same reason. Locking
+      // semantics are unchanged.
+      mutable QMutex m_mutex;
       // Guards m_snapshot (published by update(), read by snapshot()).
       mutable QMutex m_snapshotMutex;
       ConstraintSnapshot m_snapshot;
