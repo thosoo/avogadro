@@ -521,6 +521,18 @@ QList<GLHit> ModernRendererBackend::pick(int x, int y, int w, int h) {
       continue;
     }
     pass.program->setUniformValue("uMVP", m_mvp);
+    // Legacy pick scene fattened click targets: bonds +0.05, atoms +0.03,
+    // matching the hardcoded pick slop in BSDYEngine::renderPick (bonds
+    // m_bondRadius+0.05, heavy atoms radius+0.03 at bsdyengine.cpp:416,426).
+    // NOTE: SEL_BOND_EXTRA_RADIUS/SEL_ATOM_EXTRA_RADIUS (0.07/0.18) are the
+    // selection-highlight extras and are unrelated to this pick slop. The
+    // modern pick inflates every sphere by +0.03 (legacy additionally shrinks
+    // hydrogens by -0.06), so hydrogen click targets are marginally larger on
+    // the modern tier -- a deliberate, spec-sanctioned "more forgiving" choice.
+    // Atoms are the sphere pass, bonds are the cylinder pass.
+    pass.program->setUniformValue("uPickRadiusSlop",
+                                  pass.type == static_cast<quint32>(Primitive::AtomType)
+                                    ? 0.03f : 0.05f);
     // Uploaded explicitly: the unsigned-integer uniforms must go through
     // glUniform1ui, and Qt's name-based overload does not guarantee that.
     m_gl.glUniform1ui(pass.program->uniformLocation("uPickType"),

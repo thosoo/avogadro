@@ -966,6 +966,11 @@ namespace Avogadro{
     Atom *atom = qobject_cast<Atom *>(sender());
     d->invalidGeomInfo = true;
     d->invalidGroupIndices = true;
+    // Symmetry with updateBond(): element alchemy mutates the atom without any
+    // signal, so bump the revision to reach the modern tier's revision-keyed
+    // render cache (gpu-rendering-pipeline delta: legacy-visible mutations must
+    // re-render within one frame).
+    d->revision++;
     emit atomUpdated(atom);
   }
 
@@ -979,6 +984,13 @@ namespace Avogadro{
 
   void Molecule::update()
   {
+    Q_D(Molecule);
+    // Documented "content changed" notifier: bump the revision before emitting
+    // so the modern tier's revision-keyed render cache rebuilds. This covers
+    // signal-less mutations routed through update() (bond order cycles,
+    // element recolors) without a per-call-site signal (gpu-rendering-pipeline
+    // delta). Extra rebuild submissions are deduplicated downstream.
+    d->revision++;
     emit updated();
   }
 

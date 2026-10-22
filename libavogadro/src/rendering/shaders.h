@@ -231,12 +231,17 @@ layout(location = 3) in float aInstRadius;
 
 uniform mat4 uMVP;
 uniform uint uPickBase;
+// Legacy pick scene fattened atom click targets by SEL_ATOM_EXTRA_RADIUS
+// (~+0.03) beyond the rendered radius; mirror that here so a click whose
+// nearest surface is an atom silhouette adjacent to a bond can still reach the
+// bond (pick-affordance parity, gpu-rendering-pipeline delta).
+uniform float uPickRadiusSlop;
 
 flat out uint vPickId;
 
 void main() {
   vPickId = uPickBase + uint(gl_InstanceID);
-  vec3 worldPos = aPos * aInstRadius + aInstPos;
+  vec3 worldPos = aPos * (aInstRadius + uPickRadiusSlop) + aInstPos;
   gl_Position = uMVP * vec4(worldPos, 1.0);
 }
 )";
@@ -250,6 +255,10 @@ layout(location = 4) in float aInstRadius;
 
 uniform mat4 uMVP;
 uniform uint uPickBase;
+// Legacy pick scene drew bonds at m_bondRadius + SEL_BOND_EXTRA_RADIUS (~+0.05)
+// across the full bond extent; mirror that here so bond click targets are at
+// least as forgiving as the legacy tier (pick-affordance parity).
+uniform float uPickRadiusSlop;
 
 flat out uint vPickId;
 
@@ -263,7 +272,7 @@ void main() {
   vec3 worldPos =
     0.5 * (aInstStart + aInstEnd)
     + axis * (aPos.z * len)
-    + (aPos.x * u + aPos.y * v) * aInstRadius;
+    + (aPos.x * u + aPos.y * v) * (aInstRadius + uPickRadiusSlop);
   gl_Position = uMVP * vec4(worldPos, 1.0);
 }
 )";

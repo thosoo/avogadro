@@ -144,6 +144,20 @@ private slots:
    * Tests conformer support.
    */ 
   void conformers();
+
+  /**
+   * Tests that Molecule::update() bumps the revision (mutation visibility:
+   * legacy-visible mutations must reach the modern render cache within a
+   * frame). See fix-modern-tier-bond-interaction task 2.1.
+   */
+  void revisionUpdate();
+
+  /**
+   * Tests that Molecule::updateAtom() bumps the revision (symmetry with
+   * updateBond()), so element alchemy re-renders immediately. See
+   * fix-modern-tier-bond-interaction task 2.2.
+   */
+  void revisionAtomUpdate();
 };
 
 void MoleculeTest::prepareMolecule()
@@ -389,5 +403,27 @@ void MoleculeTest::conformers()
 }
 
 QTEST_MAIN(MoleculeTest)
+
+
+void MoleculeTest::revisionUpdate()
+{
+  // A mutation routed through Molecule::update() must bump the revision so the
+  // modern tier's revision-keyed render cache rebuilds (mutation visibility).
+  unsigned int before = m_molecule->revision();
+  m_molecule->update();
+  QVERIFY(m_molecule->revision() > before);
+}
+
+void MoleculeTest::revisionAtomUpdate()
+{
+  // Molecule::updateAtom() (emitted when an atom changes, e.g. element
+  // alchemy) must bump the revision, symmetry with updateBond().
+  QVERIFY(m_molecule->numAtoms() >= 1);
+  Atom *a = m_molecule->atom(0);
+  QVERIFY(a != 0);
+  unsigned int before = m_molecule->revision();
+  a->setAtomicNumber(7); // nitrogen
+  QVERIFY(m_molecule->revision() > before);
+}
 
 #include "moleculetest.moc"

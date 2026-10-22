@@ -49,6 +49,7 @@ set(tests
   compatibility
   geometry
   modernrenderer
+  modernpick
   drawcommand
   glselectoverflow
   selectionset
@@ -140,6 +141,14 @@ foreach (test ${tests})
       ../src/rendering/geometry.cpp
       ../src/rendering/chunkeduploader.cpp
       ../src/rendering/compatbackend.cpp)
+  endif()
+  if (${test} STREQUAL "modernpick")
+    # Compile the real ball-and-stick engine so the pick-affordance test can
+    # render a molecule through the SceneBuilder emitter and drive the modern
+    # backend's pick() path. SceneBuilder and ModernRendererBackend are exported
+    # from avogadro; BSDYEngine is not, so its out-of-line methods must be
+    # compiled directly into the test (as for modernrenderer above).
+    list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)
   endif()
   if (${test} STREQUAL "meshstream" OR ${test} STREQUAL "visualparity")
     # meshstreamtest and visualparitytest instantiate the private GLPainter
