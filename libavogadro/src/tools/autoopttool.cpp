@@ -29,6 +29,7 @@
 #include <avogadro/bond.h>
 #include <avogadro/color.h>
 #include <avogadro/glwidget.h>
+#include <avogadro/undostack.h>
 #include <avogadro/camera.h>
 #include <avogadro/painter.h>
 #include <avogadro/toolgroup.h>
@@ -43,6 +44,7 @@
 #include <QtPlugin>
 #include <QLabel>
 #include <QVBoxLayout>
+#include <thread>
 
 using namespace std;
 using namespace OpenBabel;
@@ -432,7 +434,7 @@ namespace Avogadro {
       m_thread->start();
       m_running = true;
       m_buttonStartStop->setText(tr("Stop"));
-      QUndoStack *stack = m_glwidget->undoStack();
+      UndoStack *stack = m_glwidget->undoStack();
       AutoOptCommand *cmd = new AutoOptCommand(m_glwidget->molecule(),this,0);
       if(stack && cmd)
         stack->push(cmd);
@@ -501,18 +503,29 @@ namespace Avogadro {
     else
       m_block = true;
 
-    m_forceField =
+    // Resolve the selected force field into a local (task 4.2): the previous
+    // per-tick write to the shared m_forceField member ran outside the worker
+    // mutex. The worker reads its own force field under m_mutex, and finished()
+    // now reads it through AutoOptThread::forceField(), so dropping the member
+    // write removes the unsynchronized write without changing behavior. The
+    // field is still resolved every tick, so a mid-run combo change takes
+    // effect on the next tick.
+    OBForceField *ff =
         OBForceField::FindForceField(m_forceFieldList[m_comboFF->currentIndex()]);
 
     // Check that we can find our force field - if not return
-    if (!m_forceField) {
+    if (!ff) {
       emit setupFailed();
       return;
     }
 
-    m_thread->setup(m_glwidget->molecule(), m_forceField,
+    // newSession=false: this is a tick, not a fresh start, so setup() must not
+    // reset m_stop. A tick that previously failed Setup (m_stop=true) stays
+    // failed instead of being resurrected into a Setup livelock (task 2.2).
+    m_thread->setup(m_glwidget->molecule(), ff,
                     m_comboAlgorithm->currentIndex(),
-                    m_stepsSpinBox->value());
+                    m_stepsSpinBox->value(),
+                    /*newSession=*/false);
     QMetaObject::invokeMethod(m_thread, "update",
                               Qt::QueuedConnection);
   }
@@ -526,25 +539,32 @@ namespace Avogadro {
       // Documented safe: m_block + queued finished() delivery strictly
       // serialize update() <-> finished(); the next update() cannot be queued
       // until this finished() clears m_block. Do not restructure.
-      m_forceField->GetCoordinates( mol );
-      // forces
-      if (mol.HasData(OBGenericDataType::ConformerData)) {
-        OBConformerData *cd = (OBConformerData*) mol.GetData(OBGenericDataType::ConformerData);
-        const vector<vector<vector3> > &allForces = cd->GetForces();
-        if (allForces.size()) {
-          const vector<vector3> &forces = allForces[0];
-          if (forces.size() == mol.NumAtoms()) {
-            foreach(Atom* atom, atoms) {
-              atom->setForceVector(Eigen::Vector3d(forces[atom->index()].AsArray()));
+      // Read the force field through the worker (task 4.2): the instance the
+      // optimizer actually ran on, so a mid-run force-field switch cannot
+      // leave finished() reading coordinates from a stale field. Null-guarded:
+      // a quiesced teardown may have left the worker without a force field.
+      OBForceField *ff = m_thread->forceField();
+      if (ff) {
+        ff->GetCoordinates( mol );
+        // forces
+        if (mol.HasData(OBGenericDataType::ConformerData)) {
+          OBConformerData *cd = (OBConformerData*) mol.GetData(OBGenericDataType::ConformerData);
+          const vector<vector<vector3> > &allForces = cd->GetForces();
+          if (allForces.size()) {
+            const vector<vector3> &forces = allForces[0];
+            if (forces.size() == mol.NumAtoms()) {
+              foreach(Atom* atom, atoms) {
+                atom->setForceVector(Eigen::Vector3d(forces[atom->index()].AsArray()));
+              }
             }
           }
         }
-      }
-      // coordinates
-      double *coordPtr = mol.GetCoordinates();
-      foreach(Atom* atom, atoms) {
-        atom->setPos(Eigen::Vector3d(coordPtr));
-        coordPtr += 3;
+        // coordinates
+        double *coordPtr = mol.GetCoordinates();
+        foreach(Atom* atom, atoms) {
+          atom->setPos(Eigen::Vector3d(coordPtr));
+          coordPtr += 3;
+        }
       }
 
       if(m_clickedAtom && m_leftButtonPressed) {
@@ -591,15 +611,27 @@ namespace Avogadro {
 
   void AutoOptThread::setup(Molecule *molecule,
                             OpenBabel::OBForceField* forceField,
-                            int algorithm, int steps)
+                            int algorithm, int steps,
+                            bool newSession)
   {
     m_mutex.lock();
     m_molecule = molecule;
     m_forceField = forceField;
     m_algorithm = algorithm;
     m_steps = steps;
-    m_stop = false;
-    m_velocities = false;
+    // Resetting m_stop here is the "start a new session" semantics. A fresh
+    // enable()/toggle() passes newSession=true (the default) and clears the
+    // stop flag so the worker runs. The per-tick timerEvent path passes
+    // newSession=false so a tick can never silently resurrect a session a
+    // prior tick marked stopped (a Setup failure sets m_stop=true); without
+    // this gate a failed session livelocks, retrying Setup at tick rate
+    // forever (task 2.2). The 20x teardown/restart cycle in
+    // autoOptConcurrencyRaces relies on setup() clearing m_stop, so the
+    // default (true) keeps it green.
+    if (newSession) {
+      m_stop = false;
+      m_velocities = false;
+    }
     m_mutex.unlock();
     emit setupDone();
   }
@@ -653,21 +685,57 @@ namespace Avogadro {
     // rescan) hold the molecule read lock so they cannot race GUI-thread
     // addAtom/removeAtom/setPos during draw strokes. The lock is released
     // BEFORE Setup() so the optimizer works only on the private copy.
-    QReadLocker molLock(m_molecule->lock());
+    //
+    // Acquisition is bounded (task 1.3 / design D4): instead of an
+    // unbounded lockForRead, retry for a bounded number of spins and bail out
+    // immediately if the session was quiesced (m_stop) or the retry budget is
+    // exhausted. A GUI writer that now holds the write lock (the UndoStack
+    // push serializes command application under it) must never wedge the
+    // worker in a read-lock acquisition during quiesce, which would make
+    // disable()/abort()'s wait() hang. The retry runs while holding m_mutex
+    // (the worker's private mutex; nothing else contends on it), and m_stop
+    // is checked each spin so a quiesce takes effect without waiting for the
+    // writer to release.
+    OBMol mol;
+    {
+      int spins = 0;
+      while (!m_molecule->lock()->tryLockForRead()) {
+        if (m_stop) {
+          m_mutex.unlock();
+          return;
+        }
+        if (++spins > 4096) {
+          // Give up rather than spin forever; the next tick (or a fresh
+          // enable) retries.
+          m_mutex.unlock();
+          return;
+        }
+        std::this_thread::yield();
+      }
+      // Local RAII read-lock holder. The constructor takes ownership of the
+      // already-acquired lock WITHOUT re-acquiring (QReadLocker would deadlock:
+      // QReadWriteLock is not re-entrant on the same thread). A named
+      // constructor is used instead of aggregate init so this compiles on MSVC,
+      // which rejects aggregate-init of a class with a user-provided destructor
+      // (GCC/Clang tolerate it, but the Windows installer build is strict here).
+      struct ReadLockGuard {
+        explicit ReadLockGuard(QReadWriteLock *l) : lock(l) {}
+        ~ReadLockGuard() { if (lock) lock->unlock(); }
+        QReadWriteLock *lock;
+      } readLockGuard(m_molecule->lock());
 
-    OBMol mol = m_molecule->OBMol();
+      mol = m_molecule->OBMol();
 
-    // Reset transient ignore markers each tick (bounded state), then re-scan
-    // for excluded/halo dummy atoms (atomicNumber < 1). This self-heals the
-    // addAtom -> setAtomicNumber race within one tick instead of letting the
-    // "Num Constraints" counter grow without bound.
-    m_forceField->GetConstraints().Clear();
-    foreach(const Atom *atom, m_molecule->atoms()) {
-      if (atom->atomicNumber() < 1)
-        m_forceField->GetConstraints().AddIgnore(atom->index() + 1);
-    }
-
-    molLock.unlock();
+      // Reset transient ignore markers each tick (bounded state), then re-scan
+      // for excluded/halo dummy atoms (atomicNumber < 1). This self-heals the
+      // addAtom -> setAtomicNumber race within one tick instead of letting the
+      // "Num Constraints" counter grow without bound.
+      m_forceField->GetConstraints().Clear();
+      foreach(const Atom *atom, m_molecule->atoms()) {
+        if (atom->atomicNumber() < 1)
+          m_forceField->GetConstraints().AddIgnore(atom->index() + 1);
+      }
+    } // read lock released here, before Setup (matches prior behavior)
 
     // Apply the drag-path fix marker (worker is the only thread that mutates
     // the live force field). The GUI read of the snapshot lags at most one
