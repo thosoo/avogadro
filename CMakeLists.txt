@@ -297,6 +297,29 @@ pass_ob_arg(wxWidgets_LIB_DIR)
 pass_ob_arg(LIB_INSTALL_DIR)
 pass_ob_arg(ENABLE_OPENMP)
 pass_ob_arg(WITH_COORDGEN)
+
+# AddressSanitizer (and other sanitizers) support. When AVOGADRO_SANITIZER is
+# set, the flag is added to the top-level compile/link flags AND propagated to
+# the bundled OpenBabel ExternalProject (which is otherwise isolated) so the
+# whole push-lock UAF race surface is instrumented. Used by the Qt6 CI "asan"
+# job to pin the autoopt push-lock race fix.
+if(AVOGADRO_SANITIZER)
+  set(_avogadro_sanitizer_flags
+      "-fsanitize=${AVOGADRO_SANITIZER} -fno-omit-frame-pointer -fno-sanitize-recover=all -g")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${_avogadro_sanitizer_flags}")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${_avogadro_sanitizer_flags}")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=${AVOGADRO_SANITIZER}")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fsanitize=${AVOGADRO_SANITIZER}")
+  # Propagate to the bundled OpenBabel build so its new/delete are intercepted
+  # too (the freed atoms in the race are OpenBabel-allocated OBAtoms). Pass only
+  # the single-token -fsanitize= here: a multi-word CMAKE_CXX_FLAGS is split
+  # incorrectly when ExternalProject re-runs OpenBabel's configure via a -D
+  # cache variable, which breaks OpenBabel's compiler test.
+  set(OB_OVERRIDE_ARGS ${OB_OVERRIDE_ARGS}
+      -DCMAKE_CXX_FLAGS="-fsanitize=${AVOGADRO_SANITIZER}")
+  message(STATUS "Sanitizer enabled: ${AVOGADRO_SANITIZER}")
+endif()
+
 message(STATUS "Bundled OpenBabel submodule source dir: ${OPENBABEL3_SOURCE_DIR}")
 message(STATUS "Bundled OpenBabel install prefix: ${OPENBABEL_INSTALL_DIR}")
 message(STATUS "Bundled OpenBabel include dir: ${OPENBABEL3_INCLUDE_DIR}")

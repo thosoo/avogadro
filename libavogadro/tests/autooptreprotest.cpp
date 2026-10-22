@@ -43,6 +43,10 @@
 #include <avogadro/tool.h>
 #include <avogadro/toolgroup.h>
 #include <avogadro/navigate.h>
+#include <avogadro/undostack.h>
+
+#include <QtTest/QSignalSpy>
+#include <QUndoCommand>
 
 #include <openbabel/forcefield.h>
 
@@ -82,6 +86,55 @@ OpenBabel::OBForceField *mmff94()
   return OpenBabel::OBForceField::FindForceField("MMFF94");
 }
 
+// A minimal molecule-mutating command used to reproduce the push/worker read
+// race headlessly (a real DrawTool stroke needs GL picking, which segfaults on
+// the offscreen platform). redo()/undo() add or remove a terminal carbon, so a
+// push(add) / push(remove) (or push(add) / undo()) cycle reproduces the exact
+// addAtom/removeAtom churn a hydrogen-adjusting draw stroke causes on the push
+// path. The UndoStack takes ownership of every instance pushed into it.
+class AtomToggleCommand : public QUndoCommand
+{
+public:
+  AtomToggleCommand(Molecule *mol, bool addAtom)
+    : QUndoCommand(), mol(mol), m_add(addAtom), a(0)
+  {
+    setText(addAtom ? QStringLiteral("Add atom") : QStringLiteral("Remove atom"));
+  }
+
+  void redo() override
+  {
+    if (m_add) {
+      a = mol->addAtom();
+      a->setAtomicNumber(6); // carbon
+      a->setPos(Eigen::Vector3d(6.0, 0.0, 0.0));
+    } else {
+      // remove the terminal atom, keeping at least the base chain
+      unsigned int n = mol->numAtoms();
+      if (n > 2u)
+        a = mol->atom(n - 1);
+    }
+  }
+
+  void undo() override
+  {
+    if (m_add) {
+      // undo of add == remove the terminal atom
+      if (a && a->index() == mol->numAtoms() - 1)
+        mol->removeAtom(a);
+    } else {
+      // undo of remove == re-add a terminal carbon
+      a = mol->addAtom();
+      a->setAtomicNumber(6);
+      a->setPos(Eigen::Vector3d(6.0, 0.0, 0.0));
+    }
+  }
+
+private:
+  Molecule *mol;
+  bool m_add;
+  Atom *a;
+};
+
 // Exposes AutoOptTool's protected members for the lifecycle-hygiene checks.
 class AutoOptToolExposed : public AutoOptTool
 {
@@ -94,6 +147,9 @@ public:
   QComboBox *algCombo() const { return m_comboAlgorithm; }
   QSpinBox *stepsSpin() const { return m_stepsSpinBox; }
   QPushButton *startBtn() const { return m_buttonStartStop; }
+  // QObject::thread() returns QThread*; name this differently so the worker
+  // AutoOptThread* is reachable for spying on its setupFailed() signal.
+  AutoOptThread *autoThread() const { return m_thread; }
 };
 
 } // namespace
@@ -165,6 +221,30 @@ private slots:
   // disable()/enable() teardown. Asserts snapshot invariants and clean,
   // deadlock-free teardown (spec: AutoOpt force-field access is thread-confined).
   void autoOptConcurrencyRaces();
+
+  // fix-autoopt-push-lock-race task 2.2: a failed Setup must end the session
+  // deterministically, not livelock retrying at tick rate. MMFF94 typing an
+  // unsupported element (iron) makes Setup() fail; exactly one setup attempt
+  // must be observed across all ticks afterwards.
+  void setupFailureStaysFailed();
+
+  // task 3.1: hydrogen-adjusting churn (add/remove atom) pushed through the
+  // real UndoStack while the worker ticks. Pre-fix the push mutated the
+  // molecule with no lock, racing the worker's OBMol() read (ASan
+  // heap-use-after-free). Must pass deterministically post-fix.
+  void hydrogenChurnDuringRun();
+
+  // task 3.2: delete churn via push + undo() re-add during a run. Pins the
+  // push-override coverage for the undo-side re-add path.
+  void undoDeleteDuringRun();
+
+  // task 3.3 / 1.3: quiesce while the test thread holds the molecule write
+  // lock must return within a bounded timeout (no read-lock deadlock).
+  void quiesceWhileWriteHeldNoDeadlock();
+
+  // task 3.5: Start on a 0-atom molecule must not attempt a Setup (and must
+  // not crash); the worker never ticks.
+  void emptyMoleculeStartIdle();
 };
 
 void AutoOptReproTest::initTestCase()
@@ -627,6 +707,279 @@ void AutoOptReproTest::autoOptConcurrencyRaces()
   // Singleton hygiene: the drained ticks may have left a residual transient
   // fix marker on the shared UFF instance used by other tests.
   uff()->UnsetFixAtom();
+
+  delete mol;
+}
+
+void AutoOptReproTest::setupFailureStaysFailed()
+{
+  // Task 2.2: a failed Setup must end the session deterministically, not
+  // livelock retrying at tick rate. UFF parameterizes essentially everything,
+  // so we drive a genuine Setup failure with MMFF94 typing an unsupported
+  // element (iron, Z=26): MMFF94's typing step rejects it and Setup() returns
+  // false. We start a session on a 2-iron molecule with MMFF94 selected and
+  // count how many times Setup is attempted via the worker's setupFailed().
+  // Pre-fix, the per-tick setup() reset m_stop and the session retried Setup
+  // on every tick (N emissions). Post-fix, the first failure sets m_stop and
+  // the per-tick setup() (newSession=false) no longer resurrects it, so exactly
+  // one setupFailed is emitted.
+  Molecule *mol = new Molecule;
+  {
+    Atom *a = mol->addAtom();
+    a->setAtomicNumber(26); // iron
+    a->setPos(Eigen::Vector3d(0.0, 0.0, 0.0));
+    Atom *b = mol->addAtom();
+    b->setAtomicNumber(26);
+    b->setPos(Eigen::Vector3d(2.2, 0.0, 0.0));
+    mol->addBond(0, 1, 1);
+  }
+  QVERIFY(mol);
+
+  GLWidget widget(mol, QSurfaceFormat());
+  widget.resize(640, 480);
+
+  AutoOptToolExposed tool;
+  tool.settingsWidget();
+  QVERIFY(tool.ffCombo() != nullptr);
+  int idx = tool.ffCombo()->findText("MMFF94");
+  QVERIFY(idx >= 0);
+  tool.ffCombo()->setCurrentIndex(idx);
+  tool.setGlw(&widget);
+
+  // Count Setup failures: each failed Setup emits the worker's setupFailed().
+  QSignalSpy spy(tool.autoThread(), &AutoOptThread::setupFailed);
+  QVERIFY(spy.isValid());
+
+  // Start the session; the worker begins ticking on the real 50 ms timer.
+  tool.enable();
+  QVERIFY(tool.running());
+
+  // Bound the whole test against a hang (persistent failure / deadlock).
+  QDeadlineTimer deadline(10000);
+
+  // Wait for the first Setup failure to be observed.
+  QVERIFY(spy.wait(5000));
+  QCOMPARE(spy.count(), 1u);
+
+  // Let a number of further ticks fire (the real 50 ms timer). If the
+  // per-tick setup() still resurrected the session, each tick would attempt
+  // Setup again and spy.count() would keep growing. Post-fix it stays at 1.
+  // Interleave processEvents so the worker's queued update()/finished() drain
+  // between observations.
+  while (!deadline.hasExpired()) {
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+    QThread::msleep(5);
+    if (spy.count() > 1u)
+      break; // livelock: a second Setup attempt appeared
+  }
+  QCOMPARE(spy.count(), 1u);
+
+  // CPU-idle afterwards: no further failures for a quiet window.
+  int idleSpins = 0;
+  while (idleSpins++ < 1000 && !deadline.hasExpired()) {
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+    QThread::msleep(2);
+  }
+  QCOMPARE(spy.count(), 1u);
+
+  tool.disable();
+  QVERIFY(!tool.running());
+
+  // Singleton hygiene.
+  uff()->UnsetFixAtom();
+  uff()->UnsetIgnoreAtom();
+
+  delete mol;
+}
+
+void AutoOptReproTest::hydrogenChurnDuringRun()
+{
+  // Task 3.1: hydrogen-adjusting churn while the worker ticks. A real DrawTool
+  // press/move/release stroke needs GL picking, which segfaults on the
+  // offscreen platform (see glselectoverflowtest.cpp:262), so this drives the
+  // identical race surface at the mutation layer: 200 add/remove-atom cycles
+  // pushed through the real UndoStack (the fix's choke point, task 1.1) while
+  // the worker ticks. Pre-fix the push mutated the molecule with no lock,
+  // racing the worker's OBMol() read of m_atomList (ASan heap-use-after-free);
+  // post-fix the UndoStack::push write lock serializes the mutation against the
+  // worker read.
+  Molecule *mol = makeCarbonChain();
+  QVERIFY(mol);
+
+  AutoOptThread thread;
+  thread.setup(mol, uff(), AutoOptConjugateGradients, 1);
+  thread.start();
+  QVERIFY(thread.isRunning());
+
+  QDeadlineTimer deadline(30000);
+  // Let one tick publish a valid snapshot.
+  QMetaObject::invokeMethod(&thread, "update", Qt::QueuedConnection);
+  while (!thread.snapshot().valid && !deadline.hasExpired())
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+  QVERIFY(thread.snapshot().valid);
+
+  UndoStack stack(mol);
+  for (int i = 0; i < 200 && !deadline.hasExpired(); ++i) {
+    // add an atom (as a draw stroke would), then remove it -- net zero per cycle
+    stack.push(new AtomToggleCommand(mol, true));
+    stack.push(new AtomToggleCommand(mol, false));
+
+    // worker ticks concurrently
+    QMetaObject::invokeMethod(&thread, "update", Qt::QueuedConnection);
+
+    // molecule stays consistent (no torn read / dangling atom)
+    QVERIFY(mol->numAtoms() >= 2u);
+    QVERIFY(mol->numBonds() <= (unsigned)(mol->numAtoms() * (mol->numAtoms() - 1) / 2));
+    const auto snap = thread.snapshot();
+    QVERIFY(snap.fixed.CountBits() <= (unsigned int)mol->numAtoms());
+    QVERIFY(snap.ignored.CountBits() <= (unsigned int)mol->numAtoms());
+    QVERIFY(!deadline.hasExpired());
+  }
+
+  stack.clear();
+  thread.stop();
+  thread.quit();
+  bool quiesced = thread.wait(10000);
+  if (!quiesced) {
+    thread.terminate();
+    thread.wait();
+  }
+  QVERIFY(quiesced);
+  delete mol;
+}
+
+void AutoOptReproTest::undoDeleteDuringRun()
+{
+  // Task 3.2: delete churn via push + undo() re-add during a run. The delete
+  // commands are applied through UndoStack::push (write lock, task 1.1); undo()
+  // re-adds them. undo() is intentionally NOT wrapped in the write lock
+  // (design D3, deferred) -- this test pins that the push/undo cycle during a
+  // run does not crash and keeps the molecule consistent.
+  Molecule *mol = makeCarbonChain();
+  QVERIFY(mol);
+
+  AutoOptThread thread;
+  thread.setup(mol, uff(), AutoOptConjugateGradients, 1);
+  thread.start();
+  QVERIFY(thread.isRunning());
+
+  QDeadlineTimer deadline(20000);
+  QMetaObject::invokeMethod(&thread, "update", Qt::QueuedConnection);
+  while (!thread.snapshot().valid && !deadline.hasExpired())
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+  QVERIFY(thread.snapshot().valid);
+
+  UndoStack stack(mol);
+  for (int i = 0; i < 100 && !deadline.hasExpired(); ++i) {
+    // delete churn: push a delete (redo removes the terminal atom)
+    stack.push(new AtomToggleCommand(mol, false));
+    QMetaObject::invokeMethod(&thread, "update", Qt::QueuedConnection);
+    // re-add via undo (undo() re-adds a terminal carbon)
+    stack.undo();
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+
+    QVERIFY(mol->numAtoms() >= 2u);
+    QVERIFY(!deadline.hasExpired());
+  }
+
+  stack.clear();
+  thread.stop();
+  thread.quit();
+  bool quiesced = thread.wait(10000);
+  if (!quiesced) {
+    thread.terminate();
+    thread.wait();
+  }
+  QVERIFY(quiesced);
+  delete mol;
+}
+
+void AutoOptReproTest::quiesceWhileWriteHeldNoDeadlock()
+{
+  // Task 3.3 / 1.3: quiesce while the GUI holds the molecule write lock must
+  // return within a bounded timeout. The worker's read acquisition is a bounded
+  // tryLockForRead retry that returns immediately when m_stop is set (design
+  // D4). Pre-fix, the worker's unbounded lockForRead would block on the held
+  // write lock forever and wait() would hang.
+  Molecule *mol = makeCarbonChain();
+  QVERIFY(mol);
+
+  AutoOptThread thread;
+  thread.setup(mol, uff(), AutoOptConjugateGradients, 1);
+  thread.start();
+  QVERIFY(thread.isRunning());
+
+  // Let one tick publish a valid snapshot (proves the worker ran).
+  QDeadlineTimer deadline(20000);
+  QMetaObject::invokeMethod(&thread, "update", Qt::QueuedConnection);
+  while (!thread.snapshot().valid && !deadline.hasExpired())
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+  QVERIFY(thread.snapshot().valid);
+
+  // Hold the write lock, then quiesce the worker. Any queued update() the
+  // worker runs must bail (m_stop) rather than block on the held write lock.
+  //
+  // Scoped in its own block so the QWriteLocker releases the molecule write
+  // lock BEFORE mol is deleted: destroying the QReadWriteLock against freed
+  // molecule storage would be a use-after-free (the write lock is still held
+  // until this locker is destroyed).
+  {
+    QWriteLocker wl(mol->lock());
+    QMetaObject::invokeMethod(&thread, "update", Qt::QueuedConnection);
+    // Give the worker a moment to reach the read-lock acquisition while we hold
+    // the write lock, then quiesce.
+    for (int i = 0; i < 200 && !deadline.hasExpired(); ++i)
+      QCoreApplication::processEvents(QEventLoop::AllEvents, 2);
+
+    thread.stop();
+    thread.quit();
+    bool quiesced = thread.wait(10000);
+    if (!quiesced) {
+      thread.terminate();
+      thread.wait();
+    }
+    QVERIFY(quiesced);
+  }
+  QVERIFY(!deadline.hasExpired());
+
+  delete mol;
+}
+
+void AutoOptReproTest::emptyMoleculeStartIdle()
+{
+  // Task 3.5: Start on a 0-atom molecule must not attempt a Setup (and must not
+  // crash). The per-tick timerEvent gates on numAtoms() < 2, so the worker is
+  // never asked to tick; no Setup runs and no setupFailed is emitted.
+  Molecule *mol = new Molecule; // 0 atoms
+  QVERIFY(mol);
+
+  GLWidget widget(mol, QSurfaceFormat());
+  widget.resize(640, 480);
+
+  AutoOptToolExposed tool;
+  tool.settingsWidget();
+  QVERIFY(tool.ffCombo() != nullptr);
+  tool.setGlw(&widget);
+
+  // Count Setup failures across the whole idle window.
+  QSignalSpy spy(tool.autoThread(), &AutoOptThread::setupFailed);
+  QVERIFY(spy.isValid());
+
+  tool.enable();
+  QVERIFY(tool.running());
+
+  // Pump for ~10 s (the real 50 ms timer fires ~200 times). Each tick returns
+  // early on numAtoms() < 2; no Setup attempt is made.
+  QDeadlineTimer deadline(15000);
+  int spins = 0;
+  while (spins++ < 3000 && !deadline.hasExpired()) {
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+    QThread::msleep(2);
+  }
+  QCOMPARE(spy.count(), 0u);
+
+  tool.disable();
+  QVERIFY(!tool.running());
 
   delete mol;
 }

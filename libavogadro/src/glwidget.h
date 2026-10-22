@@ -61,6 +61,8 @@ class ModernRenderTest;
 
 namespace Avogadro {
 
+  class UndoStack;
+
   namespace rendering {
     struct TessellationResult;
     class BuilderPool;
@@ -222,7 +224,7 @@ namespace Avogadro {
       /**
        * @return the current GLWidget undoStack.
        */
-      QUndoStack* undoStack() const;
+      UndoStack* undoStack() const;
 
       /**
        * @return the current Molecule being viewed.

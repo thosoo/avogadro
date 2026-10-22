@@ -62,7 +62,8 @@ namespace Avogadro {
       AutoOptThread(QObject *parent=0);  // m_molecule/m_forceField initialised in the .cpp
 
       void setup(Molecule *molecule, OpenBabel::OBForceField* forceField,
-                 int algorithm, /* int convergence, */ int steps);
+                 int algorithm, /* int convergence, */ int steps,
+                 bool newSession = true);
 
       void run();
 
@@ -83,6 +84,17 @@ namespace Avogadro {
       ConstraintSnapshot snapshot() const {
         QMutexLocker locker(&m_snapshotMutex);
         return m_snapshot;
+      }
+
+      // Force field the optimizer currently runs on, read under m_mutex. The
+      // GUI thread (finished()) uses this rather than its own cached copy so it
+      // always reads the instance the worker actually optimized with, even
+      // after a mid-run force-field switch (task 4.2). Pointer-copy hold time
+      // is bounded by the mutex lock (consistent with the thread-confined
+      // force-field requirement).
+      OpenBabel::OBForceField *forceField() const {
+        QMutexLocker locker(&m_mutex);
+        return m_forceField;
       }
 
     public Q_SLOTS:
@@ -113,7 +125,13 @@ namespace Avogadro {
       //double m_convergence;
       int m_steps;
       bool m_stop;
-      QMutex m_mutex;
+      // Guards the optimizer state below. mutable because forceField() reads
+      // this mutex from a const method; a non-mutable QMutex yields a const
+      // QMutex* in a const method, which MSVC rejects for QMutexLocker
+      // (error C2662: cannot convert 'this' from 'const QMutex'). The two other
+      // state-guarding mutexes here are mutable for the same reason. Locking
+      // semantics are unchanged.
+      mutable QMutex m_mutex;
       // Guards m_snapshot (published by update(), read by snapshot()).
       mutable QMutex m_snapshotMutex;
       ConstraintSnapshot m_snapshot;

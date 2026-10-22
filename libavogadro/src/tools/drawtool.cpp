@@ -263,7 +263,7 @@ namespace Avogadro {
       else { // a genuine click in new space == create a new atom
         m_beginAtom = addAtom(widget, event->position().toPoint());
         m_beginAtomAdded = true;
-        m_forceField->SetIgnoreAtom(m_beginAtom->index());
+        m_forceField->SetIgnoreAtom(m_beginAtom->index() + 1);
       } // hits
       molecule->lock()->unlock();
     } // left button
@@ -363,7 +363,7 @@ namespace Avogadro {
         // we hit an existing atom != m_endAtom
         if(existingAtom) {
           m_forceField->UnsetIgnoreAtom();
-          m_forceField->SetFixAtom(existingAtom->index());
+          m_forceField->SetFixAtom(existingAtom->index() + 1);
           Bond *existingBond = molecule->bond(m_beginAtom, existingAtom);
           if(!existingBond) {
             if(m_prevBond) {
@@ -421,7 +421,7 @@ namespace Avogadro {
           }
           m_endAtom = addAtom(widget, event->position().toPoint());
           m_endAtomAdded = true;
-          m_forceField->SetIgnoreAtom(m_endAtom->index());
+          m_forceField->SetIgnoreAtom(m_endAtom->index() + 1);
 
           if(!m_bond)
             m_bond = addBond(molecule, m_beginAtom, m_endAtom);

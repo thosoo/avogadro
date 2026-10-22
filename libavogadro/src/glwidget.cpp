@@ -31,6 +31,7 @@
 
 #include "camera.h"
 #include "glwidget.h"
+#include "undostack.h"
 #include "glpainter_p.h"
 #include "glhit.h"
 
@@ -279,7 +280,7 @@ void GLWidget::updateViewport()
     // materializes a PrimitiveList (rare calls) so consumers are untouched.
     QSet<Primitive *>      selectedPrimitives;
 
-    QUndoStack            *undoStack;
+    UndoStack             *undoStack;
 
 #ifdef ENABLE_THREADED_GL
     QWaitCondition         paintCondition;
@@ -2878,10 +2879,12 @@ namespace Avogadro {
 
   void GLWidget::setUndoStack( QUndoStack *undoStack )
   {
-    d->undoStack = undoStack;
+    // The only caller (MainWindow) constructs an UndoStack; store it as such so
+    // the 7 push sites below resolve to the locked UndoStack::push().
+    d->undoStack = static_cast<UndoStack*>(undoStack);
   }
 
-  QUndoStack *GLWidget::undoStack() const
+  UndoStack *GLWidget::undoStack() const
   {
     return d->undoStack;
   }

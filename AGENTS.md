@@ -46,3 +46,45 @@ Running the above commands should produce the same results as the CI builds.
 > (e.g. remove any existing `build/` and run `cmake -S . -B build`). Old build
 > directories retain stale ExternalProject download state and can confuse the
 > first configure.
+
+## CI and cross-platform portability
+
+Two independent workflows run on every push and every pull request, and a PR
+**cannot be merged while either is red**:
+
+- **`Qt6 CI`** (`.github/workflows/ci.yml`) — builds and tests on **Linux**
+  (GCC/Clang), including an AddressSanitizer leg.
+- **`Windows Installer`** (`.github/workflows/windows-installer.yml`) — builds
+  on **Windows/MSVC** (`msvc2019_64`, NMake) from scratch (zlib, Eigen, libxml2,
+  Qt, GLEW, Boost), packages an `.exe` installer, and runs the full test suite
+  under `QT_QPA_PLATFORM=offscreen`.
+
+**Linux CI passing does NOT prove the change builds on Windows.** The two
+compilers enforce different rules, and a patch that is green on the Linux leg
+can still fail the Windows installer build. When you touch shared C++, Qt, or
+CMake, treat MSVC compatibility as a first-class requirement, not an afterthought.
+
+The pitfalls Linux CI does not catch (each has bitten this repo):
+
+- **Const-correctness of mutexes.** A mutex locked from a `const` method must be
+  declared `mutable` (`mutable QMutex m_mutex;`). A non-`mutable` `QMutex` becomes
+  `const QMutex*` inside a `const` method, and MSVC rejects
+  `QMutexLocker<const QMutex>` (error C2662) while GCC/Clang tolerate it. The
+  state-guarding mutexes in `autoopttool.h` are all `mutable` on purpose.
+- **Aggregate initialization of classes with user-provided special members.**
+  GCC/Clang accept e.g. `struct X { int a; ~X(); } x{ptr};`; MSVC rejects it.
+  Give the type an explicit constructor and use `X(ptr)` instead.
+- **`thread_local`, `std::thread`, and other C++11 threading primitives** are
+  fine on MSVC 2019+, but verify any new standard feature compiles under
+  `-std:c++17 -permissive-` (the flag set the Windows build uses).
+
+If a change adds or modifies code compiled by the Windows installer job and you
+cannot run MSVC locally, trigger the job to verify it before opening a PR:
+
+```
+gh workflow run 168745168 --ref <branch> --repo thosoo/avogadro
+```
+
+Then watch run #1052-style for both `build-installer` jobs to complete and the
+`autooptreproTest` (and the rest of the ctest suite) to pass on Windows. A red
+Windows leg means the fix is not MSVC-safe and must be corrected.

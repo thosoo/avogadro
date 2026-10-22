@@ -66,6 +66,7 @@ set(libavogadro_HDRS
   textmatrixeditor.h
   toolgroup.h
   tool.h
+  undostack.h
   undosequence.h
   zmatrix.h
 )
@@ -117,6 +118,7 @@ set(libavogadro_SRCS
   textmatrixeditor.cpp
   tool.cpp
   toolgroup.cpp
+  undostack.cpp
   undosequence.cpp
   zmatrix.cpp
 
@@ -164,6 +166,7 @@ set(libavogadro_MOC_HDRS
   textmatrixeditor.h
   tool.h
   toolgroup.h
+  undostack.h
   zmatrix.h
 )
 

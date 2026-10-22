@@ -48,6 +48,7 @@
 #include <avogadro/atom.h>
 #include <avogadro/camera.h>
 #include <avogadro/glwidget.h>
+#include <avogadro/undostack.h>
 #include <avogadro/obeigenconv.h>
 #include <avogadro/neighborlist.h>
 #include <avogadro/bond.h>
