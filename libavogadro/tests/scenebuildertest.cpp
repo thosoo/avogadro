@@ -45,6 +45,7 @@ using Avogadro::Camera;
 using Avogadro::BSDYEngine;
 using Avogadro::rendering::SceneBuilder;
 using Avogadro::rendering::RendererBackend;
+using Avogadro::rendering::TextItem;
 using Avogadro::rendering::SphereInstance;
 using Avogadro::rendering::BondInstance;
 
@@ -173,6 +174,8 @@ class SceneBuilderTest : public QObject
     void testBSDYAtomImages();
     void testBSDYSelectionHalos();
     void testNullBackendContract();
+    void testDrawTextCapturesScreenAndWorld();
+    void testTextStoreClearedOnBeginAndClearStores();
 };
 
 void SceneBuilderTest::testBeginResetsState()
@@ -509,6 +512,60 @@ void SceneBuilderTest::testNullBackendContract()
   QCOMPARE(backend.lastBonds, 1u);
   QVERIFY(backend.pick(10, 10, 20, 20).isEmpty());
   QCOMPARE(backend.pickCalls, 1);
+}
+
+void SceneBuilderTest::testDrawTextCapturesScreenAndWorld()
+{
+  SceneBuilder builder;
+  builder.begin();
+  builder.clearStores();
+
+  // Screen-space text: records coordinates, worldSpace == false.
+  builder.setColor(1.0f, 0.0f, 0.0f, 1.0f);
+  builder.drawText(12, 34, "hud");
+
+  // World-space text: records the world position, worldSpace == true.
+  builder.setColor(0.0f, 1.0f, 0.0f, 1.0f);
+  builder.drawText(Eigen::Vector3d(1, 2, 3), "label");
+
+  const QVector<TextItem> &items = builder.textItems();
+  QCOMPARE(items.size(), 2);
+
+  // First item: screen variant with the red color baked in.
+  QCOMPARE(items.at(0).text, QString("hud"));
+  QVERIFY(!items.at(0).worldSpace);
+  QCOMPARE(items.at(0).x, 12);
+  QCOMPARE(items.at(0).y, 34);
+  QCOMPARE(items.at(0).color.red(), 255);
+  QCOMPARE(items.at(0).color.green(), 0);
+
+  // Second item: world variant with the green color and world position.
+  QCOMPARE(items.at(1).text, QString("label"));
+  QVERIFY(items.at(1).worldSpace);
+  QCOMPARE(items.at(1).color.red(), 0);
+  QCOMPARE(items.at(1).color.green(), 255);
+  QCOMPARE(items.at(1).worldPos.x(), 1.0);
+  QCOMPARE(items.at(1).worldPos.y(), 2.0);
+  QCOMPARE(items.at(1).worldPos.z(), 3.0);
+}
+
+void SceneBuilderTest::testTextStoreClearedOnBeginAndClearStores()
+{
+  SceneBuilder builder;
+  builder.begin();
+  builder.clearStores();
+  builder.drawText(1, 1, "a");
+  builder.drawText(Eigen::Vector3d(0, 0, 0), "b");
+  QCOMPARE(builder.textItems().size(), 2u);
+
+  // clearStores() empties the text store as well as the chunk stores.
+  builder.clearStores();
+  QCOMPARE(builder.textItems().size(), 0u);
+
+  // begin() also resets the store so a fresh pass starts empty.
+  builder.drawText(5, 5, "c");
+  builder.begin();
+  QCOMPARE(builder.textItems().size(), 0u);
 }
 
 QTEST_MAIN(SceneBuilderTest)

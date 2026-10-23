@@ -23,6 +23,12 @@
 
 #include <Eigen/Geometry>
 
+#include <QPoint>
+#include <QOpenGLContext>
+#include <QOpenGLFunctions>
+
+#include <QMessageLogger>
+
 #include <cmath>
 
 #ifndef M_PI
@@ -177,13 +183,31 @@ void SceneBuilder::drawColorMesh(const Mesh &mesh, int mode)
 void SceneBuilder::drawCone(const Eigen::Vector3d &base, const Eigen::Vector3d &cap,
                             double, double)
 {
-  // Capture the cone axis as a line; the ring is a rare (arrow) primitive.
+  // ACCEPTED BUT COARSENED: the modern emitter has no cone geometry. The
+  // axes engine is the only caller (a rare arrow primitive); capture the cone
+  // axis as a line so the arrow is not silently dropped. Reported once so
+  // "accepted but coarsened" is distinguishable from "accepted and gone".
+  static bool warned = false;
+  if (!warned) {
+    warned = true;
+    qWarning("SceneBuilder::drawCone: cone captured as an axis line "
+             "(approximation, not a cone). Axes engine only.");
+  }
   appendLine(base, cap, 1.0);
 }
 
 void SceneBuilder::drawTriangle(const Eigen::Vector3d &p1, const Eigen::Vector3d &p2,
                                 const Eigen::Vector3d &p3)
 {
+  // ACCEPTED BUT COARSENED: the modern emitter has no filled-triangle geometry.
+  // Capture the triangle outline as three lines. Reported once so the
+  // approximation is visible, not silent.
+  static bool warned = false;
+  if (!warned) {
+    warned = true;
+    qWarning("SceneBuilder::drawTriangle: filled triangle captured as an "
+             "outline (approximation, not a filled triangle).");
+  }
   appendLine(p1, p2, 1.0);
   appendLine(p2, p3, 1.0);
   appendLine(p3, p1, 1.0);
@@ -200,8 +224,15 @@ void SceneBuilder::drawShadedSector(const Eigen::Vector3d &origin,
                                     const Eigen::Vector3d &direction2,
                                     double, bool)
 {
-  // Capture the sector as radii to both edges plus a chord; the filled sector
-  // is a rare primitive and is captured coarsely here.
+  // ACCEPTED BUT COARSENED: the modern emitter has no filled-sector geometry.
+  // Capture the sector as two radii plus a chord (an approximated polygon).
+  // Reported once so the approximation is visible, not silent.
+  static bool warned = false;
+  if (!warned) {
+    warned = true;
+    qWarning("SceneBuilder::drawShadedSector: filled sector captured as "
+             "radii+chord (approximation, not a filled sector).");
+  }
   Eigen::Vector3d v1 = direction1.normalized();
   Eigen::Vector3d v2 = direction2.normalized();
   if (v1.dot(v2) > 0.999999)
@@ -287,18 +318,60 @@ void SceneBuilder::drawEllipsoid(const Eigen::Vector3d &, const Eigen::Matrix3d 
   // Rare primitive; not captured by the emitter.
 }
 
-int SceneBuilder::drawText(int, int, const QString &)
+namespace {
+  // Capture the live GL current color as a text item's color. Colored text
+  // producers (e.g. LabelEngine) set it via glColor3f, which bypasses
+  // setColor(); reading it here is what lets GLWidget::flushCapturedText()
+  // reproduce the per-item color on the modern/compat tiers (fix-modern-tier-
+  // overlay-parity P1). Returns fallback (the SceneBuilder default) when no GL
+  // context is current, e.g. the headless unit tests that call drawText.
+  QColor currentGLColorOr(const QColor &fallback)
+  {
+    if (QOpenGLContext *ctx = QOpenGLContext::currentContext()) {
+      GLfloat c[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+      ctx->functions()->glGetFloatv(GL_CURRENT_COLOR, c);
+      return QColor::fromRgbF(c[0], c[1], c[2], c[3]);
+    }
+    return fallback;
+  }
+} // namespace
+
+int SceneBuilder::drawText(int x, int y, const QString &string)
 {
+  // Capture screen-space text (HUD, overlay labels) instead of discarding it;
+  // GLWidget flushes the store through the real painter after the 3D pass.
+  TextItem item;
+  item.text = string;
+  item.color = currentGLColorOr(m_currentColor);
+  item.worldSpace = false;
+  item.x = x;
+  item.y = y;
+  m_textItems.append(item);
   return 0;
 }
 
-int SceneBuilder::drawText(const QPoint &, const QString &)
+int SceneBuilder::drawText(const QPoint &pos, const QString &string)
 {
+  TextItem item;
+  item.text = string;
+  item.color = currentGLColorOr(m_currentColor);
+  item.worldSpace = false;
+  item.x = pos.x();
+  item.y = pos.y();
+  m_textItems.append(item);
   return 0;
 }
 
-int SceneBuilder::drawText(const Eigen::Vector3d &, const QString &)
+int SceneBuilder::drawText(const Eigen::Vector3d &pos, const QString &string)
 {
+  // Capture world-space text (engine labels, measurements) so it projects with
+  // the live camera on flush, matching GLPainter::drawText(Vector3d).
+  TextItem item;
+  item.text = string;
+  item.color = currentGLColorOr(m_currentColor);
+  item.worldSpace = true;
+  item.worldPos = pos;
+  m_textItems.append(item);
   return 0;
 }
 
@@ -328,6 +401,7 @@ void SceneBuilder::begin()
   m_currentColor = QColor(255, 255, 255, 255);
   m_currentType = Primitive::AtomType;
   m_currentId = 0;
+  m_textItems.clear();
 }
 
 void SceneBuilder::end()
@@ -343,6 +417,7 @@ void SceneBuilder::clearStores()
   m_spherePickIds.clear();
   m_bondPickIds.clear();
   m_linePickIds.clear();
+  m_textItems.clear();
 }
 
 void SceneBuilder::appendBond(const Eigen::Vector3d &end1, const Eigen::Vector3d &end2,
@@ -360,6 +435,18 @@ void SceneBuilder::appendBond(const Eigen::Vector3d &end1, const Eigen::Vector3d
   else
     ortho = Eigen::Vector3d(0, 0, 0);
 
+  // Spread arrangement (fix-modern-tier-overlay-parity task 4.1, a parity
+  // check, not a mandated geometry change): each half is offset by
+  // offsetScale * along a single perpendicular, so the spread MAGNITUDE is
+  // shift for every order and matches the legacy constant (BSDY passes
+  // shift = 0.15). For a double bond (order 2) the two halves land at
+  // +/-shift, identical to legacy GLPainter::drawMultiCylinder. For order >=
+  // 3 the modern path spreads the halves COLLINEARLY (offsetScale
+  // -1..+1) whereas the legacy Cylinder::drawMulti arranges them ANGULARLY
+  // (120 deg apart for triple, square for quadruple). That angular-vs-
+  // collinear arrangement is a pre-existing modern-tier rendering detail
+  // outside the scope of this overlay/text-parity change, so it is noted
+  // here rather than reshaped.
   for (int k = 0; k < order; ++k) {
     double offsetScale = 0.0;
     if (order > 1)

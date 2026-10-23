@@ -27,7 +27,10 @@
 #define AVOGADRO_RENDERING_SCENEBUILDER_H
 
 #include <QColor>
+#include <QVector>
 #include <QString>
+
+#include <Eigen/Core>
 
 #include <avogadro/painter.h>
 
@@ -36,6 +39,19 @@
 
 namespace Avogadro {
 namespace rendering {
+
+//! A single captured text primitive (engine labels, measurements, annotations,
+//! overlay HUD text). Recorded by SceneBuilder::drawText instead of being
+//! discarded; GLWidget flushes the store through the real painter after the
+//! tier 3D pass so text renders on every tier (fix-modern-tier-overlay-parity).
+struct TextItem {
+  QString text;
+  QColor color;
+  bool worldSpace = false;
+  Eigen::Vector3d worldPos;
+  int x = 0;
+  int y = 0;
+};
 
 class A_EXPORT SceneBuilder : public Painter {
 public:
@@ -121,6 +137,10 @@ public:
   const ChunkStore<LineInstance> &lines() const { return m_lines; }
   const ChunkStore<MeshInstance> &meshes() const { return m_meshes; }
 
+  //! Captured text items for this frame, in draw order. Flushed by GLWidget
+  //! after the tier 3D pass; cleared in begin()/clearStores().
+  const QVector<TextItem> &textItems() const { return m_textItems; }
+
   //! Packed (type << 28 | id) for record `index` of each primitive kind.
   quint32 spherePickId(std::size_t index) const;
   quint32 bondPickId(std::size_t index) const;
@@ -143,6 +163,9 @@ private:
   QVector<quint32> m_spherePickIds;
   QVector<quint32> m_bondPickIds;
   QVector<quint32> m_linePickIds;
+
+  //! Captured text primitives for this frame (see TextItem / textItems()).
+  QVector<TextItem> m_textItems;
 
   int m_quality;
   bool m_dynamicScaling;

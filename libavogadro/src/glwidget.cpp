@@ -1055,6 +1055,11 @@ GLWidget::GLWidget( Molecule *molecule,
         // exactly as the synchronous emission path does.
         if (d->tool)
           d->tool->paint(this);
+        // Text captured by the last emission (labels, etc.) flushes through
+        // the real painter here too. The store persists across adopt frames
+        // (only cleared on the next emit), so labels stay visible and
+        // re-project with the rotating camera on retained frames.
+        flushCapturedText();
         return;
       }
       if (sceneChanged) {
@@ -1086,6 +1091,10 @@ GLWidget::GLWidget( Molecule *molecule,
       d->backendDrawCalls = d->backend->drawCallsThisFrame();
       d->backendFrames = d->backend->framesSubmitted();
     }
+
+    // Flush engine text captured by emitSceneToBuilder() above (labels,
+    // measurements) through the real painter, matching the legacy tier.
+    flushCapturedText();
   }
 
   QMatrix4x4 GLWidget::currentModelViewProjection()
@@ -1143,11 +1152,6 @@ GLWidget::GLWidget( Molecule *molecule,
         engine->renderOpaque(d->pd);
     }
 
-    // Render the active tool (screen-space UI, on the widget's real painter).
-    if (d->tool) {
-      d->tool->paint(this);
-    }
-
     // Transparent engine elements.
     glEnable(GL_BLEND);
     foreach (Engine *engine, d->engines) {
@@ -1156,6 +1160,22 @@ GLWidget::GLWidget( Molecule *molecule,
       }
     }
     glDisable(GL_BLEND);
+
+    // Render the active tool (screen-space UI, on the widget's real painter)
+    // AFTER the engine pass (opaque + transparent). This matches the
+    // worker-adopt branch, which paints tool->paint() after endFrame(): on
+    // both modern paths the tool/HUD halos composite over the transparent
+    // engine selection halos (fix-modern-tier-overlay-parity task 4.2;
+    // supersedes fix-modern-tier-revision-churn task 4.1). AutoOptTool
+    // toggles GL_BLEND around its own draws, so running after
+    // glDisable(GL_BLEND) is safe. NOTE: on the sync path the instanced
+    // molecule geometry is drawn by backend.endFrame() in renderModern()
+    // AFTER this call, so the tool rasterizes under the opaque molecule
+    // geometry there (a pre-existing ordering detail, unchanged by this move;
+    // the worker-adopt branch draws the tool last, on top of everything).
+    if (d->tool) {
+      d->tool->paint(this);
+    }
 
     d->builder.end();
     d->pd->clearOverridePainter();
@@ -1284,6 +1304,45 @@ GLWidget::GLWidget( Molecule *molecule,
       d->backendDrawCalls = d->backend->drawCallsThisFrame();
       d->backendFrames = d->backend->framesSubmitted();
     }
+
+    // Flush any text captured by the last engine emission (labels, etc.).
+    // On the "build still in flight" path no emission ran this frame, so the
+    // store still holds the last captured items (persisted until the next
+    // clearStores in emitSceneToBuilder); flushing them keeps labels visible
+    // and re-projected with the rotating camera across retained frames.
+    flushCapturedText();
+  }
+
+  void GLWidget::flushCapturedText()
+  {
+    // Capture-then-flush (fix-modern-tier-overlay-parity, design decision 1):
+    // the modern/compat engine pass records text primitives in the SceneBuilder
+    // instead of discarding them (SceneBuilder::drawText). Render them here
+    // through the widget's real painter, exactly as the legacy branch draws
+    // text: screen-space items at their coordinates, world-space items
+    // projected with the live camera (the GL matrices paintGL() left on the
+    // stack are still current, matching GLPainter::drawText(Vector3d)).
+    const QVector<rendering::TextItem> &items = d->builder.textItems();
+    if (items.isEmpty())
+      return;
+
+    d->painter->begin(this);
+    for (const rendering::TextItem &item : items) {
+      // GLPainter::drawText reads the GL current color (it ignores the stored
+      // Painter color), so set the current color per item here, exactly as every
+      // colored text producer does before it draws (fix-modern-tier-overlay-parity
+      // P1: without this, flushed labels render in a single stale color and the
+      // parity goal "same color as legacy" is missed for non-default colors).
+      glColor4f(static_cast<GLfloat>(item.color.redF()),
+                static_cast<GLfloat>(item.color.greenF()),
+                static_cast<GLfloat>(item.color.blueF()),
+                static_cast<GLfloat>(item.color.alphaF()));
+      if (item.worldSpace)
+        d->painter->drawText(item.worldPos, item.text);
+      else
+        d->painter->drawText(item.x, item.y, item.text);
+    }
+    d->painter->end();
   }
 
   //! Compat tier (task 7.2 / design D9): the same chunk stores the modern
@@ -1323,6 +1382,9 @@ GLWidget::GLWidget( Molecule *molecule,
       d->compatBackend->endFrame();
       d->backendDrawCalls = d->compatBackend->drawCallsThisFrame();
       d->backendFrames = d->compatBackend->framesSubmitted();
+      // Flush engine text captured by emitSceneToBuilder() through the real
+      // painter, matching the legacy tier.
+      flushCapturedText();
     }
   }
 
@@ -1336,15 +1398,16 @@ GLWidget::GLWidget( Molecule *molecule,
       qDebug() << "GLWidget::render(): Could not get read lock on molecule.";
       return;
     }
-    // Release this read lock on EVERY exit path (RAII). The modern/compat
-    // tier dispatch below returns early without unlocking, which previously
-    // leaked one molecule read lock per frame. Since ENABLE_THREADED_GL is
-    // OFF by default rendering and the tools share the GUI thread, a leaked
-    // read lock blocks every writer: DrawTool/Manipulate tryLockForWrite()
-    // fails (cannot draw/move), updateGeometry() tryLockForRead() fails
-    // (camera refocus after fragment insert), and writers hang once Qt's
-    // recursive read-lock cap saturates (~25 locks). The callees take their
-    // own read lock; this one is only held for the dispatch itself.
+    // Release this read lock on EVERY exit path (RAII). The tier dispatch and
+    // the post-dispatch overlay block below (axes + debug/text overlays, drawn
+    // for every tier) read the molecule under this lock, so it must outlive
+    // them. The modern/compat tier functions take their own nested read lock;
+    // they do not unlock this one. Since ENABLE_THREADED_GL is OFF by default
+    // rendering and the tools share the GUI thread, a leaked read lock blocks
+    // every writer: DrawTool/Manipulate tryLockForWrite() fails (cannot
+    // draw/move), updateGeometry() tryLockForRead() fails (camera refocus
+    // after fragment insert), and writers hang once Qt's recursive read-lock
+    // cap saturates (~25 locks).
     struct ReadLockGuard {
       QReadWriteLock *lock;
       ~ReadLockGuard() { lock->unlock(); }
@@ -1360,14 +1423,12 @@ GLWidget::GLWidget( Molecule *molecule,
     // initializeGL ran without a current context (design D3 recovery).
     if (d->rendererTier == rendering::RendererTier::Modern) {
       renderModern();
-      return;
     }
-    if (d->rendererTier == rendering::RendererTier::Compat) {
+    else if (d->rendererTier == rendering::RendererTier::Compat) {
       renderCompat();
-      return;
     }
-
-    d->painter->begin(this);
+    else {
+      d->painter->begin(this);
 
     if (d->painter->quality() >= 3) {
       glEnable(GL_LIGHT1);
@@ -1482,13 +1543,26 @@ GLWidget::GLWidget( Molecule *molecule,
       }
     }
 
+      d->painter->end();
+    }
+
+    // Render overlays (axes + debug/text) after the tier-specific 3D pass for
+    // ALL tiers. These were legacy-only below the dispatch, so the modern and
+    // compat tiers — which need them most — never executed them. The calls are
+    // moved (not copied) and wrapped in the same begin/end coordination the
+    // legacy branch used, so the legacy tier does not double-draw. On the
+    // modern/compat tiers the engine text (e.g. LabelEngine labels) is flushed
+    // separately from the SceneBuilder capture store by renderModern()
+    // /renderCompat(); this block draws the axes overlay and the debug/extension
+    // text overlay.
+    d->painter->begin(this);
     // If enabled draw the axes
     if (d->renderAxes) renderAxesOverlay();
 
     // Render text overlay
     renderTextOverlay();
-
     d->painter->end();
+
     // The read lock acquired at the top of render() is released by the RAII
     // ReadLockGuard above; do not unlock here (would double-unlock).
   }

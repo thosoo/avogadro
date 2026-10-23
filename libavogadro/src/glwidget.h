@@ -837,6 +837,18 @@ namespace Avogadro {
       void drawLastReady();
 
       /**
+       * Flush the text primitives the SceneBuilder captured during the last
+       * engine emission (engine labels, measurements) through the widget's real
+       * painter, exactly as the legacy branch draws text: screen-space items at
+       * their coordinates, world-space items projected with the live camera
+       * (the GL matrices paintGL() set are still current here). The capture
+       * store is only populated on the modern/compat emission path, so this is
+       * inherently tier-gated and never double-draws on the legacy tier
+       * (fix-modern-tier-overlay-parity tasks 2.1-2.3).
+       */
+      void flushCapturedText();
+
+      /**
        * HiDPI device-pixel viewport (fix-hidpi-viewport-coordinates, design
        * D1): the widget's framebuffer size in device pixels, matching what
        * resizeGL establishes. All beginFrame call sites use this so the GL
