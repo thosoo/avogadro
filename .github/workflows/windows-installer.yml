@@ -387,47 +387,89 @@ jobs:
             throw "Missing expected GPU-preference exports: $($missing -join ', ')"
           }
           Write-Host "GPU-preference exports present: $($required -join ', ')"
-      - name: Capture live renderer log (D3, OpenSpec 3.1)
-        if: matrix.target == 'installer'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'SilentlyContinue'
-          $exe = Join-Path 'scripts\installer\dist\bin' 'avogadro.exe'
-          if (-not (Test-Path $exe)) {
-            Write-Host "avogadro.exe not found; skipping D3 runtime check"
-            return
-          }
-          $env:QT_FORCE_STDERR_LOGGING = '1'
-          $errLog = "$PWD\renderer_stderr.log"
-          try {
-            $proc = Start-Process -FilePath $exe -RedirectStandardError $errLog -RedirectStandardOutput "$PWD\renderer_stdout.log" -PassThru -WindowStyle Hidden
-            $done = Wait-Process -Id $proc.Id -Timeout 45 -ErrorAction SilentlyContinue
-            if (-not $done) {
-              Write-Host "avogadro.exe did not exit within 45s; stopping it"
-              Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
-              Get-Process -Name avogadro -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-            }
-          } catch {
-            Write-Host "Failed to launch avogadro.exe for D3 check: $($_.Exception.Message)"
-          }
-          if (Test-Path $errLog) {
-            $log = Get-Content $errLog -Raw
-            Write-Host "----- renderer_stderr.log (first 40 lines) -----"
-            ($log -split "`n" | Select-Object -First 40) -join "`n" | Write-Host
-            if ($log -match 'OpenGL renderer:') {
-              Write-Host "D3 renderer log line captured from a live GL context"
-            } else {
-              Write-Host "NOTE: 'OpenGL renderer:' not found in stderr (GL context may not have initialized in this headless runner)"
-            }
-          } else {
-            Write-Host "NOTE: no renderer_stderr.log produced (app may have failed to start)"
-          }
       - name: Create installer
         if: matrix.target == 'installer'
         shell: pwsh
         run: |
           $env:OPENBABEL_INSTALL_DIR = "$PWD\build\openbabel-install"
           python scripts/installer/create_installer.py
+      - name: Capture live renderer log (OpenSpec 3.1)
+        # Runs AFTER the packaged tree is assembled (create_installer.py) so the
+        # smoke run exercises the actual shipped dist\bin, including the
+        # dependency-closure gate and Qt-module top-up. Polls for the startup
+        # banner and classifies the outcome (OpenSpec: windows-installer-runtime
+        # "CI smoke run exercises the packaged runtime"). Never Stop-Process
+        # before the captured log has been read.
+        if: matrix.target == 'installer'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Join-Path 'scripts\installer\dist\bin' 'avogadro.exe'
+          if (-not (Test-Path $exe)) {
+            throw "avogadro.exe not found at $exe; cannot smoke-run the packaged app"
+          }
+          $env:QT_FORCE_STDERR_LOGGING = '1'
+          $errLog = "$PWD\renderer_stderr.log"
+          $outLog = "$PWD\renderer_stdout.log"
+          Remove-Item $errLog, $outLog -ErrorAction SilentlyContinue
+
+          $proc = Start-Process -FilePath $exe -PassThru `
+            -RedirectStandardError $errLog -RedirectStandardOutput $outLog -WindowStyle Hidden
+          Write-Host "Launched avogadro.exe (pid $($proc.Id)); polling startup log up to 20s..."
+
+          $deadline = [DateTime]::Now.AddSeconds(20)
+          while ([DateTime]::Now -lt $deadline -and -not $proc.HasExited) {
+            try { $proc.Refresh() } catch {}
+            Start-Sleep -Milliseconds 250
+          }
+
+          # Read BOTH logs BEFORE killing anything (never Stop-Process first).
+          $err = if (Test-Path $errLog) { Get-Content $errLog -Raw } else { '' }
+          $out = if (Test-Path $outLog) { Get-Content $outLog -Raw } else { '' }
+          $banner = $err + "`n" + $out
+          $hasBanner = $banner -match 'Avogadro version:'
+          $hasRenderer = $banner -match 'OpenGL renderer:'
+          $headlessFatal = $banner -match 'No rendering tier can run on this system'
+          $stillRunning = -not $proc.HasExited
+
+          Write-Host "----- renderer_stderr.log (first 60 lines) -----"
+          ($err -split "`n" | Select-Object -First 60) -join "`n" | Write-Host
+          Write-Host "----- renderer_stdout.log (first 20 lines) -----"
+          ($out -split "`n" | Select-Object -First 20) -join "`n" | Write-Host
+
+          if ($hasBanner -and ($hasRenderer -or $headlessFatal)) {
+            if ($hasRenderer) {
+              Write-Host "SMOKE PASS: startup banner + OpenGL renderer line observed."
+            } else {
+              Write-Host "SMOKE PASS: startup banner observed; headless runner reported the known"
+              Write-Host "            'No rendering tier can run' qFatal limitation (documented outcome)."
+            }
+          } elseif ($hasBanner) {
+            # Banner printed but no renderer/headless line. If the app is still
+            # running this is a healthy-with-note; if it exited without either,
+            # it is suspicious but not the 'never started' regression, so warn.
+            if ($stillRunning) {
+              Write-Host "SMOKE PASS (note): banner observed, process still alive, no renderer line yet."
+            } else {
+              Write-Host "SMOKE WARN: banner observed but process exited without a renderer line or the"
+              Write-Host "            documented headless qFatal message; review the captured logs above."
+            }
+          } elseif ($stillRunning) {
+            # Alive at the deadline without a banner: healthy-with-note per design.
+            Write-Host "SMOKE PASS (note): process still alive at 20s deadline without a banner yet."
+          } else {
+            # Exited before producing the banner with (likely) no useful output.
+            Write-Host "SMOKE FAIL: process exited before emitting the startup banner."
+            Write-Host "----- captured stderr (full) -----"
+            $err | Write-Host
+            Write-Host "----- captured stdout (full) -----"
+            $out | Write-Host
+            throw "Packaged app exited before the startup banner with no usable output (see captured logs above)."
+          }
+
+          if (-not $stillRunning) {
+            try { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue } catch {}
+          }
       - name: Verify bundled OpenBabel runtime (installer)
         if: matrix.target == 'installer'
         shell: pwsh

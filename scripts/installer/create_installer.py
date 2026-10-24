@@ -6,6 +6,200 @@ import subprocess
 from pathlib import Path
 
 
+# Windows system DLLs that are always present on the target OS. Bundled
+# binaries may import these without bundling them themselves.
+SYSTEM_DLL_ALLOWLIST = frozenset({
+    "kernel32.dll", "kernelbase.dll", "user32.dll", "gdi32.dll", "advapi32.dll",
+    "shell32.dll", "shellapi.dll", "shlwapi.dll", "comctl32.dll", "comdlg32.dll",
+    "ole32.dll", "oleaut32.dll", "uuid.dll", "ws2_32.dll", "mswsock.dll",
+    "wininet.dll", "winmm.dll", "imm32.dll", "netapi32.dll", "rasapi32.dll",
+    "dnsapi.dll", "iphlpapi.dll", "mpr.dll", "crypt32.dll", "setupapi.dll",
+    "cfgmgr32.dll", "version.dll", "dwmapi.dll", "oleacc.dll", "devenum.dll",
+    "strmi32.dll", "winusb.dll", "usbhub3.dll", "ntdll.dll", "uuid.dll",
+})
+
+# Debug C/C++ runtime names that do NOT exist on end-user machines. Kept for the
+# Boost DLL filter (task 2.3); the closure allowlist is release-only so a debug
+# import still surfaces as a hard failure if the filter misses one.
+DEBUG_RUNTIME_NAMES = frozenset({
+    "ucrtbased.dll", "msvcp140d.dll", "msvcp140d_ucrt.dll", "msvcp140d_mda.dll",
+    "vcruntime140d.dll", "vcruntime140d_u.dll", "vcruntime140d_da.dll",
+    "vcomp140d.dll",
+})
+
+
+def is_allowed_system_dll(name):
+    """True if a dependency on this DLL is acceptable without bundling it.
+
+    Covers the UWP API shims (api-ms-*), the UCRT (ucrtbase.dll) and the VC++
+    redistributable RELEASE set (msvcp140*, vcruntime140*, vcomp140), plus the
+    known Windows system DLL set. Debug runtimes are intentionally excluded: a
+    binary importing them should fail the closure gate (or be filtered by the
+    Boost debug-DLL filter), never be silently accepted.
+    """
+    lower = name.lower()
+    # Debug runtimes never exist on a clean machine; reject them outright so a
+    # debug import fails the gate (or is dropped by the Boost filter) rather than
+    # being accepted by the release-redist regexes below.
+    if lower in DEBUG_RUNTIME_NAMES:
+        return False
+    if lower.startswith("api-ms-") or lower.startswith("api-"):
+        return True
+    if lower in {"ucrtbase.dll", "msvcrt.dll"}:
+        return True
+    # Release VC++ redistributable set only. The optional underscore suffix
+    # (_ucrt / _mda / _1 ...) is allowed, but a bare 'd' after the version
+    # number (msvcp140d, vcruntime140d) marks a debug runtime and is excluded.
+    if re.fullmatch(r"msvcp14[0-9]+(_[a-z0-9]+)?\.dll", lower):
+        return True
+    if re.fullmatch(r"vcruntime14[0-9]+(_[a-z0-9]+)?\.dll", lower):
+        return True
+    if lower == "vcomp140.dll":
+        return True
+    return lower in SYSTEM_DLL_ALLOWLIST
+
+
+def is_debug_runtime_dll(dumpbin, name, dll_path=None):
+    """True for debug C/C++ runtime DLLs that cannot load on a clean machine.
+
+    Matches the Boost debug naming (``*_gd`` / ``-gd-``) and explicit debug
+    runtime names, and falls back to inspecting the import table for a debug
+    runtime dependency (ucrtbased / MSVCP140D / VCRUNTIME140D) when the name
+    alone is inconclusive.
+    """
+    lower = name.lower()
+    if "_gd" in lower or "-gd-" in lower:
+        return True
+    if lower in DEBUG_RUNTIME_NAMES:
+        return True
+    if dll_path is not None and dumpbin:
+        try:
+            output = subprocess.check_output(
+                [dumpbin, "/dependents", str(dll_path)],
+                text=True, errors="replace",
+            )
+        except subprocess.CalledProcessError:
+            return False
+        for line in output.splitlines():
+            token = os.path.basename(line.strip()).lower()
+            if (token.startswith("ucrtbased")
+                    or "msvcp140d" in token
+                    or "vcruntime140d" in token):
+                return True
+    return False
+
+
+def pe_files(dist):
+    """Every PE (dll/exe) under dist\\bin and the plugin tree dist\\lib\\avogadro\\**.
+
+    The plugin tree is inspected as importers too, so a DLL dropped into a
+    colors/engines/extensions/tools subdirectory is closure-checked.
+    """
+    files = [p for p in (dist / "bin").iterdir()
+             if p.is_file() and p.suffix.lower() in {".dll", ".exe"}]
+    plugin_tree = dist / "lib" / "avogadro"
+    if plugin_tree.exists():
+        files.extend(p for p in plugin_tree.rglob("*")
+                     if p.is_file() and p.suffix.lower() in {".dll", ".exe"})
+    return files
+
+
+def imported_dlls(dumpbin, binary):
+    """Return the set of DLL/EXE names in binary's import table."""
+    output = subprocess.check_output(
+        [dumpbin, "/dependents", str(binary)],
+        text=True, errors="replace",
+    )
+    imports = set()
+    for line in output.splitlines():
+        token = os.path.basename(line.strip())
+        low = token.lower()
+        if low.endswith(".dll") or low.endswith(".exe"):
+            imports.add(token)
+    return imports
+
+
+def scan_closure(dumpbin, dist):
+    """Scan every bundled PE's import table.
+
+    Returns a list of (importer_name, missing_import) pairs for imports that are
+    neither present in the package nor on the OS/redistributable allowlist.
+    """
+    present = {p.name.lower() for p in pe_files(dist)}
+    missing = []
+    for binary in sorted(pe_files(dist)):
+        try:
+            imports = imported_dlls(dumpbin, binary)
+        except subprocess.CalledProcessError:
+            continue
+        for dep in imports:
+            if dep.lower() in present:
+                continue
+            if is_allowed_system_dll(dep):
+                continue
+            missing.append((binary.name, dep))
+    return missing
+
+
+def copy_missing_qt_modules(dumpbin, dist, qt6_dir):
+    """Copy Qt6 module DLLs that bundled binaries import but windeployqt did not.
+
+    windeployqt scans only the main executable's static imports, so Qt modules
+    imported exclusively by plugins or bundled libraries (today Qt6Concurrent.dll)
+    are invisible to it. This is import-table-driven and iterates to a fixpoint: a
+    freshly copied Qt module may itself import another missing Qt module. Returns
+    the list of copied DLL names. Nothing is copied if qt6_dir is falsy.
+    """
+    if not qt6_dir:
+        return []
+    qt6_bin = Path(qt6_dir) / "bin"
+    if not qt6_bin.is_dir():
+        print(f"Qt6_DIR set to {qt6_dir} but {qt6_bin} is missing; skipping top-up")
+        return []
+    copied = []
+    while True:
+        missing = scan_closure(dumpbin, dist)
+        qt_missing = {dep for _, dep in missing if dep.lower().startswith("qt6")}
+        to_copy = sorted(p for p in qt_missing if (qt6_bin / p).exists())
+        if not to_copy:
+            break
+        for name in to_copy:
+            src = qt6_bin / name
+            print(f"Qt-module top-up: copying {src} -> {dist / 'bin' / name}")
+            shutil.copy(src, dist / "bin" / name)
+            copied.append(name)
+    if copied:
+        print(f"Copied {len(copied)} missing Qt6 module(s) from Qt installation: "
+              + ", ".join(copied))
+    else:
+        print("Qt-module top-up: no missing Qt6 modules found.")
+    return copied
+
+
+def check_dependency_closure(dumpbin, dist):
+    """Hard gate: every packaged PE must resolve its non-system imports.
+
+    Prints a binary -> missing-DLL report and raises on any unresolved import so
+    the installer build fails instead of shipping an un-loadable package.
+    """
+    missing = scan_closure(dumpbin, dist)
+    if not missing:
+        print("Verified packaged binaries resolve all non-system dependencies.")
+        return
+    by_binary = {}
+    for binary, dep in missing:
+        by_binary.setdefault(binary, []).append(dep)
+    lines = []
+    for binary in sorted(by_binary):
+        deps = ", ".join(sorted(set(by_binary[binary])))
+        lines.append(f"{binary} imports missing {deps}")
+    raise RuntimeError(
+        "Packaged binaries depend on DLLs that are neither bundled nor on the "
+        "OS/redistributable allowlist. Installation will fail with "
+        "'module could not be found'.\n" + "\n".join(lines)
+    )
+
+
 def main():
     root = Path(__file__).resolve().parent
     dist = root / "dist"
@@ -147,9 +341,19 @@ def main():
                 f" Contents inspected:\n{all_dirs}"
             )
 
+        # Debug-runtime DLL filter (task 2.3 / windows-installer-runtime):
+        # drop debug C/C++ runtime payloads (Boost *-gd-* variants and anything
+        # importing ucrtbased / MSVCP140D / VCRUNTIME140D) that cannot load on a
+        # clean machine. Release DLLs actually imported by packaged binaries
+        # (e.g. boost_iostreams/bzip2/zlib via maeparser.dll) are kept.
+        dumpbin = shutil.which("dumpbin")
         for f in ob.glob("bin/*"):
-            if f.suffix.lower() in (".dll", ".exe", ".obf"):
-                copy(f, dist / "bin")
+            if f.suffix.lower() not in (".dll", ".exe", ".obf"):
+                continue
+            if is_debug_runtime_dll(dumpbin, f.name, f):
+                log(f"Skipping debug-runtime DLL (not user-loadable): {f.name}")
+                continue
+            copy(f, dist / "bin")
 
         dest_plugins = dist / "lib" / "openbabel" / ob_version
         dest_plugins.mkdir(parents=True, exist_ok=True)
@@ -260,7 +464,27 @@ def main():
         if dll.exists():
             copy(dll, dist / 'bin')
 
+    dumpbin = shutil.which("dumpbin")
+    if not dumpbin:
+        raise RuntimeError("dumpbin was not found; cannot verify dependency closure")
+
+    # Qt-module top-up (task 2.2 / windows-installer-runtime): windeployqt scans
+    # only the main executable's static imports, so Qt modules imported only by
+    # plugins or bundled libraries (today Qt6Concurrent.dll) are invisible to it.
+    # Copy any missing Qt6 module from the Qt installation before the gate runs.
+    # Qt6_DIR is pinned by the workflow's Configure step.
+    qt6_dir = (os.environ.get("Qt6_DIR")
+               or os.environ.get("QT_ROOT")
+               or os.environ.get("QT_DIR"))
+    copy_missing_qt_modules(dumpbin, dist, qt6_dir)
+
+    # Subsumed by the closure check below (kept for its specific message).
     check_no_missing_zlib_runtime_dependencies()
+
+    # Hard gate (task 2.1 / windows-installer-runtime): every packaged PE must
+    # resolve its non-system imports, or the build fails and no installer is
+    # produced.
+    check_dependency_closure(dumpbin, dist)
 
     # Copy the GPLv2 license expected by NSIS
     license_src = root.parent.parent / 'COPYING'

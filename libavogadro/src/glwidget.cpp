@@ -575,6 +575,19 @@ GLWidget::GLWidget( Molecule *molecule,
 
   void GLWidget::initializeGL()
   {
+    // Guard (fix-windows-first-run-crash / gpu-rendering-pipeline): never issue a
+    // GL call without a current context. resizeEvent/paintEvent call initializeGL
+    // from the GUI thread; if no context is current (e.g. a widget created for a
+    // not-yet-exposed view on Windows) bail out cleanly. This does not touch
+    // d->initialized: the event paths guard on QOpenGLWidget::isValid() before
+    // calling initializeGL, so d->initialized is only advanced once a real,
+    // current-able context exists. Until then it stays false and the next exposed
+    // frame runs full initialization (the modern tier's lazy first-frame
+    // recovery also anticipates a delayed init). Defense in depth behind the
+    // event-path checks.
+    if (!QOpenGLContext::currentContext())
+      return;
+
     qDebug() << "GLWidget initialisation...";
     if(!context()->isValid())
     {
@@ -737,8 +750,16 @@ GLWidget::GLWidget( Molecule *molecule,
         delete d->backend;
         d->backend = nullptr;
         d->useModernTier = false;
-        qDebug() << "GLWidget: modern backend failed to initialise; using the"
-                 << rendering::tierName(resolvedTier) << "tier.";
+        // Accurate fallback log (fix-windows-first-run-crash): we are NOT using
+        // the modern tier here — the instanced backend could not build, so the
+        // frame presents through the fixed-function path until a later frame can
+        // initialize the modern backend (see renderModern()'s lazy recovery).
+        // Report the presentation path actually in use, not the requested tier;
+        // the final "renderer tier =" log below already prints (fixed-function)
+        // on this path via d->useModernTier (gpu-rendering-pipeline delta).
+        qDebug() << "GLWidget: modern backend failed to initialise; presenting"
+                 << "through the fixed-function path until the modern backend "
+                 << "initializes on a later frame.";
       }
     }
 
@@ -806,6 +827,17 @@ GLWidget::GLWidget( Molecule *molecule,
       // tell our thread to paint
       d->paintCondition.wakeAll();
 #else
+      // Guard (fix-windows-first-run-crash / gpu-rendering-pipeline): skip the
+      // paint when the widget has no valid, current-able context. Qt re-issues
+      // expose events, so nothing drawable is lost; issuing initializeGL /
+      // paintGL with no context current is the UB that crashed the Windows first
+      // paint. QOpenGLWidget::makeCurrent() returns void on every platform, so
+      // the probe is QOpenGLWidget::isValid(): false while the widget's context
+      // is not yet realized (e.g. a view created while hidden), true once it is.
+      // This is the same cross-platform signal the unconditional makeCurrent()
+      // relied on before, with the context-less case now detected explicitly.
+      if (!isValid())
+        return;
       makeCurrent();
       if(!d->initialized) {
         d->initialized = true;
@@ -826,17 +858,28 @@ GLWidget::GLWidget( Molecule *molecule,
 #ifdef ENABLE_THREADED_GL
     d->thread->resize( event->size().width(), event->size().height() );
 #else
-    if (!isValid())
-      return;
-    makeCurrent();
-    if(!d->initialized)
-    {
-      d->initialized = true;
-      initializeGL();
+    // Guard (fix-windows-first-run-crash / gpu-rendering-pipeline): only run GL
+    // work when the widget has a valid, current-able context. On Windows the
+    // resize event can fire before the widget's context is realized (e.g. a view
+    // created while hidden); issuing initializeGL / resizeGL with no context
+    // current is UB that poisons driver state and crashes on first paint.
+    // QOpenGLWidget::makeCurrent() returns void on every platform, so the probe
+    // is QOpenGLWidget::isValid() — the same signal the unconditional
+    // makeCurrent() relied on, now checking the context-less case explicitly.
+    // GL work is skipped when the context is not valid, but resized() is still
+    // emitted below so listeners keep seeing the resize (task 1.1). The
+    // ENABLE_THREADED_GL path is compiled out by default and untouched.
+    if (isValid()) {
+      makeCurrent();
+      if(!d->initialized)
+      {
+        d->initialized = true;
+        initializeGL();
+      }
+      // GLXWaitX() is called by the TT resizeEvent on Linux... We may need
+      // specific functions here - need to look at Mac and Windows code.
+      resizeGL(event->size().width(), event->size().height());
     }
-    // GLXWaitX() is called by the TT resizeEvent on Linux... We may need
-    // specific functions here - need to look at Mac and Windows code.
-    resizeGL(event->size().width(), event->size().height());
 #endif
     emit resized();
   }
@@ -1012,6 +1055,8 @@ GLWidget::GLWidget( Molecule *molecule,
           d->hasWorkerResult = false;
           d->submittedRevision = 0;
           d->readyRevision = 0;
+          qDebug() << "GLWidget: modern backend recovered; resuming the instanced"
+                   << " (modern tier) presentation path.";
         }
       }
     }
