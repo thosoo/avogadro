@@ -73,6 +73,6 @@
       window appears on first launch; DbgView log shows zero "failed to load" plugin
       lines; Orbitals/Surfaces/QTAIM extensions present in the Extensions menu.
       Verify: user-reported outcome (screenshots or log paste).
-- [ ] 4.4 Trigger the Windows workflow per AGENTS.md if the C++ guard change lands
+- [x] 4.4 Trigger the Windows workflow per AGENTS.md if the C++ guard change lands
       without a green Windows leg. Verify: workflow run for the branch is green
       before PR.
