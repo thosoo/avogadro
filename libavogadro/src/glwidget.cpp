@@ -487,6 +487,18 @@ GLWidget::GLWidget( Molecule *molecule,
 
   GLWidget::~GLWidget()
   {
+    // GL objects owned here — the painter's display lists / textures / mesh
+    // VBOs, engine textures, and GLWidgetPrivate's display lists — must be
+    // deleted with a context current. Without one the calls silently drop or,
+    // with the shared painter (MainWindow::newGLWidget), touch another
+    // context's names. makeCurrent()/doneCurrent() are public on QOpenGLWidget
+    // (Qt 6) and this derived destructor body runs before the base class tears
+    // the context down. Headless / never-shown widgets have no context and
+    // simply skip the GL calls. (fix-shared-gl-contexts)
+    const bool haveContext = context() && context()->isValid();
+    if (haveContext)
+      makeCurrent();
+
     if(!d->painter->isShared())
       delete d->painter;
     else
@@ -510,6 +522,9 @@ GLWidget::GLWidget( Molecule *molecule,
       delete engine;
 
     delete( d );
+
+    if (haveContext)
+      doneCurrent();
   }
 
   void GLWidget::constructor(const GLWidget *shareWidget)

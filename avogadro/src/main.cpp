@@ -182,6 +182,16 @@ int main(int argc, char *argv[])
   QCoreApplication::setOrganizationDomain("sourceforge.net");
   QCoreApplication::setApplicationName("Avogadro");
 
+  // All GLWidgets share rendering-side GL objects (the shared GLPainter and its
+  // display lists / textures / mesh VBOs, see MainWindow::newGLWidget and
+  // GLWidget::constructor). Those are share-group objects: using a name created
+  // under one QOpenGLWidget context from another, unshared context is undefined
+  // behavior and corrupts driver state (observed as nvoglv64!DrvPresentBuffers
+  // access violations on NVIDIA 573.22). Opt every widget context into a single
+  // share group so the existing sharing design is legal. Must run before the
+  // QApplication is constructed. (fix-shared-gl-contexts)
+  QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+
   Application app(argc, argv);
 #ifdef WIN32
   // Ensure we load DLLs from the executable directory first so
