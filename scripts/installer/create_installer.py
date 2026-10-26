@@ -16,6 +16,15 @@ SYSTEM_DLL_ALLOWLIST = frozenset({
     "dnsapi.dll", "iphlpapi.dll", "mpr.dll", "crypt32.dll", "setupapi.dll",
     "cfgmgr32.dll", "version.dll", "dwmapi.dll", "oleacc.dll", "devenum.dll",
     "strmi32.dll", "winusb.dll", "usbhub3.dll", "ntdll.dll", "uuid.dll",
+    # GPU / OpenGL / D3D surface plus the OS components Qt, glew, opengl32sw,
+    # d3dcompiler_47, libxml2 and vc_redist import directly. All ship with
+    # Windows (named by the closure gate at run 40298973463; present on the
+    # reporting machine's ModLoad lines); the gate fails on any that are absent
+    # from the allowlist, so these are documented here rather than bundled.
+    "authz.dll", "userenv.dll", "dwrite.dll", "d3d11.dll", "d3d12.dll",
+    "dxgi.dll", "secur32.dll", "uxtheme.dll", "winhttp.dll", "opengl32.dll",
+    "glu32.dll", "bcrypt.dll", "bcryptprimitives.dll", "rpcrt4.dll",
+    "wsock32.dll", "imagehlp.dll", "cabinet.dll", "wintrust.dll", "msi.dll",
 })
 
 # Debug C/C++ runtime names that do NOT exist on end-user machines. Kept for the
@@ -47,12 +56,16 @@ def is_allowed_system_dll(name):
         return True
     if lower in {"ucrtbase.dll", "msvcrt.dll"}:
         return True
-    # Release VC++ redistributable set only. The optional underscore suffix
-    # (_ucrt / _mda / _1 ...) is allowed, but a bare 'd' after the version
-    # number (msvcp140d, vcruntime140d) marks a debug runtime and is excluded.
-    if re.fullmatch(r"msvcp14[0-9]+(_[a-z0-9]+)?\.dll", lower):
+    # Release VC++ redistributable set only. The optional underscore suffix may
+    # itself contain underscores (e.g. msvcp140_codecvt_ids.dll, msvcp140_atomic_wait.dll);
+    # the required leading underscore still excludes bare debug variants
+    # (msvcp140d, vcruntime140d), and the DEBUG_RUNTIME_NAMES early-return above
+    # excludes the *-d runtime DLLs outright. The previous class [a-z0-9] could
+    # not match the second underscore segment of _codecvt_ids, so that release
+    # redist DLL slipped through as "missing" (run 40298973463).
+    if re.fullmatch(r"msvcp14[0-9]+(_[a-z0-9_]+)?\.dll", lower):
         return True
-    if re.fullmatch(r"vcruntime14[0-9]+(_[a-z0-9]+)?\.dll", lower):
+    if re.fullmatch(r"vcruntime14[0-9]+(_[a-z0-9_]+)?\.dll", lower):
         return True
     if lower == "vcomp140.dll":
         return True
@@ -341,19 +354,72 @@ def main():
                 f" Contents inspected:\n{all_dirs}"
             )
 
-        # Debug-runtime DLL filter (task 2.3 / windows-installer-runtime):
-        # drop debug C/C++ runtime payloads (Boost *-gd-* variants and anything
-        # importing ucrtbased / MSVCP140D / VCRUNTIME140D) that cannot load on a
-        # clean machine. Release DLLs actually imported by packaged binaries
-        # (e.g. boost_iostreams/bzip2/zlib via maeparser.dll) are kept.
+        # Debug-runtime DLL filter + import-driven Boost selection (task 2.3 /
+        # windows-installer-runtime): drop debug C/C++ runtime payloads
+        # (Boost *-gd-* variants and anything importing ucrtbased /
+        # MSVCP140D / VCRUNTIME140D) that cannot load on a clean machine, and drop
+        # every boost_* variant from the bulk copy (selected below, import-driven).
+        # Release non-Boost DLLs importable on a clean machine are kept
+        # (e.g. maeparser, openbabel-3). .obf bundles are copied unconditionally:
+        # OpenBabel plugin discovery LoadLibrarys them.
+        #
+        # The choco Boost prefix carries variants nothing here loads
+        # (boost_filesystem/log/python312/stacktrace_windbg*); shipping them only
+        # forces allowlisting the runtimes they reference (python312.dll,
+        # dbgeng.dll) that are absent from clean machines. So re-add only the
+        # boost_* variants that some packaged PE actually imports, iterating to a
+        # fixpoint (a freshly copied variant may itself import another). This
+        # keeps the change's import-driven closure (design D2 / windows-installer
+        # spec): boost_iostreams / bzip2 / zlib (via maeparser) survive; dead
+        # variants vanish. The closure gate in check_dependency_closure is the
+        # same-run verifier -- if any packaged PE imports a dropped variant, the
+        # next gate call fails loudly naming the importer.
         dumpbin = shutil.which("dumpbin")
         for f in ob.glob("bin/*"):
             if f.suffix.lower() not in (".dll", ".exe", ".obf"):
+                continue
+            if f.name.lower().startswith("boost_"):
+                continue  # selected below, import-driven
+            if f.suffix.lower() == ".obf":
+                copy(f, dist / "bin")
                 continue
             if is_debug_runtime_dll(dumpbin, f.name, f):
                 log(f"Skipping debug-runtime DLL (not user-loadable): {f.name}")
                 continue
             copy(f, dist / "bin")
+
+        boost_prefix_bin = ob / "bin"
+        if boost_prefix_bin.is_dir() and dumpbin:
+            while True:
+                needed = {
+                    dep
+                    for binary in pe_files(dist)
+                    for dep in imported_dlls(dumpbin, binary)
+                    if dep.lower().startswith("boost_")
+                }
+                to_copy = sorted(
+                    n for n in needed if not (dist / "bin" / n).exists()
+                )
+                if not to_copy:
+                    break
+                resolved = []
+                for name in to_copy:
+                    matches = [
+                        p for p in boost_prefix_bin.iterdir()
+                        if p.name.lower() == name.lower()
+                    ]
+                    if not matches:
+                        log(
+                            f"Boost variant needed by a packaged binary but not "
+                            f"found in the OpenBabel prefix: {name}"
+                        )
+                        break
+                    resolved.append(matches[0])
+                if len(resolved) != len(to_copy):
+                    break
+                for src in resolved:
+                    log(f"Import-kept Boost variant: {src.name}")
+                    copy(src, dist / "bin" / src.name)
 
         dest_plugins = dist / "lib" / "openbabel" / ob_version
         dest_plugins.mkdir(parents=True, exist_ok=True)
