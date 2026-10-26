@@ -45,10 +45,13 @@
       sufficient on this driver; H2 (driver 573.22) leads attribution and the
       residual crash belongs to a follow-up change per design. Follow-up
       experiment 2026-10-26: Threaded Optimization OFF — no effect, crash
-      persists; the specific TO/deferral-queue mechanism is disfavoured. Still
-      owed: driver-rollback retest; a forced `AVOGADRO_RENDERER=compat` run
-      (separates modern-tier GL usage from the driver's present path generally);
-      a second run with reused settings.
+      persists; the specific TO/deferral-queue mechanism is disfavoured.
+      Experiment 2 2026-10-26: `AVOGADRO_RENDERER=compat` — no effect, crash
+      persists; the trigger is NOT modern-tier GL usage, and the driver-rollback
+      mitigation is rejected by the user. Tier-independence narrows the
+      application-side suspect set to code common to all tiers (the GLPainter
+      path and widget/present plumbing). Still owed: a second run with reused
+      settings.
 
 ## 2. Installer dependency closure (plugin fix)
 

@@ -61,10 +61,20 @@ and a second run with reused settings.
 Experiment update 2026-10-26: Threaded Optimization OFF — no effect, the crash
 persists. The specific threaded-optimization/deferral-queue mechanism is
 disfavoured; the driver-side bug must lie elsewhere in the present path or be
-a 573.22-branch regression. Next discrimination: driver rollback retest; a
-forced `AVOGADRO_RENDERER=compat` run (if the crash vanishes on the compat
-tier, the trigger is modern-tier GL usage — instancing/fences/PBO — on this
-driver rather than the present path per se); second run with reused settings.
+a 573.22-branch regression. Experiment 2 2026-10-26: forced
+`AVOGADRO_RENDERER=compat` — no effect, crash persists. Tier-independence
+disfavours modern-tier-specific GL usage (instancing/fences/PBO) as the
+trigger and narrows the application-side suspect set to code common to all
+tiers: the GLPainter path (the compat painter AND the modern tier's
+text/overlay/bridge painter) and widget/context plumbing. Driver rollback is
+rejected by the user as a mitigation. Code investigation (2026-10-26) found a
+candidate root cause in that common code: GL object names (display lists,
+textures, mesh VBOs) are used across two unshared QOpenGLWidget contexts —
+`main.cpp` never sets `Qt::AA_ShareOpenGLContexts`, while
+`MainWindow::newGLWidget` shares the first widget's GLPainter with the second
+(mainwindow.cpp:3905, glwidget.cpp:528-535); also `~GLWidgetPrivate` deletes
+display lists with no context current (glwidget.cpp:235-241). Validation
+pending (oracle consulted).
 
 Constraints:
 - The legacy tier is not compiled into the installer build (`AVO_RENDERER_LEGACY`
