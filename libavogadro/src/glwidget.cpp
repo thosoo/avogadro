@@ -39,6 +39,7 @@
 #include "rendering/compatbackend.h"
 #include "rendering/renderertier.h"
 #include "rendering/builderpool.h"
+#include "rendering/builderadoption.h"
 #include "rendering/scenesnapshot.h"
 #include "rendering/snapshottessellator.h"
 #include "rendering/selectrefine.h"
@@ -345,6 +346,13 @@ void GLWidget::updateViewport()
     rendering::TessellationResult workerResult;
     unsigned int readyRevision = 0;
     bool hasWorkerResult = false;
+    //! Generation of the last ADOPTED worker result (design D1 /
+    //! fix-modern-tier-revision-churn). Adoption is forward-progress:
+    //! builderResultReady adopts any result strictly newer than this and
+    //! discards everything older-or-equal, so under sustained revision churn
+    //! the display trails by at most one build instead of starving on an
+    //! exact molecule->revision() match. Monotonic — never regresses.
+    unsigned int presentedRevision = 0;
     //! Revision the backend's chunk stores currently reflect, and whether any
     //! stores exist at all. Rotation frames skip re-emission entirely.
     unsigned long emittedRevision = 0;
@@ -707,6 +715,7 @@ GLWidget::GLWidget( Molecule *molecule,
     d->hasWorkerResult = false;
     d->submittedRevision = 0;
     d->readyRevision = 0;
+    d->presentedRevision = 0;
     // Renderer-tier selection (gpu-rendering-pipeline design A8/D7, task 7.1).
     // The AVOGADRO_RENDERER override is read before the first frame is drawn;
     // without it the highest compiled-in tier the context supports runs. A
@@ -1070,6 +1079,7 @@ GLWidget::GLWidget( Molecule *molecule,
           d->hasWorkerResult = false;
           d->submittedRevision = 0;
           d->readyRevision = 0;
+          d->presentedRevision = 0;
           qDebug() << "GLWidget: modern backend recovered; resuming the instanced"
                    << " (modern tier) presentation path.";
         }
@@ -1093,7 +1103,13 @@ GLWidget::GLWidget( Molecule *molecule,
       submitWorkerBuild(revision);
 
     if (workerPath) {
-      if (d->hasWorkerResult && d->readyRevision == revision) {
+      // Forward-progress present (design D1 / fix-modern-tier-revision-churn):
+      // adopt whenever a result is at least as new as the last presented
+      // generation. builderResultReady already advanced presentedRevision to
+      // readyRevision on adoption, so this holds on every frame until a newer
+      // result arrives; it never regresses to older content and never blanks
+      // while a build is in flight (drawLastReady handles that gap).
+      if (d->hasWorkerResult && d->readyRevision >= d->presentedRevision) {
         // Adopt the worker-built chunks: pushing uploads only the dirty
         // ranges, under the backend's ≤2 ms/frame budget (design D2/D3).
         const QMatrix4x4 mvp = currentModelViewProjection();
@@ -1323,19 +1339,42 @@ GLWidget::GLWidget( Molecule *molecule,
     unsigned int generation)
   {
     Q_UNUSED(jobId);
-    // Revision check (design A7): results for older revisions are discarded —
-    // the molecule changed while the worker was building. This orders the
-    // out-of-order results from the 2-thread worker pool and must stay.
-    // (fix-modern-tier-frame-presentation) Retention makes this discard cost
-    // latency, not blanking: a superseded result is simply not uploaded, and
-    // the last adopted geometry keeps being presented in the meantime.
-    if (!d->molecule || generation < d->molecule->revision()) {
+    // Forward-progress adoption (design D1 / fix-modern-tier-revision-churn).
+    // Adopt only results strictly newer than what has already been presented;
+    // discard everything older-or-equal. Under sustained molecule-revision
+    // churn the old gate (generation == molecule->revision(), or discard if
+    // generation < revision) starved: every build lost the race, was
+    // discarded and resubmitted, and the display froze at the last adopted
+    // revision. Adopting forward bounds presentation latency to one build no
+    // matter how fast the revision climbs, and monotonicity guarantees a
+    // stale result can never overwrite newer presented content. The decision
+    // is isolated in decideResultAdoption() so it can be unit tested.
+    if (!d->molecule)
       return;
+    bool resubmit = false;
+    if (rendering::decideResultAdoption(generation, d->presentedRevision,
+                                        d->molecule->revision(),
+                                        d->submittedRevision, resubmit)
+        == rendering::ResultAdoption::Adopt) {
+      // Adopt: this result is strictly newer than anything presented so far.
+      d->workerResult = result;
+      d->readyRevision = generation;
+      d->presentedRevision = generation;
+      d->hasWorkerResult = true;
+      // If the live molecule has moved past this build, submit the newest
+      // revision immediately so the next adopted result makes further progress
+      // (design D1). renderModern() also does this, but doing it here closes
+      // the window without waiting for the next frame.
+      if (resubmit)
+        submitWorkerBuild(d->molecule->revision());
+      update(); // adopt the freshly built chunks on the next frame
+    } else {
+      // Superseded by a newer presented result (or an exact duplicate).
+      // Drop it, but still ask for the newest live revision so the display
+      // can catch up once churn stops (design D1).
+      if (resubmit)
+        submitWorkerBuild(d->molecule->revision());
     }
-    d->workerResult = result;
-    d->readyRevision = generation;
-    d->hasWorkerResult = true;
-    update(); // adopt the freshly built chunks on the next frame
   }
 
   void GLWidget::sceneContentsChanged()

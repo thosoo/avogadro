@@ -562,7 +562,22 @@ namespace Avogadro {
         // coordinates
         double *coordPtr = mol.GetCoordinates();
         foreach(Atom* atom, atoms) {
-          atom->setPos(Eigen::Vector3d(coordPtr));
+          // Dragged-atom write-back skip (fix-modern-tier-revision-churn
+          // task 2.1): while the left button is still down the atom under the
+          // drag owns its position from the drag path, not from this tick's
+          // snapshot. The force field never moved it (it is fix-markered), so
+          // its coordinate here is up to one tick stale and pre-drag; writing
+          // it back would teleport the atom backward before translate() below
+          // re-applies the cursor delta from that stale anchor (the reported
+          // "mouse is at the new location but the atom gets there much later").
+          // Skip the write for it this tick; translate() still re-anchors it.
+          // On release the skip clears and this atom is covered again.
+          // coordPtr MUST still advance by 3 for every atom (including the
+          // skipped one) so the coordinate array stays aligned: atom i maps to
+          // coordPtr + 3*i, so consuming the dragged atom's slot without
+          // writing it keeps every later atom on its own coordinates.
+          if (!(m_clickedAtom && m_leftButtonPressed && atom == m_clickedAtom))
+            atom->setPos(Eigen::Vector3d(coordPtr));
           coordPtr += 3;
         }
       }

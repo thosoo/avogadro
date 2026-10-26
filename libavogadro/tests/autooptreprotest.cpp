@@ -150,6 +150,25 @@ public:
   // QObject::thread() returns QThread*; name this differently so the worker
   // AutoOptThread* is reachable for spying on its setupFailed() signal.
   AutoOptThread *autoThread() const { return m_thread; }
+
+  // Drag-path state for the task 2.1 write-back test. The members are
+  // protected in AutoOptTool, so AutoOptReproTest (not a subclass) reaches
+  // them through these public mutators defined on the subclass.
+  void setDragMarker(Atom *a, bool pressed)
+  {
+    m_clickedAtom = a;
+    m_leftButtonPressed = pressed;
+  }
+  void setDraggingPosition(const QPoint &p)
+  {
+    m_lastDraggingPosition = p;
+  }
+  // finished() only writes back when m_running; disable() clears it, so a
+  // test that quiesces the worker before driving finished() re-sets it.
+  void setRunning(bool running)
+  {
+    m_running = running;
+  }
 };
 
 } // namespace
@@ -245,6 +264,7 @@ private slots:
   // task 3.5: Start on a 0-atom molecule must not attempt a Setup (and must
   // not crash); the worker never ticks.
   void emptyMoleculeStartIdle();
+  void draggedAtomWriteBackSkipped();
 };
 
 void AutoOptReproTest::initTestCase()
@@ -980,6 +1000,96 @@ void AutoOptReproTest::emptyMoleculeStartIdle()
 
   tool.disable();
   QVERIFY(!tool.running());
+
+  delete mol;
+}
+
+void AutoOptReproTest::draggedAtomWriteBackSkipped()
+{
+  // fix-modern-tier-revision-churn task 2.1: while a left-button drag is
+  // active, a tick's coordinate write-back MUST NOT overwrite the grabbed
+  // atom. Its force-field coordinate is a stale, up-to-one-tick-pre-drag
+  // snapshot (and the atom is fix-markered, so the optimizer never moved it);
+  // writing it back teleports the atom backward before the drag path re-anchors
+  // it. Non-dragged atoms still receive the optimized coordinates every tick.
+  Molecule *mol = makeCarbonChain();
+  QVERIFY(mol);
+
+  GLWidget widget(mol, QSurfaceFormat());
+  widget.resize(640, 480);
+
+  AutoOptToolExposed tool;
+  tool.settingsWidget();
+  tool.setGlw(&widget);
+  tool.enable();
+  QVERIFY(tool.running());
+
+  // Quiesce the worker: the force field now holds a stable set of
+  // coordinates. Read them back as the ground-truth write-back target F.
+  tool.disable();
+  QVERIFY(!tool.running());
+
+  OpenBabel::OBForceField *ff = tool.autoThread()->forceField();
+  QVERIFY(ff);
+
+  const int n = mol->numAtoms();
+  QVERIFY(n >= 2);
+  QList<Atom *> atoms = mol->atoms();
+
+  // Known write-back targets F (spread far from the chain's origin so a
+  // write-back is detectably wrong on the non-dragged atoms). Load them into
+  // the force field: set up, put F on the molecule, then copy molecule -> FF.
+  OpenBabel::OBMol obmol = mol->OBMol();
+  QVERIFY(ff->Setup(obmol));
+  for (Atom *a : atoms) {
+    const int i = a->index();
+    a->setPos(Eigen::Vector3d(10.0 + i, -i, 0.5 * i));
+  }
+  obmol = mol->OBMol();
+  QVERIFY(ff->SetCoordinates(obmol));
+
+  // Put every atom at the origin (P), which differs from F, so the write-back
+  // target is unambiguous.
+  for (Atom *a : atoms) {
+    a->setPos(Eigen::Vector3d(0.0, 0.0, 0.0));
+    a->update();
+  }
+
+  // finished() only writes back while m_running; disable() cleared it. The
+  // worker is already quiesced, so re-enabling the flag is safe (no concurrent
+  // tick) and lets finished() run its write-back from the test thread.
+  tool.setRunning(true);
+
+  // Engage a left-button drag on the first atom and make the re-anchor
+  // translate() a no-op (from == to), so a skipped write-back leaves the
+  // dragged atom exactly where the drag put it (the origin).
+  Eigen::Vector3d begin = widget.camera()->project(*atoms[0]->pos());
+  tool.setDraggingPosition(QPoint(qRound(begin.x()), qRound(begin.y())));
+  tool.setDragMarker(atoms[0], true);
+
+  // One tick's write-back via finished().
+  tool.finished(true);
+
+  auto near = [](const Eigen::Vector3d &a, const Eigen::Vector3d &b, double tol) {
+    return (a - b).norm() < tol;
+  };
+
+  // Grabbed atom: write-back skipped, translate no-op -> stays at the drag
+  // position (origin), NOT at the stale force-field coordinate F[0] = (10,0,0).
+  QVERIFY(near(*atoms[0]->pos(), Eigen::Vector3d(0.0, 0.0, 0.0), 1e-9));
+  QVERIFY(!near(*atoms[0]->pos(), Eigen::Vector3d(10.0, 0.0, 0.0), 1e-6));
+
+  // Non-dragged atoms: write-back applied to the force-field coordinates F.
+  for (int i = 1; i < n; ++i) {
+    QVERIFY(near(*atoms[i]->pos(),
+                 Eigen::Vector3d(10.0 + i, -i, 0.5 * i), 1e-9));
+  }
+
+  // Release: coverage resumes, so a subsequent write-back now moves the atom.
+  tool.setDragMarker(nullptr, false);
+  tool.finished(true);
+  // Coverage resumed: the dragged atom now receives its write-back (F[0]).
+  QVERIFY(near(*atoms[0]->pos(), Eigen::Vector3d(10.0, 0.0, 0.0), 1e-9));
 
   delete mol;
 }

@@ -16,11 +16,14 @@
 
 #include "libavogadro/src/rendering/snapshottessellator.h"
 #include "libavogadro/src/rendering/builderpool.h"
+#include "libavogadro/src/rendering/builderadoption.h"
 
 using namespace Avogadro;
 using Avogadro::rendering::BuilderPool;
 using Avogadro::rendering::BuilderWorker;
 using Avogadro::rendering::JobParams;
+using Avogadro::rendering::ResultAdoption;
+using Avogadro::rendering::decideResultAdoption;
 using Avogadro::rendering::SnapshotAtom;
 using Avogadro::rendering::SnapshotBond;
 using Avogadro::rendering::SceneSnapshot;
@@ -100,6 +103,7 @@ private Q_SLOTS:
   void directDelivery();
   void editsDuringBuilds();
   void viewCloseDuringBuilds();
+  void forwardProgressAdoption();
 
 private:
   BuilderPool *m_pool;
@@ -296,6 +300,42 @@ void BuilderPoolTest::viewCloseDuringBuilds()
              qPrintable(QString("iteration %1 leaked builder threads: %2 -> %3 (settled %4, polled %5 ms)")
                           .arg(iteration).arg(before).arg(after).arg(settled).arg(settleClock.elapsed())));
   }
+}
+
+//! fix-modern-tier-revision-churn (design D1): the worker-path adoption
+//! contract. Replaces the old exact-revision expectation (adopt only when
+//! generation == molecule->revision(), discard when generation < revision) with
+//! forward-progress adoption. The pool still emits every job (nothing is lost;
+//! see editsDuringBuilds) — the GUI-side decision on each result is what this
+//! test codifies now.
+void BuilderPoolTest::forwardProgressAdoption()
+{
+  // (a) A result strictly newer than what is presented is adopted.
+  bool resubmit = false;
+  QCOMPARE(decideResultAdoption(5u, 0u, 5u, 0u, resubmit), ResultAdoption::Adopt);
+
+  // (b) A result older-or-equal to what is presented is discarded, including an
+  //     exact duplicate of the presented generation (out-of-order reorder).
+  QCOMPARE(decideResultAdoption(3u, 5u, 5u, 0u, resubmit), ResultAdoption::Discard);
+  QCOMPARE(decideResultAdoption(5u, 5u, 5u, 0u, resubmit), ResultAdoption::Discard);
+
+  // (c) Resubmit is requested exactly when the live revision has not already
+  //     been submitted, for both adopt and discard paths.
+  resubmit = false;
+  decideResultAdoption(6u, 5u, 8u, 5u, resubmit);
+  QVERIFY(resubmit); // live revision 8 was not the submitted 5
+  resubmit = false;
+  decideResultAdoption(6u, 5u, 5u, 5u, resubmit);
+  QVERIFY(!resubmit); // live revision 5 already submitted: no duplicate build
+
+  // Forward progress is monotonic: once the presented cursor advances, a
+  // later-arriving result at or below it is discarded and never re-adopts, so
+  // a stale build can never overwrite newer presented content.
+  unsigned int presented = 5u;
+  QCOMPARE(decideResultAdoption(7u, presented, 7u, 7u, resubmit), ResultAdoption::Adopt);
+  presented = 7u;
+  QCOMPARE(decideResultAdoption(7u, presented, 7u, 7u, resubmit), ResultAdoption::Discard);
+  QCOMPARE(decideResultAdoption(6u, presented, 7u, 7u, resubmit), ResultAdoption::Discard);
 }
 
 #include "builderpooltest.moc"
