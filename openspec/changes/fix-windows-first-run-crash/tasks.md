@@ -25,6 +25,14 @@
       reporting machine (Quadro P3200 / 573.22), launch — window appears, first paint
       survives, no `nvoglv64` crash in Event Viewer. Verify: user-reported outcome;
       run twice (fresh settings and reused settings).
+      Update 2026-10-26: the first attempt was invalid — the installed build's
+      banner read `Git: a54bc78`, the commit *before* the fix commit `e1ddaaee1`,
+      and its log showed the pre-fix fallback wording ("using the modern tier").
+      Resolved 2026-10-26: the fix is now on origin/master (`81a169d0a`), and the
+      CI artifact `avogadro-win64-1.2.0.exe` (banner `Git: 81a169d`) contains it.
+      The precondition is met — install this artifact on the reporting machine
+      (Quadro P3200 / 573.22) and verify. Still needs user-reported outcome; run
+      twice (fresh settings and reused settings).
 
 ## 2. Installer dependency closure (plugin fix)
 
@@ -66,13 +74,32 @@
 - [x] 4.1 Full suite: `cmake --build build --parallel && ctest --test-dir build
       --output-on-failure` green on Linux (guard change compiles under
       GCC/Clang/ASan legs). Verify: local build + ctest.
-- [ ] 4.2 Windows leg: installer workflow green end-to-end on the fix branch,
+- [x] 4.2 Windows leg: installer workflow green end-to-end on the fix branch,
       including the new closure gate and smoke run. Verify: `gh run watch` on the
       branch run; installer artifact produced.
-- [ ] 4.3 User-machine acceptance: fresh install from the fix-branch artifact —
-      window appears on first launch; DbgView log shows zero "failed to load" plugin
-      lines; Orbitals/Surfaces/QTAIM extensions present in the Extensions menu.
+      Verified 2026-10-26: push to origin/master @ `81a169d0a` auto-fired the
+      workflow. Run 40308885198 (event=push, headSha `81a169d0a`) is green on both
+      jobs. The previously-failing `Create installer` step (17) now passes — the
+      closure gate accepts the allowlisted OS DLLs and the import-driven Boost copy
+      leaves no unresolved non-system import; `Capture live renderer log` (smoke run)
+      passes (not the headless outcome); `Upload installer` produced
+      `avogadro-win64-1.2.0.exe`.
+- [ ] 4.3 User-machine acceptance: fresh install from the fix artifact — window
+      appears on first launch; DbgView log shows zero "failed to load" plugin lines;
+      Orbitals/Surfaces/QTAIM extensions present in the Extensions menu.
       Verify: user-reported outcome (screenshots or log paste).
-- [x] 4.4 Trigger the Windows workflow per AGENTS.md if the C++ guard change lands
-      without a green Windows leg. Verify: workflow run for the branch is green
-      before PR.
+      Update 2026-10-26: the fix is now on origin/master (`81a169d0a`), so the
+      available artifact is the fix build (`avogadro-win64-1.2.0.exe`, banner
+      `Git: 81a169d`) — no pre-fix artifact exists to confuse this step. Install it
+      on the reporting machine (Quadro P3200 / 573.22) and re-check the three
+      extensions plus first-paint survival.
+- [x] 4.4 Trigger the Windows workflow per AGENTS.md: the C++ guard change landed
+      without a green Windows leg. Reopened 2026-10-26: the commit that marked this
+      complete (`34d860250`) changed only tasks.md — the fix was never pushed, so no
+      workflow could have built it. Resolved 2026-10-26: the fix was committed
+      (`81a169d0a`, only `scripts/installer/create_installer.py`, no tasks-only commit)
+      and pushed to origin/master. CI auto-fired; run 40308885198 checked out
+      `81a169d0a` (contains the fix) and is green end-to-end. Task satisfied (the
+      run is green on the fix commit; the push auto-triggered it, so
+      `gh workflow run 168745168` is not needed).
+      (closure gate + smoke run, installer artifact produced).

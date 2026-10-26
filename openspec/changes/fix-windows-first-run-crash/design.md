@@ -12,6 +12,30 @@ driver state" and "driver 573.22 deferral-queue bug"; the guard fix is correct u
 either hypothesis, so it is the primary fix, with two cheap user-side experiments
 (Threaded Optimization off; a fix-branch installer build) as confirmation.
 
+Verification update (2026-10-26): the first post-change test on the reporting
+machine was invalid as fix verification. The installed build's banner read
+`Git: a54bc78` — the commit immediately before the fix commit `e1ddaaee1`, which
+was (and is) local-only, so no CI-built artifact could contain the fixes. The
+capture reproduces every pre-fix signature: the three extension load failures
+(no closure gate existed at `a54bc78`), the old fallback wording ("using the
+modern tier"), the same first-chance AV inside `nvoglv64!DrvPresentBuffers`, and
+— sharpest yet — the second widget logging a live `glGetString` renderer string
+immediately before `ModernRendererBackend` reported "no current GL context" in
+the same initialization pass. The fix is therefore neither verified nor
+falsified; H1-vs-H2 attribution stays open until a fix-built artifact is tested.
+
+Verification update (2026-10-26, second attempt): the fix is now committed
+(`81a169d0a`) and pushed to origin/master, so a CI-built artifact can contain it.
+The Windows Installer workflow auto-fired on the push and run 40308885198 is green
+end-to-end on headSha `81a169d0a`: the dependency-closure gate now passes (the
+allowlisted OS DLLs and the import-driven Boost copy resolve every non-system
+import), the smoke run passes, and `avogadro-win64-1.2.0.exe` was uploaded. The
+installer-build defects (crash guard + dependency closure + smoke run) are
+therefore verified at the CI level. What still needs the artifact on the
+reporting machine (Quadro P3200 / 573.22): the crash itself (task 1.5) and the
+three-extension load check (task 4.3), and with them the H1-vs-H2 attribution —
+those remain open pending a user-installed fix build.
+
 Constraints:
 - The legacy tier is not compiled into the installer build (`AVO_RENDERER_LEGACY`
   off), so on a headless CI runner (GDI Generic GL 1.1) the packaged app legitimately
@@ -121,6 +145,15 @@ Constraints:
 - [`d->initialized` not set on bail-out] → repeated retry attempts per event are
   cheap (one `currentContext()` check), and a widget that never gets a context never
   did anything before either.
+- [Fix commit never reaches CI] → RESOLVED 2026-10-26: the fix was committed
+  (`81a169d0a`, only `scripts/installer/create_installer.py`, not a tasks-only
+  commit) and pushed to origin/master. CI auto-fired; run 40308885198 checked out
+  `81a169d0a` and is green end-to-end (Create installer, smoke run, Upload
+  installer → avogadro-win64-1.2.0.exe). Artifact provenance is now bound to the
+  fix commit (banner `Git: 81a169d`), so the precondition for interpreting a user-
+  machine crash as fix failure/success is met. The remaining user-machine checks
+  (tasks 1.5, 4.3) are still outstanding — they need the artifact installed on the
+  reporting machine.
 
 ## Migration Plan
 
@@ -132,5 +165,9 @@ previous installer remains the fallback.
 
 ## Open Questions
 
-- None blocking. (Attribution H1-vs-H2 affects only verification prose, not the
-  approach; the confirmation experiments resolve it after this change lands.)
+- Attribution H1-vs-H2 is still open, and the confirmation experiment has not
+  validly run: the 2026-10-26 attempt tested a pre-fix artifact (`a54bc78`)
+  because the fix commit (`e1ddaaee1`) was never pushed to any remote ref. First
+  step after landing: push, trigger the Windows workflow on a ref containing the
+  fix, and only then interpret the reporting machine's outcome. (Attribution
+  affects verification prose only, not the approach.)

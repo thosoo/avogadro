@@ -21,6 +21,24 @@ valid `glGetString` renderer string while `QOpenGLContext::currentContext()` was
 in the same call, because `resizeEvent`/`paintEvent` ignore `makeCurrent()`'s return
 value and run initialization (~15 fixed-function GL calls) with no context current.
 
+Post-change verification note (2026-10-26): the first retest on the reporting
+machine installed a pre-fix artifact — its banner reads `Git: a54bc78`, the commit
+immediately before the never-pushed fix commit `e1ddaaee1`, so no CI artifact
+could contain the changes. That capture reproduces all pre-fix signatures (three
+plugin load failures, old fallback wording, the same `nvoglv64!DrvPresentBuffers`
+first-chance AV) and adds the direct contextless-init proof: a live renderer
+string logged immediately before "ModernRendererBackend: no current GL context"
+in the same init. It neither verifies nor falsifies this change.
+
+Verification update (2026-10-26, second attempt): the fix is now committed
+(`81a169d0a`) and pushed to origin/master, so a CI artifact can contain it. The
+Windows Installer workflow auto-fired on the push; run 40308885198 is green on
+headSha `81a169d0a` — the dependency-closure gate passes, the smoke run passes,
+and `avogadro-win64-1.2.0.exe` (banner `Git: 81a169d`) was uploaded. The
+installer-build defects are therefore verified at the CI level. The crash itself
+and the three-extension load check still need the artifact installed on the
+reporting machine (tasks 1.5, 4.3), and with them H1-vs-H2 attribution.
+
 ## What Changes
 
 - **Windows installer packages a loadable dependency set.** `create_installer.py`
@@ -72,8 +90,9 @@ value and run initialization (~15 fixed-function GL calls) with no context curre
   early exit); pass `Qt6_DIR` through to the packaging step.
 - `libavogadro/src/glwidget.cpp` — `resizeEvent`/`paintEvent` `makeCurrent()` checks,
   `initializeGL` context guard, deferred-init flag handling, fallback log message.
-- `libavogadro/src/rendering/modernbackend.cpp` — message wording only (bail-out
-  behavior already correct).
+- `libavogadro/src/rendering/modernbackend.cpp` — no change required after all: the
+  bail-out and its "no current GL context" message predate this change (verified
+  2026-10-26: the fix commit `e1ddaaee1` does not touch this file).
 - No shader, geometry, or adoption-path changes; the modern tier's render paths are
   untouched. The `fix-modern-tier-revision-churn` change is unaffected (different
   files/paths).
