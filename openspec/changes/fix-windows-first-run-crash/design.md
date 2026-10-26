@@ -36,6 +36,29 @@ reporting machine (Quadro P3200 / 573.22): the crash itself (task 1.5) and the
 three-extension load check (task 4.3), and with them the H1-vs-H2 attribution —
 those remain open pending a user-installed fix build.
 
+Verification outcome (2026-10-26, fix artifact on the reporting machine): the
+CI artifact `avogadro-win64-1.2.0.exe` (banner `Git: 81a169d`) was installed and
+run under cdb on the Quadro P3200 / 573.22 machine. The guard works exactly as
+designed: the second widget bails out cleanly on the contextless path (no live
+`glGetString` before "no current GL context"), logs the corrected fixed-function
+fallback wording, and the modern tier recovers lazily ("modern backend
+recovered"). Every extension loads (`Qt6Concurrent.dll`, `avogadro_OpenQube.dll`,
+the orbital/surface/qtaim extensions all ModLoad; zero load failures), and only
+the three needed Boost variants are present — the installer-runtime scope is
+verified on a clean end-user machine. The crash, however, still occurs:
+first-chance AV c0000005 in `nvoglv64!DrvPresentBuffers+0x1f6703` on a non-main
+thread, now at `createObjects()` — after first paint and full startup, later
+than the original first-paint fault. H1 (contextless-call UB as the sole cause)
+is thereby disfavoured: the contextless GL path no longer executes, yet the
+driver still faults. Note the delta scenario "No undefined driver dispatch is
+observable" now holds in its letter (first paint survives with no AV during
+it) while the launch still ends in the same driver fault — the residual is not
+covered by this change's requirement. H2 (driver 573.22 present-path bug) is
+the leading attribution; per the pre-registered branch the guard still lands
+(hygiene verified) and the residual crash moves to a follow-up change, pending
+the cheap user-side experiments (Threaded Optimization off; driver rollback)
+and a second run with reused settings.
+
 Constraints:
 - The legacy tier is not compiled into the installer build (`AVO_RENDERER_LEGACY`
   off), so on a headless CI runner (GDI Generic GL 1.1) the packaged app legitimately
@@ -137,11 +160,12 @@ Constraints:
   drawable surface; skipping the paint cannot lose content (Qt re-issues expose on
   the next opportunity). The `ENABLE_THREADED_GL` path is compiled out by default and
   is untouched.
-- [Guard may not fix the user's crash if driver 573.22 is itself buggy] → the two
-  confirmation experiments (Threaded Optimization off; fix-branch installer) separate
-  attribution; if H2 wins, this change still lands (hygiene + installer fixes) and
-  the crash gets its own change (e.g., avoid deferral-sensitive calls on that driver
-  or document a driver floor).
+- [Guard may not fix the user's crash if driver 573.22 is itself buggy] → OBSERVED
+  2026-10-26: the guard alone did not fix the reporting machine's crash (see
+  Context — the fault moved from first paint to `createObjects()`, still inside
+  `nvoglv64!DrvPresentBuffers`). The installer fixes and GL hygiene are verified
+  and still land; the residual crash gets its own change. Next discrimination:
+  Threaded Optimization OFF retest, then driver rollback.
 - [`d->initialized` not set on bail-out] → repeated retry attempts per event are
   cheap (one `currentContext()` check), and a widget that never gets a context never
   did anything before either.
@@ -162,12 +186,17 @@ Windows installer workflow, install the artifact on the reporting machine, and
 verify: window appears, first paint survives, all plugins load (no module-not-found
 lines), Orbitals/Surfaces/QTAIM extensions functional. Rollback = revert the PR; the
 previous installer remains the fallback.
+Migration outcome 2026-10-26: done as written — plugin load and GL-guard
+behaviour verified on the reporting machine; the window-appears criterion is
+blocked by the residual driver fault (see Context), which moves to a follow-up
+change.
 
 ## Open Questions
 
-- Attribution H1-vs-H2 is still open, and the confirmation experiment has not
-  validly run: the 2026-10-26 attempt tested a pre-fix artifact (`a54bc78`)
-  because the fix commit (`e1ddaaee1`) was never pushed to any remote ref. First
-  step after landing: push, trigger the Windows workflow on a ref containing the
-  fix, and only then interpret the reporting machine's outcome. (Attribution
-  affects verification prose only, not the approach.)
+- Attribution H1-vs-H2: the confirmation experiment has now validly run (fix
+  artifact `Git: 81a169d` on the reporting machine, 2026-10-26). The crash
+  reproduces with no contextless GL call having been made, so H1-as-sole-cause
+  is disfavoured and H2 (driver 573.22 present-path bug) leads. Remaining
+  discrimination: Threaded Optimization OFF retest; driver rollback retest;
+  second run with reused settings. (Attribution affects the follow-up change's
+  approach, not this change — its scope is verified and lands as-is.)

@@ -39,6 +39,19 @@ installer-build defects are therefore verified at the CI level. The crash itself
 and the three-extension load check still need the artifact installed on the
 reporting machine (tasks 1.5, 4.3), and with them H1-vs-H2 attribution.
 
+Final verification outcome (2026-10-26, third attempt): the fix build
+(`Git: 81a169d`) was installed and run on the reporting machine. The installer
+defects are fixed and verified on a clean machine — every plugin loads
+(`Qt6Concurrent.dll` present; orbital/surface/qtaim extensions ModLoad; zero
+"module could not be found" lines; only the three needed Boost variants ship).
+The GL guard behaves exactly as designed (clean contextless bail-out, accurate
+fixed-function fallback wording, lazy modern-tier recovery), and first paint
+survives. The crash itself persists, now at `createObjects()` inside
+`nvoglv64!DrvPresentBuffers` — with no contextless GL call having been made —
+so the driver (573.22) is the leading attribution. This change's scope
+(installer runtime + GL-call hygiene) is verified and lands; the residual crash
+moves to a follow-up change per the design's pre-registered branch.
+
 ## What Changes
 
 - **Windows installer packages a loadable dependency set.** `create_installer.py`

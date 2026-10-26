@@ -31,8 +31,20 @@
       Resolved 2026-10-26: the fix is now on origin/master (`81a169d0a`), and the
       CI artifact `avogadro-win64-1.2.0.exe` (banner `Git: 81a169d`) contains it.
       The precondition is met — install this artifact on the reporting machine
-      (Quadro P3200 / 573.22) and verify. Still needs user-reported outcome; run
-      twice (fresh settings and reused settings).
+      (Quadro P3200 / 573.22) and verify.
+      Outcome 2026-10-26 (cdb capture on the reporting machine, fresh settings):
+      the guard works exactly as designed — the second widget bails out with
+      "no current GL context; cannot initialise" and no live `glGetString` on the
+      contextless path, logs the corrected fixed-function fallback wording, and
+      the modern tier later logs "modern backend recovered; resuming the instanced
+      (modern tier) presentation path". First paint survives (an empty-scene frame
+      renders). The process STILL faults: first-chance AV c0000005 in
+      `nvoglv64!DrvPresentBuffers+0x1f6703` at `createObjects()`, on a non-main
+      thread — the same driver module/function family as the original capture,
+      now without any contextless GL call having been made. Guard-only is not
+      sufficient on this driver; H2 (driver 573.22) leads attribution and the
+      residual crash belongs to a follow-up change per design. Still owed: a
+      second run with reused settings.
 
 ## 2. Installer dependency closure (plugin fix)
 
@@ -88,11 +100,14 @@
       appears on first launch; DbgView log shows zero "failed to load" plugin lines;
       Orbitals/Surfaces/QTAIM extensions present in the Extensions menu.
       Verify: user-reported outcome (screenshots or log paste).
-      Update 2026-10-26: the fix is now on origin/master (`81a169d0a`), so the
-      available artifact is the fix build (`avogadro-win64-1.2.0.exe`, banner
-      `Git: 81a169d`) — no pre-fix artifact exists to confuse this step. Install it
-      on the reporting machine (Quadro P3200 / 573.22) and re-check the three
-      extensions plus first-paint survival.
+      Update 2026-10-26 (fix build tested, cdb capture): the plugin criterion is
+      MET — `Qt6Concurrent.dll`, `avogadro_OpenQube.dll`, `orbitalextension.dll`,
+      `surfaceextension.dll` and `qtaimextension.dll` all ModLoad with zero
+      "module could not be found" lines, and only the three needed Boost variants
+      (iostreams/zlib/bzip2) load. The window criterion is NOT met: the process
+      faults at `createObjects()` after full startup (see 1.5) before a presented
+      window can be confirmed. Plugin packaging is verified on the user machine;
+      the residual crash is tracked for the follow-up change.
 - [x] 4.4 Trigger the Windows workflow per AGENTS.md: the C++ guard change landed
       without a green Windows leg. Reopened 2026-10-26: the commit that marked this
       complete (`34d860250`) changed only tasks.md — the fix was never pushed, so no
