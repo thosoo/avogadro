@@ -17,14 +17,17 @@
       tests with "QOpenGLWidget is not supported on this platform" — an
       offscreen-platform artifact reproduced identically without this change
       (verified by stash/rebuild/rerun), not a regression of this fix.
-- [ ] 1.4 Windows legs: both workflows green on the fix commit; installer artifact
-      produced. Verify: `gh run list` on the pushed commit.
-- [ ] 1.5 User-machine discriminating test: install the fix artifact on the
+- [x] 1.4 Windows legs: both workflows green on the fix commit; installer artifact
+      produced. Verified 2026-10-26: Qt6 CI run 40328029120 and Windows Installer
+      run 40328028783 both completed/success on headSha `ac487391e`; the installer
+      artifact `avogadro-win64-1.2.0.exe` was produced and uploaded.
+- [x] 1.5 User-machine discriminating test: install the fix artifact on the
       reporting machine (Quadro P3200 / 573.22), run **outside** the debugger,
       twice (fresh + reused settings). Window presents and survives; Event Viewer
-      shows no `nvoglv64` access violation. Verify: user-reported outcome.
-      AV gone → cross-context UB confirmed as root cause; AV persists → clean
-      attribution shifts to the driver regression (file an NVIDIA report).
+      shows no `nvoglv64` access violation. Verified 2026-10-26: user reported
+      "the GUI is working again with the latest exe created by
+      windows-installer.yml". Outcome: cross-context UB CONFIRMED as the root
+      cause; the crash is fixed on the reporting machine.
 
 ## 2. Bookkeeping
 

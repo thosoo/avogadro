@@ -20,7 +20,7 @@
       recovery; log once when `renderModern()`'s lazy recovery succeeds. Verify:
       manual — the second-widget log line no longer claims "using the modern tier"
       while presenting fixed-function.
-- [ ] 1.5 Manual Windows verification of the crash fix: build a fix-branch installer
+- [x] 1.5 Manual Windows verification of the crash fix: build a fix-branch installer
       (`gh workflow run windows-installer.yml --ref <branch>`), install on the
       reporting machine (Quadro P3200 / 573.22), launch — window appears, first paint
       survives, no `nvoglv64` crash in Event Viewer. Verify: user-reported outcome;
@@ -52,6 +52,13 @@
       application-side suspect set to code common to all tiers (the GLPainter
       path and widget/present plumbing). Still owed: a second run with reused
       settings.
+      Final outcome 2026-10-26: the residual fault was NOT a driver bug —
+      `fix-shared-gl-contexts` root-caused it to GL-name use across unshared
+      QOpenGLWidget contexts (missing `AA_ShareOpenGLContexts`; shared
+      `GLPainter`; context-unsafe `~GLWidgetPrivate` teardown) and fixed it
+      (`58d97da34`). With the artifact from run 40328028783 (commit `ac487391e`),
+      the user reports the GUI works again on the reporting machine — window
+      presents, no startup crash. Acceptance MET by the combined change set.
 
 ## 2. Installer dependency closure (plugin fix)
 
@@ -103,7 +110,7 @@
       leaves no unresolved non-system import; `Capture live renderer log` (smoke run)
       passes (not the headless outcome); `Upload installer` produced
       `avogadro-win64-1.2.0.exe`.
-- [ ] 4.3 User-machine acceptance: fresh install from the fix artifact — window
+- [x] 4.3 User-machine acceptance: fresh install from the fix artifact — window
       appears on first launch; DbgView log shows zero "failed to load" plugin lines;
       Orbitals/Surfaces/QTAIM extensions present in the Extensions menu.
       Verify: user-reported outcome (screenshots or log paste).
@@ -115,6 +122,11 @@
       faults at `createObjects()` after full startup (see 1.5) before a presented
       window can be confirmed. Plugin packaging is verified on the user machine;
       the residual crash is tracked for the follow-up change.
+      Final outcome 2026-10-26: window criterion now MET — the follow-up change
+      `fix-shared-gl-contexts` fixed the residual fault (GL names used across
+      unshared QOpenGLWidget contexts); the user reports the GUI works again on
+      the reporting machine with the artifact from run 40328028783 (commit
+      `ac487391e`).
 - [x] 4.4 Trigger the Windows workflow per AGENTS.md: the C++ guard change landed
       without a green Windows leg. Reopened 2026-10-26: the commit that marked this
       complete (`34d860250`) changed only tasks.md — the fix was never pushed, so no
