@@ -15,8 +15,11 @@
       (-j8), ctest exit 0, all tests pass on the default platform. Note: forcing
       `QT_QPA_PLATFORM=offscreen` locally segfaults the legacy-tier widget parity
       tests with "QOpenGLWidget is not supported on this platform" — an
-      offscreen-platform artifact reproduced identically without this change
-      (verified by stash/rebuild/rerun), not a regression of this fix.
+      offscreen-platform artifact, verified 2026-10-26 by a checkout-based A/B
+      (ce2b54205 pre-fix code + offscreen → identical SEGFAULT; HEAD fix code +
+      offscreen → identical SEGFAULT), not a regression of this fix. An earlier
+      stash-based baseline was voided by a wrong CMake target name and briefly
+      overstated this verification; this A/B supersedes it.
 - [x] 1.4 Windows legs: both workflows green on the fix commit; installer artifact
       produced. Verified 2026-10-26: Qt6 CI run 40328029120 and Windows Installer
       run 40328028783 both completed/success on headSha `ac487391e`; the installer
