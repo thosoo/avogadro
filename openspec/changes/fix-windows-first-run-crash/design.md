@@ -73,8 +73,11 @@ textures, mesh VBOs) are used across two unshared QOpenGLWidget contexts —
 `main.cpp` never sets `Qt::AA_ShareOpenGLContexts`, while
 `MainWindow::newGLWidget` shares the first widget's GLPainter with the second
 (mainwindow.cpp:3905, glwidget.cpp:528-535); also `~GLWidgetPrivate` deletes
-display lists with no context current (glwidget.cpp:235-241). Validation
-pending (oracle consulted).
+display lists with no context current (glwidget.cpp:235-241). Oracle verdict
+2026-10-26: hypothesis CONFIRMED; fix = `Qt::AA_ShareOpenGLContexts` before
+QApplication construction + context-safe `GLWidget` teardown, implemented in
+`openspec/changes/fix-shared-gl-contexts` (local suite green; discriminating
+test = fix artifact on the reporting machine, run outside the debugger).
 
 Constraints:
 - The legacy tier is not compiled into the installer build (`AVO_RENDERER_LEGACY`
