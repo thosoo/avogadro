@@ -43,8 +43,12 @@
       thread — the same driver module/function family as the original capture,
       now without any contextless GL call having been made. Guard-only is not
       sufficient on this driver; H2 (driver 573.22) leads attribution and the
-      residual crash belongs to a follow-up change per design. Still owed: a
-      second run with reused settings.
+      residual crash belongs to a follow-up change per design. Follow-up
+      experiment 2026-10-26: Threaded Optimization OFF — no effect, crash
+      persists; the specific TO/deferral-queue mechanism is disfavoured. Still
+      owed: driver-rollback retest; a forced `AVOGADRO_RENDERER=compat` run
+      (separates modern-tier GL usage from the driver's present path generally);
+      a second run with reused settings.
 
 ## 2. Installer dependency closure (plugin fix)
 

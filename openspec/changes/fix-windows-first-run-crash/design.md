@@ -58,6 +58,13 @@ the leading attribution; per the pre-registered branch the guard still lands
 (hygiene verified) and the residual crash moves to a follow-up change, pending
 the cheap user-side experiments (Threaded Optimization off; driver rollback)
 and a second run with reused settings.
+Experiment update 2026-10-26: Threaded Optimization OFF — no effect, the crash
+persists. The specific threaded-optimization/deferral-queue mechanism is
+disfavoured; the driver-side bug must lie elsewhere in the present path or be
+a 573.22-branch regression. Next discrimination: driver rollback retest; a
+forced `AVOGADRO_RENDERER=compat` run (if the crash vanishes on the compat
+tier, the trigger is modern-tier GL usage — instancing/fences/PBO — on this
+driver rather than the present path per se); second run with reused settings.
 
 Constraints:
 - The legacy tier is not compiled into the installer build (`AVO_RENDERER_LEGACY`
@@ -196,7 +203,8 @@ change.
 - Attribution H1-vs-H2: the confirmation experiment has now validly run (fix
   artifact `Git: 81a169d` on the reporting machine, 2026-10-26). The crash
   reproduces with no contextless GL call having been made, so H1-as-sole-cause
-  is disfavoured and H2 (driver 573.22 present-path bug) leads. Remaining
-  discrimination: Threaded Optimization OFF retest; driver rollback retest;
-  second run with reused settings. (Attribution affects the follow-up change's
+  is disfavoured and H2 (driver 573.22 present-path bug) leads. Threaded
+  Optimization OFF retested 2026-10-26: no effect. Remaining discrimination:
+  driver rollback retest; forced `AVOGADRO_RENDERER=compat` run; second run
+  with reused settings. (Attribution affects the follow-up change's
   approach, not this change — its scope is verified and lands as-is.)
