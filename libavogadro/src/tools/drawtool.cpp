@@ -343,7 +343,10 @@ namespace Avogadro {
               // if we're auto-adding hydrogens and we hit a hydrogen
               // look for another target
               // (unless we've selected hydrogen as our element of choice)
-              if (m_addHydrogens && existingAtom->isHydrogen() && m_element != 1) {
+              // audit: molecule->atom(index) returns null when the index is
+              // out of range or stale after structural churn, so existingAtom
+              // must be null-checked before deref (cdb: null-atom isHydrogen()).
+              if (existingAtom && m_addHydrogens && existingAtom->isHydrogen() && m_element != 1) {
                 existingAtom = NULL;
                 continue;
               }
@@ -351,7 +354,10 @@ namespace Avogadro {
             else if(m_hits[i].name() != endAtom->index()) {
               // hit a new atom which isn't our end atom
               existingAtom = molecule->atom(m_hits[i].name());
-              if (m_addHydrogens && existingAtom->isHydrogen() && m_element != 1) {
+              // audit: molecule->atom(index) returns null when the index is
+              // out of range or stale after structural churn, so existingAtom
+              // must be null-checked before deref (cdb: null-atom isHydrogen()).
+              if (existingAtom && m_addHydrogens && existingAtom->isHydrogen() && m_element != 1) {
                 existingAtom = NULL;
                 continue;
               }
