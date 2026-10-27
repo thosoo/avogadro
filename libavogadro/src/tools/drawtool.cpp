@@ -688,7 +688,12 @@ namespace Avogadro {
         if(m_hits[0].type() == Primitive::AtomType) {
           // don't delete H-? atom when adjust hydrogens is on
           Atom *atom = widget->molecule()->atom(m_hits[0].name());
-          if (m_addHydrogens && atom->isHydrogen() && int(atom->valence())) {
+          // atom() returns null for a stale/out-of-range pick index when
+          // structural churn (undo, hydrogen adjustment) removed the atom since
+          // the pick scene was built. Guard the isHydrogen() deref with
+          // atom && — same AV class (null Atom::isHydrogen, cmp [rax+38h],1)
+          // that was fixed at mouseMoveEvent 346/354.
+          if (atom && m_addHydrogens && atom->isHydrogen() && int(atom->valence())) {
             molecule->lock()->unlock();
             return undo;
           }
@@ -700,16 +705,22 @@ namespace Avogadro {
           // The atoms referenced by the bond may have been removed by structural
           // churn; null-check the atom resolution before dereferencing.
           Bond *delBond = widget->molecule()->bond(m_hits[0].name());
-          if (m_addHydrogens) {
-            Atom *begin = molecule->atomById(delBond->beginAtomId());
-            Atom *end = molecule->atomById(delBond->endAtomId());
-            if ((begin && begin->isHydrogen()) || (end && end->isHydrogen())) {
-              molecule->lock()->unlock();
-              return undo;
+          // bond() returns null for a stale/out-of-range pick index; the
+          // delBond->beginAtomId()/endAtomId() derefs below (and the command
+          // construction) would run on a null bond. Guard the whole block on
+          // delBond — abandon the delete when the bond no longer resolves.
+          if (delBond) {
+            if (m_addHydrogens) {
+              Atom *begin = molecule->atomById(delBond->beginAtomId());
+              Atom *end = molecule->atomById(delBond->endAtomId());
+              if ((begin && begin->isHydrogen()) || (end && end->isHydrogen())) {
+                molecule->lock()->unlock();
+                return undo;
+              }
             }
+            undo = new DeleteBondDrawCommand(widget->molecule(), m_hits[0].name(),
+                                             m_addHydrogens);
           }
-          undo = new DeleteBondDrawCommand(widget->molecule(), m_hits[0].name(),
-                                           m_addHydrogens);
         }
       }
     }
