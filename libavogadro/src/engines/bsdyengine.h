@@ -157,7 +157,14 @@ namespace Avogadro {
   {
     Q_OBJECT
     Q_INTERFACES(Avogadro::PluginFactory)
+    // The autooptrepro test compiles this TU together with the DrawTool and
+    // AutoOptTool plugin TUs; those builds define AVOGADRO_TEST_NOPLUGIN to
+    // skip Q_PLUGIN_METADATA (moc's qt_plugin_instance symbols would collide
+    // across the factory TUs). The test instantiates BSDYEngine directly and
+    // never loads it through Qt's plugin loader. Guard mirrors drawtool.h.
+#ifndef AVOGADRO_TEST_NOPLUGIN
     Q_PLUGIN_METADATA(IID "net.sourceforge.avogadro.pluginfactory/1.5")
+#endif
     AVOGADRO_ENGINE_FACTORY(BSDYEngine);
   };
 

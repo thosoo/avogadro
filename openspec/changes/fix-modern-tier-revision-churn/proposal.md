@@ -27,6 +27,11 @@ backward at tick rate while being pulled.
 - `AutoOptTool::finished()` skips the coordinate write-back for the atom under an active
   drag (it is force-field-fixed and re-anchored by the drag path; writing it back from a
   stale snapshot regresses it). All other atoms' write-back is unchanged.
+- Bond pick hit names now carry the bond's primitive index (`BondInstance::pickId`, read
+  by the cylinder pick shader) instead of the raw half-segment instance index, so a
+  click on any segment of a bond resolves to that bond (order cycling, bond deletion).
+  Found by the live task 3.1 verification; without it most bond clicks no-op or mutate
+  the wrong bond on the modern tier.
 - Extras (task-level): tool-overlay draw-order consistency between the emission and
   worker-adopt paths (halos paint before vs after transparent geometry today).
 

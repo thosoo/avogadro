@@ -252,6 +252,7 @@ layout(location = 0) in vec3 aPos;
 layout(location = 2) in vec3 aInstStart;
 layout(location = 3) in vec3 aInstEnd;
 layout(location = 4) in float aInstRadius;
+layout(location = 6) in uint aInstPickId;
 
 uniform mat4 uMVP;
 uniform uint uPickBase;
@@ -263,7 +264,11 @@ uniform float uPickRadiusSlop;
 flat out uint vPickId;
 
 void main() {
-  vPickId = uPickBase + uint(gl_InstanceID);
+  // Each bond tessellates to several half-segment instances; the instance
+  // index is NOT the bond primitive. Every instance carries its bond's pick
+  // id (BondInstance::pickId), so a click on any segment resolves to the
+  // clicked bond.
+  vPickId = uPickBase + aInstPickId;
   vec3 axis = normalize(aInstEnd - aInstStart);
   vec3 up = abs(axis.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
   vec3 u = normalize(cross(up, axis));

@@ -2956,6 +2956,11 @@ namespace Avogadro {
     return d->backendFrames;
   }
 
+  unsigned int GLWidget::presentedRevision() const
+  {
+    return d->presentedRevision;
+  }
+
   QSize GLWidget::frameSize() const
   {
     // d->backend is null when the widget has not rendered a modern-tier frame

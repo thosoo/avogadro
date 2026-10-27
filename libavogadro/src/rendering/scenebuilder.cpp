@@ -469,6 +469,12 @@ void SceneBuilder::appendBond(const Eigen::Vector3d &end1, const Eigen::Vector3d
     inst.color[3] = static_cast<unsigned char>(m_currentColor.alpha());
     inst.order = order;
     inst.shift = shift;
+    // The pick pass returns this as the hit name (see the cylinder pick
+    // shader): the bond primitive index, so tools resolve the clicked bond
+    // instead of the raw half-segment instance index. Same id as the packed
+    // pick target appended below, without the type nibble (the pick pass
+    // supplies the type separately via uPickType).
+    inst.pickId = static_cast<quint32>(m_currentId) & 0x0FFFFFFFu;
     m_bonds.append(inst);
     m_bondPickIds.append(packPickTarget(m_currentType, m_currentId));
   }

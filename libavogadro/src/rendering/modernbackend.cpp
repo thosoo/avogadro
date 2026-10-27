@@ -19,6 +19,8 @@
 
 #include <QtDebug>
 
+#include <cstddef> // offsetof (BondInstance::pickId in the pick pass)
+
 #include "geometry.h"
 #include "shaders.h"
 #include <avogadro/primitive.h>
@@ -551,6 +553,17 @@ QList<GLHit> ModernRendererBackend::pick(int x, int y, int w, int h) {
       m_gl.glEnableVertexAttribArray(loc);
     m_gl.glVertexAttribDivisor(2, 1);
     m_gl.glVertexAttribDivisor(3, 1);
+    if (pass.type == static_cast<quint32>(Primitive::BondType)) {
+      // Bond instances carry their bond's primitive index (BondInstance::pickId);
+      // the cylinder pick shader resolves the hit name from it, so a click on
+      // any half-segment resolves to the clicked bond, not the instance index.
+      m_gl.glVertexAttribIPointer(6, 1, GL_UNSIGNED_INT,
+                                  static_cast<GLsizei>(pass.recordSize),
+                                  reinterpret_cast<const void *>(
+                                    offsetof(BondInstance, pickId)));
+      m_gl.glEnableVertexAttribArray(6);
+      m_gl.glVertexAttribDivisor(6, 1);
+    }
 
     m_gl.glDrawElementsInstanced(GL_TRIANGLES, pass.geometry->indexCount,
                                  GL_UNSIGNED_SHORT, nullptr,

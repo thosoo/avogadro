@@ -253,6 +253,12 @@ namespace Avogadro {
       unsigned int backendDrawCallsLastFrame() const;
       unsigned int backendFramesSubmitted() const;
 
+      //! Revision of the builder result most recently adopted and presented by
+      //! the modern tier (GLWidgetPrivate::presentedRevision). Exposed for the
+      //! same reason as the counters above: tests and external tooling read the
+      //! same presentation bookkeeping the debug overlay is built from.
+      unsigned int presentedRevision() const;
+
       //! Frame dimensions (device pixels) the modern backend rasterised into on
       //! the most recent frame. The HiDPI regression test asserts this equals
       //! the widget's device-pixel size at dpr != 1: pre-fix beginFrame was

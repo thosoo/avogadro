@@ -25,6 +25,7 @@
 #define AVOGADRO_RENDERING_RECORDS_H
 
 #include <Eigen/Geometry>
+#include <QtGlobal>
 
 #include <avogadro/mesh.h>
 
@@ -49,6 +50,10 @@ struct BondInstance {
   unsigned char color[4] = {255, 255, 255, 255}; // rgba, 0-255
   int order = 1; // bond multiplicity this segment belongs to
   double shift = 0.0; // perpendicular offset applied to this segment
+  // The bond primitive index this segment belongs to (the pick pass returns it
+  // as the hit name so tools resolve the clicked bond, not a half-segment
+  // instance index). Every segment of the same bond carries the same id.
+  quint32 pickId = 0;
 };
 
 //! A line primitive instance (one segment of a bond / stick / wireframe).

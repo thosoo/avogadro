@@ -63,7 +63,10 @@ constexpr int kStride = 20;
 //!   shift    : 1 x double @ 40  (8-byte aligned; metadata, not bound by the
 //!                                 geometry shaders — positions are pre-offset
 //!                                 by the SceneBuilder emitter)
-//! stride     : 40 bytes
+//!   pickId   : 1 x u32    @ 48  (bond primitive index; bound by the cylinder
+//!                                 pick shader only, so a click on any
+//!                                 half-segment resolves to the clicked bond)
+//! stride     : 56 bytes
 namespace bondInstanceLayout {
 constexpr int kStartOffset = 0;
 constexpr int kEndOffset = 12;
@@ -71,7 +74,8 @@ constexpr int kRadiusOffset = 24;
 constexpr int kColorOffset = 28;
 constexpr int kOrderOffset = 32;
 constexpr int kShiftOffset = 40;
-constexpr int kStride = 48;
+constexpr int kPickIdOffset = 48;
+constexpr int kStride = 56;
 } // namespace bondInstanceLayout
 
 // Compile-time sanity checks that the record structs lay out exactly as the
@@ -103,6 +107,9 @@ struct InstanceFormatAssertions {
                 "BondInstance.order must be at offset 32");
   static_assert(offsetof(BondInstance, shift) == 40,
                 "BondInstance.shift must be at offset 40");
+  static_assert(offsetof(BondInstance, pickId) ==
+                  bondInstanceLayout::kPickIdOffset,
+                "BondInstance.pickId must be at offset 48");
 };
 
 } // namespace rendering

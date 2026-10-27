@@ -110,6 +110,11 @@ foreach (test ${tests})
     # draw commands) defined in drawcommand.cpp, which has no plugin factory
     # so it is safe to compile directly into the test.
     list(APPEND test_SRCS ../src/tools/drawcommand.cpp)
+    # The live drag / bond-click scenario checks (tasks 2.2 / 3.1) render the
+    # molecule through the real ball-and-stick engine so GL picking resolves
+    # real geometry. BSDYEngine is not exported from libavogadro; compile it
+    # directly (as glselectoverflow / modernpick do).
+    list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)
   endif()
   if (${test} STREQUAL "renderertier")
     # requestedRendererTier / resolveRendererTier / tierName live in

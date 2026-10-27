@@ -60,6 +60,13 @@ the atom will be there much later").
 4. **Extras (task-level):** unify tool-overlay draw ordering across the emission and
    worker-adopt paths (halos/blend order differs subtly between the two today) — low
    priority, same render path.
+5. **Bond pick name encoding (task 3.4, discovered during live 3.1 verification):** bond
+   hit names were the raw half-segment instance index (2 instances per bond at order 1,
+   2×order for multi-bonds), which `bond(index)` mis-resolved — bond clicks silently
+   no-opped or mutated the wrong bond. `BondInstance` now carries `pickId` (the bond's
+   primitive index, emitted by the SceneBuilder alongside its packed pick-target
+   arrays); the cylinder pick shader returns it as the hit name. Consumers (order
+   cycling, bond deletion) are unchanged — names simply resolve to the clicked bond now.
 
 ## Risks / Trade-offs
 

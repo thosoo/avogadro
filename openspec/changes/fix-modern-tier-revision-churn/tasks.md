@@ -22,12 +22,36 @@
       trail, no backward tick-sized jumps; other atoms keep optimizing. Verify: spec
       scenarios "Pull an atom while the optimization runs" and "Other atoms keep updating".
 
+      VERIFIED LIVE (autooptreprotest `liveDragAtomDuringAutoOpt`, real GL on this
+      machine's display): QTest mouse press-drag-release through the active AutoOptTool;
+      the grab engages through the real GL pick, the atom tracks the pointer monotonically
+      (max sampled backward jump < 5 px), non-dragged atoms keep optimizing during the
+      drag, and the dragged atom resumes optimizing after release.
+
 ## 3. Scenario verification
 
 - [x] 3.1 Bond order during AutoOpt: click a bond mid-session — the double bond appears
       within ~one build while ticks continue (needs `fix-modern-tier-bond-interaction`'s
       revision bump to have produced the rebuild; verify the pair together if both are
       applied). Verify: experiment matrix row 4.
+
+      VERIFIED LIVE (autooptreprotest `liveBondOrderClickDuringAutoOpt`, real GL on this
+      machine's display): with AutoOpt running, a real mouse click on a bond cycles its
+      order 1→2 through DrawTool + the undo stack, `molecule->update()` bumps the
+      revision, the modern tier adopts a rebuild at/after the click revision
+      (`presentedRevision >= clickRevision`) within the bound, and the tick stream
+      continues afterwards. The live run exposed a blocking defect in the companion pick
+      mechanism (bond hit names were raw half-segment instance indices, so most bond
+      clicks resolved to the wrong bond or to null); fixed in task 3.4 below.
+- [x] 3.4 Bond pick name encoding: bond instances carry their bond's primitive index
+      (`BondInstance::pickId`, emitted by the SceneBuilder alongside the existing packed
+      pick-target arrays); the cylinder pick shader returns it as the hit name instead of
+      the raw half-segment instance index, so a click on any segment of a bond resolves
+      to that bond (order cycling, bond deletion). Previously the name was the instance
+      index (2 per bond at order 1, 2×order for multi-bonds), which `bond(index)`
+      mis-resolved — clicks silently no-opped or mutated the wrong bond. Verify:
+      `modernpicktest` green; live bond-order click resolves the clicked bond
+      (`liveBondOrderClickDuringAutoOpt`).
 - [x] 3.2 Sustained-stroke and rotation regressions: continuous drawing during AutoOpt and
       camera rotation during rebuilds — no blank frames, rotation tracks. Verify: existing
       no-blank-frames scenarios.
