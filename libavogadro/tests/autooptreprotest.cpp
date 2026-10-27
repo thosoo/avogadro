@@ -46,6 +46,7 @@
 #include <avogadro/molecule.h>
 #include <avogadro/atom.h>
 #include <avogadro/bond.h>
+#include <avogadro/primitive.h>
 #include <avogadro/tool.h>
 #include <avogadro/toolgroup.h>
 #include <avogadro/navigate.h>
@@ -271,12 +272,26 @@ class DrawToolExposed : public DrawTool
 public:
   OpenBabel::OBForceField *ff() const { return m_forceField; }
   void setFF(OpenBabel::OBForceField *ff) { m_forceField = ff; }
-  Atom *beginAtom() const { return m_beginAtom; }
-  void setBeginAtom(Atom *a) { m_beginAtom = a; }
-  Atom *endAtom() const { return m_endAtom; }
-  void setEndAtom(Atom *a) { m_endAtom = a; }
-  Bond *bond() const { return m_bond; }
-  void setBond(Bond *b) { m_bond = b; }
+  // The stroke state members are now molecule ids (see drawtool.h), so the
+  // exposed accessors convert to/from ids. setBeginAtom also records the
+  // owning molecule so toolActivated() can resolve the begin atom.
+  unsigned long beginAtomId() const { return m_beginAtomId; }
+  void setBeginAtom(Atom *a)
+  {
+    m_beginAtomId = a ? a->id() : FALSE_ID;
+    m_beginMolecule = a ? a->molecule() : nullptr;
+  }
+  unsigned long endAtomId() const { return m_endAtomId; }
+  void setEndAtom(Atom *a) { m_endAtomId = a ? a->id() : FALSE_ID; }
+  unsigned long bondId() const { return m_bondId; }
+  void setBond(Bond *b) { m_bondId = b ? b->id() : FALSE_ID; }
+  // Wrapper to reach DrawTool's private prepareStrokeState() from the test:
+  // AutoOptReproTest is not itself a friend of DrawTool, but DrawToolExposed
+  // is, so this member call is allowed.
+  bool callPrepareStrokeState(Molecule *m, Atom **ba, Atom **ea, Bond **b, Bond **pb)
+  {
+    return prepareStrokeState(m, ba, ea, b, pb);
+  }
   int prevAtomElement() const { return m_prevAtomElement; }
   void setPrevAtomElement(int e) { m_prevAtomElement = e; }
   // The live bond-order click (task 3.1) runs with "adjust hydrogens"
@@ -313,6 +328,12 @@ private slots:
   // atom under AutoOpt's live optimization, and the marker is released once
   // the stroke ends (spec: Draw a bond while optimization runs).
   void drawWhileRunAnchorScopedReleased();
+
+  // fix-drawtool-stale-atom-crash: a held stroke id that no longer resolves
+  // (atom removed by churn) or a molecule replaced mid-stroke SHALL make
+  // prepareStrokeState() return false so the tool abandons the interrupted
+  // stroke instead of dereferencing a dangling reference.
+  void staleOrReplacedMoleculeAbandonsStroke();
 
   // Step 4: deleting an atom while optimization runs leaves no survivor
   // frozen as a result of the deletion (spec: Atom deleted while
@@ -583,7 +604,7 @@ void AutoOptReproTest::drawToolSwitchedMidStrokeReleasesMarkers()
   drawFF->SetIgnoreAtom(begin->index());
   drawFF->SetFixAtom(begin->index());
   QVERIFY(drawFF->GetFixAtom() != 0);
-  QVERIFY(draw.beginAtom() == begin);
+  QVERIFY(draw.beginAtomId() == begin->id());
 
   // A different tool is activated mid-stroke.
   DrawToolExposed other;
@@ -592,9 +613,9 @@ void AutoOptReproTest::drawToolSwitchedMidStrokeReleasesMarkers()
   // Markers released, stroke state reset, begin atom's element restored.
   QCOMPARE(drawFF->GetFixAtom(), 0u);
   QCOMPARE(drawFF->GetIgnoreAtom(), 0u);
-  QCOMPARE(draw.beginAtom(), nullptr);
-  QCOMPARE(draw.endAtom(), nullptr);
-  QCOMPARE(draw.bond(), nullptr);
+  QCOMPARE(draw.beginAtomId(), FALSE_ID);
+  QCOMPARE(draw.endAtomId(), FALSE_ID);
+  QCOMPARE(draw.bondId(), FALSE_ID);
   QCOMPARE(draw.prevAtomElement(), 0);
   QCOMPARE(begin->atomicNumber(), originalElement);
 
@@ -668,6 +689,51 @@ void AutoOptReproTest::deleteAtomWhileRunningNoSurvivorFreeze()
   // No survivor is frozen and the removed dummy leaves no stale ignore.
   QCOMPARE(uff()->GetConstraints().GetFixedBitVec().CountBits(), 0u);
   QCOMPARE(uff()->GetConstraints().GetIgnoredBitVec().CountBits(), 0u);
+
+  delete mol;
+}
+
+void AutoOptReproTest::staleOrReplacedMoleculeAbandonsStroke()
+{
+  // fix-drawtool-stale-atom-crash: the Draw tool's cross-event stroke state is
+  // stored as molecule ids and resolved against the live molecule at use time.
+  // A held id that no longer resolves (atom removed by churn) or a molecule
+  // replaced mid-stroke SHALL make prepareStrokeState() return false so the
+  // tool abandons the interrupted stroke instead of dereferencing a dangling
+  // reference (the crash fixed here).
+  Molecule *mol = makeCarbonChain();
+  QVERIFY(mol);
+
+  DrawToolExposed draw;
+
+  QVERIFY(mol->numAtoms() >= 3);
+  Atom *begin = mol->atom(1);   // valid id 1
+  QVERIFY(begin != nullptr);
+  Atom *survivor = mol->atom(2); // valid id 2, removed 'begin' must not touch it
+  QVERIFY(survivor != nullptr);
+
+  // Sanity: a held id on the correct molecule resolves to the anchored atom.
+  draw.setBeginAtom(begin);
+  Atom *oba = nullptr;
+  QCOMPARE(draw.callPrepareStrokeState(mol, &oba, nullptr, nullptr, nullptr), true);
+  QCOMPARE(oba, begin);
+
+  // 1) Molecule replacement: same dense id space but a different molecule ->
+  //    the held ids can no longer be trusted, so this must abandon.
+  Molecule *other = new Molecule;
+  other->addAtom();
+  QCOMPARE(draw.callPrepareStrokeState(other, &oba, nullptr, nullptr, nullptr), false);
+  delete other;
+
+  // 2) Churn: remove the anchored atom. Its id now resolves to nullptr ->
+  //    abandon.
+  mol->removeAtom(begin);
+  QCOMPARE(draw.callPrepareStrokeState(mol, &oba, nullptr, nullptr, nullptr), false);
+
+  // 3) A survivor's id still resolves after the churn (sanity).
+  draw.setBeginAtom(survivor);
+  QCOMPARE(draw.callPrepareStrokeState(mol, &oba, nullptr, nullptr, nullptr), true);
+  QCOMPARE(oba, survivor);
 
   delete mol;
 }

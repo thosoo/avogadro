@@ -73,14 +73,15 @@ namespace Avogadro {
                                         m_toolActivatedConnected(false),
                                         m_beginAtomAdded(false),
                                         m_endAtomAdded(false),
-                                        m_beginAtom(0),
-                                        m_endAtom(0),
+                                        m_beginAtomId(FALSE_ID),
+                                        m_endAtomId(FALSE_ID),
                                         m_element(6),
-                                        m_bond(0),
+                                        m_bondId(FALSE_ID),
                                         m_bondOrder(1),
                                         m_prevAtomElement(0),
-                                        m_prevBond(0),
+                                        m_prevBondId(FALSE_ID),
                                         m_prevBondOrder(0),
+                                        m_beginMolecule(0),
                                         m_addHydrogens(true),
                                         m_hydrogenCommand(0),
                                         m_comboElements(0),
@@ -108,7 +109,7 @@ namespace Avogadro {
     // If a stroke was still in flight when the tool is torn down, release any
     // transient force-field markers so no stale fix/ignore survives into a
     // later tool or molecule.
-    if (m_beginAtom || m_endAtom || m_bond) {
+    if (m_beginAtomId != FALSE_ID || m_endAtomId != FALSE_ID || m_bondId != FALSE_ID) {
       if (m_forceField) {
         m_forceField->UnsetIgnoreAtom();
         m_forceField->UnsetFixAtom();
@@ -129,18 +130,21 @@ namespace Avogadro {
     if (tool == this)
       return;
 
-    if (m_beginAtom || m_endAtom || m_bond) {
+    if (m_beginAtomId != FALSE_ID || m_endAtomId != FALSE_ID || m_bondId != FALSE_ID) {
       // Restore the alchemy-edited begin atom to its original element. The
       // normal release path relies on an undo command for this; we push none
       // here, so restore in place. Raw setAtomicNumber skips adjust-hydrogens,
       // which is acceptable for an abandoned stroke (precedent: mouseMoveEvent
       // does raw sets under a write lock). Freshly-drawn atoms never captured
       // m_prevAtomElement, so they are left with the drawn element.
-      if (m_beginAtom && m_prevAtomElement) {
-        Molecule *mol = m_beginAtom->molecule();
-        if (mol && mol->lock()->tryLockForWrite()) {
-          m_beginAtom->setAtomicNumber(m_prevAtomElement);
-          mol->lock()->unlock();
+      if (m_beginAtomId != FALSE_ID && m_prevAtomElement && m_beginMolecule) {
+        Atom *beginAtom = m_beginMolecule->atomById(m_beginAtomId);
+        if (beginAtom) {
+          Molecule *mol = beginAtom->molecule();
+          if (mol && mol->lock()->tryLockForWrite()) {
+            beginAtom->setAtomicNumber(m_prevAtomElement);
+            mol->lock()->unlock();
+          }
         }
       }
 
@@ -153,16 +157,8 @@ namespace Avogadro {
       // undo here, so this tool owns it and must free it (the normal release
       // paths transfer ownership).
       delete m_hydrogenCommand;
-      m_beginAtom = 0;
-      m_endAtom = 0;
-      m_bond = 0;
+      resetStrokeState();
       m_bondOrder = 1;
-      m_prevBond = 0;
-      m_prevBondOrder = 0;
-      m_prevAtomElement = 0;
-      m_beginAtomAdded = false;
-      m_endAtomAdded = false;
-      m_hydrogenCommand = 0;
     }
   }
 
@@ -183,8 +179,21 @@ namespace Avogadro {
       m_toolActivatedConnected = true;
     }
 
+    // Abandon any interrupted-stroke state left stale by structural churn
+    // between events (e.g. undo removed the atoms/bond of a previous stroke)
+    // so a stale drag does not block a fresh click.
+    Molecule *mol = widget->molecule();
+    if (mol && !prepareStrokeState(mol, nullptr, nullptr, nullptr, nullptr)) {
+      delete m_hydrogenCommand;
+      if (m_forceField) {
+        m_forceField->UnsetIgnoreAtom();
+        m_forceField->UnsetFixAtom();
+      }
+      resetStrokeState();
+    }
+
     // check if we are still doing a drag (prevents crash when clicking the right button while dragging)
-    if (m_beginAtom || m_endAtom) {
+    if (m_beginAtomId != FALSE_ID || m_endAtomId != FALSE_ID) {
       event->accept();
       return 0;
     }
@@ -219,11 +228,13 @@ namespace Avogadro {
       // The user clicked on an atom
       if(m_hits.size() && (m_hits[0].type() == Primitive::AtomType)) {
         // "alchemy" -- change this atom to a new element
-        m_beginAtom = molecule->atom(m_hits[0].name());
+        Atom *beginAtom = molecule->atom(m_hits[0].name());
+        m_beginAtomId = beginAtom ? beginAtom->id() : FALSE_ID;
+        m_beginMolecule = molecule;
 
-        if(m_beginAtom && (m_beginAtom->atomicNumber() != m_element)) {
-          m_prevAtomElement = m_beginAtom->atomicNumber();
-          m_beginAtom->setAtomicNumber(m_element);
+        if(beginAtom && (beginAtom->atomicNumber() != m_element)) {
+          m_prevAtomElement = beginAtom->atomicNumber();
+          beginAtom->setAtomicNumber(m_element);
         }
       }
       else if(m_hits.size() && (m_hits[0].type() == Primitive::BondType)) {
@@ -231,10 +242,15 @@ namespace Avogadro {
         Bond *bond = molecule->bond(m_hits[0].name());
         if (bond) { // if we can't find the bond, we can't do anything here
 
-          // do not try to change X-H bond order when adjust hydrogens is on
+          // do not try to change X-H bond order when adjust hydrogens is on.
+          // The atoms referenced by the bond may have been removed by structural
+          // churn (atomById returns nullptr for an id with no live atom), so
+          // null-check the resolution instead of dereferencing it directly.
           if(m_addHydrogens) {
-            if (molecule->atomById(bond->beginAtomId())->isHydrogen() ||
-                molecule->atomById(bond->endAtomId())->isHydrogen()) {
+            Atom *begin = molecule->atomById(bond->beginAtomId());
+            Atom *end = molecule->atomById(bond->endAtomId());
+            if ((begin && begin->isHydrogen()) ||
+                (end && end->isHydrogen())) {
               molecule->lock()->unlock();
               return 0;
             }
@@ -261,9 +277,11 @@ namespace Avogadro {
         }
       }
       else { // a genuine click in new space == create a new atom
-        m_beginAtom = addAtom(widget, event->position().toPoint());
+        Atom *beginAtom = addAtom(widget, nullptr, event->position().toPoint());
+        m_beginAtomId = beginAtom->id();
+        m_beginMolecule = molecule;
         m_beginAtomAdded = true;
-        m_forceField->SetIgnoreAtom(m_beginAtom->index() + 1);
+        m_forceField->SetIgnoreAtom(beginAtom->index() + 1);
       } // hits
       molecule->lock()->unlock();
     } // left button
@@ -280,7 +298,23 @@ namespace Avogadro {
     // The draw tool always accepts mouse presses
     event->accept();
 
-    if((m_buttons & Qt::LeftButton) && m_beginAtom) {
+    // Resolve the cross-event stroke state against the live molecule. If
+    // structural churn between events (undo/redo, hydrogen adjustment,
+    // deletion) removed a held atom or bond, abandon the interrupted stroke
+    // instead of dereferencing a dangling pointer.
+    Atom *beginAtom = nullptr, *endAtom = nullptr;
+    Bond *bond = nullptr, *prevBond = nullptr;
+    if (!prepareStrokeState(molecule, &beginAtom, &endAtom, &bond, &prevBond)) {
+      delete m_hydrogenCommand;
+      if (m_forceField) {
+        m_forceField->UnsetIgnoreAtom();
+        m_forceField->UnsetFixAtom();
+      }
+      resetStrokeState();
+      return 0;
+    }
+
+    if((m_buttons & Qt::LeftButton) && beginAtom) {
       // Acquire a write lock - must unlock before returning
       if (!molecule->lock()->tryLockForWrite())
         return 0;
@@ -295,14 +329,14 @@ namespace Avogadro {
       if(m_hits.size()) {
         // parse our hits.  we want to know
         // if we hit another existing atom that is not
-        // the m_endAtom which we created
+        // the endAtom which we created
         for(int i = 0; i < m_hits.size() && !hitBeginAtom; ++i) {
           if(m_hits[i].type() == Primitive::AtomType) {
             // hit the beginning atom: either moved here from somewhere else
             // or were already here.
-            if(m_hits[i].name() == m_beginAtom->index())
+            if(m_hits[i].name() == beginAtom->index())
               hitBeginAtom = true;
-            else if(!m_endAtom) {
+            else if(!endAtom) {
               // we don't yet have an end atom but
               // hit another atom on screen -- bond to this
               existingAtom = molecule->atom(m_hits[i].name());
@@ -314,7 +348,7 @@ namespace Avogadro {
                 continue;
               }
             }
-            else if(m_hits[i].name() != m_endAtom->index()) {
+            else if(m_hits[i].name() != endAtom->index()) {
               // hit a new atom which isn't our end atom
               existingAtom = molecule->atom(m_hits[i].name());
               if (m_addHydrogens && existingAtom->isHydrogen() && m_element != 1) {
@@ -327,22 +361,25 @@ namespace Avogadro {
       } // end parsing hits
 
       if(hitBeginAtom) { // we came back to our original atom -- undo the bond
-        if(m_endAtom) {
-          molecule->removeAtom(m_endAtom); // this also deletes bonds
+        if(endAtom) {
+          molecule->removeAtom(endAtom); // this also deletes bonds
           m_endAtomAdded = false;
-          m_bond = 0;
-          m_endAtom = 0;
-          m_prevAtomElement = m_beginAtom->atomicNumber();
-          m_beginAtom->setAtomicNumber(m_element);
+          bond = 0;
+          m_bondId = FALSE_ID;
+          endAtom = 0;
+          m_endAtomId = FALSE_ID;
+          m_prevAtomElement = beginAtom->atomicNumber();
+          beginAtom->setAtomicNumber(m_element);
           m_forceField->UnsetIgnoreAtom();
         }
-        else if(m_bond) {
+        else if(bond) {
           //          Atom *oldAtom = (Atom *)m_bond->GetEndAtom();
           //          oldAtom->DeleteBond(m_bond);
-          molecule->removeBond(m_bond);
-          m_bond=0;
-          m_prevAtomElement = m_beginAtom->atomicNumber();
-          m_beginAtom->setAtomicNumber(m_element);
+          molecule->removeBond(bond);
+          bond = 0;
+          m_bondId = FALSE_ID;
+          m_prevAtomElement = beginAtom->atomicNumber();
+          beginAtom->setAtomicNumber(m_element);
         }
       }
       else {
@@ -351,85 +388,95 @@ namespace Avogadro {
           if (m_addHydrogens && (m_prevAtomElement == 1)) {
             // do not adjust hydrogens, the AddBond command will do this
             m_hydrogenCommand = new ChangeElementDrawCommand(widget->molecule(),
-                                                             m_beginAtom,
+                                                             beginAtom,
                                                              m_prevAtomElement,
                                                              0);
           }
           else
-            m_beginAtom->setAtomicNumber(m_prevAtomElement);
+            beginAtom->setAtomicNumber(m_prevAtomElement);
           m_prevAtomElement = 0;
         }
 
-        // we hit an existing atom != m_endAtom
+        // we hit an existing atom != endAtom
         if(existingAtom) {
           m_forceField->UnsetIgnoreAtom();
           m_forceField->SetFixAtom(existingAtom->index() + 1);
-          Bond *existingBond = molecule->bond(m_beginAtom, existingAtom);
+          Bond *existingBond = molecule->bond(beginAtom, existingAtom);
           if(!existingBond) {
-            if(m_prevBond) {
-              m_prevBond->setOrder(m_prevBondOrder);
-              m_prevBond = 0;
+            if(prevBond) {
+              prevBond->setOrder(m_prevBondOrder);
+              prevBond = 0;
+              m_prevBondId = FALSE_ID;
               m_prevBondOrder = 0;
             }
 
-            if(m_bond) {
-              m_bond->setEnd(existingAtom);
-              if(m_endAtom) {
-                molecule->removeAtom(m_endAtom);
+            if(bond) {
+              bond->setEnd(existingAtom);
+              if(endAtom) {
+                molecule->removeAtom(endAtom);
                 m_endAtomAdded = false;
-                m_endAtom = 0;
+                endAtom = 0;
+                m_endAtomId = FALSE_ID;
               }
             }
             else {
-              m_bond = addBond(molecule, m_beginAtom, existingAtom);
+              bond = addBond(molecule, beginAtom, existingAtom);
+              m_bondId = bond->id();
             }
           } // end no existing bond
           else {
-            if(m_prevBond && m_prevBond != existingBond) {
-              m_prevBond->setOrder(m_prevBondOrder);
-              m_prevBond = 0;
+            if(prevBond && prevBond != existingBond) {
+              prevBond->setOrder(m_prevBondOrder);
+              prevBond = 0;
+              m_prevBondId = FALSE_ID;
               m_prevBondOrder = 0;
             }
-            if(!m_prevBond) {
-              m_prevBond = existingBond;
+            if(!prevBond) {
+              prevBond = existingBond;
+              m_prevBondId = existingBond->id();
               m_prevBondOrder = existingBond->order();
               existingBond->setOrder(m_bondOrder);
             }
 
-            if(m_bond && m_bond != existingBond) {
-              if(m_endAtom) {
-                // will delete bonds too (namely m_bond)
-                qDebug() << "Deleting m_endAtom and bond" << m_endAtom->id()
-                         << m_bond->id();
-                molecule->removeAtom(m_endAtom);
+            if(bond && bond != existingBond) {
+              if(endAtom) {
+                // will delete bonds too (namely bond)
+                qDebug() << "Deleting endAtom and bond" << endAtom->id()
+                         << bond->id();
+                molecule->removeAtom(endAtom);
                 m_endAtomAdded = false;
-                m_endAtom = 0;
+                endAtom = 0;
+                m_endAtomId = FALSE_ID;
               } else {
-                molecule->removeBond(m_bond);
+                molecule->removeBond(bond);
               }
-              m_bond = 0;
+              bond = 0;
+              m_bondId = FALSE_ID;
             }
           } // existing bond
         } // end existing atom
 
         // (!existingAtom && !hitBeginAtom)
-        else if(!m_endAtom) {
-          if(m_prevBond) {
-            m_prevBond->setOrder(m_prevBondOrder);
-            m_prevBond = 0;
+        else if(!endAtom) {
+          if(prevBond) {
+            prevBond->setOrder(m_prevBondOrder);
+            prevBond = 0;
+            m_prevBondId = FALSE_ID;
             m_prevBondOrder = 0;
           }
-          m_endAtom = addAtom(widget, event->position().toPoint());
+          endAtom = addAtom(widget, beginAtom, event->position().toPoint());
           m_endAtomAdded = true;
-          m_forceField->SetIgnoreAtom(m_endAtom->index() + 1);
+          m_endAtomId = endAtom->id();
+          m_forceField->SetIgnoreAtom(endAtom->index() + 1);
 
-          if(!m_bond)
-            m_bond = addBond(molecule, m_beginAtom, m_endAtom);
+          if(!bond)
+            bond = addBond(molecule, beginAtom, endAtom);
           else
-            m_bond->setEnd(m_endAtom);
+            bond->setEnd(endAtom);
+          m_bondId = bond->id();
         }
         else // we're moving -- stretch a bond
-          moveAtom(widget, m_endAtom, event->position().toPoint());
+          moveAtom(widget, endAtom, beginAtom, event->position().toPoint());
       }
       molecule->lock()->unlock();
 
@@ -444,9 +491,27 @@ namespace Avogadro {
   {
     QUndoCommand *undo = 0;
     Molecule *molecule = widget->molecule();
+    if (!molecule)
+      return 0;
 
     // The draw tool always accepts mouse presses
     event->accept();
+
+    // Resolve the cross-event stroke state against the live molecule. If a
+    // held atom or bond was removed between events (undo, hydrogen churn,
+    // deletion), abandon the interrupted stroke rather than dereferencing a
+    // dangling pointer.
+    Atom *beginAtom = nullptr, *endAtom = nullptr;
+    Bond *bond = nullptr, *prevBond = nullptr;
+    if (!prepareStrokeState(molecule, &beginAtom, &endAtom, &bond, &prevBond)) {
+      delete m_hydrogenCommand;
+      if (m_forceField) {
+        m_forceField->UnsetIgnoreAtom();
+        m_forceField->UnsetFixAtom();
+      }
+      resetStrokeState();
+      return 0;
+    }
 
     // Acquire a write lock, before returning release the lock
     if (!molecule->lock()->tryLockForWrite())
@@ -454,14 +519,14 @@ namespace Avogadro {
 
     if(m_buttons & Qt::LeftButton && (event->modifiers() == Qt::NoModifier)) {
 
-      if(m_beginAtomAdded || m_bond) {
+      if(m_beginAtomAdded || bond) {
 
         // only add hydrogens to the atoms if it's the only thing
         // we've drawn.  else addbonds will adjust hydrogens.
         AdjustHydrogens::Options atomAdjustHydrogens = AdjustHydrogens::Never;
         if(m_addHydrogens) {
           // if no bond then add on undo and redo
-          if(!m_bond) {
+          if(!bond) {
             atomAdjustHydrogens = AdjustHydrogens::Always;
           }
           // if bond then only remove on undo, rest is handled by bond
@@ -474,18 +539,18 @@ namespace Avogadro {
         // an existing atom or to endAtom that we also created
         AddAtomDrawCommand *beginAtomDrawCommand = 0;
         if(m_beginAtomAdded) {
-          beginAtomDrawCommand = new AddAtomDrawCommand(widget->molecule(), m_beginAtom, atomAdjustHydrogens);
+          beginAtomDrawCommand = new AddAtomDrawCommand(widget->molecule(), beginAtom, atomAdjustHydrogens);
           beginAtomDrawCommand->setText(tr("Draw Atom"));
         }
 
         AddAtomDrawCommand *endAtomDrawCommand = 0;
         if(m_endAtomAdded) {
-          endAtomDrawCommand = new AddAtomDrawCommand(widget->molecule(), m_endAtom, atomAdjustHydrogens);
+          endAtomDrawCommand = new AddAtomDrawCommand(widget->molecule(), endAtom, atomAdjustHydrogens);
           endAtomDrawCommand->setText(tr("Draw Atom"));
         }
 
         AddBondDrawCommand *bondCommand = 0;
-        if(m_bond) {
+        if(bond) {
           AdjustHydrogens::Options adjBegin = AdjustHydrogens::Never;
           AdjustHydrogens::Options adjEnd = AdjustHydrogens::Never;
 
@@ -495,9 +560,11 @@ namespace Avogadro {
               // by the ChangeElement command...
               adjBegin = adjEnd = AdjustHydrogens::AddOnRedo | AdjustHydrogens::RemoveOnUndo;
               if (!m_endAtomAdded) {
-                foreach (unsigned long id, m_bond->endAtom()->neighbors()) {
+                foreach (unsigned long id, bond->endAtom()->neighbors()) {
                   Atom *nbr = widget->molecule()->atomById(id);
-                  if (nbr->isHydrogen())
+                  // audit rule: every atomById() result feeding a deref is
+                  // null-checked.
+                  if (nbr && nbr->isHydrogen())
                     adjEnd |= AdjustHydrogens::RemoveOnRedo | AdjustHydrogens::AddOnUndo;
                 }
               }
@@ -505,28 +572,28 @@ namespace Avogadro {
               adjBegin = adjEnd = AdjustHydrogens::AddOnRedo | AdjustHydrogens::RemoveOnUndo;
               // pre-existing atoms might need extra work
               if (!m_beginAtomAdded) {
-                foreach (unsigned long id, m_bond->beginAtom()->neighbors()) {
+                foreach (unsigned long id, bond->beginAtom()->neighbors()) {
                   Atom *nbr = widget->molecule()->atomById(id);
-                  if (nbr->isHydrogen())
+                  if (nbr && nbr->isHydrogen())
                     adjBegin |= AdjustHydrogens::RemoveOnRedo | AdjustHydrogens::AddOnUndo;
                 }
               }
               if (!m_endAtomAdded) {
-                foreach (unsigned long id, m_bond->endAtom()->neighbors()) {
+                foreach (unsigned long id, bond->endAtom()->neighbors()) {
                   Atom *nbr = widget->molecule()->atomById(id);
-                  if (nbr->isHydrogen())
+                  if (nbr && nbr->isHydrogen())
                     adjEnd |= AdjustHydrogens::RemoveOnRedo | AdjustHydrogens::AddOnUndo;
                 }
               }
             }
             // if we're creating a bond to or from a hydrogen, do NOT adjust the hydrogens ever
-            if (m_bond->beginAtom()->isHydrogen() || m_bond->endAtom()->isHydrogen()) {
+            if (bond->beginAtom()->isHydrogen() || bond->endAtom()->isHydrogen()) {
               adjBegin = AdjustHydrogens::Never;
               adjEnd = AdjustHydrogens::Never;
             }
           }
 
-          bondCommand = new AddBondDrawCommand(widget->molecule(), m_bond, adjBegin, adjEnd);
+          bondCommand = new AddBondDrawCommand(widget->molecule(), bond, adjBegin, adjEnd);
           bondCommand->setText(tr("Draw Bond"));
         }
 
@@ -558,26 +625,31 @@ namespace Avogadro {
           undo = beginAtomDrawCommand;
         }
       }
-      else if (m_prevBond) {
+      else if (prevBond) {
         // bug #1898118
         // both beginAtom, endAtom and bond exist, but the bond order has changed
-        if (m_prevBond->order() != m_prevBondOrder) {
-          // do not try to change X-H bond order when adjust hydrogens is on
+        if (prevBond->order() != m_prevBondOrder) {
+          // do not try to change X-H bond order when adjust hydrogens is on.
+          // The atoms referenced by prevBond may have been removed by
+          // structural churn (atomById returns nullptr for an id with no live
+          // atom), so null-check the resolution instead of dereferencing it.
           if(m_addHydrogens) {
-            if (molecule->atomById(m_prevBond->beginAtomId())->isHydrogen() ||
-                molecule->atomById(m_prevBond->endAtomId())->isHydrogen()) {
-              m_prevBond->setOrder(1); // restore
+            Atom *begin = molecule->atomById(prevBond->beginAtomId());
+            Atom *end = molecule->atomById(prevBond->endAtomId());
+            if ((begin && begin->isHydrogen()) ||
+                (end && end->isHydrogen())) {
+              prevBond->setOrder(1); // restore
               molecule->lock()->unlock();
               return 0;
             }
           }
 
-          undo = new ChangeBondOrderDrawCommand(widget->molecule(), m_prevBond,
+          undo = new ChangeBondOrderDrawCommand(widget->molecule(), prevBond,
                                                 m_prevBondOrder, m_addHydrogens);
           undo->setText(tr("Change Bond Order"));
         }
       }
-      else if (m_beginAtom) {
+      else if (beginAtom) {
         if (m_hydrogenCommand) {
             ChangeElementDrawCommand* cmd = dynamic_cast<ChangeElementDrawCommand*>(m_hydrogenCommand);
             if(cmd)
@@ -585,9 +657,9 @@ namespace Avogadro {
           undo = cmd;
         // beginAtom exists, but we have no bond, we change the element
         }
-        else if (m_beginAtom->atomicNumber() != m_prevAtomElement) {
+        else if (beginAtom->atomicNumber() != m_prevAtomElement) {
           undo = new ChangeElementDrawCommand(widget->molecule(),
-                                              m_beginAtom,
+                                              beginAtom,
                                               m_prevAtomElement,
                                               m_addHydrogens);
         }
@@ -618,11 +690,14 @@ namespace Avogadro {
                                            m_addHydrogens);
         }
         else if(m_hits[0].type() == Primitive::BondType) {
-          // don't delete ?-H bonds when adjust hydrogens is on
-          Bond *bond = widget->molecule()->bond(m_hits[0].name());
+          // don't delete ?-H bonds when adjust hydrogens is on.
+          // The atoms referenced by the bond may have been removed by structural
+          // churn; null-check the atom resolution before dereferencing.
+          Bond *delBond = widget->molecule()->bond(m_hits[0].name());
           if (m_addHydrogens) {
-            if (molecule->atomById(bond->beginAtomId())->isHydrogen() ||
-                molecule->atomById(bond->endAtomId())->isHydrogen()) {
+            Atom *begin = molecule->atomById(delBond->beginAtomId());
+            Atom *end = molecule->atomById(delBond->endAtomId());
+            if ((begin && begin->isHydrogen()) || (end && end->isHydrogen())) {
               molecule->lock()->unlock();
               return undo;
             }
@@ -634,16 +709,7 @@ namespace Avogadro {
     }
 
     // clean up after drawing
-    m_beginAtom=0;
-    m_bond=0;
-    m_endAtom=0;
-    m_prevBond=0;
-    m_prevBondOrder=0;
-    m_prevAtomElement=0;
-    m_beginAtomAdded=false;
-    m_endAtomAdded=false;
-    m_hydrogenCommand = 0;
-
+    resetStrokeState();
     m_forceField->UnsetIgnoreAtom();
     m_forceField->UnsetFixAtom();
 
@@ -732,19 +798,19 @@ namespace Avogadro {
     return 0;
   }
 
-  Atom *DrawTool::addAtom(GLWidget *widget, const QPoint& p)
+  Atom *DrawTool::addAtom(GLWidget *widget, Atom *beginAtom, const QPoint& p)
   {
     Atom *atom = widget->molecule()->addAtom();
-    moveAtom(widget, atom, p);
+    moveAtom(widget, atom, beginAtom, p);
     atom->setAtomicNumber(element());
     return atom;
   }
 
-  void DrawTool::moveAtom(GLWidget *widget, Atom *atom, const QPoint& p)
+  void DrawTool::moveAtom(GLWidget *widget, Atom *atom, Atom *beginAtom, const QPoint& p)
   {
     Vector3d refPoint;
-    if(m_beginAtom) {
-      refPoint = *m_beginAtom->pos();
+    if(beginAtom) {
+      refPoint = *beginAtom->pos();
     } else {
       refPoint = widget->center();
     }
@@ -761,6 +827,66 @@ namespace Avogadro {
     bond->setBegin(beginAtom);
     bond->setEnd(endAtom);
     return bond;
+  }
+
+  bool DrawTool::prepareStrokeState(Molecule *molecule,
+                                    Atom **beginAtom, Atom **endAtom,
+                                    Bond **bond, Bond **prevBond)
+  {
+    if (beginAtom) *beginAtom = nullptr;
+    if (endAtom) *endAtom = nullptr;
+    if (bond) *bond = nullptr;
+    if (prevBond) *prevBond = nullptr;
+
+    // A stored id that no longer resolves to a live atom/bond means structural
+    // churn (undo/redo, hydrogen adjustment, deletion, molecule replacement)
+    // happened between mouse events. Return false so the caller abandons the
+    // interrupted stroke. Ids are dense per-molecule indices, so if the active
+    // molecule is not the one the stroke started on (molecule replaced mid
+    // stroke) the held ids can no longer be trusted and the stroke is
+    // abandoned too.
+    if ((m_beginAtomId != FALSE_ID || m_endAtomId != FALSE_ID ||
+         m_bondId != FALSE_ID || m_prevBondId != FALSE_ID) &&
+        molecule != m_beginMolecule) {
+      return false;
+    }
+
+    if (m_beginAtomId != FALSE_ID) {
+      Atom *ba = molecule->atomById(m_beginAtomId);
+      if (!ba) return false;
+      if (beginAtom) *beginAtom = ba;
+    }
+    if (m_endAtomId != FALSE_ID) {
+      Atom *ea = molecule->atomById(m_endAtomId);
+      if (!ea) return false;
+      if (endAtom) *endAtom = ea;
+    }
+    if (m_bondId != FALSE_ID) {
+      Bond *b = molecule->bondById(m_bondId);
+      if (!b) return false;
+      if (bond) *bond = b;
+    }
+    if (m_prevBondId != FALSE_ID) {
+      Bond *pb = molecule->bondById(m_prevBondId);
+      if (!pb) return false;
+      if (prevBond) *prevBond = pb;
+    }
+
+    return true;
+  }
+
+  void DrawTool::resetStrokeState()
+  {
+    m_beginAtomId = FALSE_ID;
+    m_endAtomId = FALSE_ID;
+    m_bondId = FALSE_ID;
+    m_prevBondId = FALSE_ID;
+    m_prevBondOrder = 0;
+    m_prevAtomElement = 0;
+    m_beginAtomAdded = false;
+    m_endAtomAdded = false;
+    m_hydrogenCommand = 0;
+    m_beginMolecule = nullptr;
   }
 
   //

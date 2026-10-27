@@ -23,6 +23,20 @@ one tick stale, pre-drag. Writing it back teleports the atom backward; the subse
 chases the pointer at tick rate (user-reported: "the mouse will be on the new location and
 the atom will be there much later").
 
+**Bookkeeping — independence cross-reference.** The user's drawing instability has a
+second, *independent* component that is **not** fixed here: the Draw tool held its
+cross-event stroke state (`m_beginAtom`, `m_endAtom`, `m_bond`, `m_prevBond`) as raw
+`Atom*`/`Bond*` pointers and dereferenced them on the next mouse event even after
+structural churn (undo/redo of a stroke, hydrogen adjustment at release) had removed the
+referenced objects, crashing the application (`cmp dword ptr [rax+38h], 1`, `rax = 0`
+in `drawtool.dll`, a null-atom `isHydrogen()` read). That is a crash, not a display
+stability problem, so it is out of scope for this display-stability change. It is fixed
+separately by `fix-drawtool-stale-atom-crash`, which converts those members to molecule
+ids, resolves them against the live molecule at each use with null checks, and abandons a
+stroke whose references no longer resolve. The two changes are orthogonal: this one covers
+revision-churn display stability (adoption latency, dragged-atom write-back); the other
+covers the draw-tool crash. Both were landed independently.
+
 ## Goals / Non-Goals
 
 **Goals:**

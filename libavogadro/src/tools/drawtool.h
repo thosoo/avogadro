@@ -28,6 +28,8 @@
 #define DRAWTOOL_H
 
 #include <avogadro/tool.h>
+#include <avogadro/molecule.h>
+#include <QPointer>
 
 class QCheckBox;
 class QVBoxLayout;
@@ -138,17 +140,29 @@ namespace Avogadro {
 
       bool m_beginAtomAdded;
       bool m_endAtomAdded;
-      Atom *m_beginAtom;
-      Atom *m_endAtom;
+      // Cross-event stroke state is stored as molecule ids, not raw pointers,
+      // so structural churn between mouse events (undo/redo, hydrogen
+      // adjustment, deletion, molecule replacement) can never leave a dangling
+      // reference: each id is resolved against the live molecule at use time
+      // and a failed lookup abandons the interrupted stroke instead of
+      // dereferencing a removed atom/bond.
+      unsigned long m_beginAtomId;
+      unsigned long m_endAtomId;
       int m_element;
 
-      Bond *m_bond;
+      unsigned long m_bondId;
       int m_bondOrder;
 
       int m_prevAtomElement;
 
-      Bond *m_prevBond;
+      unsigned long m_prevBondId;
       int m_prevBondOrder;
+
+      // Molecule that owns m_beginAtomId, kept so toolActivated() (which has no
+      // GLWidget) can resolve the begin atom to restore its element after an
+      // alchemy edit when the tool is switched mid-stroke. QPointer so a
+      // destroyed molecule auto-nulls instead of leaving a dangling pointer.
+      QPointer<Molecule> m_beginMolecule;
 
       bool m_addHydrogens;
       QUndoCommand *m_hydrogenCommand;
@@ -167,9 +181,23 @@ namespace Avogadro {
 
       QWidget *m_settingsWidget;
 
-      Atom *addAtom(GLWidget *widget, const QPoint& p);
-      void moveAtom(GLWidget *widget, Atom *atom, const QPoint& p);
+      Atom *addAtom(GLWidget *widget, Atom *beginAtom, const QPoint& p);
+      void moveAtom(GLWidget *widget, Atom *atom, Atom *beginAtom, const QPoint& p);
       Bond *addBond(Molecule *molecule, Atom *beginAtom, Atom *endAtom);
+
+      // Resolves the cross-event stroke state (stored atom/bond ids) to live
+      // pointers against `molecule`. Returns false when any held id no longer
+      // refers to a live atom/bond (structural churn between events), in which
+      // case the caller must abandon the interrupted stroke. On success fills
+      // the out-parameters with the resolved pointers (nullptr when that slot
+      // holds no id).
+      bool prepareStrokeState(Molecule *molecule,
+                              Atom **beginAtom, Atom **endAtom,
+                              Bond **bond, Bond **prevBond);
+      // Clears all in-flight stroke state (ids, flags, remembered element and
+      // bond order). Does not touch m_hydrogenCommand ownership or the
+      // force-field markers; the caller manages those.
+      void resetStrokeState();
 
       OpenBabel::OBForceField *m_forceField;
 
