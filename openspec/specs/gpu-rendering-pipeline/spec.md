@@ -250,7 +250,12 @@ revision, or a molecule read lock being unavailable. The retained scene SHALL
 continue to track camera rotation while it is re-presented. Under continuous
 scene change (sustained editing, or an auto-optimization ticking), the
 display SHALL remain continuously visible; latency (stale geometry for a few
-frames) is acceptable, alternation between scene and blank is not.
+frames) is acceptable, alternation between scene and blank is not. Under
+sustained revision churn of any rate, worker results SHALL be adopted by
+forward progress — a finished result newer than the currently presented
+content SHALL be presented, and presentation latency SHALL be bounded by one
+build — so that the display SHALL NOT fall permanently behind the molecule
+state while the churn continues.
 
 #### Scenario: AutoOpt ticks do not blink the display
 - **WHEN** an auto-optimization session updates the molecule at its regular
@@ -274,6 +279,16 @@ frames) is acceptable, alternation between scene and blank is not.
 - **WHEN** the render path cannot acquire the molecule read lock for a frame
 - **THEN** the frame presents the last ready scene rather than a cleared frame
 
+#### Scenario: Bond order change during an optimization session
+- **WHEN** the user clicks a bond to cycle its order while an
+  auto-optimization session is ticking
+- **THEN** the re-ordered bond is presented within a bounded latency (one
+  build), even though ticks continue to bump the molecule revision
+
+#### Scenario: Sustained drag under churn
+- **WHEN** the user drags an atom while an auto-optimization session ticks
+- **THEN** the presented atom position trails the true position by no more
+  than one build, and the trail does not grow over time
 ### Requirement: Pick affordance parity with the legacy pick scene
 The modern tier's picking pipeline SHALL offer click affordances at least as forgiving as
 the frozen legacy pick scene: the effective pick geometry of a bond SHALL be no smaller
