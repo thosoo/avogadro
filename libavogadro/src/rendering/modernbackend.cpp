@@ -808,6 +808,20 @@ void ModernRendererBackend::drawInstances()
                                  static_cast<GLsizei>(m_sphereCount));
     ++m_drawCallsThisFrame;
     m_sphereGeom.vao.release();
+    // State restoration (fix-modern-tier-overlay-state-leak): release the
+    // sphere program and disable the instance attributes (2-4) with their
+    // divisors reset. Otherwise the program and enabled per-instance attributes
+    // leak to the frame's later fixed-function draws (axes glyph, debug/extension
+    // text, tool overlay), which then render through the stale molecule MVP and
+    // the constant black per-instance color. The other bind sites in this file
+    // (348/351, 622/648, 686/715) already follow this release discipline.
+    m_sphereGeom.program.release();
+    m_gl.glDisableVertexAttribArray(2);
+    m_gl.glDisableVertexAttribArray(3);
+    m_gl.glDisableVertexAttribArray(4);
+    m_gl.glVertexAttribDivisor(2, 0);
+    m_gl.glVertexAttribDivisor(3, 0);
+    m_gl.glVertexAttribDivisor(4, 0);
   }
 
   // Lines are drawn through the cylinder path, so bonds and lines must be
@@ -864,6 +878,20 @@ void ModernRendererBackend::drawInstances()
       ++m_drawCallsThisFrame;
     }
     m_cylinderGeom.vao.release();
+    // State restoration (fix-modern-tier-overlay-state-leak): release the
+    // cylinder program and disable the instance attributes (2-5) with their
+    // divisors reset, matching the sphere block above. An empty scene never
+    // binds here (the guards are before the bind), so the early-return path is
+    // unchanged.
+    m_cylinderGeom.program.release();
+    m_gl.glDisableVertexAttribArray(2);
+    m_gl.glDisableVertexAttribArray(3);
+    m_gl.glDisableVertexAttribArray(4);
+    m_gl.glDisableVertexAttribArray(5);
+    m_gl.glVertexAttribDivisor(2, 0);
+    m_gl.glVertexAttribDivisor(3, 0);
+    m_gl.glVertexAttribDivisor(4, 0);
+    m_gl.glVertexAttribDivisor(5, 0);
   }
 }
 
