@@ -19,6 +19,17 @@ release deletes/re-adds hydrogens; undo removes strokes). Tier-independent:
 reproduces on every rendering tier; orthogonal to the shipped
 `fix-shared-gl-contexts` fix and to `fix-modern-tier-revision-churn`.
 
+**Bookkeeping — independence cross-reference.** The
+`fix-modern-tier-overlay-state-leak` finding is a separate, display-only
+defect observed on the same reporting machine/build (commit `ac487391e`):
+`ModernRendererBackend::drawInstances` left the sphere/cylinder GL program and
+instance attributes (2-5) bound after the instanced draws, which displaced the
+axes glyph to a black ring at the screen center and hid the debug HUD once the
+first atom existed. It is unrelated to this crash: it is a GL-context-state
+leak in the modern render tier with no effect on drawtool's cross-event
+`Atom*`/`Bond*` lifetime, and it did not cause (and was not caused by) the
+access-violation. The two issues were fixed independently.
+
 ## Goals / Non-Goals
 
 **Goals:**
