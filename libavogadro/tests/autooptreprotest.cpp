@@ -1183,18 +1183,18 @@ void AutoOptReproTest::draggedAtomWriteBackSkipped()
   // One tick's write-back via finished().
   tool.finished(true);
 
-  auto near = [](const Eigen::Vector3d &a, const Eigen::Vector3d &b, double tol) {
+  auto nearEq = [](const Eigen::Vector3d &a, const Eigen::Vector3d &b, double tol) {
     return (a - b).norm() < tol;
   };
 
   // Grabbed atom: write-back skipped, translate no-op -> stays at the drag
   // position (origin), NOT at the stale force-field coordinate F[0] = (10,0,0).
-  QVERIFY(near(*atoms[0]->pos(), Eigen::Vector3d(0.0, 0.0, 0.0), 1e-9));
-  QVERIFY(!near(*atoms[0]->pos(), Eigen::Vector3d(10.0, 0.0, 0.0), 1e-6));
+  QVERIFY(nearEq(*atoms[0]->pos(), Eigen::Vector3d(0.0, 0.0, 0.0), 1e-9));
+  QVERIFY(!nearEq(*atoms[0]->pos(), Eigen::Vector3d(10.0, 0.0, 0.0), 1e-6));
 
   // Non-dragged atoms: write-back applied to the force-field coordinates F.
   for (int i = 1; i < n; ++i) {
-    QVERIFY(near(*atoms[i]->pos(),
+    QVERIFY(nearEq(*atoms[i]->pos(),
                  Eigen::Vector3d(10.0 + i, -i, 0.5 * i), 1e-9));
   }
 
@@ -1202,7 +1202,7 @@ void AutoOptReproTest::draggedAtomWriteBackSkipped()
   tool.setDragMarker(nullptr, false);
   tool.finished(true);
   // Coverage resumed: the dragged atom now receives its write-back (F[0]).
-  QVERIFY(near(*atoms[0]->pos(), Eigen::Vector3d(10.0, 0.0, 0.0), 1e-9));
+  QVERIFY(nearEq(*atoms[0]->pos(), Eigen::Vector3d(10.0, 0.0, 0.0), 1e-9));
 
   delete mol;
 }
