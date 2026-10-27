@@ -1414,12 +1414,10 @@ void AutoOptReproTest::liveBondOrderClickDuringAutoOpt()
   // pick itself resolves bond 0 as the nearest hit (and the press's own 9x9
   // hits box leads with it). This anchors on what the pick actually renders -
   // exactly the user-visible contract - immune to the pick/projection
-  // micro-offset and to pick lag. (The raw instance-name -> bond mapping in
-  // the modern pick is wrong for most positions - bond i tessellates to two
-  // half-cylinder instances named 2i/2i+1, resolved through bond(index) - so
-  // name 0, bond 0's first half, is the one position that provably cycles the
-  // clicked bond. That pre-existing pick-name defect belongs to the
-  // bond-interaction/gpu-pipeline pick work, not this change.)
+  // micro-offset and to pick lag. (Historical note: before this change's
+  // task 3.4 fix, bond instances carried no pick id and the pick returned the
+  // raw half-segment instance index, which bond(index) mis-resolved for every
+  // position except this one - the defect the fix removed.)
   for (int attempt = 0; attempt < 10 && bond->order() == 1; ++attempt) {
     // 0.55 A along bond 0 from atom 0: past the atom pick sphere (~0.34 A),
     // inside the bond's first half-cylinder (0 - 0.75 A) whose instances
