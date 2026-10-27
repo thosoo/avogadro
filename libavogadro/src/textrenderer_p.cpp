@@ -429,6 +429,15 @@ namespace Avogadro {
     if (where || *extension == '\0')
       return 0;
     extensions = glGetString(GL_EXTENSIONS);
+    /* glGetString returns NULL when no GL context is current on the calling
+      thread (e.g. the first TextRenderer::begin during startup, before the
+      context is made current). An unguarded strstr(NULL, …) is the cold-start
+      access violation (VCRUNTIME140!strstr+0x220, null haystack). Treat a
+      missing string as "extension absent" — the same as the no-context case.
+      See textrenderer_p.cpp isGLExtensionSupported; matches the cdb fault at
+      avogadro startup (GUI up a fraction of a second, then crash). */
+    if (!extensions)
+      return 0;
     /* It takes a bit of care to be fool-proof about parsing the
        OpenGL extensions string. Don't be fooled by sub-strings,
        etc. */
