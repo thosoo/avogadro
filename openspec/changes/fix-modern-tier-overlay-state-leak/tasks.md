@@ -12,7 +12,7 @@
       build --output-on-failure` green (default platform). Verify: local run.
 - [x] 1.4 Windows legs: both workflows green on the fix commit. Verify:
       `gh run list` on the pushed commit.
-- [ ] 1.5 User-machine acceptance: with a white background — the axes glyph
+- [x] 1.5 User-machine acceptance: with a white background — the axes glyph
       renders in its corner (red/green/blue), the debug HUD text persists after
       the first atom is drawn, and the black triangle ring at the screen center
       is gone. Verify: user-reported outcome.
