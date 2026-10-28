@@ -1,0 +1,1 @@
+/home/thaison/avogadro/libavogadro/src/navigate.h
