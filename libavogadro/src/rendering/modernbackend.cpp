@@ -498,6 +498,14 @@ QList<GLHit> ModernRendererBackend::pick(int x, int y, int w, int h) {
   m_gl.glEnable(GL_DEPTH_TEST);
   m_gl.glDepthFunc(GL_LEQUAL);
   m_gl.glDisable(GL_BLEND);
+  // Restore lighting at teardown (fix-modern-tier-pick-and-axes, design D7.2):
+  // this pass is a known GL_LIGHTING disabler. Query the prior enable state
+  // before clearing it so we can hand the context back exactly as we found it.
+  // Without this, the disable leaks into the next fixed-function frame, where
+  // material-based draws (the axes glyph) render unlit in the leftover raster
+  // color — the white/yellow axes symptom.
+  GLint priorLighting = GL_TRUE;
+  m_gl.glGetIntegerv(GL_LIGHTING, &priorLighting);
   m_gl.glDisable(GL_LIGHTING);
 
   // glScissor's origin is bottom-left; the caller's y is top-down.
@@ -590,6 +598,19 @@ QList<GLHit> ModernRendererBackend::pick(int x, int y, int w, int h) {
   // the last instance VBO current. Unbind so a following fixed-function draw
   // (the axes glyph) does not misread a client pointer as a VBO offset.
   m_gl.glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+  // Restore the lighting enable state this pass cleared (design D7.2). The
+  // axes overlay fix (glPushAttrib/glPopAttrib in renderAxesOverlay) makes the
+  // glyph immune on its own, but honoring the restore contract here also
+  // protects any other material-based fixed-function draw that runs later in
+  // the same frame or the next one. No-op on a context where lighting is
+  // already enabled.
+  if (priorLighting == GL_TRUE) {
+    GLint currentLighting = GL_FALSE;
+    m_gl.glGetIntegerv(GL_LIGHTING, &currentLighting);
+    if (currentLighting == GL_FALSE)
+      m_gl.glEnable(GL_LIGHTING);
+  }
 
   return hits;
 }

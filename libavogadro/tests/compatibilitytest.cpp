@@ -234,6 +234,7 @@ private Q_SLOTS:
   void testTextEngineDoesNotDisturbPortedEngine();
   void testColourIdPickResolvesAtom();
   void testModernBufferBindingRestored();
+  void testModernLightingRestored();
   void testRubberBandPickBeyondLegacyCapacity();
 
 private:
@@ -520,6 +521,82 @@ void CompatibilityTest::testModernBufferBindingRestored()
   gl.glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &elemBinding);
   QCOMPARE(arrayBinding, 0);
   QCOMPARE(elemBinding, 0);
+
+  fbo.release();
+  m_ctx->doneCurrent();
+  delete bsdy;
+}
+
+//! Lighting-enable guard (fix-modern-tier-pick-and-axes, design D7.2 / spec
+//! "Axes colors stay correct after a pick"): the modern tier's pick pass is a
+//! known GL_LIGHTING disabler. If it leaks the disable into the next frame,
+//! material-based fixed-function draws (the axes glyph) render unlit in the
+//! leftover raster color — the white/yellow axes symptom. This mirrors the
+//! buffer-binding guard next to it: enable lighting once (as initializeGL does
+//! for the app), then assert it is still enabled after a submitted frame and
+//! after a pick(). On the unfixed code the pick leaves lighting disabled, so
+//! the post-pick assertion fails; the fix restores it at teardown. QSKIPs on
+//! this headless runner like the other GL-context guards (needs a GL 3.3
+//! context); it first actually executes on the Windows leg.
+void CompatibilityTest::testModernLightingRestored()
+{
+  Engine *bsdy = makeEngine("Ball and Stick");
+  QVERIFY2(bsdy != nullptr, "Ball and Stick engine plugin not found");
+
+  m_ctx->makeCurrent(m_surface);
+
+  CompatColor colorMap;
+  SceneBuilder builder;
+  CompatPainterDevice device(&builder, &m_molecule, &colorMap);
+  Eigen::Projective3d mv = Eigen::Projective3d::Identity();
+  mv.matrix()(2, 3) = -5.0;
+  device.m_camera.setModelview(mv);
+
+  builder.begin();
+  builder.clearStores();
+  bsdy->setMolecule(&m_molecule);
+  bsdy->setPainterDevice(&device);
+  bsdy->setEnabled(true);
+  bsdy->renderOpaque(&device);
+  builder.end();
+
+  ModernRendererBackend backend;
+  backend.initialize();
+  QVERIFY(backend.isInitialized());
+
+  QOpenGLFunctions_3_3_Core gl;
+  QVERIFY(gl.initializeOpenGLFunctions());
+  QOpenGLFramebufferObject fbo(kW, kH);
+  fbo.bind();
+  gl.glViewport(0, 0, kW, kH);
+  gl.glClearColor(kBackground.redF(), kBackground.greenF(), kBackground.blueF(), 1.0f);
+  gl.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glEnable(GL_DEPTH_TEST);
+  glDepthFunc(GL_LEQUAL);
+  // Establish the ambient lighting the app sets once in initializeGL; the
+  // guard is that this enable survives a frame and a pick, not that the tier
+  // enables it itself.
+  glEnable(GL_LIGHTING);
+
+  QVERIFY(backend.beginFrame(nullptr, QRect(0, 0, kW, kH), builder.quality()));
+  backend.setModelViewProjection(compatMvp());
+  backend.setModelView(compatModelView());
+  backend.pushSpheres(builder.spheres());
+  backend.pushBonds(builder.bonds());
+  backend.pushLines(builder.lines());
+  backend.endFrame();
+  gl.glFinish();
+
+  // After the frame's draw work (which does not touch lighting), the enable
+  // we set must still be current.
+  QCOMPARE(static_cast<int>(glIsEnabled(GL_LIGHTING)), static_cast<int>(GL_TRUE));
+
+  // After a pick pass (a known GL_LIGHTING disabler on the unfixed code), the
+  // enable must again be current.
+  QList<GLHit> hits = backend.pick(kW / 2 - 8, kH / 2 - 8, 16, 16);
+  (void)hits;
+  gl.glFinish();
+  QCOMPARE(static_cast<int>(glIsEnabled(GL_LIGHTING)), static_cast<int>(GL_TRUE));
 
   fbo.release();
   m_ctx->doneCurrent();
