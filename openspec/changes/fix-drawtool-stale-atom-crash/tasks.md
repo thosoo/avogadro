@@ -50,13 +50,13 @@
       Installer #40605604098 `watch --exit-status`=0 (Build + Create installer
       + OpenBabel runtime verification green; Test leg skipped by the known
       artifact-upload hang). Both legs green on 6ea9a1794.
-- [ ] 1.6 User-machine repro: draw/undo/redraw loop with "adjust hydrogens" on
+- [x] 1.6 User-machine repro: draw/undo/redraw loop with "adjust hydrogens" on
       — no crash across at least 20 strokes (the previous faulting sequence).
-      Verify: user-reported outcome. The first repro (commit 59ab882) crashed
-      at a third path (`existingAtom->isHydrogen()` in `mouseMoveEvent`), now
-      fixed in bd5705269 and completeness-audited in 6ea9a1794. User must
-      reinstall the latest Windows Installer and re-run the repro to confirm no
-      crash.
+      Verify: user reinstalled the latest Windows Installer (artifact from
+      Windows Installer run 40605604098) and ran the original faulting
+      sequence (draw/undo/redraw, adjust-hydrogens on, ≥20 strokes) — no crash.
+      Both crashes (drawtool stale-atom + textrenderer startup) confirmed fixed
+      on the user's machine.
 
 ## 3. Startup crash (separate, not a drawtool regression)
 
@@ -76,9 +76,10 @@
       green; ctest 34/34; CI legs: Qt6 CI #40605604103 + Windows Installer
       #40605604098 both green on 36a176191 (now on master with the drawtool
       fixes).
-- [ ] 3.2 User-machine repro: reinstall the latest Windows Installer and
-      cold-launch avogadro (no cdb) — GUI should stay up (no fraction-of-a-second
-      crash). Also confirm autoopt now starts (it needs a live GL context).
+- [x] 3.2 User-machine repro: reinstall the latest Windows Installer and
+      cold-launch avogadro (no cdb) — GUI stays up (no fraction-of-a-second
+      crash); autoopt now starts (it needs a live GL context, which the
+      textrenderer fix restored). Confirmed by user.
 
 ## 2. Bookkeeping
 
