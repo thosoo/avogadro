@@ -575,8 +575,11 @@ void CompatibilityTest::testModernLightingRestored()
   glDepthFunc(GL_LEQUAL);
   // Establish the ambient lighting the app sets once in initializeGL; the
   // guard is that this enable survives a frame and a pick, not that the tier
-  // enables it itself.
-  glEnable(GL_LIGHTING);
+  // enables it itself. Use the QOpenGLFunctions_3_3_Core methods (gl.gl*) for
+  // both the enable and the read so they are guaranteed to operate on the
+  // same context as the backend's m_gl draws; the bare-C glIsEnabled below the
+  // frame read a stale/disabled value on the CI's Mesa/xvfb 3.3 core context.
+  gl.glEnable(GL_LIGHTING);
 
   QVERIFY(backend.beginFrame(nullptr, QRect(0, 0, kW, kH), builder.quality()));
   backend.setModelViewProjection(compatMvp());
@@ -589,14 +592,14 @@ void CompatibilityTest::testModernLightingRestored()
 
   // After the frame's draw work (which does not touch lighting), the enable
   // we set must still be current.
-  QCOMPARE(static_cast<int>(glIsEnabled(GL_LIGHTING)), static_cast<int>(GL_TRUE));
+  QCOMPARE(static_cast<int>(gl.glIsEnabled(GL_LIGHTING)), static_cast<int>(GL_TRUE));
 
   // After a pick pass (a known GL_LIGHTING disabler on the unfixed code), the
   // enable must again be current.
   QList<GLHit> hits = backend.pick(kW / 2 - 8, kH / 2 - 8, 16, 16);
   (void)hits;
   gl.glFinish();
-  QCOMPARE(static_cast<int>(glIsEnabled(GL_LIGHTING)), static_cast<int>(GL_TRUE));
+  QCOMPARE(static_cast<int>(gl.glIsEnabled(GL_LIGHTING)), static_cast<int>(GL_TRUE));
 
   fbo.release();
   m_ctx->doneCurrent();
