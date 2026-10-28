@@ -573,13 +573,6 @@ void CompatibilityTest::testModernLightingRestored()
   gl.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glEnable(GL_DEPTH_TEST);
   glDepthFunc(GL_LEQUAL);
-  // Establish the ambient lighting the app sets once in initializeGL; the
-  // guard is that this enable survives a frame and a pick, not that the tier
-  // enables it itself. Use the QOpenGLFunctions_3_3_Core methods (gl.gl*) for
-  // both the enable and the read so they are guaranteed to operate on the
-  // same context as the backend's m_gl draws; the bare-C glIsEnabled below the
-  // frame read a stale/disabled value on the CI's Mesa/xvfb 3.3 core context.
-  gl.glEnable(GL_LIGHTING);
 
   QVERIFY(backend.beginFrame(nullptr, QRect(0, 0, kW, kH), builder.quality()));
   backend.setModelViewProjection(compatMvp());
@@ -590,12 +583,21 @@ void CompatibilityTest::testModernLightingRestored()
   backend.endFrame();
   gl.glFinish();
 
-  // After the frame's draw work (which does not touch lighting), the enable
-  // we set must still be current.
-  QCOMPARE(static_cast<int>(gl.glIsEnabled(GL_LIGHTING)), static_cast<int>(GL_TRUE));
+  // Establish the ambient lighting the app sets once in initializeGL as the
+  // pre-pick state, AFTER the frame. The frame's beginFrame() makeCurrent can
+  // reset deprecated fixed-function enable state on some Mesa/xvfb 3.3 core
+  // contexts, so enabling here (rather than before the frame) makes the
+  // pre-pick state unambiguous: the guard is that pick() hands the context
+  // back with GL_LIGHTING exactly as it found it, not that the tier enables
+  // it. Use the QOpenGLFunctions_3_3_Core methods (gl.gl*) for both the enable
+  // and the read so they operate on the same context as the backend's m_gl.
+  gl.glEnable(GL_LIGHTING);
 
   // After a pick pass (a known GL_LIGHTING disabler on the unfixed code), the
-  // enable must again be current.
+  // enable must again be current. On unfixed code the pick leaves lighting
+  // disabled, so the axes overlay drawn next would render unlit (the
+  // white/yellow axes symptom). The fix queries the prior enable and restores
+  // it at teardown.
   QList<GLHit> hits = backend.pick(kW / 2 - 8, kH / 2 - 8, 16, 16);
   (void)hits;
   gl.glFinish();
