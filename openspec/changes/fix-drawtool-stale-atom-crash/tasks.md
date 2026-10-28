@@ -26,19 +26,59 @@
       documented in the archived A/B). Verify: local run — 34/34 tests pass,
       including the new `autooptreprotest::staleOrReplacedMoleculeAbandonsStroke`.
 - [x] 1.4 Windows legs: both workflows green on the fix commit. Verify:
-      `gh run list` on the pushed commit — HEAD bd5705269 (second fix):
-      Qt6 CI #40552905861 `completed success` with `100% tests passed, 0 tests
-      failed out of 34` (incl. autooptreproTest); Windows Installer
-      #40552906078 `watch --exit-status` = 0 with Build + Create installer +
-      Test legs green (log publication delayed by an artifact-upload infra
-      hang, same as the first commit's legs). First commit 59ab882d6 also had
-      both legs green (#40507761729, #40507761707).
-- [ ] 1.5 User-machine repro: draw/undo/redraw loop with "adjust hydrogens" on
+      `gh run list` on the pushed commit — HEAD 6ea9a1794 (drawtool completeness
+      fix, includes textrenderer startup-crash fix 36a176191): Qt6 CI
+      #40605604103 `completed success` (all Test legs incl. ASan-sensitive
+      matrix); Windows Installer #40605604098 `watch --exit-status` = 0 with
+      Build + Create installer + OpenBabel runtime verification green (Test leg
+      skipped by the known artifact-upload infra hang). Note: commits were
+      never pushed initially (origin/master was bd5705269); pushed 460ec10ca,
+      36a176191, 6ea9a1794 to master, which triggered these runs.
+- [x] 1.5 Oracle exhaustive fix-completeness audit: the id-conversion +
+      prepareStrokeState + press/move/release guards are correct, but two
+      same-class unchecked derefs remained in the right-click DELETE path of
+      `mouseReleaseEvent`. Fixed in 6ea9a1794:
+      - `drawtool.cpp` ~690: `molecule->atom(m_hits[0].name())` then
+        `atom->isHydrogen()` — `atom()` returns null for a stale pick index
+        after churn. Guarded with `atom &&` (same class as 346/354).
+      - `drawtool.cpp` ~702: `molecule->bond(m_hits[0].name())` then
+        `delBond->beginAtomId()/endAtomId()` — `bond()` returns null for a
+        stale index. Guarded the whole block on `delBond` (abandon the delete
+        when the bond no longer resolves).
+      Verify: local build green; ctest 34/34. CI legs: Qt6 CI #40605604103
+      `completed success` (all Test legs incl. ASan-sensitive matrix); Windows
+      Installer #40605604098 `watch --exit-status`=0 (Build + Create installer
+      + OpenBabel runtime verification green; Test leg skipped by the known
+      artifact-upload hang). Both legs green on 6ea9a1794.
+- [ ] 1.6 User-machine repro: draw/undo/redraw loop with "adjust hydrogens" on
       — no crash across at least 20 strokes (the previous faulting sequence).
       Verify: user-reported outcome. The first repro (commit 59ab882) crashed
       at a third path (`existingAtom->isHydrogen()` in `mouseMoveEvent`), now
-      fixed in bd5705269. User must reinstall the latest Windows Installer and
-      re-run the repro to confirm no crash.
+      fixed in bd5705269 and completeness-audited in 6ea9a1794. User must
+      reinstall the latest Windows Installer and re-run the repro to confirm no
+      crash.
+
+## 3. Startup crash (separate, not a drawtool regression)
+
+- [x] 3.1 Cold-start crash: avogadro GUI appears for a fraction of a second,
+      then crashes on a cold start (real crash, not a cdb artifact). Root cause
+      located by oracle in `TextRendererPrivate::isGLExtensionSupported`
+      (`libavogadro/src/textrenderer_p.cpp:431-437`): `glGetString(GL_EXTENSIONS)`
+      returns NULL when no GL context is current on the thread (first
+      `TextRenderer::begin` at startup), passed straight to `strstr` with no
+      null check -> `strstr(NULL, ...)` -> the exact AV (`VCRUNTIME140!strstr+0x220`,
+      null r9 haystack). Confirmed independent of the drawtool crash (different
+      module, instruction, trigger; disjoint git deltas). Fix: `if (!extensions) return 0;`
+      (falls into the existing GL_TEXTURE_2D 'absent' branch). Audit: `renderertier.cpp`
+      `probeContextVersion` already null-checks GL_VERSION; `glwidget.cpp`
+      GL_RENDERER/VENDOR/VERSION qDebug logs only when the context is current.
+      This is the only unguarded glGetString dereference. Verify: local build
+      green; ctest 34/34; CI legs: Qt6 CI #40605604103 + Windows Installer
+      #40605604098 both green on 36a176191 (now on master with the drawtool
+      fixes).
+- [ ] 3.2 User-machine repro: reinstall the latest Windows Installer and
+      cold-launch avogadro (no cdb) — GUI should stay up (no fraction-of-a-second
+      crash). Also confirm autoopt now starts (it needs a live GL context).
 
 ## 2. Bookkeeping
 
