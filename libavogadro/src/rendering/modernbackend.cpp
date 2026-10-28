@@ -223,6 +223,14 @@ void ModernRendererBackend::pushDirtyRanges(const ChunkStore<T> &store,
       m_maxChunkBytes = r.bytes;
   }
 
+  // Restore GL_ARRAY_BUFFER (fix-modern-tier-pick-and-axes, design D3): the
+  // upload bound the instance VBO to the current VAO to write into it. Leave
+  // it bound and the default VAO's ARRAY_BUFFER_BINDING still points at this
+  // instance VBO, so a later fixed-function / display-list draw (the axes
+  // glyph's client-pointer cylinder) would misread a client pointer as a VBO
+  // offset and emit GL_INVALID_OPERATION. Bind 0 so the binding is clean.
+  m_gl.glBindBuffer(GL_ARRAY_BUFFER, 0);
+
   // Acknowledge only the accepted ranges; deferred ranges stay dirty for the
   // next frame's push.
   for (int i = 0; i < accepted; ++i) {
@@ -577,6 +585,12 @@ QList<GLHit> ModernRendererBackend::pick(int x, int y, int w, int h) {
   hits = readPickHitsRect(x, sy, w, h);
   m_gl.glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(restoreFbo));
 
+  // Restore GL_ARRAY_BUFFER (fix-modern-tier-pick-and-axes, design D3): the
+  // pick passes bound the geometry + instance VBOs inside their VAOs and left
+  // the last instance VBO current. Unbind so a following fixed-function draw
+  // (the axes glyph) does not misread a client pointer as a VBO offset.
+  m_gl.glBindBuffer(GL_ARRAY_BUFFER, 0);
+
   return hits;
 }
 
@@ -893,6 +907,17 @@ void ModernRendererBackend::drawInstances()
     m_gl.glVertexAttribDivisor(4, 0);
     m_gl.glVertexAttribDivisor(5, 0);
   }
+
+  // Restore GL_ARRAY_BUFFER (fix-modern-tier-pick-and-axes, design D3):
+  // the sphere and/or cylinder block above bound an instance VBO to
+  // GL_ARRAY_BUFFER for the instanced draws and left it current. Run this
+  // unconditionally at the end of the frame so the default VAO's
+  // ARRAY_BUFFER_BINDING is 0 even for a sphere-only scene (atoms but no
+  // bonds, which still renders the axes glyph), letting the axes display list
+  // and the fixed-function overlays draw without misreading a client pointer
+  // as a VBO offset. Spec: no modern-tier instance buffer remains bound after
+  // the frame's draw work.
+  m_gl.glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 //! Compile + link a program from the sphere/cylinder shader sources, replacing

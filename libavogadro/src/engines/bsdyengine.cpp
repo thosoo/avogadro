@@ -160,6 +160,13 @@ namespace Avogadro
       int order = 1;
       if (m_showMulti) order = b->order();
 
+      // Pick name: name this bond before its two half-segments so BOTH resolve
+      // to this bond's index (fix-modern-tier-pick-and-axes, design D1). The
+      // modern pick pass reads the per-instance pickId from the record the
+      // SceneBuilder stamped; without setName() both half-segments inherit
+      // pickId 0 and every bond click would hit bond 0.
+      pd->painter()->setName(b);
+
       map->setFromPrimitive(atom1);
       if (atom1->customColorName().isEmpty())
         pd->painter()->setColor( map );
@@ -181,6 +188,10 @@ namespace Avogadro
     // Render the atoms and atom images
     QList<Atom *> allAtoms = atoms() + atomImages();
     foreach(const Atom *a, allAtoms) {
+      // Pick name: name each atom before its sphere so a click resolves to
+      // this atom (design D1). Atom images are emitted here too and resolve to
+      // their atom's index (the documented legacy atom-image behavior).
+      pd->painter()->setName(a);
       map->setFromPrimitive(a);
       if (a->customColorName().isEmpty())
         pd->painter()->setColor( map );
@@ -308,6 +319,10 @@ namespace Avogadro
       double shift = 0.15;
       int order = 1;
       if (m_showMulti) order = b->order();
+
+      // Pick name: name this bond before its translucent halves and selected
+      // halo so every half-segment resolves to this bond's index (design D1).
+      pd->painter()->setName(b);
 
       // The "inner" bond has to be rendered first.
       if (m_alpha < 0.999 && m_alpha > 0.001) {

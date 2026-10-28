@@ -233,6 +233,7 @@ private Q_SLOTS:
   void testUnportedEngineSurvivesPortedEngine();
   void testTextEngineDoesNotDisturbPortedEngine();
   void testColourIdPickResolvesAtom();
+  void testModernBufferBindingRestored();
   void testRubberBandPickBeyondLegacyCapacity();
 
 private:
@@ -446,6 +447,82 @@ void CompatibilityTest::testColourIdPickResolvesAtom()
                           .arg(carbon->index())));
 
   fbo.release();
+  delete bsdy;
+}
+
+//! Buffer-binding guard (design D5.3 / spec "no instance buffer stays bound
+//! after a frame or a pick"): the modern tier must restore GL_ARRAY_BUFFER
+//! (and, on the default VAO, GL_ELEMENT_ARRAY_BUFFER) to 0 at the end of its
+//! frame work and its pick pass, so later fixed-function / display-list draws
+//! (the axes glyph's client-pointer cylinder) cannot misinterpret an instance
+//! VBO offset. After submitting a frame and after a pick(), the bindings must
+//! be 0. On the unfixed code GL_ARRAY_BUFFER still points at an instance VBO
+//! (this assertion fails); the fix unbinds at each site (task 3.1).
+void CompatibilityTest::testModernBufferBindingRestored()
+{
+  Engine *bsdy = makeEngine("Ball and Stick");
+  QVERIFY2(bsdy != nullptr, "Ball and Stick engine plugin not found");
+
+  m_ctx->makeCurrent(m_surface);
+
+  CompatColor colorMap;
+  SceneBuilder builder;
+  CompatPainterDevice device(&builder, &m_molecule, &colorMap);
+  Eigen::Projective3d mv = Eigen::Projective3d::Identity();
+  mv.matrix()(2, 3) = -5.0;
+  device.m_camera.setModelview(mv);
+
+  builder.begin();
+  builder.clearStores();
+  bsdy->setMolecule(&m_molecule);
+  bsdy->setPainterDevice(&device);
+  bsdy->setEnabled(true);
+  bsdy->renderOpaque(&device);
+  builder.end();
+
+  ModernRendererBackend backend;
+  backend.initialize();
+  QVERIFY(backend.isInitialized());
+
+  QOpenGLFunctions_3_3_Core gl;
+  QVERIFY(gl.initializeOpenGLFunctions());
+  QOpenGLFramebufferObject fbo(kW, kH);
+  fbo.bind();
+  gl.glViewport(0, 0, kW, kH);
+  gl.glClearColor(kBackground.redF(), kBackground.greenF(), kBackground.blueF(), 1.0f);
+  gl.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glEnable(GL_DEPTH_TEST);
+  glDepthFunc(GL_LEQUAL);
+
+  QVERIFY(backend.beginFrame(nullptr, QRect(0, 0, kW, kH), builder.quality()));
+  backend.setModelViewProjection(compatMvp());
+  backend.setModelView(compatModelView());
+  backend.pushSpheres(builder.spheres());
+  backend.pushBonds(builder.bonds());
+  backend.pushLines(builder.lines());
+  backend.endFrame();
+  gl.glFinish();
+
+  // After the frame's draw work, no instance buffer may remain bound on the
+  // default VAO (VAO 0 is what later fixed-function draws use).
+  GLint arrayBinding = -1, elemBinding = -1;
+  gl.glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &arrayBinding);
+  gl.glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &elemBinding);
+  QCOMPARE(arrayBinding, 0);
+  QCOMPARE(elemBinding, 0);
+
+  // After a pick pass (which binds geometry + instance VBOs), the bindings
+  // must again be restored to 0.
+  QList<GLHit> hits = backend.pick(kW / 2 - 8, kH / 2 - 8, 16, 16);
+  (void)hits;
+  gl.glFinish();
+  gl.glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &arrayBinding);
+  gl.glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &elemBinding);
+  QCOMPARE(arrayBinding, 0);
+  QCOMPARE(elemBinding, 0);
+
+  fbo.release();
+  m_ctx->doneCurrent();
   delete bsdy;
 }
 

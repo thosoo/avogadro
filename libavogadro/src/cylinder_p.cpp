@@ -36,6 +36,14 @@
 
 // Win32 build (19/05/08)
 #include <math.h> 
+
+// The bundled Mesa GL/gl.h only declares the GL 1.1 entry points this file
+// already uses (glVertexPointer, glNewList, ...). The GL 1.5 buffer-binding
+// call used by the defensive GL_ARRAY_BUFFER unbind below is not a static
+// symbol in libGL, so load it through QOpenGLFunctions_1_5 (the same mechanism
+// glpainter_p.cpp uses). A transient object is fine: initialize() runs from
+// GLPainterPrivate::isValid(), i.e. during a draw with a context current.
+#include <QtOpenGL/QOpenGLFunctions_1_5>
 #ifndef M_PI
   #define M_PI 3.1415926535897932384626433832795 
 #endif
@@ -143,6 +151,17 @@ namespace Avogadro {
         d->vertexBuffer[ 2 * i + 1 ] = v;
         d->vertexBuffer[ 2 * i ].z() = 1.0f;
       }
+      // Restore GL_ARRAY_BUFFER to 0 before capturing the client-pointer
+      // vertex/normal arrays into the display list (fix-modern-tier-pick-and-
+      // axes, design D4). The capture dereferences d->vertexBuffer / d->normalBuffer
+      // as CLIENT ADDRESSES at compile time; if a prior modern-tier draw left an
+      // instance VBO bound to GL_ARRAY_BUFFER, glVertexPointer would instead
+      // interpret these addresses as byte offsets into that VBO, baking a garbage
+      // cylinder into the display list (the missing axes-shaft symptom). Binding
+      // 0 makes the capture immune to any caller's leftover ARRAY_BUFFER bind.
+      QOpenGLFunctions_1_5 gl15;
+      if ( gl15.initializeOpenGLFunctions() )
+        gl15.glBindBuffer( GL_ARRAY_BUFFER, 0 );
       glEnableClientState( GL_VERTEX_ARRAY );
       glEnableClientState( GL_NORMAL_ARRAY );
       glNewList( d->displayList, GL_COMPILE );

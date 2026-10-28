@@ -37,6 +37,8 @@
 #include <QOpenGLShaderProgram>
 #include <QOffscreenSurface>
 #include <QMatrix4x4>
+#include <QDebug>
+#include <QString>
 #include <QtTest>
 
 #include <Eigen/Geometry>
@@ -159,6 +161,58 @@ void buildTwoAtomBond(Avogadro::Molecule *mol, SceneBuilder *builder)
   engine.renderOpaque(&device);
 }
 
+//! Build a 4-atom chain (atoms at x = -2.5,-1.0,1.0,2.5) with three bonds:
+//! bond 0 = single (0-1), bond 1 = double (1-2), bond 2 = single (2-3). The
+//! middle bond is deliberately a double (two half-segments per the emitter) so
+//! the "every split segment resolves to its bond" scenario is covered too.
+//! Emits through BSDYEngine into `builder`, exactly as GLWidget::emitSceneToBuilder
+//! does. Atoms are spaced 1.5-2.0 apart so their 0.3-radius discs never reach a
+//! bond midpoint or half-segment sample point.
+void buildChainScene(Avogadro::Molecule *mol, SceneBuilder *builder)
+{
+  mol->addAtom(6, Eigen::Vector3d(-2.5, 0.0, 0.0));
+  mol->addAtom(6, Eigen::Vector3d(-1.0, 0.0, 0.0));
+  mol->addAtom(6, Eigen::Vector3d(1.0, 0.0, 0.0));
+  mol->addAtom(6, Eigen::Vector3d(2.5, 0.0, 0.0));
+  mol->addBond(0, 1, 1);
+  mol->addBond(1, 2, 2);
+  mol->addBond(2, 3, 1);
+
+  Avogadro::Color colorMap;
+  EmitterRenderDevice device(builder, mol, &colorMap);
+  Avogadro::BSDYEngine engine;
+  engine.setMolecule(mol);
+  engine.setPainterDevice(&device);
+  engine.setEnabled(true);
+
+  builder->begin();
+  builder->clearStores();
+  engine.renderOpaque(&device);
+}
+
+//! Project a world point to widget pixels using the same matrix/viewport the
+//! frame renders with (matching the backend's uMVP), so pick rectangles can be
+//! placed at known scene locations. Returns (-999,-999) for a point behind the
+//! camera.
+Eigen::Vector2f projectScreen(const QMatrix4x4 &mvp, const Eigen::Vector3d &world)
+{
+  // Qt's QMatrix4x4*Eigen-vector operator* does not resolve across the two
+  // types; copy the (column-major, float) data into an Eigen matrix so the
+  // product is well defined.
+  const Eigen::Matrix4f mvpf = Eigen::Map<const Eigen::Matrix4f>(mvp.data());
+  Eigen::Vector4f clip = mvpf * Eigen::Vector4f(
+      static_cast<float>(world.x()),
+      static_cast<float>(world.y()),
+      static_cast<float>(world.z()), 1.0f);
+  if (clip.w() <= 0.0f)
+    return Eigen::Vector2f(-999.0f, -999.0f);
+  float ndcX = clip.x() / clip.w();
+  float ndcY = clip.y() / clip.w();
+  float sx = (ndcX + 1.0f) * 0.5f * static_cast<float>(kWidth);
+  float sy = (1.0f - ndcY) * 0.5f * static_cast<float>(kHeight);
+  return Eigen::Vector2f(sx, sy);
+}
+
 //! SEL_BOX_SIZE (9), matching DrawTool's pick rectangle.
 constexpr int kSelBox = 9;
 //! Half-width (px) of the band just outside an atom disc edge searched for a
@@ -181,6 +235,7 @@ class ModernPickTest : public QObject
 private slots:
   void testPickSlopUniform();
   void testPickAffordance();
+  void testMultiBondPickNames();
 };
 
 void ModernPickTest::testPickSlopUniform()
@@ -400,6 +455,87 @@ void ModernPickTest::testPickAffordance()
     gl->glDeleteTextures(1, &colourTexID);
   if (fboID != 0)
     gl->glDeleteFramebuffers(1, &fboID);
+
+  ctx->makeCurrent(nullptr);
+}
+
+//! Multi-bond pick names (design D5.1 / spec "pick hits identify the clicked
+//! primitive"): a 3-bond molecule whose middle bond is a double (two
+//! half-segments). Clicking the middle of bond 0, each half-segment of the
+//! split bond 1, and the middle of bond 2 must each return that bond's OWN
+//! index (0, 1, 2) -- not 0. On the unfixed code every BondInstance::pickId is
+//! 0 (nothing calls setName() in emission), so the bond-1 and bond-2
+//! assertions fail. Reuses the offscreen-GL harness and QSKIP behavior.
+void ModernPickTest::testMultiBondPickNames()
+{
+  QOffscreenSurface *off = nullptr;
+  QOpenGLContext *ctx = makeGLContext(&off);
+  if (!ctx)
+    QSKIP("No GL 3.3 context available on this runner; pick-name parity must "
+          "be checked on a display", QSkip::SkipAll);
+  QVERIFY(off != nullptr);
+
+  QOpenGLFunctions glStorage;
+  glStorage.initializeOpenGLFunctions();
+  QOpenGLFunctions *gl = &glStorage;
+  QVERIFY(gl != nullptr);
+
+  ModernRendererBackend backend;
+  backend.initialize();
+  if (!backend.isInitialized()) {
+    ctx->makeCurrent(nullptr);
+    QSKIP("ModernRendererBackend failed to initialise (no GL 3.3 context)",
+          QSkip::SkipAll);
+  }
+
+  Avogadro::Molecule mol;
+  SceneBuilder builder;
+  buildChainScene(&mol, &builder);
+  QVERIFY2(builder.bonds().size() >= 6u,
+           "expected 2 half-segments x 3 bonds = >= 6 bond instances");
+
+  backend.beginFrame(nullptr, QRect(0, 0, kWidth, kHeight), 0);
+  backend.setModelViewProjection(viewProjection());
+  backend.setModelView(viewProjectionModelView());
+  backend.pushSpheres(builder.spheres());
+  backend.pushBonds(builder.bonds());
+  backend.endFrame();
+  gl->glFlush();
+
+  const QMatrix4x4 mvp = viewProjection();
+
+  // Helper: pick a SEL_BOX centred on the projected world point and collect
+  // the bond hits, asserting each carries `expectedName`. `mustFind` requires
+  // at least one bond hit (a missed cylinder would otherwise be a silent pass).
+  auto expectBondName = [&](const Eigen::Vector3d &world, int expectedName) {
+    Eigen::Vector2f p = projectScreen(mvp, world);
+    QList<GLHit> hits = pickAt(backend,
+                               static_cast<int>(p.x() + 0.5f),
+                               static_cast<int>(p.y() + 0.5f));
+    bool found = false;
+    for (const GLHit &h : hits) {
+      if (static_cast<Primitive::Type>(h.type()) == Primitive::BondType) {
+        QCOMPARE(static_cast<GLuint>(h.name()), static_cast<GLuint>(expectedName));
+        found = true;
+      }
+    }
+    if (!found)
+      qDebug() << "no bond hit at world"
+               << world.x() << world.y() << world.z()
+               << "expected name" << expectedName;
+    QVERIFY(found);
+  };
+
+  // Row 1.1: click the middle of bond 0 -> name 0.
+  expectBondName(Eigen::Vector3d(-1.75, 0.0, 0.0), 0);
+
+  // Row 1.2: click each half-segment of the split bond 1 -> name 1. The sample
+  // points (-0.5, 0.5) sit in each half-segment, clear of the endpoint atoms.
+  expectBondName(Eigen::Vector3d(-0.5, 0.0, 0.0), 1);
+  expectBondName(Eigen::Vector3d(0.5, 0.0, 0.0), 1);
+
+  // Row 1.3: click the middle of bond 2 -> name 2.
+  expectBondName(Eigen::Vector3d(1.75, 0.0, 0.0), 2);
 
   ctx->makeCurrent(nullptr);
 }

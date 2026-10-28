@@ -103,6 +103,7 @@ private Q_SLOTS:
   void initTestCase();
   void cleanupTestCase();
   void testOpaqueParity();
+  void testWorkerPathPickNames();
 
 private:
   //! Build an immutable snapshot from the live molecule (copies values).
@@ -136,6 +137,7 @@ SceneSnapshot TessellatorParityTest::makeSnapshot(const Molecule &mol)
     sa.pos[1] = static_cast<float>(pp->y());
     sa.pos[2] = static_cast<float>(pp->z());
     sa.atomicNumber = a->atomicNumber();
+    sa.index = i;
     snap.atoms.append(sa);
   }
   snap.bonds.reserve(mol.numBonds());
@@ -145,6 +147,7 @@ SceneSnapshot TessellatorParityTest::makeSnapshot(const Molecule &mol)
     sb.begin = b->beginAtomId();
     sb.end = b->endAtomId();
     sb.order = b->order();
+    sb.index = i;
     snap.bonds.append(sb);
   }
   return snap;
@@ -258,6 +261,67 @@ void TessellatorParityTest::testOpaqueParity()
 
   qInfo().noquote() << "tessellator parity OK: spheres =" << tes.spheres.size()
                     << " bonds =" << tes.bonds.size();
+}
+
+//! Worker-path pick names (design D5.2 / spec "pick hits identify the clicked
+//! primitive", worker scenario): tessellate a 3-bond molecule through the
+//! headless SnapshotTessellator and assert every bond half-segment's pickId
+//! equals that bond's index. The tessellator drives the exact same SceneBuilder
+//! as the GUI-thread engine path, so this fails on the unfixed code (all
+//! pickIds 0) precisely where the render/pick path would. Fully headless.
+void TessellatorParityTest::testWorkerPathPickNames()
+{
+  Molecule mol;
+  mol.addAtom(6, Eigen::Vector3d(-3.0, 0.0, 0.0));
+  mol.addAtom(6, Eigen::Vector3d(-1.5, 0.0, 0.0));
+  mol.addAtom(6, Eigen::Vector3d(1.5, 0.0, 0.0));
+  mol.addAtom(6, Eigen::Vector3d(3.0, 0.0, 0.0));
+  mol.addBond(0, 1, 1);
+  mol.addBond(1, 2, 2); // double bond: still two half-segments, one pick id
+  mol.addBond(2, 3, 1);
+
+  TestColorMap map;
+  // Reference: the GUI-thread engine emission path.
+  BSDYEngine engine;
+  engine.setMolecule(&mol);
+  engine.setEnabled(true);
+  SceneBuilder refBuilder;
+  TestDevice refDevice(&refBuilder, &mol, &map);
+  engine.setPainterDevice(&refDevice);
+  QVERIFY(engine.renderOpaque(&refDevice));
+  const ChunkStore<BondInstance> refBonds = refBuilder.bonds();
+
+  // Capture GUI-thread state, then tessellate from the immutable snapshot.
+  TestDevice radiusDevice(nullptr, &mol, &map);
+  JobParams params = captureParams(engine, mol, map, radiusDevice);
+  SceneSnapshot snap = makeSnapshot(mol);
+  const TessellationResult tes = snapshotTessellateBSDY(snap, params);
+
+  QVERIFY2(tes.bonds.size() >= 6u,
+           "expected at least 2 half-segments x 3 bonds = >= 6 bond instances");
+
+  // Walk the bond records in emission order. Each snapshot bond i (bond order
+  // o) emits two half-calls (v1->v3, v3->v2), each producing o half-segments,
+  // ALL stamped with pickId == i. Verify every half-segment of bond i carries
+  // that bond's index (design D2 / spec: every segment of a split bond
+  // resolves to that bond's index). On the unfixed code every pickId is 0, so
+  // the double bond (order 2, records 2-5) and bond 2 (records 6-7) fail.
+  unsigned int offset = 0;
+  for (unsigned int i = 0; i < snap.bonds.size(); ++i) {
+    const unsigned int count = 2u * snap.bonds.at(i).order;
+    for (unsigned int r = offset; r < offset + count; ++r) {
+      QCOMPARE(static_cast<int>(tes.bonds.at(r).pickId),
+               static_cast<int>(snap.bonds.at(i).index));
+    }
+    offset += count;
+  }
+  QCOMPARE(static_cast<int>(offset), static_cast<int>(tes.bonds.size()));
+
+  // The worker path must match the GUI reference for pickId too (both are the
+  // same SceneBuilder; a divergence would mean the paths disagree on names).
+  for (unsigned int i = 0; i < tes.bonds.size(); ++i)
+    QCOMPARE(static_cast<int>(tes.bonds.at(i).pickId),
+             static_cast<int>(refBonds.at(i).pickId));
 }
 
 #include "threadedparitytest.moc"

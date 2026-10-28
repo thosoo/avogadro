@@ -240,6 +240,14 @@ uniform float uPickRadiusSlop;
 flat out uint vPickId;
 
 void main() {
+  // Pick name mechanism (fix-modern-tier-pick-and-axes, design D2.3 /
+  // gpu-rendering-pipeline delta): an atom emits exactly one instance per
+  // atom, so the instance index IS the atom index and gl_InstanceID resolves
+  // the hit name directly. This relies on a 1:1 atom-to-instance mapping in
+  // molecule index order. It does NOT hold for atom images (rendered after
+  // the real atoms, so their instance index exceeds the real-atom count and
+  // would resolve to a wrong/out-of-range atom); that limitation is
+  // documented here, not fixed in this change.
   vPickId = uPickBase + uint(gl_InstanceID);
   vec3 worldPos = aPos * (aInstRadius + uPickRadiusSlop) + aInstPos;
   gl_Position = uMVP * vec4(worldPos, 1.0);

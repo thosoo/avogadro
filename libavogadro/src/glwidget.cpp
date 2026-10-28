@@ -1296,6 +1296,8 @@ GLWidget::GLWidget( Molecule *molecule,
       sa.pos[1] = static_cast<float>(pos[1]);
       sa.pos[2] = static_cast<float>(pos[2]);
       sa.atomicNumber = static_cast<unsigned char>(a->atomicNumber());
+      // Atom index == its position in the snapshot (taken in molecule order).
+      sa.index = i;
       idToIndex.insert(a->id(), i);
     }
     for (unsigned int i = 0; i < mol->numBonds(); ++i) {
@@ -1306,6 +1308,8 @@ GLWidget::GLWidget( Molecule *molecule,
       sb.begin = idToIndex.value(b->beginAtomId(), 0);
       sb.end = idToIndex.value(b->endAtomId(), 0);
       sb.order = b->order();
+      // Bond index == its position in the snapshot (taken in molecule order).
+      sb.index = i;
       snapshot.bonds.append(sb);
     }
 
