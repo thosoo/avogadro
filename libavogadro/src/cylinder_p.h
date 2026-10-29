@@ -45,6 +45,14 @@ namespace Avogadro {
     protected:
       void initialize();
       void freeBuffers();
+      /**
+       * emits the cylinder's lateral surface in immediate mode (a GL_QUAD_STRIP
+       * for faces>=3, a single GL_LINES segment for the degenerate faces<3
+       * case) using the vertex/normal buffers produced by initialize(). The
+       * caller has applied the placement transform (glMultMatrix) before this,
+       * so the local-coord vertices are mapped onto the requested axis.
+       */
+      void drawImmediate() const;
 
     public:
       Cylinder(int faces=0);
