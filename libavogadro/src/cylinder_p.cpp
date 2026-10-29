@@ -26,6 +26,8 @@
 
 #include "cylinder_p.h"
 
+#include <QOpenGLContext>
+
 #ifdef ENABLE_GLSL
   #include <GL/glew.h>
 #endif
@@ -36,6 +38,14 @@
 
 // Win32 build (19/05/08)
 #include <math.h> 
+
+// The bundled Mesa GL/gl.h only declares the GL 1.1 entry points this file
+// already uses (glVertexPointer, glNewList, ...). The GL 1.5 buffer-binding
+// call used by the defensive GL_ARRAY_BUFFER unbind below is not a static
+// symbol in libGL, so load it through QOpenGLFunctions_1_5 (the same mechanism
+// glpainter_p.cpp uses). A transient object is fine: initialize() runs from
+// GLPainterPrivate::isValid(), i.e. during a draw with a context current.
+#include <QtOpenGL/QOpenGLFunctions_1_5>
 #ifndef M_PI
   #define M_PI 3.1415926535897932384626433832795 
 #endif
@@ -100,32 +110,33 @@ namespace Avogadro {
 
   void Cylinder::initialize()
   {
+    // Regenerate the geometry if it is missing or needs a different
+    // tessellation. The vertex/normal buffers are RETAINED (not freed after
+    // capture) so the immediate-mode draw path reads live memory rather than a
+    // freed buffer. This removes the two defects that used to make the
+    // axes-shaft vanish: (1) the display list captured glDrawArrays reading
+    // d->vertexBuffer as client memory at EXECUTION time, then the buffers were
+    // freed (use-after-free), and (2) the display list itself was created with
+    // glGenLists, which is rejected (GL_INVALID_OPERATION) on a forward-
+    // compatible Core profile. Immediate-mode emission needs neither.
+    if( d->isValid && d->faces >= 0 )
+      freeBuffers();
     d->isValid = false;
     if( d->faces < 0 ) return;
 
-    // compile display list and free buffers
-    if( ! d->displayList ) d->displayList = glGenLists( 1 );
-    if( ! d->displayList ) return;
-
     if( d->faces < 3 )
     {
-      glNewList( d->displayList, GL_COMPILE );
-      glLineWidth(1.0);
-      glBegin(GL_LINES);
-      glVertex3f(0, 0, 0);
-      glVertex3f(0, 0, 1);
-      glEnd();
-      glEndList();
+      // Degenerate cylinder: a single line segment from 0 to 1 along +Z.
+      freeBuffers();
+      d->vertexBuffer = new Vector3f[2];
+      if( ! d->vertexBuffer ) return;
+      d->vertexBuffer[0] = Vector3f( 0.0f, 0.0f, 0.0f );
+      d->vertexBuffer[1] = Vector3f( 0.0f, 0.0f, 1.0f );
     }
     else
     {
-      // compute number of vertices
       int vertexCount = 2 * d->faces + 2;
-
-      // deallocate any previously allocated buffer
       freeBuffers();
-
-      // allocate memory for buffers
       d->vertexBuffer = new Vector3f[vertexCount];
       if( ! d->vertexBuffer ) return;
       d->normalBuffer = new Vector3f[vertexCount];
@@ -143,23 +154,50 @@ namespace Avogadro {
         d->vertexBuffer[ 2 * i + 1 ] = v;
         d->vertexBuffer[ 2 * i ].z() = 1.0f;
       }
-      glEnableClientState( GL_VERTEX_ARRAY );
-      glEnableClientState( GL_NORMAL_ARRAY );
-      glNewList( d->displayList, GL_COMPILE );
-      glVertexPointer( 3, GL_FLOAT, 0, d->vertexBuffer );
-      glNormalPointer( GL_FLOAT, 0, d->normalBuffer );
-      glDrawArrays( GL_QUAD_STRIP, 0, vertexCount );
-      glEndList();
-      glDisableClientState( GL_VERTEX_ARRAY );
-      glDisableClientState( GL_NORMAL_ARRAY );
     }
-    freeBuffers();
     d->isValid = true;
+  }
+
+  void Cylinder::drawImmediate() const
+  {
+    if( ! d->vertexBuffer )
+      return;
+
+    if( d->faces < 3 )
+    {
+      // Degenerate cylinder: a single line segment from 0 to 1 along +Z.
+      glBegin( GL_LINES );
+      glVertex3d( 0.0, 0.0, 0.0 );
+      glVertex3d( 0.0, 0.0, 1.0 );
+      glEnd();
+      return;
+    }
+
+    glBegin( GL_QUAD_STRIP );
+    for( int i = 0; i <= d->faces; ++i )
+    {
+      const Eigen::Vector3f &n0 = d->normalBuffer[ 2 * i ];
+      const Eigen::Vector3f &v0 = d->vertexBuffer[ 2 * i ];
+      const Eigen::Vector3f &n1 = d->normalBuffer[ 2 * i + 1 ];
+      const Eigen::Vector3f &v1 = d->vertexBuffer[ 2 * i + 1 ];
+      glNormal3f( n0.x(), n0.y(), n0.z() );
+      glVertex3d( v0.x(), v0.y(), v0.z() );
+      glNormal3f( n1.x(), n1.y(), n1.z() );
+      glVertex3d( v1.x(), v1.y(), v1.z() );
+    }
+    glEnd();
   }
 
   void Cylinder::draw( const Eigen::Vector3d &end1, const Eigen::Vector3d &end2,
       double radius ) const
   {
+    // Ensure the geometry buffers are available (see initialize()). draw() is
+    // const (the painter calls it on a const Cylinder), so cast away const for
+    // the one-time lazy setup; the buffers are only written here, never during
+    // the draw itself.
+    if( ! d->isValid )
+      const_cast<Cylinder*>(this)->initialize();
+
     // construct the 4D transformation matrix
     Eigen::Matrix4d matrix;
     matrix.row(3) << 0, 0, 0, 1;
@@ -172,10 +210,11 @@ namespace Avogadro {
     matrix.block<3,1>(0,1) = axisNormalized.cross(matrix.block<3,1>(0,0));
     matrix.block<3,1>(0,3) = end1;
 
-    //now we can do the actual drawing !
+    // Emit the lateral surface in immediate mode (works on every GL profile,
+    // including forward-compatible Core where glGenLists is rejected).
     glPushMatrix();
     glMultMatrixd( matrix.data() );
-    glCallList( d->displayList );
+    drawImmediate();
     glPopMatrix();
   }
 
@@ -183,6 +222,9 @@ namespace Avogadro {
       double radius, int order, double shift,
       const Eigen::Vector3d &planeNormalVector ) const
   {
+    // Ensure the geometry buffers are available (see initialize()).
+    if( ! d->isValid )
+      const_cast<Cylinder*>(this)->initialize();
 
     // construct the 4D transformation matrix
     Eigen::Matrix4d matrix;
@@ -206,7 +248,9 @@ namespace Avogadro {
     glPushMatrix();
     glMultMatrixd( matrix.data() );
     if( order == 1 )
-      glCallList( d->displayList );
+    {
+      drawImmediate();
+    }
     else
     {
       double angleOffset = 0.0;
@@ -223,7 +267,7 @@ namespace Avogadro {
         glRotated( angleOffset + 360.0 * i / order,
             0.0, 0.0, 1.0 );
         glTranslated( displacementFactor, 0.0, 0.0 );
-        glCallList( d->displayList );
+        drawImmediate();
         glPopMatrix();
       }
     }

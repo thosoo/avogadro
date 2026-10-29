@@ -28,6 +28,11 @@ namespace rendering {
 struct SnapshotAtom {
   float pos[3] = {0.0f, 0.0f, 0.0f};
   unsigned char atomicNumber = 0;
+  //! The atom's index in the live Molecule (== its position in this vector
+  //! for a snapshot taken in molecule order). Carried explicitly so the worker
+  //! tessellator can name the primitive with its true molecule index even if a
+  //! future snapshot reorders atoms, keeping pick names stable (design D2).
+  unsigned int index = 0;
 };
 
 //! A single bond in a scene snapshot.
@@ -35,6 +40,11 @@ struct SnapshotBond {
   unsigned int begin = 0;
   unsigned int end = 0;
   unsigned int order = 1;
+  //! The bond's index in the live Molecule (== its position in this vector
+  //! for a snapshot taken in molecule order). Carried explicitly so the worker
+  //! tessellator can name every half-segment with this bond's index, so a click
+  //! on any segment resolves to this bond, not bond 0 (design D2).
+  unsigned int index = 0;
 };
 
 //! An immutable snapshot of a molecule at a given revision.

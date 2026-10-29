@@ -233,6 +233,8 @@ private Q_SLOTS:
   void testUnportedEngineSurvivesPortedEngine();
   void testTextEngineDoesNotDisturbPortedEngine();
   void testColourIdPickResolvesAtom();
+  void testModernBufferBindingRestored();
+  void testModernLightingRestored();
   void testRubberBandPickBeyondLegacyCapacity();
 
 private:
@@ -446,6 +448,177 @@ void CompatibilityTest::testColourIdPickResolvesAtom()
                           .arg(carbon->index())));
 
   fbo.release();
+  delete bsdy;
+}
+
+//! Buffer-binding guard (design D5.3 / spec "no instance buffer stays bound
+//! after a frame or a pick"): the modern tier must restore GL_ARRAY_BUFFER
+//! (and, on the default VAO, GL_ELEMENT_ARRAY_BUFFER) to 0 at the end of its
+//! frame work and its pick pass, so later fixed-function / display-list draws
+//! (the axes glyph's client-pointer cylinder) cannot misinterpret an instance
+//! VBO offset. After submitting a frame and after a pick(), the bindings must
+//! be 0. On the unfixed code GL_ARRAY_BUFFER still points at an instance VBO
+//! (this assertion fails); the fix unbinds at each site (task 3.1).
+void CompatibilityTest::testModernBufferBindingRestored()
+{
+  Engine *bsdy = makeEngine("Ball and Stick");
+  QVERIFY2(bsdy != nullptr, "Ball and Stick engine plugin not found");
+
+  m_ctx->makeCurrent(m_surface);
+
+  CompatColor colorMap;
+  SceneBuilder builder;
+  CompatPainterDevice device(&builder, &m_molecule, &colorMap);
+  Eigen::Projective3d mv = Eigen::Projective3d::Identity();
+  mv.matrix()(2, 3) = -5.0;
+  device.m_camera.setModelview(mv);
+
+  builder.begin();
+  builder.clearStores();
+  bsdy->setMolecule(&m_molecule);
+  bsdy->setPainterDevice(&device);
+  bsdy->setEnabled(true);
+  bsdy->renderOpaque(&device);
+  builder.end();
+
+  ModernRendererBackend backend;
+  backend.initialize();
+  QVERIFY(backend.isInitialized());
+
+  QOpenGLFunctions_3_3_Core gl;
+  QVERIFY(gl.initializeOpenGLFunctions());
+  QOpenGLFramebufferObject fbo(kW, kH);
+  fbo.bind();
+  gl.glViewport(0, 0, kW, kH);
+  gl.glClearColor(kBackground.redF(), kBackground.greenF(), kBackground.blueF(), 1.0f);
+  gl.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glEnable(GL_DEPTH_TEST);
+  glDepthFunc(GL_LEQUAL);
+
+  QVERIFY(backend.beginFrame(nullptr, QRect(0, 0, kW, kH), builder.quality()));
+  backend.setModelViewProjection(compatMvp());
+  backend.setModelView(compatModelView());
+  backend.pushSpheres(builder.spheres());
+  backend.pushBonds(builder.bonds());
+  backend.pushLines(builder.lines());
+  backend.endFrame();
+  gl.glFinish();
+
+  // After the frame's draw work, no instance buffer may remain bound on the
+  // default VAO (VAO 0 is what later fixed-function draws use).
+  GLint arrayBinding = -1, elemBinding = -1;
+  gl.glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &arrayBinding);
+  gl.glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &elemBinding);
+  QCOMPARE(arrayBinding, 0);
+  QCOMPARE(elemBinding, 0);
+
+  // After a pick pass (which binds geometry + instance VBOs), the bindings
+  // must again be restored to 0.
+  QList<GLHit> hits = backend.pick(kW / 2 - 8, kH / 2 - 8, 16, 16);
+  (void)hits;
+  gl.glFinish();
+  gl.glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &arrayBinding);
+  gl.glGetIntegerv(GL_ELEMENT_ARRAY_BUFFER_BINDING, &elemBinding);
+  QCOMPARE(arrayBinding, 0);
+  QCOMPARE(elemBinding, 0);
+
+  fbo.release();
+  m_ctx->doneCurrent();
+  delete bsdy;
+}
+
+//! Lighting-enable guard (fix-modern-tier-pick-and-axes, design D7.2 / spec
+//! "Axes colors stay correct after a pick"): the modern tier's pick pass is a
+//! known GL_LIGHTING disabler. If it leaks the disable into the next frame,
+//! material-based fixed-function draws (the axes glyph) render unlit in the
+//! leftover raster color — the white/yellow axes symptom. This mirrors the
+//! buffer-binding guard next to it: enable lighting once (as initializeGL does
+//! for the app), then assert it is still enabled after a submitted frame and
+//! after a pick(). On the unfixed code the pick leaves lighting disabled, so
+//! the post-pick assertion fails; the fix restores it at teardown. QSKIPs on
+//! this headless runner like the other GL-context guards (needs a GL 3.3
+//! context); it first actually executes on the Windows leg.
+void CompatibilityTest::testModernLightingRestored()
+{
+  Engine *bsdy = makeEngine("Ball and Stick");
+  QVERIFY2(bsdy != nullptr, "Ball and Stick engine plugin not found");
+
+  m_ctx->makeCurrent(m_surface);
+
+  CompatColor colorMap;
+  SceneBuilder builder;
+  CompatPainterDevice device(&builder, &m_molecule, &colorMap);
+  Eigen::Projective3d mv = Eigen::Projective3d::Identity();
+  mv.matrix()(2, 3) = -5.0;
+  device.m_camera.setModelview(mv);
+
+  builder.begin();
+  builder.clearStores();
+  bsdy->setMolecule(&m_molecule);
+  bsdy->setPainterDevice(&device);
+  bsdy->setEnabled(true);
+  bsdy->renderOpaque(&device);
+  builder.end();
+
+  ModernRendererBackend backend;
+  backend.initialize();
+  QVERIFY(backend.isInitialized());
+
+  QOpenGLFunctions_3_3_Core gl;
+  QVERIFY(gl.initializeOpenGLFunctions());
+  QOpenGLFramebufferObject fbo(kW, kH);
+  fbo.bind();
+  gl.glViewport(0, 0, kW, kH);
+  gl.glClearColor(kBackground.redF(), kBackground.greenF(), kBackground.blueF(), 1.0f);
+  gl.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  glEnable(GL_DEPTH_TEST);
+  glDepthFunc(GL_LEQUAL);
+
+  QVERIFY(backend.beginFrame(nullptr, QRect(0, 0, kW, kH), builder.quality()));
+  backend.setModelViewProjection(compatMvp());
+  backend.setModelView(compatModelView());
+  backend.pushSpheres(builder.spheres());
+  backend.pushBonds(builder.bonds());
+  backend.pushLines(builder.lines());
+  backend.endFrame();
+  gl.glFinish();
+
+  // Establish the ambient lighting the app sets once in initializeGL as the
+  // pre-pick state, AFTER the frame (beginFrame()'s makeCurrent can reset
+  // deprecated fixed-function enable state on some Mesa/xvfb contexts).
+  // The guard is that pick() hands the context back with GL_LIGHTING exactly
+  // as it found it -- not that the tier enables it. Use raw C GL calls
+  // (linked libGL, dispatched to the current context) so the read matches the
+  // backend's m_gl dispatch on the same context.
+  //
+  // The assertion compares after == prior rather than asserting GL_LIGHTING is
+  // GL_TRUE: this context is a 4.5 Core profile (see DIAG GL_VERSION), where
+  // Mesa does not track the deprecated GL_LIGHTING enable bit, so the enable
+  // reads back as 0 even immediately after glEnable. On a real compat context
+  // (e.g. Windows CI) the enable is observable and after==prior still holds.
+  // The guard fails on unfixed code under a compat context because the pick
+  // disables GL_LIGHTING (leaving the next axes overlay unlit) so after !=
+  // prior; on core it passes trivially, which is acceptable since lighting is
+  // inert there.
+  qDebug() << "DIAG GL_VERSION"
+           << reinterpret_cast<const char*>(gl.glGetString(GL_VERSION));
+  glEnable(GL_LIGHTING);
+  GLint priorLighting = GL_FALSE;
+  glGetIntegerv(GL_LIGHTING, &priorLighting);
+  qDebug() << "DIAG priorLighting (pre-pick)=" << priorLighting;
+
+  // After a pick pass (a known GL_LIGHTING disabler on the unfixed code), the
+  // enable must again be current. The fix queries the prior enable and restores
+  // it at teardown.
+  QList<GLHit> hits = backend.pick(kW / 2 - 8, kH / 2 - 8, 16, 16);
+  (void)hits;
+  glFinish();
+  GLint afterLighting = GL_FALSE;
+  glGetIntegerv(GL_LIGHTING, &afterLighting);
+  QCOMPARE(static_cast<int>(afterLighting), static_cast<int>(priorLighting));
+
+  fbo.release();
+  m_ctx->doneCurrent();
   delete bsdy;
 }
 

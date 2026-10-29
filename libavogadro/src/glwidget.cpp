@@ -1296,6 +1296,8 @@ GLWidget::GLWidget( Molecule *molecule,
       sa.pos[1] = static_cast<float>(pos[1]);
       sa.pos[2] = static_cast<float>(pos[2]);
       sa.atomicNumber = static_cast<unsigned char>(a->atomicNumber());
+      // Atom index == its position in the snapshot (taken in molecule order).
+      sa.index = i;
       idToIndex.insert(a->id(), i);
     }
     for (unsigned int i = 0; i < mol->numBonds(); ++i) {
@@ -1306,6 +1308,8 @@ GLWidget::GLWidget( Molecule *molecule,
       sb.begin = idToIndex.value(b->beginAtomId(), 0);
       sb.end = idToIndex.value(b->endAtomId(), 0);
       sb.order = b->order();
+      // Bond index == its position in the snapshot (taken in molecule order).
+      sb.index = i;
       snapshot.bonds.append(sb);
     }
 
@@ -2448,6 +2452,21 @@ namespace Avogadro {
     // Turn off dynamic scaling in the painter (cylinders don't render correctly)
     d->painter->setDynamicScaling(false);
 
+    // Own the lighting the glyph needs (fix-modern-tier-pick-and-axes, design
+    // D7.1). The axes' colors are material-based (Color::applyAsMaterials ->
+    // glMaterialfv per draw), and materials are ignored while GL_LIGHTING is
+    // disabled. The modern tier's pick() (and some drawText/drawLine draws)
+    // leave GL_LIGHTING disabled across frames, so unlit the glyph renders in
+    // whatever leftover raster color glColor holds — default white, or yellow
+    // after an earlier warm line/HUD draw. Establishing (and restoring) the
+    // enable here makes the glyph immune to any past or future disabler: the
+    // push/pop scopes the enable to the glyph's draws and restores the ambient
+    // state byte-for-byte, so the text overlay that follows (which draws unlit)
+    // is unaffected.
+    glPushAttrib(GL_LIGHTING_BIT | GL_ENABLE_BIT);
+    glEnable(GL_LIGHTING);
+    glShadeModel(GL_SMOOTH);
+
     // Circle next to the axes
     painter()->setColor(1.0, 0.0, 0.0);
     painter()->drawSphere(&origin, 0.005);
@@ -2463,6 +2482,9 @@ namespace Avogadro {
     painter()->setColor(0.0, 0.0, 1.0);
     painter()->drawCylinder(origin, aZa, 0.005);
     painter()->drawCone(aZa, aZ, 0.01);
+
+    // Restore the lighting enable state the glyph temporarily changed.
+    glPopAttrib();
 
     // Turn dynamic scaling back on (default state)
     d->painter->setDynamicScaling(true);

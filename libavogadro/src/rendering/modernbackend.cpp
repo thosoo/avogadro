@@ -223,6 +223,14 @@ void ModernRendererBackend::pushDirtyRanges(const ChunkStore<T> &store,
       m_maxChunkBytes = r.bytes;
   }
 
+  // Restore GL_ARRAY_BUFFER (fix-modern-tier-pick-and-axes, design D3): the
+  // upload bound the instance VBO to the current VAO to write into it. Leave
+  // it bound and the default VAO's ARRAY_BUFFER_BINDING still points at this
+  // instance VBO, so a later fixed-function / display-list draw (the axes
+  // glyph's client-pointer cylinder) would misread a client pointer as a VBO
+  // offset and emit GL_INVALID_OPERATION. Bind 0 so the binding is clean.
+  m_gl.glBindBuffer(GL_ARRAY_BUFFER, 0);
+
   // Acknowledge only the accepted ranges; deferred ranges stay dirty for the
   // next frame's push.
   for (int i = 0; i < accepted; ++i) {
@@ -490,6 +498,14 @@ QList<GLHit> ModernRendererBackend::pick(int x, int y, int w, int h) {
   m_gl.glEnable(GL_DEPTH_TEST);
   m_gl.glDepthFunc(GL_LEQUAL);
   m_gl.glDisable(GL_BLEND);
+  // Restore lighting at teardown (fix-modern-tier-pick-and-axes, design D7.2):
+  // this pass is a known GL_LIGHTING disabler. Query the prior enable state
+  // before clearing it so we can hand the context back exactly as we found it.
+  // Without this, the disable leaks into the next fixed-function frame, where
+  // material-based draws (the axes glyph) render unlit in the leftover raster
+  // color — the white/yellow axes symptom.
+  GLint priorLighting = GL_TRUE;
+  m_gl.glGetIntegerv(GL_LIGHTING, &priorLighting);
   m_gl.glDisable(GL_LIGHTING);
 
   // glScissor's origin is bottom-left; the caller's y is top-down.
@@ -576,6 +592,25 @@ QList<GLHit> ModernRendererBackend::pick(int x, int y, int w, int h) {
   m_gl.glBindFramebuffer(GL_READ_FRAMEBUFFER, m_pickFbo);
   hits = readPickHitsRect(x, sy, w, h);
   m_gl.glBindFramebuffer(GL_FRAMEBUFFER, static_cast<GLuint>(restoreFbo));
+
+  // Restore GL_ARRAY_BUFFER (fix-modern-tier-pick-and-axes, design D3): the
+  // pick passes bound the geometry + instance VBOs inside their VAOs and left
+  // the last instance VBO current. Unbind so a following fixed-function draw
+  // (the axes glyph) does not misread a client pointer as a VBO offset.
+  m_gl.glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+  // Restore the lighting enable state this pass cleared (design D7.2). The
+  // axes overlay fix (glPushAttrib/glPopAttrib in renderAxesOverlay) makes the
+  // glyph immune on its own, but honoring the restore contract here also
+  // protects any other material-based fixed-function draw that runs later in
+  // the same frame or the next one. No-op on a context where lighting is
+  // already enabled.
+  if (priorLighting == GL_TRUE) {
+    GLint currentLighting = GL_FALSE;
+    m_gl.glGetIntegerv(GL_LIGHTING, &currentLighting);
+    if (currentLighting == GL_FALSE)
+      m_gl.glEnable(GL_LIGHTING);
+  }
 
   return hits;
 }
@@ -893,6 +928,17 @@ void ModernRendererBackend::drawInstances()
     m_gl.glVertexAttribDivisor(4, 0);
     m_gl.glVertexAttribDivisor(5, 0);
   }
+
+  // Restore GL_ARRAY_BUFFER (fix-modern-tier-pick-and-axes, design D3):
+  // the sphere and/or cylinder block above bound an instance VBO to
+  // GL_ARRAY_BUFFER for the instanced draws and left it current. Run this
+  // unconditionally at the end of the frame so the default VAO's
+  // ARRAY_BUFFER_BINDING is 0 even for a sphere-only scene (atoms but no
+  // bonds, which still renders the axes glyph), letting the axes display list
+  // and the fixed-function overlays draw without misreading a client pointer
+  // as a VBO offset. Spec: no modern-tier instance buffer remains bound after
+  // the frame's draw work.
+  m_gl.glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 //! Compile + link a program from the sphere/cylinder shader sources, replacing

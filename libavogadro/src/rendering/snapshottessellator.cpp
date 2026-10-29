@@ -45,6 +45,11 @@ void emitOpaqueBonds(SceneBuilder &builder, const SceneSnapshot &snapshot,
 
     const int order = (s.showMulti != 0) ? b.order : 1;
 
+    // Pick name: name this bond before its two halves so BOTH half-segments
+    // carry this bond's molecule index (design D2). Without it every half-
+    // segment inherits pickId 0 and every worker-path bond click hits bond 0.
+    builder.setName(Primitive::BondType, static_cast<int>(b.index));
+
     const CapturedAtom &c1 = p.atoms.value(b.begin);
     builder.setColor(c1.rgba[0], c1.rgba[1], c1.rgba[2], c1.rgba[3]);
     builder.drawMultiCylinder(v1, v3, s.bondRadius, order, s.shift);
@@ -63,6 +68,9 @@ void emitOpaqueAtoms(SceneBuilder &builder, const SceneSnapshot &snapshot,
     const auto &sa = snapshot.atoms[i];
     const auto &ca = p.atoms[i];
     const Eigen::Vector3d pos(sa.pos[0], sa.pos[1], sa.pos[2]);
+    // Pick name: name each atom with its molecule index before its sphere
+    // (design D2), so a click resolves to this atom.
+    builder.setName(Primitive::AtomType, static_cast<int>(sa.index));
     builder.setColor(ca.rgba[0], ca.rgba[1], ca.rgba[2], ca.rgba[3]);
     builder.drawSphere(pos, ca.radius);
   }
@@ -79,6 +87,9 @@ void emitTransparentAtoms(SceneBuilder &builder, const SceneSnapshot &snapshot,
     const auto &sa = snapshot.atoms[i];
     const auto &ca = p.atoms[i];
     const Eigen::Vector3d pos(sa.pos[0], sa.pos[1], sa.pos[2]);
+    // Pick name: name this atom before its translucent half and selection halo
+    // so both resolve to this atom's molecule index (design D2).
+    builder.setName(Primitive::AtomType, static_cast<int>(sa.index));
 
     if (s.alpha > 0.001 && s.alpha < 0.999) {
       builder.setColor(ca.rgba[0], ca.rgba[1], ca.rgba[2], s.alpha);
@@ -116,6 +127,11 @@ void emitTransparentBonds(SceneBuilder &builder, const SceneSnapshot &snapshot,
     const Eigen::Vector3d v3 = (v1 + v2 + dir * (p.atoms.value(b.begin).radius
                                                  - p.atoms.value(b.end).radius)) / 2.0;
     const int order = (s.showMulti != 0) ? b.order : 1;
+
+    // Pick name: name this bond before its translucent halves and selection
+    // halo so every half-segment resolves to this bond's molecule index
+    // (design D2).
+    builder.setName(Primitive::BondType, static_cast<int>(b.index));
 
     if (s.alpha > 0.001 && s.alpha < 0.999) {
       const CapturedAtom &c1 = p.atoms.value(b.begin);

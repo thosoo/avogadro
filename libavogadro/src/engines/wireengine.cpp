@@ -159,6 +159,12 @@ namespace Avogadro {
 
   bool WireEngine::renderOpaque(PainterDevice *pd, const Bond *b)
   {
+    // Wireframe bonds are drawn as GL_LINES, and atoms as GL_POINTS, via fixed
+    // function GL rather than the instanced sphere/bond stores the modern
+    // pick pass reads. Lines/points are not pickable primitives on the modern
+    // tier, so this path intentionally does NOT call setName() (the pick name
+    // would be unused); the wire engine's own renderPick() still names them
+    // for the legacy GL_SELECT path. (fix-modern-tier-pick-and-axes, design D1)
     const Atom* atom1 = pd->molecule()->atomById(b->beginAtomId());
     const Vector3d & v1 = *atom1->pos();
     const Camera *camera = pd->camera();
