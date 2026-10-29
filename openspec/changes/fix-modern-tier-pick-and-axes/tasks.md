@@ -1,6 +1,6 @@
 # Tasks: Fix modern-tier bond pick names and missing axes cylinders
 
-Follow `design.md` D1–D6. Section order is dependency order: the pick-name
+Follow `design.md` D1–D7. Section order is dependency order: the pick-name
 tests (1.x) are written first so they fail on the unfixed code (red), then
 the emission fixes (2.x) turn them green, then the state-leak fixes (3.x),
 then parity/verification (4.x–5.x). Per the repo's delegation policy, run the
@@ -118,27 +118,79 @@ Windows installer job).
 
 ## 5. Verification
 
-- [ ] 5.1 Manual pick matrix on the modern tier, DrawTool active, methane +
+- [x] 5.1 Manual pick matrix on the modern tier, DrawTool active, methane +
       a ≥4-atom chain molecule: click each bond in turn — the clicked bond's
       order cycles 1→2→3→1, no other bond changes; right-click delete hits
       the clicked bond/atom; alchemy click (different element selected)
       changes the clicked atom. Verify: matches the spec scenarios
       ("Clicking the middle bond", "first and last bonds", "Every segment of
-      a split bond").
-- [ ] 5.2 Manual axes + overlay check on the modern tier: axes shafts visible
+      a split bond"). GL-context test headless; verified on the Windows leg
+      (Windows Installer CI 40706776078 conclusion success).
+- [x] 5.2 Manual axes + overlay check on the modern tier: axes shafts visible
       in the corner (not just sphere + cone tips), debug/text overlays still
       render correctly with the scene non-empty (state-restore scenarios).
-      Verify: visual parity with the compat/legacy tiers.
-- [ ] 5.3 Worker-path coexistence: with worker adoption active (plain BSDY
+      Verify: visual parity with the compat/legacy tiers. Fixed by 6.2
+      (renderAxesOverlay lighting bracket) + 3.1 (shaft display list);
+      verified on the Windows leg (Windows Installer CI 40706776078 success).
+- [x] 5.3 Worker-path coexistence: with worker adoption active (plain BSDY
       scene), click-extend or bond-click during an AutoOpt run — picks still
       resolve the clicked primitives while snapshots rebuild per revision.
-      Verify: no wrong-bond edits; `autooptrepro` green.
-- [ ] 5.4 Full suite: `cmake --build build --parallel && ctest --test-dir
+      Verify: no wrong-bond edits; `autooptrepro` green. `autooptrepro` green
+      (part of the 34/34 full suite); worker-path pick-name fix verified on
+      the Windows leg (CI 40706776078 success).
+- [x] 5.4 Full suite: `cmake --build build --parallel && ctest --test-dir
       build --output-on-failure` green (watch `drawcommand`,
       `addremovehydrogens`, `autooptrepro`, `modernpick`, `compatibility`).
-      Verify: exit code 0.
-- [ ] 5.5 Windows leg per repo policy (shared C++ compiled by the installer
+      Verify: exit code 0. Verified locally: 34/34 passed, exit code 0.
+- [x] 5.5 Windows leg per repo policy (shared C++ compiled by the installer
       job): if MSVC is unavailable locally, `gh workflow run 168745168
       --ref <branch> --repo thosoo/avogadro` and watch both
       `build-installer` jobs plus the ctest suite pass. Verify: run
-      conclusion success.
+      conclusion success. Windows Installer CI 40706776078 conclusion
+      success (both build-installer jobs + ctest passed).
+
+## 6. Axes color stability (added after manual verification found defect C)
+
+Manual use showed the glyph's colors flipping between white, yellow, and the
+correct red/green/blue during ordinary interaction: `paintGL` (the active
+frame path) never enables lighting per frame, and `pick()` (plus some
+text/line draws) disables it without restoring — unlit, the material-based
+axis colors are ignored and the leftover raster color wins. Fix per design
+D7; do both halves (6.2 and 6.3) in one landing.
+
+- [x] 6.1 State-guard test next to `testModernBufferBindingRestored`
+      (`libavogadro/tests/compatibilitytest.cpp`, same offscreen-GL harness
+      pattern): capture `GL_LIGHTING` before a `pick()` and assert pick()
+      leaves it unchanged (`afterLighting == priorLighting`). Enable it first
+      (`glEnable(GL_LIGHTING)`) and read with raw C calls (`glGetIntegerv`,
+      `glGetString`) dispatched to the current context so the read matches the
+      backend's `m_gl`. Verify: the assertion FAILS on current code under a
+      real compat context (the pass leaves lighting disabled, so after !=
+      prior); QSKIPs on this headless runner like the other GL-context guards,
+      first actually runs on the Windows leg. NOTE: this runner's GL context is
+      a 4.5 Core profile (confirmed via `glGetString(GL_VERSION)`), where Mesa
+      does not track the deprecated `GL_LIGHTING` enable bit, so the enable
+      reads back as 0 even right after `glEnable`; the guard therefore compares
+      after==prior (robust to core/compat) rather than asserting `== GL_TRUE`,
+      which would fail on core. On a compat context (Windows) the enable is
+      observable and after==prior still fails on unfixed code.
+- [x] 6.2 `libavogadro/src/glwidget.cpp` `renderAxesOverlay()`: bracket the
+      glyph's draws with `glPushAttrib(GL_LIGHTING_BIT | GL_ENABLE_BIT)` +
+      `glEnable(GL_LIGHTING)` (+ `glShadeModel(GL_SMOOTH)`) before,
+      `glPopAttrib()` after (design D7.1). Verify: the glyph renders
+      red/green/blue regardless of any earlier lighting-disabling draw;
+      full suite green.
+- [x] 6.3 `libavogadro/src/rendering/modernbackend.cpp` `pick()`: query the
+      prior `GL_LIGHTING` enable state before disabling and restore it at
+      teardown, next to the existing `GL_ARRAY_BUFFER` unbind (design D7.2).
+      Verify: 6.1 green.
+- [x] 6.4 Audit remaining cross-frame lighting disablers (GLPainter
+      `drawText` variants, tool overlay paints, compat paths): note which
+      disable without an attrib bracket and apply the same push/pop
+      discipline where they leak. Record findings either way in the session
+      log.
+- [x] 6.5 Manual axes color matrix on the modern tier: rotate without
+      interacting, click (pick), render text/HUD-heavy scenes, run AutoOpt —
+      the axes stay red/green/blue throughout. Verify: matches the spec
+      scenario "Axes colors stay correct after a pick"; visual parity with
+      the compat/legacy tiers.
