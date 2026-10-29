@@ -33,7 +33,7 @@ GLPainter, the real painter on all tiers):
 |---|---|---|
 | sphere | display list of `glBegin(GL_TRIANGLE_FAN)` (sphere_p.cpp:118) | yes — immediate mode ignores `GL_ARRAY_BUFFER` |
 | cone | immediate-mode triangle loop (glpainter_p.cpp:637) | yes |
-| cylinder | display list of `glVertexPointer`(**client memory**) + `glDrawArrays(GL_QUAD_STRIP)` (cylinder_p.cpp:144–149) | **no** |
+| cylinder | immediate-mode `GL_QUAD_STRIP` over retained vertex/normal buffers (cylinder_p.cpp:162–190 `drawImmediate`) | yes — no client-array deref at draw time |
 
 `ModernRendererBackend` leaves a non-zero `GL_ARRAY_BUFFER` binding in the
 default VAO: `pushDirtyRanges` binds instance VBOs for upload with VAO 0
@@ -47,17 +47,57 @@ and the garbage snapshot is baked into the display list permanently
 (`Cylinder::setup` short-circuits on `isValid`). The pick pass has the same
 leak.
 
+**Fix (D4): replace the display-list capture path with immediate-mode
+emission.** Rather than making the capture defensive, the Cylinder now builds
+its vertex/normal buffers once and emits the shaft directly with
+`glBegin(GL_QUAD_STRIP)` / `glBegin(GL_LINES)` via `drawImmediate()` on every
+draw. This removes the two things that used to make the shaft vanish: (1) the
+use-after-free — the old list captured `glDrawArrays` reading `d->vertexBuffer`
+as client memory at *execution* time, then `freeBuffers()` freed it; and (2)
+`glGenLists` itself, which is rejected (`GL_INVALID_OPERATION`) on a
+forward-compatible Core profile. Immediate-mode emission reads the retained
+buffers under whatever `GL_ARRAY_BUFFER` binding is live, so it is immune to
+the leak that broke the capture path. The `displayList` member is retained
+only for `glDeleteLists` cleanup in the destructor.
+
 This is the same bug family as the already-fixed "allocate() writes to
 whatever is currently bound" incident (modernbackend.cpp sphere VBO comment)
 and the `fix-modern-tier-overlay-state-leak` work — which restored programs,
 attributes, and divisors but not buffer bindings.
+
+**C. Axes glyph colors go white/yellow during use** (added after manual
+verification of A+B). The glyph's colors are material-based:
+`GLPainter::drawSphere`/`drawCylinder`/`drawCone` call
+`Color::applyAsMaterials()` → `glMaterialfv(GL_FRONT, ...)` per draw, with no
+caching. Materials only take effect while `GL_LIGHTING` is enabled — and the
+lighting enable state is ambient, frame-to-frame leftover state:
+
+- `GLWidget::paintGL` — the active QOpenGLWidget paint path — never enables
+  lighting per frame (it only sets matrices and calls `render()`). The
+  per-frame `glEnable(GL_LIGHTING)` lives in `paintGL2` (the GLGraphicsView
+  path), which is not the path in use. Lighting is enabled exactly once, in
+  `initializeGL`.
+- `ModernRendererBackend::pick()` calls `glDisable(GL_LIGHTING)` for the pick
+  passes and never restores it. GLPainter's `drawText` paths also disable
+  lighting (some without an attrib restore), and `drawLine` sets the raster
+  color via `Color::apply()` (glColor4fv).
+
+So after the first click (a pick pass), every later fixed-function draw runs
+unlit: the axes render in the leftover raster color — default white, or
+yellow when an earlier line/HUD draw left a warm `glColor` — instead of their
+red/green/blue materials. Frames before any such interaction show the correct
+colors. This is the third state channel of the same leak family: programs
+(fixed by `fix-modern-tier-overlay-state-leak`), buffer bindings (fixed by
+D3/D4 above), and now the lighting enable state.
 
 ## Goals / Non-Goals
 
 **Goals:**
 - Clicking bond K on the modern tier yields hit name K, on both the sync and
   worker paths.
-- Axes cylinder shafts render on the modern tier.
+- Axes cylinder shafts render on the modern tier, and the glyph keeps its
+  red/green/blue material colors across interactions (picks, overlays, tool
+  HUDs) — never white/yellow unlit leftovers.
 - Mechanical regression tests for both (the current tests are structurally
   blind — see Risks).
 - No behavior change on the legacy tier; compat tier verified unchanged.
@@ -178,27 +218,42 @@ element binding is never touched. Assert this in the new test anyway
 Mechanical guard (test, not runtime): after a submitted frame and after a
 `pick()`, `glGetIntegerv(GL_ARRAY_BUFFER_BINDING) == 0`.
 
-### D4: Cylinder::initialize() compiles display lists defensively
+### D4: Cylinder::initialize() builds retained buffers; draw() emits immediate mode
 
-In `cylinder_p.cpp initialize()`, immediately before `glVertexPointer`:
+`cylinder_p.cpp initialize()` generates the vertex/normal buffers and
+**retains them** (it no longer frees them after a capture):
 
 ```cpp
-glBindBuffer(GL_ARRAY_BUFFER, 0);   // client pointers, not VBO offsets
-glEnableClientState(GL_VERTEX_ARRAY);
-...
+void Cylinder::initialize() {
+  if (d->isValid && d->faces >= 0) freeBuffers();
+  d->isValid = false;
+  if (d->faces < 3) { d->vertexBuffer = new Vector3f[2]; /* 0→1 line */ }
+  else { int n = 2*d->faces+2; d->vertexBuffer = new Vector3f[n]; d->normalBuffer = new Vector3f[n]; /* tessellated quad-strip rings */ }
+  d->isValid = true;
+}
 ```
 
-Rationale: the display-list snapshot (client arrays are dereferenced at
-compile time — which is why `freeBuffers()` after `glEndList()` is legal)
-must never depend on the caller's `ARRAY_BUFFER` binding. This protects every
-GLPainter consumer on every tier from any current or future offender — the
-modern-tier leak is just the one we know about. Sphere/cone don't need it
-(immediate mode); if a future primitive uses client arrays, same discipline
-applies.
+`draw()` / `drawMulti()` then emit the shaft directly with `drawImmediate()`
+(immediate-mode `GL_QUAD_STRIP`, or a single `GL_LINES` segment for the
+degenerate faces<3 case) after applying the placement matrix with
+`glMultMatrixd`. `draw()` is `const` (the painter holds a `const Cylinder`),
+so it casts away const for the one-time lazy `initialize()` — the buffers are
+only written there, never during the draw itself.
+
+Rationale: the old path captured a display list that dereferenced the vertex
+array as client memory at *execution* time and then freed the buffers — a
+use-after-free — and relied on `glGenLists`, which is rejected on a
+forward-compatible Core profile. Immediate-mode emission over retained
+buffers sidesteps both: it reads live memory under whatever `GL_ARRAY_BUFFER`
+binding is live, so it is immune to the leak that broke the capture path. This
+is the primary fix for the missing axes shafts (defect B). Sphere/cone were
+already immediate mode; no analogous change is needed there.
 
 Note: an already-poisoned process (axes broken at runtime) stays broken until
 restart — `Cylinder::setup` short-circuits on `isValid`. Not worth runtime
-re-validation; the fix makes fresh sessions correct.
+re-validation; the fix makes fresh sessions correct. The `displayList` member
+is retained only so the destructor can `glDeleteLists` it; it is no longer
+captured or used.
 
 ### D5: Regression tests target the blindness, not just the fix
 
@@ -232,6 +287,52 @@ coincidence. New cases:
 the shafts there instead of fixing the leak. Audit and apply the D3 unbind
 discipline symmetrically if affected — spec scenarios are tier-generic for
 the overlay and pick requirements.
+
+### D7: Overlays own their lighting state; the pick pass restores what it disables
+
+Defect C has two independent root causes — ambient lighting state no one
+owns, and a disabler (pick) that leaks across frames. Fix both sides:
+
+1. **`renderAxesOverlay()` establishes the lighting it needs** (robust to
+   every past and future offender). Immediately before the primitive draws:
+
+   ```cpp
+   glPushAttrib(GL_LIGHTING_BIT | GL_ENABLE_BIT);
+   glEnable(GL_LIGHTING);
+   glShadeModel(GL_SMOOTH);
+   ... // red/green/blue sphere/cylinder/cone draws
+   glPopAttrib();
+   ```
+
+   The push/pop pair scopes the enable to the glyph, so the text overlays
+   that run after it (which intentionally draw unlit) are unaffected, and the
+   ambient enable state the rest of the frame relies on is restored byte
+   for byte. This mirrors the discipline `Cylinder::initialize()` (D4) and
+   the compat `pushLines` attrib bracket already follow.
+
+2. **`ModernRendererBackend::pick()` restores lighting at teardown**
+   (honors the state-restore contract for what it disabled). Query the
+   prior enable state before `glDisable(GL_LIGHTING)` and restore it after
+   the readback/framebuffer restore, alongside the existing
+   `GL_ARRAY_BUFFER` unbind. After this, the D5.3-style guard can assert
+   lighting survives a pick mechanically.
+
+Both halves are cheap; neither substitutes for the other. (1) makes the
+glyph immune to any disabler — including `drawText` variants and tool
+overlays that also disable lighting mid-frame; (2) keeps the pick pass from
+poisoning any *other* material-based consumer in the same frame or the next.
+An audit of the remaining cross-frame disablers (GLPainter `drawText`
+variants without attrib brackets, tool overlay paints) rides under task 6.4
+rather than a new decision: the fix pattern is the same push/pop bracket,
+not a design change.
+
+Alternatives rejected:
+- *Enable lighting once in `paintGL` per frame*: fixes today's symptom but
+  leaves every overlay depending on ambient state again — any future
+  mid-frame disabler re-breaks the glyph silently.
+- *Draw the axes unlit with `glColor`*: changes the glyph's look on every
+  tier (flat colors, no shading), violating the parity requirement — the
+  legacy tier renders the glyph lit.
 
 ## Risks / Trade-offs
 
@@ -272,6 +373,12 @@ the overlay and pick requirements.
 - [Multi-bond pick test is flaky across GL stacks?] → reuses the existing
   offscreen-GL harness (software GL on CI) that modernpick already requires;
   QSKIP when no GL 3.3 context, as today.
+- [D7 lighting bracket changes other overlays?] → the `glPushAttrib(GL_
+  LIGHTING_BIT | GL_ENABLE_BIT)` / `glPopAttrib` pair in renderAxesOverlay
+  scopes the enable to the glyph's draws and restores the ambient state
+  exactly; the text overlays that follow intentionally draw unlit and are
+  unaffected. `pick()`'s restore only returns the enable bit the pass itself
+  cleared. Both are no-ops on tiers where lighting is already enabled.
 - [Windows/MSVC divergence] → changes are plain C++/Qt; per repo policy, if
   MSVC is unavailable locally, run the Windows installer workflow
   (`gh workflow run 168745168 --ref <branch>`) before merge.

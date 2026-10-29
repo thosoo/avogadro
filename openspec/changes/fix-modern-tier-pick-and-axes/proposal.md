@@ -2,13 +2,21 @@
 
 ## Why
 
-Two user-visible defects on the modern rendering tier make basic interaction
+Three user-visible defects on the modern rendering tier make basic interaction
 untrustworthy: clicking **any** bond with the DrawTool cycles the order of the
-**first** bond of the molecule instead of the clicked one, and the navigation
+**first** bond of the molecule instead of the clicked one; the navigation
 axes glyph in the bottom-left corner renders without its cylinder shafts
-(only the center sphere and cone tips appear). Both break contracts the
-`gpu-rendering-pipeline` spec already claims: pick hits must resolve the
-clicked primitive, and the axes overlay must render identically on every tier.
+(only the center sphere and cone tips appear); and — found during manual
+verification of the first two fixes — the axes glyph's colors flip between
+white, yellow, and the correct red/green/blue during ordinary use. All three
+break contracts the `gpu-rendering-pipeline` spec already claims: pick hits
+must resolve the clicked primitive, and the axes overlay must render
+identically on every tier. The color flip is the third channel of the same
+GL state-leak family (programs → buffer bindings → lighting enable state):
+`paintGL` (the active frame path) never enables lighting per frame and
+`ModernRendererBackend::pick()` disables it without restoring, so after a
+click the material-based axis colors are ignored and the leftover raster
+color wins.
 
 ## What Changes
 
@@ -29,13 +37,24 @@ clicked primitive, and the axes overlay must render identically on every tier.
   the dirty-range uploads, and the pick pass leave `GL_ARRAY_BUFFER` pointing
   at an instance VBO in the default VAO; the frame-end state-restore contract
   is extended to buffer bindings.
-- **Legacy display-list compilation is defensive.** `Cylinder::initialize()`
-  explicitly unbinds `GL_ARRAY_BUFFER` before compiling its client-pointer
-  vertex arrays, so any current or future offender cannot poison the baked
-  display list (this is what erases the axes cylinder shafts today).
+- **Cylinder shafts drawn in immediate mode.** `Cylinder::initialize()` builds
+  its vertex/normal buffers and retains them; `draw()`/`drawMulti()` emit the
+  shaft with immediate-mode `GL_QUAD_STRIP` (or a single `GL_LINES` segment
+  for the degenerate case) via `drawImmediate()`. This replaces the broken
+  display-list capture path — which read `d->vertexBuffer` as client memory at
+  execution time, freed the buffers, and relied on `glGenLists` (rejected on a
+  forward-compatible Core profile) — and is what makes the axes cylinder
+  shafts render on every tier.
 - **Axes regression assertion.** A headless check that `GL_ARRAY_BUFFER_BINDING`
   is 0 after a modern-tier frame and after `pick()`, guarding the state-restore
   contract mechanically.
+- **Axes glyph owns its lighting state; the pick pass restores lighting.**
+  `renderAxesOverlay()` brackets its draws with `glPushAttrib(GL_LIGHTING_BIT
+  | GL_ENABLE_BIT)` + `glEnable(GL_LIGHTING)` so the glyph is immune to any
+  lighting-disabling draw before it, and `pick()` restores the lighting
+  enable state at teardown. A state-guard test asserts `GL_LIGHTING` survives
+  a frame and a pick; spec scenario added: axes colors stay correct after a
+  pick.
 
 Existing picking, rendering, and overlay behavior is otherwise unchanged; the
 compat and legacy tiers are audited for the same leak and get the same unbind

@@ -47,7 +47,11 @@ frame's draw work or after a pick pass. Fixed-function draws that run later in
 the same frame — the axes navigation glyph, the debug and extension text
 overlays, and the active tool's overlay paint — SHALL render at their intended
 positions and colors, unaffected by the modern tier's programs, instance
-attributes, or buffer bindings.
+attributes, or buffer bindings — and unaffected by the fixed-function lighting
+enable state: the modern tier's draw and pick passes SHALL NOT leave
+`GL_LIGHTING` disabled into later fixed-function draws whose colors are
+carried by materials (with lighting disabled, material colors are ignored and
+the geometry renders unlit in whatever raster color is leftover).
 
 #### Scenario: Axes glyph renders in its corner after scene content exists
 - **WHEN** the scene contains atoms (so the modern tier's instanced draws run)
@@ -73,3 +77,10 @@ attributes, or buffer bindings.
 - **THEN** `GL_ARRAY_BUFFER_BINDING` is 0 on the current context, so later
   fixed-function or display-list draws cannot misinterpret client pointers as
   buffer offsets
+
+#### Scenario: Axes colors stay correct after a pick
+- **WHEN** the user clicks in the viewport (so the modern tier's pick pass
+  runs) and a later frame draws the axes overlay
+- **THEN** the axes glyph still renders its red, green, and blue arrows with
+  material shading — never white and never an unrelated leftover raster color
+  such as yellow

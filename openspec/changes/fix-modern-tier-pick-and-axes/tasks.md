@@ -75,15 +75,17 @@ Windows installer job).
       modern-tier tests passes (the GL-context tests SKIP on this headless
       runner, no GL 3.3 context; the pick-name root cause is covered
       headlessly by `threadedparityTest::testWorkerPathPickNames`).
-- [x] 3.2 `libavogadro/src/cylinder_p.cpp` `Cylinder::initialize()`:
-      bind `GL_ARRAY_BUFFER` to 0 before the `glVertexPointer` /
-      `glNewList` client-pointer capture (design D4). Verified: the bundled
-      Mesa `GL/gl.h` only declares GL 1.1 entry points, so `glBindBuffer` is
-      loaded via a transient `QOpenGLFunctions_1_5` (the mechanism
-      `glpainter_p.cpp` uses) instead of a raw call; the `avogadro` library
-      builds clean. The display list now captures the client addresses
-      (not VBO offsets) regardless of any leftover ARRAY_BUFFER binding, so
-      the axes cylinder shafts render on the modern tier.
+- [x] 3.2 `libavogadro/src/cylinder_p.cpp` `Cylinder` — replace the display
+      list with immediate-mode emission (design D4). `initialize()` now builds
+      the vertex/normal buffers and RETAINS them (no post-capture free), and
+      `draw()`/`drawMulti()` emit the shaft via `drawImmediate()`
+      (`GL_QUAD_STRIP`, or a single `GL_LINES` segment for faces<3) after the
+      placement matrix. This removes the use-after-free (old list read
+      `d->vertexBuffer` as client memory at execution time, then freed it) and
+      the `glGenLists`-rejected-on-Core defect, so the axes cylinder shafts
+      render on every tier. Verified: `avogadro` library builds clean; full
+      `ctest` suite green under `xvfb-run` (parity/compatibility/pick suites
+      pass with a real X display).
 - [x] 3.3 Compat-tier audit (design D6): check whether `compatbackend.cpp`
       leaves `GL_ARRAY_BUFFER` bound after `pushSpheres`/`pushBonds`/
       `pushLines`/`endFrame`. FINDING: `compatbackend.cpp` is NOT guilty — it
@@ -91,7 +93,7 @@ Windows installer job).
       `glVertexPointer`/`glDrawElements`) and never calls `glBindBuffer`, so it
       leaves no `GL_ARRAY_BUFFER` binding. No D3 unbind discipline added
       (design D6's "if yes" condition is not met); the D4 cylinder fix is what
-      protects the axes display list on the compat tier too. Verified:
+      protects the axes cylinder draw on the compat tier too. Verified:
       `compatibilityTest` passes; forced-compat build clean.
 
 ## 4. Reviewer gate (repo policy)
@@ -130,7 +132,7 @@ Windows installer job).
       in the corner (not just sphere + cone tips), debug/text overlays still
       render correctly with the scene non-empty (state-restore scenarios).
       Verify: visual parity with the compat/legacy tiers. Fixed by 6.2
-      (renderAxesOverlay lighting bracket) + 3.1 (shaft display list);
+      (renderAxesOverlay lighting bracket) + 3.2 (shaft immediate-mode draw);
       verified on the Windows leg (Windows Installer CI 40706776078 success).
 - [x] 5.3 Worker-path coexistence: with worker adoption active (plain BSDY
       scene), click-extend or bond-click during an AutoOpt run — picks still

@@ -26,7 +26,6 @@
 
 #include "cylinder_p.h"
 
-#include <QDebug>
 #include <QOpenGLContext>
 
 #ifdef ENABLE_GLSL
