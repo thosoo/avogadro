@@ -597,14 +597,17 @@ void CompatibilityTest::testModernLightingRestored()
   // contexts, so enabling here (rather than before the frame) makes the
   // pre-pick state unambiguous: the guard is that pick() hands the context
   // back with GL_LIGHTING exactly as it found it, not that the tier enables
-  // it. Use glGetIntegerv for the read (glIsEnabled reads 0 on some Mesa
-  // contexts even right after glEnable, so it is unreliable here).
-  gl.glEnable(GL_LIGHTING);
+  // it. Use raw C GL calls (linked libGL, dispatched to the current context)
+  // rather than the QOpenGLFunctions_3_3_Core methods, in case the latter do
+  // not observe deprecated fixed-function enable state on a 3.3 core context.
+  qDebug() << "DIAG GL_VERSION"
+           << reinterpret_cast<const char*>(gl.glGetString(GL_VERSION));
+  glEnable(GL_LIGHTING);
   GLint priorLighting = GL_FALSE;
-  gl.glGetIntegerv(GL_LIGHTING, &priorLighting);
-  qDebug() << "DIAG priorLighting (pre-pick)=" << priorLighting;
+  glGetIntegerv(GL_LIGHTING, &priorLighting);
+  qDebug() << "DIAG priorLighting (pre-pick, raw C)=" << priorLighting;
   QVERIFY2(priorLighting == GL_TRUE,
-           "GL_LIGHTING enable must be observable via glGetIntegerv after enabling");
+           "GL_LIGHTING enable must be observable via raw C glGetIntegerv after enabling");
 
   // After a pick pass (a known GL_LIGHTING disabler on the unfixed code), the
   // enable must again be current. On unfixed code the pick leaves lighting
@@ -613,9 +616,9 @@ void CompatibilityTest::testModernLightingRestored()
   // it at teardown.
   QList<GLHit> hits = backend.pick(kW / 2 - 8, kH / 2 - 8, 16, 16);
   (void)hits;
-  gl.glFinish();
+  glFinish();
   GLint afterLighting = GL_FALSE;
-  gl.glGetIntegerv(GL_LIGHTING, &afterLighting);
+  glGetIntegerv(GL_LIGHTING, &afterLighting);
   QCOMPARE(static_cast<int>(afterLighting), static_cast<int>(priorLighting));
 
   fbo.release();
