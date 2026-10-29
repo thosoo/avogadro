@@ -591,13 +591,20 @@ void CompatibilityTest::testModernLightingRestored()
   // back with GL_LIGHTING exactly as it found it, not that the tier enables
   // it. Use the QOpenGLFunctions_3_3_Core methods (gl.gl*) for both the enable
   // and the read so they operate on the same context as the backend's m_gl.
+  // Establish the ambient lighting the app sets once in initializeGL as the
+  // pre-pick state, AFTER the frame. The frame's beginFrame() makeCurrent can
+  // reset deprecated fixed-function enable state on some Mesa/xvfb 3.3 core
+  // contexts, so enabling here (rather than before the frame) makes the
+  // pre-pick state unambiguous: the guard is that pick() hands the context
+  // back with GL_LIGHTING exactly as it found it, not that the tier enables
+  // it. Use glGetIntegerv for the read (glIsEnabled reads 0 on some Mesa
+  // contexts even right after glEnable, so it is unreliable here).
   gl.glEnable(GL_LIGHTING);
-  // DIAG: does the enable actually stick on this context? If this fails, the
-  // enable/read do not observe the same state and the guard is unreliable.
-  qDebug() << "DIAG after enable glIsEnabled(GL_LIGHTING)="
-            << gl.glIsEnabled(GL_LIGHTING);
-  QVERIFY2(gl.glIsEnabled(GL_LIGHTING),
-           "GL_LIGHTING enable must stick immediately after enabling");
+  GLint priorLighting = GL_FALSE;
+  gl.glGetIntegerv(GL_LIGHTING, &priorLighting);
+  qDebug() << "DIAG priorLighting (pre-pick)=" << priorLighting;
+  QVERIFY2(priorLighting == GL_TRUE,
+           "GL_LIGHTING enable must be observable via glGetIntegerv after enabling");
 
   // After a pick pass (a known GL_LIGHTING disabler on the unfixed code), the
   // enable must again be current. On unfixed code the pick leaves lighting
@@ -607,7 +614,9 @@ void CompatibilityTest::testModernLightingRestored()
   QList<GLHit> hits = backend.pick(kW / 2 - 8, kH / 2 - 8, 16, 16);
   (void)hits;
   gl.glFinish();
-  QCOMPARE(static_cast<int>(gl.glIsEnabled(GL_LIGHTING)), static_cast<int>(GL_TRUE));
+  GLint afterLighting = GL_FALSE;
+  gl.glGetIntegerv(GL_LIGHTING, &afterLighting);
+  QCOMPARE(static_cast<int>(afterLighting), static_cast<int>(priorLighting));
 
   fbo.release();
   m_ctx->doneCurrent();
