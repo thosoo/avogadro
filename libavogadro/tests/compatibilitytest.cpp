@@ -592,6 +592,12 @@ void CompatibilityTest::testModernLightingRestored()
   // it. Use the QOpenGLFunctions_3_3_Core methods (gl.gl*) for both the enable
   // and the read so they operate on the same context as the backend's m_gl.
   gl.glEnable(GL_LIGHTING);
+  // DIAG: does the enable actually stick on this context? If this fails, the
+  // enable/read do not observe the same state and the guard is unreliable.
+  qDebug() << "DIAG after enable glIsEnabled(GL_LIGHTING)="
+            << gl.glIsEnabled(GL_LIGHTING);
+  QVERIFY2(gl.glIsEnabled(GL_LIGHTING),
+           "GL_LIGHTING enable must stick immediately after enabling");
 
   // After a pick pass (a known GL_LIGHTING disabler on the unfixed code), the
   // enable must again be current. On unfixed code the pick leaves lighting
