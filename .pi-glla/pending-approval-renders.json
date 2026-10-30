@@ -1,5 +1,43 @@
 [
   {
+    "goalId": "20261028164051-bs7k54",
+    "objective": "Apply the already-active OpenSpec change \"fix-modern-tier-pick-and-axes\" to verified completion.\n\nOpenSpec is authoritative for scope, requirements, workflow, artifacts, and task state.\nCurrent schema: spec-driven.\nStarting task progress: 10/20.\n\nThe GLLA task list is preloaded deterministically fro",
+    "chatLines": [
+      "## Done — The \"fix-modern-tier-pick-and-axes\" OpenSpec change is now verified-complete and coherent. This turn addressed the auditor's disapproval…",
+      "",
+      "— 2 turns · 21h 12m elapsed · 2 audits",
+      "",
+      "What Changed",
+      "**1. OpenSpec artifact reconciliation (auditor TODO #1)**",
+      "- design.md leak table + defect-B paragraph + D4 rewritten to document the immediate-mode fix (retained vertex/normal buffers, drawImmediate GL_QUAD_STRIP/GL_LINES) instead of the old display-list capture",
+      "  - HEAD cylinder_p.cpp has no glNewList/glCallList.",
+      "- proposal.md cylinder bullet rewritten from 'defensive display-list compilation' to immediate-mode replacement; tasks.md 3.2/3.3/5.2 verification notes updated to immediate mode.",
+      "- gpu-rendering-pipeline/spec.md committed the pre-existing defect-C requirement (axes glyph keeps red/green/blue material colors after a pick pass instead of leftover raster color).",
+      "",
+      "**2. Cleanup**",
+      "- Removed unused #include <QDebug> from cylinder_p.cpp (added by, never referenced)",
+      "  - advisory [LOW] from auditor, now resolved.",
+      "",
+      "**3. Verification**",
+      "- openspec state=all_done, 20/20, 0 remaining required implementation tasks.",
+      "- avogadro builds clean (cmake --build build --parallel --target avogadro -> 100% Built target avogadro).",
+      "- xvfb-run ctest --test-dir build -> 34/34 passed; compatibility/renderertier/modernpick suites pass with a real X display.",
+      "- Working tree clean for changed files; commits + pushed to origin/fix-modern-tier-pick-and-axes (HEAD=).",
+      "- 20/20 tasks complete, 0 open",
+      "  - pending-task gate clear.",
+      "",
+      "Remaining",
+      "- GitHub Actions CI (Qt6 CI + Windows Installer) has not been re-run on the artifact-only — but it only touches OpenSpec prose plus an unused include, so it cannot affect the build; the code it documents already has green CI on HEAD.",
+      "  → Next: optionally trigger the CI workflows to confirm green on 8cd3ca333, then archive the change.",
+      "",
+      "• completion audit approved.",
+      "• completion review: approved (2 reviews).",
+      "• record: .pi-glla/archive/20261028164051-bs7k54.md"
+    ],
+    "createdAt": "2026-10-29T13:53:23.352Z",
+    "deliveredAt": "2026-10-29T13:53:23.818Z"
+  },
+  {
     "goalId": "20261027114205-3c6kl8",
     "objective": "Apply the already-active OpenSpec change \"fix-drawtool-stale-atom-crash\" to verified completion.\n\nOpenSpec is authoritative for scope, requirements, workflow, artifacts, and task state.\nCurrent schema: spec-driven.\nStarting task progress: 0/6.\n\nThe GLLA task list is preloaded deterministically from ",
     "chatLines": [
