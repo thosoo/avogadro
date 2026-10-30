@@ -43,6 +43,8 @@
 #include "rendering/scenesnapshot.h"
 #include "rendering/snapshottessellator.h"
 #include "rendering/selectrefine.h"
+#include "rendering/records.h"
+#include "mesh.h"
 #include <QOpenGLFunctions>
 #include "rendering/scenebuilder.h"
 
@@ -326,6 +328,12 @@ void GLWidget::updateViewport()
     //! display-list/GL painter path (false). Defaulted true for GL 3.3 contexts;
     //! the engines are painter-agnostic so they emit to the SceneBuilder.
     bool useModernTier = true;
+    //! Quality level (mapped from the dialog's 0-4 slider) that must reach the
+    //! modern backend. Stashed here because readSettings() calls setQuality()
+    //! at startup, before the backend exists (created in initializeGL / the
+    //! context-loss recovery); applying the level only when the backend is
+    //! live would silently lose a persisted Low/High quality after a restart.
+    rendering::LodLevel pendingDetailLevel = rendering::LodMedium;
     //! Resolved runtime tier (design D7): modern, compat or legacy. The compat
     //! tier currently renders through the same fixed-function path as legacy
     //! (task 7.2 replaces that with the batched chunk-store flush); the tier
@@ -766,6 +774,8 @@ GLWidget::GLWidget( Molecule *molecule,
     if (d->useModernTier) {
       d->backend = new rendering::ModernRendererBackend();
       d->backend->initialize();
+      if (d->backend->isInitialized())
+        d->backend->setDetailLevel(d->pendingDetailLevel);
       if (!d->backend->isInitialized()) {
         // Context is 3.3+ but the backend could not build its shaders/VAOs;
         // drop it and stay on the fixed-function tier rather than show a
@@ -976,6 +986,26 @@ GLWidget::GLWidget( Molecule *molecule,
     // Invalidate the display lists and change the painter quality level
     invalidateDLs();
     d->painter->setQuality(quality);
+
+    // Modern tier: map the slider onto the existing LodLevel presets exactly as
+    // SettingsDialog::qualityChanged labels them (0-1 Low, 2 Medium, 3-4 High)
+    // and rebuild the unit sphere/cylinder index buffers only when the level
+    // changed. Instances are LOD-independent, so worker results stay valid
+    // (no re-keying). d->backend is null before the first GL context (e.g. when
+    // readSettings() runs at startup), so guard against it.
+    rendering::LodLevel level;
+    if (quality <= 1)
+      level = rendering::LodLow;
+    else if (quality >= 3)
+      level = rendering::LodHigh;
+    else
+      level = rendering::LodMedium;
+    // Always stash the mapped level so a persisted slider value set by
+    // readSettings() (before the backend exists) reaches the backend once it
+    // is created; apply immediately when the backend is already live.
+    d->pendingDetailLevel = level;
+    if (d->backend)
+      d->backend->setDetailLevel(level);
   }
 
   int GLWidget::quality() const
@@ -1032,6 +1062,29 @@ GLWidget::GLWidget( Molecule *molecule,
       qDebug() << "GLWidget::renderModern(): No molecule set.";
       return;
     }
+    // Fog (fix-modern-tier-consumer-parity task 4.2): mirror the legacy
+    // fixed-function GL_LINEAR fog math so the modern tier depth-cues to the
+    // background identically. setFog() stores the values; drawInstances()
+    // applies them as a per-frame uniform. `d->backend` may be null on the
+    // read-lock fallback path, so guard inside.
+    auto applyFog = [&]() {
+      if (!d->backend)
+        return;
+      if (d->fogLevel == 0) {
+        d->backend->setFog(false, QVector3D(0.0f, 0.0f, 0.0f), 1.0f, 0.0f);
+        return;
+      }
+      Vector3d distance =
+        (camera()->modelview() * d->center.homogeneous()).head<3>();
+      double distanceToCenter = distance.norm();
+      float start = static_cast<float>(distanceToCenter
+          - (d->fogLevel / 8.0) * d->radius);
+      float end = static_cast<float>(distanceToCenter
+          + ((10 - d->fogLevel) / 8.0 * 2.0) * d->radius);
+      QVector3D color(d->background.redF(), d->background.greenF(),
+                      d->background.blueF());
+      d->backend->setFog(true, color, start, end);
+    };
     if (!d->molecule->lock()->tryLockForRead()) {
       // Read lock unavailable (design D3 / fix-modern-tier-frame-presentation):
       // present the retained frame instead of a cleared one. beginFrame() does
@@ -1045,7 +1098,12 @@ GLWidget::GLWidget( Molecule *molecule,
                                                d->builder.quality())) {
         d->backend->setModelViewProjection(currentModelViewProjection());
         d->backend->setModelView(currentModelView());
+        applyFog();
         d->backend->endFrame();
+        // Shared overlay pass (fix-modern-tier-consumer-parity): present the
+        // tool HUD, cell box, and meshes too, so the retained frame is not
+        // geometry-only while the read lock is contended.
+        paintOverlaysAfterFrame();
       }
       return;
     }
@@ -1073,6 +1131,8 @@ GLWidget::GLWidget( Molecule *molecule,
           d->backend = nullptr;
         } else {
           d->useModernTier = true; // recovered: the instanced path is live
+          // Apply the quality level read before the backend existed.
+          d->backend->setDetailLevel(d->pendingDetailLevel);
           d->storesValid = false;
           d->enginesDirty = true;
           d->emittedRevision = 0;
@@ -1117,6 +1177,7 @@ GLWidget::GLWidget( Molecule *molecule,
                                    d->builder.quality())) {
           d->backend->setModelViewProjection(mvp);
           d->backend->setModelView(currentModelView());
+          applyFog();
           d->backend->pushSpheres(d->workerResult.spheres);
           d->backend->pushBonds(d->workerResult.bonds);
           d->backend->pushLines(d->workerResult.lines);
@@ -1127,15 +1188,14 @@ GLWidget::GLWidget( Molecule *molecule,
         d->emittedRevision = revision;
         d->storesValid = true;
         d->enginesDirty = false;
-        // Screen-space tool overlay still draws through the real painter,
-        // exactly as the synchronous emission path does.
-        if (d->tool)
-          d->tool->paint(this);
-        // Text captured by the last emission (labels, etc.) flushes through
-        // the real painter here too. The store persists across adopt frames
-        // (only cleared on the next emit), so labels stay visible and
-        // re-project with the rotating camera on retained frames.
-        flushCapturedText();
+        // Shared overlay pass (fix-modern-tier-consumer-parity, task 1.1):
+        // bracketed tool overlay + captured text, exactly as the synchronous
+        // emission path below does. Runs under an active painter bracket, so
+        // tool overlays (AutoOpt energy/HUD halos, bond-centric labels) that
+        // previously vanished with no active bracket are restored. The
+        // store persists across adopt frames (only cleared on the next emit),
+        // so labels stay visible and re-project with the rotating camera.
+        paintOverlaysAfterFrame();
         return;
       }
       if (sceneChanged) {
@@ -1160,6 +1220,7 @@ GLWidget::GLWidget( Molecule *molecule,
                                d->builder.quality())) {
       d->backend->setModelViewProjection(currentModelViewProjection());
       d->backend->setModelView(currentModelView());
+      applyFog();
       d->backend->pushSpheres(d->builder.spheres());
       d->backend->pushBonds(d->builder.bonds());
       d->backend->pushLines(d->builder.lines());
@@ -1168,9 +1229,12 @@ GLWidget::GLWidget( Molecule *molecule,
       d->backendFrames = d->backend->framesSubmitted();
     }
 
-    // Flush engine text captured by emitSceneToBuilder() above (labels,
-    // measurements) through the real painter, matching the legacy tier.
-    flushCapturedText();
+    // Shared overlay pass (fix-modern-tier-consumer-parity, task 1.1): runs
+    // after the instanced frame under a bracketed painter, restoring tool
+    // overlays that previously vanished with no active bracket. Emits the
+    // captured engine text (labels, measurements) through the real painter,
+    // matching the legacy tier.
+    paintOverlaysAfterFrame();
   }
 
   QMatrix4x4 GLWidget::currentModelViewProjection()
@@ -1237,22 +1301,13 @@ GLWidget::GLWidget( Molecule *molecule,
     }
     glDisable(GL_BLEND);
 
-    // Render the active tool (screen-space UI, on the widget's real painter)
-    // AFTER the engine pass (opaque + transparent). This matches the
-    // worker-adopt branch, which paints tool->paint() after endFrame(): on
-    // both modern paths the tool/HUD halos composite over the transparent
-    // engine selection halos (fix-modern-tier-overlay-parity task 4.2;
-    // supersedes fix-modern-tier-revision-churn task 4.1). AutoOptTool
-    // toggles GL_BLEND around its own draws, so running after
-    // glDisable(GL_BLEND) is safe. NOTE: on the sync path the instanced
-    // molecule geometry is drawn by backend.endFrame() in renderModern()
-    // AFTER this call, so the tool rasterizes under the opaque molecule
-    // geometry there (a pre-existing ordering detail, unchanged by this move;
-    // the worker-adopt branch draws the tool last, on top of everything).
-    if (d->tool) {
-      d->tool->paint(this);
-    }
-
+    // Emission is engines-only: the active tool's overlay paint now runs
+    // through the shared overlay pass (paintOverlaysAfterFrame) AFTER the
+    // backend frame, under a bracketed painter. Removing it here means the
+    // tool is no longer painted with no active painter bracket on the sync
+    // path, and the instanced molecule geometry is no longer rasterized
+    // under the tool on that path (fix-modern-tier-consumer-parity task 1.1;
+    // supersedes fix-modern-tier-overlay-parity task 4.2).
     d->builder.end();
     d->pd->clearOverridePainter();
     return mvp;
@@ -1406,6 +1461,10 @@ GLWidget::GLWidget( Molecule *molecule,
       d->backend->endFrame();
       d->backendDrawCalls = d->backend->drawCallsThisFrame();
       d->backendFrames = d->backend->framesSubmitted();
+      // Shared overlay pass (fix-modern-tier-consumer-parity): the retained
+      // frame would otherwise present geometry only, transiently dropping the
+      // tool HUD, cell box, and meshes during a startup gap. Re-paint them.
+      paintOverlaysAfterFrame();
     }
 
     // Flush any text captured by the last engine emission (labels, etc.).
@@ -1448,6 +1507,107 @@ GLWidget::GLWidget( Molecule *molecule,
     d->painter->end();
   }
 
+  // Shared overlay pass for the modern and compat tiers (fix-modern-tier-
+  // consumer-parity, design D1). Runs after the backend's frame, under a
+  // single GLPainter begin/end bracket, in this order: unit-cell pass
+  // (task 3.2, gated below), mesh flush (task 2.1), the active tool's overlay
+  // paint, and finally the captured engine text (flushCapturedText).
+  //
+  // This is the single call site every modern/compat path uses to draw tool
+  // overlays. Previously the tool paint ran with no active painter bracket
+  // (GLPainter::end() zeroes d->widget at the end of the previous frame's
+  // overlay block), so every widget->painter()->draw* call hit isValid() ==
+  // false and silently returned — dropping AutoOpt's energy/HUD halos,
+  // bond-centric labels, and everything else tools paint. begin/end nesting
+  // is safe because GLPainter counts overflow (glpainter_p.cpp:1516-1530).
+  void GLWidget::paintOverlaysAfterFrame()
+  {
+    d->painter->begin(this);
+
+    // Unit-cell pass (task 3.2): draw cell edges + axes before the mesh flush
+    // so blended orbital/ESP surfaces composite over the opaque cell edges,
+    // matching the legacy layering (cell edges are opaque lines). Gated on a
+    // real unit cell so molecular files are unaffected. renderCrystalAxes()
+    // is painter-based (drawBoxEdges) and shared with the legacy tier, so the
+    // modern tier renders identical cell edges/axes. The legacy glCallList
+    // repetition loop (renderCrystal) never repeats (aCells/bCells/cCells are
+    // fixed at 1), so this single call loses nothing.
+    // Gate on a real unit cell AND the renderUnitCellAxes preference, matching
+    // the legacy tier (renderCrystalAxes:1850), so a user who disabled the cell
+    // axes does not get cell edges only on the modern tier.
+    if (d->molecule != nullptr && d->molecule->OBUnitCell() != nullptr
+        && d->renderUnitCellAxes)
+      renderCrystalAxes();
+
+    // Mesh flush (task 2.1): draw every captured mesh (orbital/ESP surfaces)
+    // through the real painter after the instanced frame, so meshes that the
+    // instanced backend never touched become visible. Placed after the cell
+    // pass so translucent surfaces composite over the cell edges.
+    flushCapturedMeshes();
+
+    // Tool overlay paint (task 1.1): composites above molecule geometry and
+    // the captured meshes. AutoOptTool toggles GL_BLEND around its own draws,
+    // so running after the instanced frame is safe.
+    if (d->tool)
+      d->tool->paint(this);
+
+    // Captured engine text (labels, measurements) flushes through the real
+    // painter here too. The store persists across adopt frames (only cleared
+    // on the next emit), so labels stay visible and re-project with the
+    // rotating camera on retained frames.
+    flushCapturedText();
+
+    d->painter->end();
+  }
+
+  // Flush every captured mesh (orbital / ESP surfaces) through the real
+  // painter. Called from paintOverlaysAfterFrame() after the instanced frame:
+  // the instanced backend never touches meshes, so without this they were
+  // computed and captured by SceneBuilder but silently dropped on the modern
+  // tier. Reuses GLPainter's tested VBO streaming (task 5.1) so a stable mesh
+  // uploads once and draws with a cached VBO; an unstable mesh is skipped
+  // until it stabilizes. Blending is enabled for the whole flush (meshes are
+  // translucent and drawn over the opaque molecule, matching the legacy
+  // transparent pass).
+  void GLWidget::flushCapturedMeshes()
+  {
+    const rendering::ChunkStore<rendering::MeshInstance> &meshes =
+      d->builder.meshes();
+    if (meshes.isEmpty())
+      return;
+
+    // Meshes are translucent (alpha ~0.75) and drawn over the opaque molecule,
+    // so blending is enabled for the whole flush (matching the legacy
+    // transparent pass) and restored afterwards. glPolygonMode / GL_LIGHTING
+    // are restored by GLPainter::drawMesh/drawColorMesh on exit.
+    glEnable(GL_BLEND);
+    for (unsigned int i = 0; i < meshes.size(); ++i) {
+      const rendering::MeshInstance &inst = meshes.at(i);
+      // Skip a null or still-being-built mesh: drawing an unstable mesh is not
+      // safe (SurfaceEngine's pattern), and GLPainter::ensureMeshVBO gates on
+      // stability too. It will be drawn once it stabilizes.
+      if (inst.mesh == nullptr || !inst.mesh->stable())
+        continue;
+      // The mesh is owned by a worker/snapshot result; take a read lock for
+      // the duration of the draw so the worker cannot free/rebuild it
+      // mid-draw (SurfaceEngine's pattern, surfaceengine.cpp:82-100).
+      if (!inst.mesh->lock()->tryLockForRead())
+        continue;
+      // Per-vertex color (ESP surface) vs. the instance's solid color.
+      if (inst.colored)
+        d->painter->drawColorMesh(*inst.mesh, inst.mode);
+      else {
+        d->painter->setColor(inst.color[0] / 255.0f,
+                             inst.color[1] / 255.0f,
+                             inst.color[2] / 255.0f,
+                             inst.color[3] / 255.0f);
+        d->painter->drawMesh(*inst.mesh, inst.mode);
+      }
+      inst.mesh->lock()->unlock();
+    }
+    glDisable(GL_BLEND);
+  }
+
   //! Compat tier (task 7.2 / design D9): the same chunk stores the modern
   //! tier consumes, flushed through the fixed-function pipeline. Draw calls
   //! scale with the instance count, which the monomer-scale compat target
@@ -1485,9 +1645,13 @@ GLWidget::GLWidget( Molecule *molecule,
       d->compatBackend->endFrame();
       d->backendDrawCalls = d->compatBackend->drawCallsThisFrame();
       d->backendFrames = d->compatBackend->framesSubmitted();
-      // Flush engine text captured by emitSceneToBuilder() through the real
-      // painter, matching the legacy tier.
-      flushCapturedText();
+      // Shared overlay pass (fix-modern-tier-consumer-parity, task 1.1): runs
+      // after the backend frame under a bracketed painter on the compat tier
+      // too, restoring tool overlays (AutoOpt energy/HUD halos, bond-centric
+      // labels) that previously vanished with no active bracket. Emits the
+      // captured engine text (labels, measurements) through the real painter,
+      // matching the legacy tier.
+      paintOverlaysAfterFrame();
     }
   }
 
@@ -2976,6 +3140,29 @@ namespace Avogadro {
   unsigned int GLWidget::backendFramesSubmitted() const
   {
     return d->backendFrames;
+  }
+
+  rendering::LodLevel GLWidget::modernDetailLevel() const
+  {
+    // d->backend is null before the first modern-tier frame (or on the legacy/
+    // compat tier); report the default Medium level so tests have a stable
+    // baseline (task 4.1).
+    return d->backend ? d->backend->detailLevel() : rendering::LodMedium;
+  }
+
+  bool GLWidget::rendererSupportsQuality() const
+  {
+    // Modern (instanced LOD) and legacy (quality-dependent GL_LIGHT1) apply
+    // quality; the compat tier renders through the fixed-function chunk path
+    // and ignores it (gpu-rendering-pipeline delta, honest gating).
+    return d->rendererTier != rendering::RendererTier::Compat;
+  }
+
+  bool GLWidget::rendererSupportsFog() const
+  {
+    // Modern (shader fog uniforms) and legacy (glFog*) apply fog; compat has
+    // no fog path (gpu-rendering-pipeline delta, honest gating).
+    return d->rendererTier != rendering::RendererTier::Compat;
   }
 
   unsigned int GLWidget::presentedRevision() const

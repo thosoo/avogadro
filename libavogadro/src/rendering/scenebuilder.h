@@ -61,7 +61,9 @@ public:
   // Painter interface. The draw methods append to the chunk stores instead of
   // issuing GL calls.
   int quality() const override;
-  void setQuality(int quality);
+  // NOTE: setQuality(int) was removed (task 4.1) — quality is applied per-tier
+  // by the renderer backend, not by the emitter. Painter declares quality() only,
+  // so this stray non-overriding declaration had no definition and no callers.
 
   void setName(const Primitive *primitive) override;
   void setName(Primitive::Type type, int id) override;
@@ -167,7 +169,6 @@ private:
   //! Captured text primitives for this frame (see TextItem / textItems()).
   QVector<TextItem> m_textItems;
 
-  int m_quality;
   bool m_dynamicScaling;
   QColor m_currentColor;
   Primitive::Type m_currentType;

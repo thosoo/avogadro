@@ -2847,6 +2847,18 @@ protected:
     return d->glWidget->fogLevel();
   }
 
+  bool MainWindow::rendererSupportsQuality() const
+  {
+    // Default true when there is no active view (headless) so no slider is
+    // gated spuriously.
+    return d->glWidget ? d->glWidget->rendererSupportsQuality() : true;
+  }
+
+  bool MainWindow::rendererSupportsFog() const
+  {
+    return d->glWidget ? d->glWidget->rendererSupportsFog() : true;
+  }
+
   void MainWindow::newView()
   {
     QWidget *widget = new QWidget();

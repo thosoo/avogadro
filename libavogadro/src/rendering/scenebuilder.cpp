@@ -50,7 +50,6 @@ inline quint32 packPickTarget(Primitive::Type type, int id)
 
 SceneBuilder::SceneBuilder()
   : Painter()
-  , m_quality(2)
   , m_dynamicScaling(true)
   , m_currentColor(255, 255, 255, 255)
   , m_currentType(Primitive::AtomType)
@@ -62,12 +61,11 @@ SceneBuilder::~SceneBuilder() = default;
 
 int SceneBuilder::quality() const
 {
-  return m_quality;
-}
-
-void SceneBuilder::setQuality(int quality)
-{
-  m_quality = quality;
+  // The modern tier owns tessellation via ModernRendererBackend::setDetailLevel
+  // (task 4.1); SceneBuilder's quality is no longer tracked here. Kept as the
+  // Painter pure-virtual override so the class stays concrete; beginFrame's
+  // quality parameter is unused by the modern backend.
+  return 2;
 }
 
 void SceneBuilder::setName(const Primitive *primitive)
@@ -249,6 +247,16 @@ void SceneBuilder::drawShadedQuadrilateral(const Eigen::Vector3d &p1,
                                            const Eigen::Vector3d &p3,
                                            const Eigen::Vector3d &p4)
 {
+  // ACCEPTED BUT COARSENED: the modern emitter has no shaded-quadrilateral
+  // geometry. Capture the outline as four lines so the quad is not silently
+  // dropped. Reported once so "accepted but coarsened" is distinguishable
+  // from "accepted and gone".
+  static bool warned = false;
+  if (!warned) {
+    warned = true;
+    qWarning("SceneBuilder::drawShadedQuadrilateral: shaded quadrilateral "
+             "captured as an outline (approximation, not a shaded quad).");
+  }
   appendLine(p1, p2, 1.0);
   appendLine(p2, p3, 1.0);
   appendLine(p3, p4, 1.0);
@@ -310,12 +318,28 @@ void SceneBuilder::drawBox(const Eigen::Vector3d &corner1, const Eigen::Vector3d
 
 void SceneBuilder::drawTorus(const Eigen::Vector3d &, double, double)
 {
-  // Rare primitive; not captured by the emitter.
+  // ACCEPTED BUT DROPPED: the modern emitter has no torus geometry. Report
+  // once so a silently-lost primitive is distinguishable from one that was
+  // captured. Rare primitive.
+  static bool warned = false;
+  if (!warned) {
+    warned = true;
+    qWarning("SceneBuilder::drawTorus: torus not captured by the emitter "
+             "(dropped).");
+  }
 }
 
 void SceneBuilder::drawEllipsoid(const Eigen::Vector3d &, const Eigen::Matrix3d &)
 {
-  // Rare primitive; not captured by the emitter.
+  // ACCEPTED BUT DROPPED: the modern emitter has no ellipsoid geometry.
+  // Report once so a silently-lost primitive is distinguishable from one
+  // that was captured. Rare primitive.
+  static bool warned = false;
+  if (!warned) {
+    warned = true;
+    qWarning("SceneBuilder::drawEllipsoid: ellipsoid not captured by the "
+             "emitter (dropped).");
+  }
 }
 
 namespace {

@@ -66,7 +66,6 @@ public:
   virtual void pushSpheres(const ChunkStore<SphereInstance> &store) = 0;
   virtual void pushBonds(const ChunkStore<BondInstance> &store) = 0;
   virtual void pushLines(const ChunkStore<LineInstance> &store) = 0;
-  virtual void pushMeshes(const ChunkStore<MeshInstance> &store) = 0;
 
   //! End a frame (present / flush).
   virtual void endFrame() = 0;

@@ -72,8 +72,6 @@ namespace Avogadro {
       GLuint m_glyphTexture;
       GLuint m_outlineTexture;
 
-      GLuint m_quadDisplayList;
-
       GLenum m_textureTarget;
 
       /**
@@ -97,16 +95,45 @@ namespace Avogadro {
       /** @returns the width of the rendered character in pixels */
       inline int width() const { return m_realwidth; }
 
+      // The quad geometry is identical for glyph and outline; only the bound
+      // texture differs. Draw it in immediate mode rather than via a cached
+      // display list: display lists are context-local GL objects, and
+      // glCallList() on a list created under a different GL context draws
+      // NOTHING silently (OpenGL spec: undefined list name -> ignored, no
+      // error). GLPainter is shared across GLWidgets (glwidget.cpp shares
+      // d->painter; mainwindow.cpp creates a second view on a different
+      // context), so a cached list would render text on the first view only.
+      // Immediate mode is context-agnostic; the glyph/outline textures are
+      // share-group objects and render fine cross-context.
+      inline void drawQuad() const
+      {
+        const int texwidth  = m_realwidth  + 2 * OUTLINE_WIDTH;
+        const int texheight = m_realheight + 2 * OUTLINE_WIDTH;
+        const int texcoord_width  = (m_textureTarget == GL_TEXTURE_2D) ? 1 : texwidth;
+        const int texcoord_height = (m_textureTarget == GL_TEXTURE_2D) ? 1 : texheight;
+        glBegin( GL_QUADS );
+        glTexCoord2i( 0, 0);
+        glVertex2f( 0 , -texheight );
+        glTexCoord2i( texcoord_width, 0);
+        glVertex2f( texwidth , -texheight );
+        glTexCoord2i( texcoord_width, texcoord_height);
+        glVertex2f( texwidth, 0 );
+        glTexCoord2i( 0, texcoord_height);
+        glVertex2f( 0 , 0 );
+        glEnd();
+        glTranslatef( m_realwidth, 0, 0 );
+      }
+
       inline void drawOutline() const
       {
         glBindTexture(m_textureTarget, m_outlineTexture);
-        glCallList( m_quadDisplayList );
+        drawQuad();
       }
 
       inline void drawGlyph() const
       {
         glBindTexture(m_textureTarget, m_glyphTexture);
-        glCallList( m_quadDisplayList );
+        drawQuad();
       }
   };
 
@@ -114,14 +141,12 @@ namespace Avogadro {
   {
     m_glyphTexture = 0;
     m_outlineTexture = 0;
-    m_quadDisplayList = 0;
   }
 
   CharRenderer::~CharRenderer()
   {
     if( m_glyphTexture ) glDeleteTextures( 1, &m_glyphTexture );
     if( m_outlineTexture ) glDeleteTextures( 1, &m_outlineTexture );
-    if( m_quadDisplayList ) glDeleteLists( m_quadDisplayList, 1 );
   }
 
   static void normalizeTexSize( GLenum textureTarget,
@@ -143,7 +168,10 @@ namespace Avogadro {
 
   bool CharRenderer::initialize( QChar c, const QFont &font, GLenum textureTarget )
   {
-    if( m_quadDisplayList ) return true;
+    // Reuse the already-built glyph/outline textures for this character.
+    // (The quad is drawn in immediate mode, so there is no display list to
+    // guard on anymore; the non-zero glyph texture is the init marker.)
+    if( m_glyphTexture ) return true;
     m_textureTarget = textureTarget;
     // *** STEP 1 : render the character to a QImage ***
 
@@ -329,28 +357,9 @@ namespace Avogadro {
     delete [] glyphbitmap;
     delete [] outlinebitmap;
 
-    // *** STEP 6 : compile the display list ***
-
-    m_quadDisplayList = glGenLists(1);
-    if( ! m_quadDisplayList ) return false;
-
-    int texcoord_width = (textureTarget == GL_TEXTURE_2D) ? 1 : texwidth;
-    int texcoord_height = (textureTarget == GL_TEXTURE_2D) ? 1 : texheight;
-
-    glNewList( m_quadDisplayList, GL_COMPILE );
-    glBegin( GL_QUADS );
-    glTexCoord2i( 0, 0);
-    glVertex2f( 0 , -texheight );
-    glTexCoord2i( texcoord_width, 0);
-    glVertex2f( texwidth , -texheight );
-    glTexCoord2i( texcoord_width, texcoord_height);
-    glVertex2f( texwidth, 0 );
-    glTexCoord2i( 0, texcoord_height);
-    glVertex2f( 0 , 0 );
-    glEnd();
-    glTranslatef( m_realwidth, 0, 0 );
-    glEndList();
-
+    // The quad geometry is now drawn in immediate mode by CharRenderer::
+    // drawQuad() (see its comment) instead of being compiled into a display
+    // list here, so the text path has no context-local GL object left behind.
     return true;
   }
 

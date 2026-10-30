@@ -49,6 +49,10 @@ namespace Avogadro {
       void buttonClicked(QAbstractButton *button);
       void saveValues();
       void loadValues();
+      // Disable the quality/fog sliders on a renderer tier that would silently
+      // no-op them, with a visible reason (gpu-rendering-pipeline delta: render
+      // settings effective or honestly gated). Called from loadValues().
+      void applyTierGating();
       void qualityChanged(int value);
       void fogChanged(int value);
   };

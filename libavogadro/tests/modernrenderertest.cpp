@@ -239,6 +239,10 @@ class ModernRenderTest : public QObject
     void testContextLossRebuildsFromCpuChunks();
     void testCompatBackendFlush();
 
+    // Task 4.1: quality slider -> LodLevel -> backend setDetailLevel reach-through.
+    void testSetDetailLevelReachThrough();
+    void testFogChangesRenderedOutput();
+
     // Task 2.3: LOD zoom bands + hysteresis and per-chunk AABB frustum culling.
     void testLodParams();
     void testOnScreenRadiusZoomInvariantUnderRotation();
@@ -1309,6 +1313,154 @@ void ModernRenderTest::testLodParams()
   // Index values reference vertex slots, so the vertex count is what must fit
   // in the unsigned-short index buffer.
   QVERIFY(sh.vertexCount() < 65536);
+}
+
+void ModernRenderTest::testSetDetailLevelReachThrough()
+{
+  // Task 4.1: quality slider -> LodLevel -> ModernRendererBackend::setDetailLevel.
+  // setDetailLevel() deletes+recreates the unit-geometry VAO/VBO/EBO, so it
+  // needs a current GL context.
+  QOffscreenSurface *off = nullptr;
+  QOpenGLContext *ctx = makeGLContext(&off);
+  if (!ctx)
+    QSKIP("no GL 3.3 context available on this runner for setDetailLevel");
+  {
+    Avogadro::rendering::ModernRendererBackend backend;
+    backend.initialize();
+    QVERIFY(backend.isInitialized());
+
+    using namespace Avogadro::rendering;
+    const LodLevel medium = LodMedium;
+    const LodLevel high = LodHigh;
+    const LodLevel low = LodLow;
+
+    // Default level is Medium (matches the pre-LOD visual-parity default).
+    QCOMPARE(backend.detailLevel(), medium);
+    const int medIdx = backend.sphereIndexCount();
+
+    // High rebuilds to the High preset: level reports High and the sphere
+    // geometry actually grew (more tessellation -> more indices).
+    backend.setDetailLevel(high);
+    QCOMPARE(backend.detailLevel(), high);
+    QVERIFY(backend.sphereIndexCount() > medIdx);
+
+    // Setting the same level again is a no-op: no rebuild, level unchanged.
+    backend.setDetailLevel(high);
+    QCOMPARE(backend.detailLevel(), high);
+
+    // Low rebuilds to the Low preset: level reports Low and the geometry
+    // shrinks back below the Medium count.
+    backend.setDetailLevel(low);
+    QCOMPARE(backend.detailLevel(), low);
+    QVERIFY(backend.sphereIndexCount() < medIdx);
+
+    // Back to Medium closes the loop.
+    backend.setDetailLevel(medium);
+    QCOMPARE(backend.detailLevel(), medium);
+    QCOMPARE(backend.sphereIndexCount(), medIdx);
+  }
+
+  ctx->makeCurrent(nullptr);
+  delete off;
+  delete ctx;
+}
+
+// Fog (task 4.2): prove the distance-fog uniforms actually reach the fragment
+// shader and change the rendered frame — a silent no-op fog must be caught.
+// The camera pulls the scene to z=5, so the atom sits at view distance 5, far
+// beyond the fog 'end' used here (0.1) => fogFactor() == 1 at the atom, so the
+// centre pixel is forced to exactly the fog colour. Rendering with black vs
+// white fog therefore must produce clearly different centre pixels, whereas a
+// no-op fog would leave them identical for both colours.
+void ModernRenderTest::testFogChangesRenderedOutput()
+{
+  QOffscreenSurface *off = nullptr;
+  QOpenGLContext *ctx = makeGLContext(&off);
+  if (!ctx)
+    QSKIP("no GL 3.3+ context available on this runner for fog test", SkipSingle);
+
+  QOpenGLFunctions gl;
+  gl.initializeOpenGLFunctions();
+
+  // FBO (same pattern as testBSDYThroughModernBackend).
+  GLuint fboID = 0, colorTexID = 0, depthRBID = 0;
+  gl.glGenFramebuffers(1, &fboID);
+  gl.glBindFramebuffer(GL_FRAMEBUFFER, fboID);
+  gl.glGenTextures(1, &colorTexID);
+  gl.glBindTexture(GL_TEXTURE_2D, colorTexID);
+  gl.glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, kWidth, kHeight, 0, GL_RGB,
+                  GL_UNSIGNED_BYTE, nullptr);
+  gl.glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                            GL_TEXTURE_2D, colorTexID, 0);
+  gl.glGenRenderbuffers(1, &depthRBID);
+  gl.glBindRenderbuffer(GL_RENDERBUFFER, depthRBID);
+  gl.glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, kWidth, kHeight);
+  gl.glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                               GL_RENDERBUFFER, depthRBID);
+  gl.glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  QVERIFY(fboID != 0);
+
+  // Single carbon atom at the origin (projects to screen centre).
+  Avogadro::Molecule mol;
+  Avogadro::Atom *c = mol.addAtom(6, Eigen::Vector3d(0, 0, 0));
+  c->setCustomColorName("red");
+  Avogadro::rendering::SceneBuilder builder;
+  Avogadro::Color colorMap;
+  EmitterRenderDevice device(&builder, &mol, &colorMap);
+  Avogadro::BSDYEngine engine;
+  engine.setMolecule(&mol);
+  engine.setPainterDevice(&device);
+  engine.setEnabled(true);
+  builder.begin();
+  builder.clearStores();
+  engine.renderOpaque(&device);
+  QVERIFY(builder.spheres().size() >= 1u);
+
+  Avogadro::rendering::ModernRendererBackend backend;
+  backend.initialize();
+  QVERIFY(backend.isInitialized());
+
+  // Render one frame of the atom with fog on/off and a given fog colour.
+  auto render = [&](bool fogOn, const QVector3D &fogColor) {
+    gl.glBindFramebuffer(GL_FRAMEBUFFER, fboID);
+    gl.glViewport(0, 0, kWidth, kHeight);
+    gl.glClearColor(kBackground[0], kBackground[1], kBackground[2], 1.0f);
+    gl.glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    gl.glEnable(GL_DEPTH_TEST);
+    gl.glDepthFunc(GL_LEQUAL);
+    backend.beginFrame(nullptr, QRect(0, 0, kWidth, kHeight), 0);
+    backend.setModelViewProjection(viewProjection());
+    backend.setModelView(viewProjectionModelView());
+    // fogFactor = (end - dist)/(end - start). The atom sits at view distance
+    // 5 (camera pulls the scene to z=-5), so bracket that distance: start=5,
+    // end=10 => factor 1 at the atom centre (>=0.94 across its disc).
+    backend.setFog(fogOn, fogColor, 5.0f, 10.0f);
+    backend.pushSpheres(builder.spheres());
+    backend.endFrame();
+    gl.glFlush();
+  };
+
+  const int cx = kWidth / 2, cy = kHeight / 2;
+  float pNoFog[3] = {0, 0, 0}, pBlack[3] = {0, 0, 0}, pWhite[3] = {0, 0, 0};
+  render(false, QVector3D(0.0f, 0.0f, 0.0f));
+  readPixel(&gl, cx, cy, pNoFog);
+  render(true, QVector3D(0.0f, 0.0f, 0.0f));
+  readPixel(&gl, cx, cy, pBlack);
+  render(true, QVector3D(1.0f, 1.0f, 1.0f));
+  readPixel(&gl, cx, cy, pWhite);
+
+  // Without fog the atom renders lit red at centre.
+  QVERIFY2(pNoFog[0] > 0.15, "carbon must render lit red at centre without fog");
+  // Black fog darkens the centre; white fog lightens it. A no-op fog would
+  // leave the centre identical for both colours, so these two assertions plus
+  // the one below prove the fog colour actually reaches the fragment shader.
+  QVERIFY(pBlack[0] < pNoFog[0]);
+  QVERIFY(pWhite[0] > pNoFog[0]);
+  QVERIFY(qAbs(pBlack[0] - pWhite[0]) > 0.5);
+
+  ctx->makeCurrent(nullptr);
+  delete off;
+  delete ctx;
 }
 
 // Build a perspective projection matrix (gluPerspective form) for tests that

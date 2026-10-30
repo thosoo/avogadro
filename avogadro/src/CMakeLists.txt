@@ -11,6 +11,10 @@ include_directories(
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${OPENBABEL3_INCLUDE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
+  # libavogadro source tree so app targets can resolve headers pulled in via
+  # the generated <avogadro/glwidget.h> (e.g. "rendering/lod.h", used by the
+  # modern-tier setDetailLevel(LodLevel) signature).
+  ${libavogadro_SOURCE_DIR}/src
 )
 
 if(EIGEN3_FOUND)

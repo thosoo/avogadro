@@ -79,11 +79,6 @@ public:
     ++linesPushed;
     lastLines = l.size();
   }
-  void pushMeshes(const Avogadro::rendering::ChunkStore<Avogadro::rendering::MeshInstance> &m) override
-  {
-    ++meshesPushed;
-    lastMeshes = m.size();
-  }
   void endFrame() override { ++frameEnded; }
 
   QList<Avogadro::GLHit> pick(int, int, int, int) override
@@ -97,13 +92,11 @@ public:
   int spheresPushed = 0;
   int bondsPushed = 0;
   int linesPushed = 0;
-  int meshesPushed = 0;
   int pickCalls = 0;
   int lastQuality = -1;
   size_t lastSpheres = 0;
   size_t lastBonds = 0;
   size_t lastLines = 0;
-  size_t lastMeshes = 0;
 };
 
 //! A minimal PainterDevice that routes painter() to a SceneBuilder so an engine
@@ -500,7 +493,6 @@ void SceneBuilderTest::testNullBackendContract()
   backend.pushSpheres(builder.spheres());
   backend.pushBonds(builder.bonds());
   backend.pushLines(builder.lines());
-  backend.pushMeshes(builder.meshes());
   backend.endFrame();
 
   QCOMPARE(backend.frameCount, 1);

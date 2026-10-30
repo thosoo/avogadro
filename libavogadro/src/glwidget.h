@@ -40,6 +40,7 @@
 #include <QOpenGLWidget>
 #include <QLabel>
 #include <QRect>
+#include "rendering/lod.h"
 
 class QOpenGLContext;
 class QShowEvent;
@@ -252,6 +253,8 @@ namespace Avogadro {
         * can read the same numbers the on-screen overlay shows. */
       unsigned int backendDrawCallsLastFrame() const;
       unsigned int backendFramesSubmitted() const;
+      //! Current modern-tier unit-geometry tessellation level (task 4.1).
+      rendering::LodLevel modernDetailLevel() const;
 
       //! Revision of the builder result most recently adopted and presented by
       //! the modern tier (GLWidgetPrivate::presentedRevision). Exposed for the
@@ -327,6 +330,23 @@ namespace Avogadro {
        * @return The global fog level of the widget.
        */
       int fogLevel() const;
+
+      /**
+       * @return true if the resolved renderer tier applies the quality slider.
+       * The modern and legacy tiers implement quality (instanced LOD and the
+       * quality-dependent second light); the compat tier renders through the
+       * fixed-function chunk path and ignores quality, so it reports false so
+       * the settings dialog can gate the slider honestly (gpu-rendering-pipeline
+       * delta: render settings effective or honestly gated).
+       */
+      bool rendererSupportsQuality() const;
+
+      /**
+       * @return true if the resolved renderer tier applies the fog slider.
+       * The modern (shader fog) and legacy (glFog*) tiers implement fog; the
+       * compat tier has no fog path, so it reports false.
+       */
+      bool rendererSupportsFog() const;
 
       /**
        * Set to render x, y, z axes as an overlay in the bottom left of the widget.
@@ -853,6 +873,33 @@ namespace Avogadro {
        * (fix-modern-tier-overlay-parity tasks 2.1-2.3).
        */
       void flushCapturedText();
+
+      /**
+       * Shared overlay pass for the modern and compat tiers (fix-modern-tier-
+       * consumer-parity, design D1). Runs after the backend's frame, under a
+       * single GLPainter begin/end bracket, in this order: unit-cell pass
+       * (task 3.2), mesh flush (task 2.1), the active tool's overlay paint,
+       * and finally the captured engine text (flushCapturedText). Calling it
+       * from every modern/compat path restores tool overlays (AutoOpt
+       * energy/HUD halos, bond-centric labels, etc.) that were previously
+       * dropped because they ran with no active painter bracket. begin/end
+       * nesting is safe: GLPainter counts overflow (glpainter_p.cpp).
+       */
+      void paintOverlaysAfterFrame();
+
+      /**
+       * Flush every captured mesh (orbital / ESP surfaces) through the real
+       * painter. Called from paintOverlaysAfterFrame() after the instanced
+       * frame: the instanced backend never touches meshes, so without this
+       * they were computed and captured by SceneBuilder but silently dropped
+       * on the modern tier. Reuses GLPainter's tested VBO streaming (task
+       * 5.1) so a stable mesh uploads once and draws with a cached VBO; an
+       * unstable mesh is skipped until it stabilizes. Blending is enabled for
+       * the whole flush (meshes are translucent and drawn over the opaque
+       * molecule, matching the legacy transparent pass). Not declared in the
+       * public header: internal to the paint flow.
+       */
+      void flushCapturedMeshes();
 
       /**
        * HiDPI device-pixel viewport (fix-hidpi-viewport-coordinates, design

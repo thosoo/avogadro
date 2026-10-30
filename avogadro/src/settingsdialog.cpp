@@ -94,6 +94,27 @@ namespace Avogadro {
     ui.qualitySlider->setValue(m_mainWindow->painterQuality());
     fogChanged(m_mainWindow->fogLevel());
     qualityChanged(m_mainWindow->painterQuality());
+    // Gate sliders that the resolved renderer tier would silently no-op.
+    applyTierGating();
+  }
+
+  void SettingsDialog::applyTierGating()
+  {
+    // The modern (instanced LOD / shader fog) and legacy (GL_LIGHT1 / glFog*)
+    // tiers apply both settings; the compat tier renders through the
+    // fixed-function chunk path and applies neither, so gate its sliders with a
+    // visible reason (gpu-rendering-pipeline delta, honest gating).
+    const bool supportsQuality = m_mainWindow->rendererSupportsQuality();
+    const bool supportsFog = m_mainWindow->rendererSupportsFog();
+
+    ui.qualitySlider->setEnabled(supportsQuality);
+    if (!supportsQuality)
+      ui.qualitySlider->setToolTip(
+          tr("The current renderer tier does not apply display quality."));
+    ui.fogSlider->setEnabled(supportsFog);
+    if (!supportsFog)
+      ui.fogSlider->setToolTip(
+          tr("The current renderer tier does not apply scene fog."));
   }
 
   void SettingsDialog::qualityChanged(int value)

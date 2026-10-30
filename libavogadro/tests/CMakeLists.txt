@@ -55,6 +55,7 @@ set(tests
   selectionset
   meshrevision
   meshstream
+  consumerparity
   threadedparity
   builderpool
   renderertier
@@ -70,6 +71,7 @@ set(tests
   addremovehydrogens
   vdwradius
   autooptrepro
+  energyhud
 )
 if(XTB_FOUND)
   list(APPEND tests xtbopttool xtbphysics)
@@ -94,7 +96,7 @@ foreach (test ${tests})
     # directly into the test as well.
     list(APPEND test_SRCS ../src/rendering/snapshottessellator.cpp)
   endif()
-  if (${test} STREQUAL "autooptrepro")
+  if (${test} STREQUAL "autooptrepro" OR ${test} STREQUAL "energyhud")
     # DrawTool and AutoOptTool live in standalone MODULE plugins (not exported
     # from libavogadro.so), so their sources are compiled directly into the
     # test. Compiling both drawtool.cpp and autoopttool.cpp collides the two
@@ -181,6 +183,22 @@ foreach (test ${tests})
     # pick pass for the HiDPI modern-tier test).
     list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)
   endif()
+  if (${test} STREQUAL "consumerparity")
+    # consumerparitytest drives the private GLPainter directly (task 5.1: the
+    # mesh-flush upload counter) and also drives a real GLWidget on the modern
+    # tier (tasks 5.2 overlay + unit cell). GLPainter has no A_EXPORT, so on
+    # Windows its out-of-line methods are not dllexported from avogadro.dll
+    # (LNK2019); compile the private GL implementation directly into the test,
+    # exactly as for meshstream. GLPainter pulls in Sphere/Cylinder/TextRenderer
+    # via drawSphere/drawCylinder/drawText, so those private TUs compile too.
+    # bsdyengine is compiled so a full widget scene has instanced content.
+    list(APPEND test_SRCS
+      ../src/glpainter_p.cpp
+      ../src/sphere_p.cpp
+      ../src/cylinder_p.cpp
+      ../src/textrenderer_p.cpp
+      ../src/engines/bsdyengine.cpp)
+  endif()
   if (${test} STREQUAL "threadedparity" OR ${test} STREQUAL "renderbench" OR ${test} STREQUAL "visualparity")
     # Compile the real ball-and-stick engine so the snapshot tessellator can
     # be compared against the GUI-thread engine emission (task 6.1), and so
@@ -234,22 +252,34 @@ foreach (test ${tests})
     # directly, so link it explicitly for this test only.
     target_link_libraries(${test}test PRIVATE OpenGL::GLU)
   endif()
+  if(${test} STREQUAL "consumerparity")
+    # consumerparitytest compiles glpainter_p.cpp directly (its GLPainter
+    # methods are not dllexported), and glpainter_p.cpp calls GLU
+    # (gluNurbsProperty). Link it explicitly for this test only.
+    target_link_libraries(${test}test PRIVATE OpenGL::GLU)
+  endif()
   if(TARGET openbabel_ext)
     add_dependencies(${test}test openbabel_ext)
   endif()
-  if(${test} STREQUAL "autooptrepro")
+  if(${test} STREQUAL "autooptrepro" OR ${test} STREQUAL "energyhud")
     # Skip DrawToolFactory's Q_PLUGIN_METADATA for this build only (see the
     # test_SRCS block above): compiling drawtool.cpp alongside autoopttool.cpp
     # would otherwise collide the two AVOGADRO_TOOL_FACTORY plugin-export
     # symbols. The guard is in drawtool.h under this macro.
     target_compile_definitions(${test}test PRIVATE AVOGADRO_TEST_NOPLUGIN)
   endif()
+  if(${test} STREQUAL "consumerparity")
+    # consumerparitytest reads the mesh-flush upload counter hook
+    # (g_glpainterMeshUploadCount) that lives behind this macro in
+    # glpainter_p.cpp; the test compiles that TU so the symbol resolves.
+    target_compile_definitions(${test}test PRIVATE AVOGADRO_TEST_UPLOAD_COUNTER)
+  endif()
   add_test(${test}Test ${CMAKE_BINARY_DIR}/bin/${test}test)
   set(_test_env "QT_QPA_PLATFORM=offscreen")
   # The parity binaries drive a real GLWidget for the legacy tier, which
   # QOpenGLWidget does not support on the offscreen platform: they need a
   # real X display (run ctest under xvfb-run) with the default xcb platform.
-  if(${test} MATCHES "^(parity|compatibility|glselectoverflow|meshstream|threadedparity|renderbench|visualparity|hidpiviewport)")
+  if(${test} MATCHES "^(parity|compatibility|glselectoverflow|meshstream|consumerparity|threadedparity|renderbench|visualparity|hidpiviewport|energyhud)")
     set(_test_env "LIBGL_ALWAYS_SOFTWARE=1")
   endif()
   if(${test} STREQUAL "forcefield")

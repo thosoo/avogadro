@@ -64,6 +64,25 @@
 
 namespace Avogadro
 {
+#ifdef AVOGADRO_TEST_UPLOAD_COUNTER
+  // Test-only hook (consumerparitytest, task 5.1): counts how many times
+  // GLPainter has streamed a mesh's VBOs. Incremented in ensureMeshVBO's
+  // upload branch; reset/read by the test, which compiles glpainter_p.cpp
+  // directly with this macro defined so these symbols are linkable there.
+  int g_glpainterMeshUploadCount = 0;
+  int glpainterMeshUploadCount() { return g_glpainterMeshUploadCount; }
+  void glpainterResetMeshUploadCount() { g_glpainterMeshUploadCount = 0; }
+
+  // Test-only hook (consumerparitytest, task 5.2): counts GLPainter::drawBox
+  // calls so the unit-cell box pass can be asserted headlessly (pixel readback
+  // is unreliable -- the modern tier presents a black frame offscreen). The
+  // modern tier draws the cell box via GLPainter::drawBoxEdges in the shared
+  // overlay pass; increment here, reset/read by the test, which compiles
+  // glpainter_p.cpp directly with this macro so these symbols link there.
+  int g_glpainterBoxDrawCount = 0;
+  int glpainterBoxDrawCount() { return g_glpainterBoxDrawCount; }
+  void glpainterResetBoxDrawCount() { g_glpainterBoxDrawCount = 0; }
+#endif
 
   const int      PAINTER_GLOBAL_QUALITY_SETTINGS       = 5;
   const int      DEFAULT_GLOBAL_QUALITY_SETTING        = PAINTER_GLOBAL_QUALITY_SETTINGS - 3;
@@ -347,6 +366,12 @@ class GLPainterPrivate
       }
     }
     glBuffers.glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+#ifdef AVOGADRO_TEST_UPLOAD_COUNTER
+  // One upload per successful (Re)upload of this mesh; cached draws on later
+  // frames return early above and do not reach this branch.
+  ++g_glpainterMeshUploadCount;
+#endif
 
     MeshVBOCacheEntry entry;
     entry.mesh = &mesh;
@@ -1434,6 +1459,10 @@ class GLPainterPrivate
 
     glLineWidth(lineWidth);
     d->color.apply();
+
+#ifdef AVOGADRO_TEST_UPLOAD_COUNTER
+  ++g_glpainterBoxDrawCount;
+#endif
 
     // Box is:
     //      6------8

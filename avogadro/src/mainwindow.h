@@ -75,6 +75,11 @@ namespace Avogadro {
 
       int painterQuality() const;
       int fogLevel() const;
+      // Whether the current renderer tier applies each render setting, so the
+      // settings dialog can gate (disable + label) a slider that would otherwise
+      // silently no-op on the resolved tier (gpu-rendering-pipeline delta).
+      bool rendererSupportsQuality() const;
+      bool rendererSupportsFog() const;
       bool renderAxes() const;
       bool renderDebug() const;
       bool quickRender() const;

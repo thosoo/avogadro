@@ -40,9 +40,11 @@
 #include <QtOpenGL/QOpenGLShaderProgram>
 #include <QtOpenGL/QOpenGLVertexArrayObject>
 #include <QVector>
+#include <QVector3D>
 
 #include <avogadro/glhit.h>
 #include <avogadro/camera.h>
+#include "lod.h"
 
 #include "chunkstore.h"
 #include "chunkeduploader.h"
@@ -153,15 +155,36 @@ public:
   //! path is a no-op.
   void setModelView(const QMatrix4x4 &mv) { m_modelView = mv; m_haveModelView = true; }
 
+  //! Distance fog toward the background (fix-modern-tier-consumer-parity task
+  //! 4.2), mirroring the legacy fixed-function GL_LINEAR fog. `enabled` turns
+  //! fog on/off; when disabled the shader's fogFactor() is forced to 0 so an
+  //! unfogged frame is unchanged. `start` / `end` are view-space distances; the
+  //! GLWidget passes start >= end to mean "disabled". Stored and applied as a
+  //! per-frame uniform by drawInstances(), alongside the other uniforms.
+  void setFog(bool enabled, const QVector3D &color, float start, float end);
+
   // RendererBackend interface.
   bool beginFrame(const Camera *camera, const QRect &viewport,
                   int quality) override;
   void pushSpheres(const ChunkStore<SphereInstance> &store) override;
   void pushBonds(const ChunkStore<BondInstance> &store) override;
   void pushLines(const ChunkStore<LineInstance> &store) override;
-  void pushMeshes(const ChunkStore<MeshInstance> &store) override;
   void endFrame() override;
   QList<GLHit> pick(int x, int y, int w, int h) override;
+
+  //! Rebuild the unit sphere/cylinder index buffers at a new tessellation
+  //! level (fix-modern-tier-consumer-parity task 4.1). Instances are
+  //! LOD-independent, so worker results stay valid; only the geometry VAO/VBO/
+  //! EBO sets are deleted and recreated. No-op when the level is unchanged.
+  void setDetailLevel(LodLevel level);
+
+  //! Current tessellation level (A_EXPORT-ed test getter; task 4.1).
+  A_EXPORT LodLevel detailLevel() const;
+
+  //! Number of indices in the current unit-sphere geometry (A_EXPORT-ed test
+  //! getter; task 4.1). Grows with the tessellation level, so a test can
+  //! confirm setDetailLevel() actually rebuilt the geometry, not just the enum.
+  A_EXPORT int sphereIndexCount() const;
 
 private:
   template <typename T>
@@ -180,6 +203,13 @@ private:
   //! context loss (initializeGL). Compiling the shaders replaces the
   //! ${LIGHTING} placeholder with the shared lighting preamble first.
   void buildGeometry();
+
+  //! Build (or rebuild) one instanced primitive's geometry VAO/VBO/EBO at a
+  //! given tessellation level (fix-modern-tier-consumer-parity task 4.1).
+  //! Deletes any existing buffers first, so it is idempotent and safe to call
+  //! when the quality slider moves. `isSphere` selects the sphere (attributes
+  //! 0-4, SphereInstance) or cylinder (attributes 0-5, BondInstance) layout.
+  void buildPrimitive(PrimitiveGeometry& geom, LodLevel level, bool isSphere);
 
   //! Draw the uploaded instance data for this frame: one instanced draw per
   //! primitive type that has instances, after uploads and fences complete.
@@ -214,10 +244,18 @@ private:
   InstanceVBO m_lineVBO;
   PrimitiveGeometry m_sphereGeom;
   PrimitiveGeometry m_cylinderGeom;
+  //! Current unit-geometry tessellation level (task 4.1). setDetailLevel()
+  //! rebuilds only when this changes.
+  LodLevel m_currentLevel = LodMedium;
   QMatrix4x4 m_mvp;
   bool m_haveMvp = false;
   QMatrix4x4 m_modelView;
   bool m_haveModelView = false;
+  //! Distance-fog state (task 4.2), applied as per-frame uniforms.
+  bool m_fogEnabled = false;
+  QVector3D m_fogColor;
+  float m_fogStart = 0.0f;
+  float m_fogEnd = 0.0f;
   unsigned int m_sphereCount = 0; // records drawn this frame (watermark)
   unsigned int m_bondCount = 0;
   unsigned int m_lineCount = 0;

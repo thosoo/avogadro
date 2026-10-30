@@ -73,6 +73,19 @@ vec3 L0 = normalize(uLight0Dir);
 vec3 L1 = normalize(uLight1Dir);
 const vec3 V = vec3(0.0, 0.0, 1.0); // camera on +Z looking down -Z
 
+// Fog (fix-modern-tier-consumer-parity task 4.2): distance fog toward the
+// background, matching the legacy GL_LINEAR fog. Disabled when uFogStart >=
+// uFogEnd; the GLWidget passes start=1, end=0 when fog is off, so fogFactor
+// returns 0 and the frame is unchanged.
+uniform vec3 uFogColor;
+uniform float uFogStart;
+uniform float uFogEnd;
+float fogFactor(vec3 viewPos) {
+  if (uFogStart >= uFogEnd)
+    return 0.0;
+  return clamp((uFogEnd - length(viewPos)) / (uFogEnd - uFogStart), 0.0, 1.0);
+}
+
 // Replicate GLPainter::applyAsMaterials: derive the Phong material from the
 // base (element) colour.
 void materialFromBase(vec3 base, out vec3 ambient, out vec3 diffuse,
@@ -115,6 +128,7 @@ layout(location = 4) in vec4 aInstColor;// rgba, 0..1
 
 out vec3 vNormal;
 out vec4 vColor;
+out vec3 vViewPos;
 
 uniform mat4 uMVP;
 uniform mat4 uModelView;
@@ -128,6 +142,8 @@ void main() {
   // transform; the fragment stage renormalizes the (possibly scaled) result.
   vNormal = mat3(uModelView) * aNormal;
   vColor = aInstColor;
+  // View-space world position, for distance fog in the fragment shader.
+  vViewPos = (uModelView * vec4(worldPos, 1.0)).xyz;
   gl_Position = uMVP * vec4(worldPos, 1.0);
 }
 )";
@@ -137,6 +153,7 @@ static const QString kSphereFragmentShader = R"(
 #version 330
 in vec3 vNormal;
 in vec4 vColor;
+in vec3 vViewPos;
 out vec4 fragColor;
 
 ${LIGHTING}
@@ -152,7 +169,9 @@ void main() {
                       uLight0Diff, uLight0Spec);
   col += shadeOne(N, vColor.rgb, l1,
                   uLight1Diff, uLight1Spec);
-  fragColor = vec4(col, vColor.a);
+  // Distance fog toward the background (task 4.2); fogFactor() is 0 when fog
+  // is disabled, so an unfogged frame is byte-identical to before.
+  fragColor = vec4(mix(col, uFogColor, fogFactor(vViewPos)), vColor.a);
 }
 )";
 
@@ -169,6 +188,7 @@ layout(location = 5) in vec4 aInstColor;
 
 out vec3 vNormal;
 out vec4 vColor;
+out vec3 vViewPos;
 
 uniform mat4 uMVP;
 uniform mat4 uModelView;
@@ -194,6 +214,8 @@ void main() {
   // renormalizes, absorbing the uniform-scale magnitude of the modelview's 3x3.
   vNormal = mat3(uModelView) * (aPos.x * u + aPos.y * v);
   vColor = aInstColor;
+  // View-space world position, for distance fog in the fragment shader.
+  vViewPos = (uModelView * vec4(worldPos, 1.0)).xyz;
   gl_Position = uMVP * vec4(worldPos, 1.0);
 }
 )";
@@ -203,6 +225,7 @@ static const QString kCylinderFragmentShader = R"(
 #version 330
 in vec3 vNormal;
 in vec4 vColor;
+in vec3 vViewPos;
 out vec4 fragColor;
 
 ${LIGHTING}
@@ -215,7 +238,9 @@ void main() {
                       uLight0Diff, uLight0Spec);
   col += shadeOne(N, vColor.rgb, l1,
                   uLight1Diff, uLight1Spec);
-  fragColor = vec4(col, vColor.a);
+  // Distance fog toward the background (task 4.2); fogFactor() is 0 when fog
+  // is disabled, so an unfogged frame is byte-identical to before.
+  fragColor = vec4(mix(col, uFogColor, fogFactor(vViewPos)), vColor.a);
 }
 )";
 
