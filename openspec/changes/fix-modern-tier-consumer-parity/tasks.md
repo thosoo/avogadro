@@ -202,11 +202,17 @@ land and before declaring the change complete.
       auto-optimize-interaction requirements.
 - [x] 6.3 Full suite: `cmake --build build --parallel && ctest
       --test-dir build --output-on-failure` green. Verify: exit code 0.
-- [ ] 6.4 Windows/MSVC compatibility: shader/uniform changes and new test
+- [x] 6.4 Windows/MSVC compatibility: shader/uniform changes and new test
       compile under the Windows installer workflow. Verify:
       `gh workflow run 168745168 --ref <branch> --repo thosoo/avogadro`
-      green, including offscreen ctest.
-- [ ] 6.5 Run the `reviewer` subagent on the complete diff (correctness +
+      green, including offscreen ctest. Verified: two workflow_dispatch runs
+      (41097999976, 41097979535) both completed success on build-installer
+      (tests) and build-installer (installer), including the offscreen ctest.
+- [x] 6.5 Run the `reviewer` subagent on the complete diff (correctness +
       regression risk per repo policy); integrate accepted findings.
       Verify: findings addressed or explicitly rejected with evidence in
-      the session log.
+      the session log. Verified: reviewer ran on the full diff; all five
+      findings accepted and fixed (persisted-quality no-op, compat-tier
+      settings honesty via per-tier slider gating, renderUnitCellAxes gate on
+      modern, dead SceneBuilder::setQuality declaration, retained-frame overlay
+      pass). Reviewer report: .pi-glla/reviews/.
