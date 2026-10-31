@@ -34,6 +34,7 @@
 #include <QComboBox>
 #include <QSpinBox>
 #include <QSurfaceFormat>
+#include <QOpenGLContext>
 #include <QGuiApplication>
 #include <QScopedPointer>
 #include <functional>
@@ -134,6 +135,17 @@ void EnergyHudTest::testEnergyTextRasterized()
 
   widget.show();
   widget.renderNow(); // force initializeGL + first (async-submit) frame
+
+  // The offscreen Qt platform cannot create a GL context for a QOpenGLWidget.
+  // Once shown, the first expose event processed during pumpUntil() drives
+  // QWidgetRepaintManager -> QPlatformBackingStore::rhiFlush, which segfaults
+  // inside Qt on the missing context. Detect the unusable context up front
+  // and skip gracefully (documented; real hardware is the acceptance gate),
+  // matching the llvmpipe black-frame skip below rather than crashing in Qt.
+  if (!widget.context() || !widget.context()->isValid())
+    QSKIP("QOpenGLWidget has no usable GL context on this platform "
+          "(offscreen/document; real hardware is the acceptance gate)",
+          SkipAll);
 
   // Drive an AutoOptTool session. enable() reads m_glwidget and the settings
   // widgets, so wire those up before starting the worker.

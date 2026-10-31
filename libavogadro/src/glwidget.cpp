@@ -598,9 +598,16 @@ GLWidget::GLWidget( Molecule *molecule,
     // makes the context current, and drawing into the default framebuffer
     // would silently produce an empty frame.
     makeCurrent();
-    if (QOpenGLContext *ctx = context())
+    // A non-null but invalid context (offscreen platform cannot create a GL
+    // context, or context creation failed) still dereferences inside
+    // defaultFramebufferObject() -> isValid() and segfaults. Bail cleanly when
+    // the context is not usable so paintGL/picking run against a real one.
+    if (QOpenGLContext *ctx = context()) {
+      if (!ctx->isValid())
+        return;
       ctx->functions()->glBindFramebuffer(GL_FRAMEBUFFER,
                                           defaultFramebufferObject());
+    }
     paintGL();
   }
 
