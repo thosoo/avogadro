@@ -46,6 +46,7 @@
 #include <QMessageBox>
 #include <QAction>
 #include <QApplication>
+#include <QDateTime>
 #include <algorithm>
 
 using OpenQube::BasisSet;
@@ -573,7 +574,9 @@ namespace Avogadro
     m_qube = new OpenQube::Cube;
     m_qube->setLimits(cube->min(), cube->max(), cube->dimensions());
 
-    m_basis->calculateCubeMO(m_qube, info->orbital);
+    // Start the cube calculation asynchronously: the heavy per-point setup
+    // and point map run on a worker thread, so the GUI stays responsive.
+    m_basis->startCubeCalculationAsync(m_qube, info->orbital);
     connect(&m_basis->watcher(), SIGNAL(finished()),
             this, SLOT(calculateCubeDone()));
 
@@ -941,6 +944,17 @@ namespace Avogadro
 
     calcInfo *info = &m_queue[m_currentRunningCalculation];
     int orbital = info->orbital;
+
+    // Throttle progress updates so a very fine-grained watcher (millions of
+    // emitted values across a large grid) cannot flood the event loop. Emit
+    // at most ~10 Hz; always emit once more at the maximum so the bar can
+    // still reach 100% when the watcher jumps straight to its max.
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (now - m_lastProgressEmit < 100
+        && current != m_basis->watcher().progressMaximum())
+      return;
+    m_lastProgressEmit = now;
+
     m_widget->updateProgress(orbital, current);
   }
 

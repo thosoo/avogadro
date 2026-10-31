@@ -164,6 +164,26 @@ public:
   virtual bool blockingCalculateCubeDensity(Cube *cube);
 
   /**
+   * Asynchronous MO cube calculation. The default implementation starts the
+   * blocking calculation and waits for it, which is correct for basis sets
+   * that do not override this method. Derived sets (e.g. GaussianSet) override
+   * it to run the heavy per-point setup off the GUI thread. See
+   * GaussianSet::startCubeCalculationAsync for the locking contract.
+   * @param cube The cube to write the values of the MO into.
+   * @param mo The molecular orbital number (1-based).
+   * @return True if the calculation was started successfully.
+   */
+  virtual bool startCubeCalculationAsync(Cube *cube, unsigned int mo = 1);
+
+  /**
+   * Asynchronous electron-density cube calculation. See
+   * startCubeCalculationAsync for details.
+   * @param cube The cube to write the values of the density into.
+   * @return True if the calculation was started successfully.
+   */
+  virtual bool startCubeDensityCalculationAsync(Cube *cube);
+
+  /**
    * When performing a calculation the QFutureWatcher is useful if you want
    * to update a progress bar.
    */

@@ -49,6 +49,7 @@
 
 #include <QProgressDialog>
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QApplication>
 #include <QFileInfo>
 #include <QMessageBox>
@@ -347,7 +348,7 @@ namespace Avogadro
     m_progress->show();
 
     connect(&m_VdWsurface->watcher(), SIGNAL(progressValueChanged(int)),
-            m_progress, SLOT(setValue(int)));
+            this, SLOT(updateProgress(int)));
     connect(&m_VdWsurface->watcher(), SIGNAL(progressRangeChanged(int, int)),
             m_progress, SLOT(setRange(int, int)));
     connect(m_progress, SIGNAL(canceled()),
@@ -360,7 +361,8 @@ namespace Avogadro
   {
     if (m_basis) {
 
-      m_basis->calculateCubeMO(cube, mo);
+      // Start the cube calculation asynchronously so the GUI stays responsive.
+      m_basis->startCubeCalculationAsync(cube, mo);
 
       // Set up a progress dialog
       if (!m_progress) {
@@ -379,7 +381,7 @@ namespace Avogadro
 
       // Connect the signals and slots
       connect(&m_basis->watcher(), SIGNAL(progressValueChanged(int)),
-              m_progress, SLOT(setValue(int)));
+              this, SLOT(updateProgress(int)));
       connect(&m_basis->watcher(), SIGNAL(progressRangeChanged(int, int)),
               m_progress, SLOT(setRange(int, int)));
       connect(m_progress, SIGNAL(canceled()),
@@ -395,7 +397,8 @@ namespace Avogadro
     if (!m_basis)
       return;
 
-    m_basis->calculateCubeDensity(cube);
+    // Start the density calculation asynchronously so the GUI stays responsive.
+    m_basis->startCubeDensityCalculationAsync(cube);
 
     // Set up a progress dialog
     if (!m_progress) {
@@ -413,7 +416,7 @@ namespace Avogadro
 
     // Connect the signals and slots
     connect(&m_basis->watcher(), SIGNAL(progressValueChanged(int)),
-            m_progress, SLOT(setValue(int)));
+            this, SLOT(updateProgress(int)));
     connect(&m_basis->watcher(), SIGNAL(progressRangeChanged(int, int)),
             m_progress, SLOT(setRange(int, int)));
     connect(m_progress, SIGNAL(canceled()),
@@ -421,6 +424,22 @@ namespace Avogadro
     connect(&m_basis->watcher(), SIGNAL(finished()),
             this, SLOT(calculateDone()));
     m_surfaceDialog->enableCalculation(false);
+  }
+
+  void SurfaceExtension::updateProgress(int current)
+  {
+    // Throttle watcher progress updates to the progress dialog. A large grid
+    // emits millions of progressValueChanged values; without a rate limit
+    // these flood the event loop and stall the GUI. Emit at most ~10 Hz, but
+    // always let the final maximum through so the bar can still reach 100%.
+    if (m_progress) {
+      const qint64 now = QDateTime::currentMSecsSinceEpoch();
+      if (now - m_lastProgressEmit < 100
+          && current != m_progress->maximum())
+        return;
+      m_lastProgressEmit = now;
+      m_progress->setValue(current);
+    }
   }
 
   void SurfaceExtension::calculateMesh(Cube *cube, double isoValue)

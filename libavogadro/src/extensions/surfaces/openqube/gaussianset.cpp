@@ -28,6 +28,7 @@
 #include <cmath>
 
 #include <QtConcurrent/QtConcurrentMap>
+#include <QtConcurrent/QtConcurrentRun>
 #include <QFuture>
 #include <QFutureWatcher>
 #include <QReadWriteLock>
@@ -165,6 +166,56 @@ bool GaussianSet::setDensityMatrix(const Eigen::MatrixXd &m)
   return true;
 }
 
+bool GaussianSet::startCubeCalculationAsync(Cube *cube, unsigned int state)
+{
+  // Set up the calculation and ideally use the new QtConcurrent code to
+  // multithread the calculation...
+  if (state < 1 || state > static_cast<unsigned int>(m_moMatrix.rows()))
+      return false;
+
+  // Must be called before calculations begin - use different init for Orca written data.
+  // Runs on the calling (GUI) thread; it is O(basis), not O(points).
+  if (!m_useOrcaNorm) {
+      initCalculation();
+  } else {
+      initCalculationForOrca();
+  }
+
+  // Lock the cube until we are done. Acquired on the calling thread and held
+  // until calculationComplete() unlocks it (also on the calling thread), so
+  // the lock/unlock pair stays thread-affine across the worker hop.
+  cube->lock()->lockForWrite();
+
+  // Watch for the future (connection established on the calling thread).
+  connect(&m_watcher, SIGNAL(finished()), this, SLOT(calculationComplete()));
+
+  // Run the heavy per-point setup (shell-vector allocation + initialisation)
+  // and the point map on a worker thread so the GUI thread is not blocked.
+  // QtConcurrent::run returns immediately with a future the watcher can wait
+  // on, so a synchronous caller below can block on it right away.
+  m_future = QtConcurrent::run([this, cube, state]() {
+    // Set up the points we want to calculate the density at.
+    m_gaussianShells = new QVector<GaussianShell>(cube->data()->size());
+
+    for (int i = 0; i < m_gaussianShells->size(); ++i) {
+        (*m_gaussianShells)[i].set = this;
+        (*m_gaussianShells)[i].tCube = cube;
+        (*m_gaussianShells)[i].pos = i;
+        (*m_gaussianShells)[i].state = state;
+    }
+
+    // The main part of the mapped reduced function...
+    QFuture<void> mapFuture =
+        QtConcurrent::map(*m_gaussianShells, GaussianSet::processPoint);
+    mapFuture.waitForFinished();
+  });
+  // Connect our watcher to our future. The future is set on the calling
+  // thread, so a synchronous caller can wait on it immediately.
+  m_watcher.setFuture(m_future);
+
+  return true;
+}
+
 bool GaussianSet::calculateCubeMO(Cube *cube, unsigned int state)
 {
   // Set up the calculation and ideally use the new QtConcurrent code to
@@ -197,6 +248,52 @@ bool GaussianSet::calculateCubeMO(Cube *cube, unsigned int state)
   // The main part of the mapped reduced function...
   m_future = QtConcurrent::map(*m_gaussianShells, GaussianSet::processPoint);
   // Connect our watcher to our future
+  m_watcher.setFuture(m_future);
+
+  return true;
+}
+
+bool GaussianSet::startCubeDensityCalculationAsync(Cube *cube)
+{
+  if (m_density.size() == 0) {
+    qDebug() << "Cannot calculate density -- density matrix not set.";
+    return false;
+  }
+
+  // FIXME Still not working, committed so others could see current state.
+  // - seems to work for Orca data
+
+  // Must be called before calculations begin - use different init for Orca written data.
+  // Runs on the calling (GUI) thread; it is O(basis), not O(points).
+  if (!m_useOrcaNorm) {
+      initCalculation();
+  } else {
+      initCalculationForOrca();
+  }
+
+  // Lock the cube until we are done. Acquired on the calling thread and held
+  // until calculationComplete() unlocks it (also on the calling thread).
+  cube->lock()->lockForWrite();
+
+  // Watch for the future (connection established on the calling thread).
+  connect(&m_watcher, SIGNAL(finished()), this, SLOT(calculationComplete()));
+
+  // Run the heavy per-point setup and the density map on a worker thread.
+  m_future = QtConcurrent::run([this, cube]() {
+    // Set up the points we want to calculate the density at.
+    m_gaussianShells = new QVector<GaussianShell>(cube->data()->size());
+
+    for (int i = 0; i < m_gaussianShells->size(); ++i) {
+      (*m_gaussianShells)[i].set = this;
+      (*m_gaussianShells)[i].tCube = cube;
+      (*m_gaussianShells)[i].pos = i;
+    }
+
+    // The main part of the mapped reduced function...
+    QFuture<void> mapFuture =
+        QtConcurrent::map(*m_gaussianShells, GaussianSet::processDensity);
+    mapFuture.waitForFinished();
+  });
   m_watcher.setFuture(m_future);
 
   return true;
@@ -982,7 +1079,24 @@ inline double GaussianSet::pointP(GaussianSet *set, unsigned int moIndex,
     z += set->m_gtoCN[cIndex++] * delta.z() * tmpGTO;
   }
 
+  static volatile void* lastData = 0;
+  if (!lastData) {
+    lastData = set->m_moMatrix.data();
+    qDebug() << "[POINTP-DATA] first data=" << set->m_moMatrix.data()
+             << " size=" << set->m_moMatrix.size() << " rows=" << set->m_moMatrix.rows();
+  } else if (set->m_moMatrix.data() != lastData) {
+    qDebug() << "[POINTP-DATA-CHANGED] data=" << set->m_moMatrix.data()
+             << " was=" << lastData << " size=" << set->m_moMatrix.size();
+  }
   // Calculate the prefactors for Px, Py and Pz
+  if (baseIndex >= (unsigned int)set->m_moMatrix.rows() ||
+      baseIndex+2 >= (unsigned int)set->m_moMatrix.rows() ||
+      indexMO >= (unsigned int)set->m_moMatrix.cols()) {
+    qDebug() << "[POINTP-OOB] baseIndex:" << baseIndex << "+2:" << baseIndex+2
+             << " indexMO:" << indexMO << " rows:" << set->m_moMatrix.rows()
+             << " cols:" << set->m_moMatrix.cols()
+             << " moIndex(shell.state-1):" << (set->m_symmetry.size());
+  }
   double Px = set->m_moMatrix.coeffRef(baseIndex  , indexMO);
   double Py = set->m_moMatrix.coeffRef(baseIndex+1, indexMO);
   double Pz = set->m_moMatrix.coeffRef(baseIndex+2, indexMO);

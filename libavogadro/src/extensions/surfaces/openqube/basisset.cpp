@@ -39,4 +39,20 @@ bool BasisSet::blockingCalculateCubeDensity(Cube *cube)
   return true;
 }
 
+bool BasisSet::startCubeCalculationAsync(Cube *cube, unsigned int mo)
+{
+  if (!this->calculateCubeMO(cube, mo))
+    return false;
+  this->watcher().waitForFinished();
+  return true;
+}
+
+bool BasisSet::startCubeDensityCalculationAsync(Cube *cube)
+{
+  if (!this->calculateCubeDensity(cube))
+    return false;
+  this->watcher().waitForFinished();
+  return true;
+}
+
 }

@@ -88,6 +88,7 @@ namespace Avogadro
     OpenQube::BasisSet *m_basis;   // The basis set
     QString m_loadedFileName;
     QProgressDialog *m_progress;
+    qint64 m_lastProgressEmit = 0; // throttled progress emit timestamp
 
     Mesh *m_mesh1, *m_mesh2;
     MeshGenerator *m_meshGen1;
@@ -144,6 +145,15 @@ namespace Avogadro
      * This is called once the calculation is canceled - clean up.
      */
     void calculateCanceled();
+
+    /**
+     * Throttle progress updates from the watcher to the progress dialog.
+     * A large grid emits millions of progressValueChanged values; without a
+     * rate limit these flood the event loop and stall the GUI. Emit at most
+     * ~10 Hz, always letting the final maximum through so the bar can reach
+     * 100%.
+     */
+    void updateProgress(int current);
 
   };
 

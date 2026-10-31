@@ -176,6 +176,7 @@ namespace Avogadro
     int m_currentRunningCalculation;
     unsigned long m_generation;        // N.1: bumped on each document switch
     unsigned long m_runningGeneration; // N.1: captured per launched calculation
+    qint64 m_lastProgressEmit = 0;     // throttled progress emit timestamp
     MeshGenerator *m_meshGen;
     OpenQube::BasisSet *m_basis;
     QList<QAction *> m_actions;

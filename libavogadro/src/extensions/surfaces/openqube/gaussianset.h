@@ -152,6 +152,26 @@ public:
   bool calculateCubeDensity(Cube *cube);
 
   /**
+   * Asynchronous MO cube calculation. The heavy per-point setup (shell-vector
+   * allocation + initialisation) and the point map run on a QtConcurrent
+   * worker thread so the GUI thread is not blocked. The cube write lock is
+   * acquired on the calling thread and held until calculationComplete() runs
+   * (also on the calling thread), keeping the lock pair thread-affine.
+   * @param cube The cube to write the values of the MO into.
+   * @param state The molecular orbital number (1-based).
+   * @return True if the calculation was started successfully.
+   */
+  bool startCubeCalculationAsync(Cube *cube, unsigned int state);
+
+  /**
+   * Asynchronous electron-density cube calculation. See
+   * startCubeCalculationAsync for the threading/locking contract.
+   * @param cube The cube to write the values of the density into.
+   * @return True if the calculation was started successfully.
+   */
+  bool startCubeDensityCalculationAsync(Cube *cube);
+
+  /**
    * When performing a calculation the QFutureWatcher is useful if you want
    * to update a progress bar.
    */
