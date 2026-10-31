@@ -43,6 +43,8 @@
 
 #include <QDir>
 #include <QFileInfo>
+#include <QMetaObject>
+#include <QtConcurrent/QtConcurrentRun>
 #include <QMessageBox>
 #include <QAction>
 #include <QApplication>
@@ -603,16 +605,55 @@ namespace Avogadro
 
     qDebug() << info->orbital << " Cube calculation finished.";
 
-    disconnect(&m_basis->watcher(), 0,
-               this, 0);
+    disconnect(&m_basis->watcher(), 0, this, 0);
 
-    // Convert the cube data
-    if (m_qube) {
-      info->cube->setData(*m_qube->data());
-      delete m_qube;
-      m_qube = 0;
+    // Hand the grid-sized data copy off to a worker thread (D3) so the GUI
+    // thread is not stalled by the memcpy. Take ownership of m_qube, null the
+    // member, and let the worker copy + delete it after locking the molecule
+    // cube. The queued continuation re-arms the phase machine on the GUI.
+    OpenQube::Cube *qube = m_qube;
+    m_qube = 0;
+    if (qube) {
+      unsigned int generation = m_runningGeneration;
+      Cube *cube = info->cube;
+      // Discard the future: the queued continuation tracks completion.
+      static_cast<void>(
+          QtConcurrent::run([this, generation, cube, qube]() {
+        // (a) Stale document switch while copying: drop the cube, no-op.
+        if (generation != m_generation) {
+          delete qube;
+          return;
+        }
+        // (b)-(d) Copy under the molecule-cube write lock (lock stays on this
+        // worker; the unlock happens here, keeping the pair on one thread).
+        cube->lock()->lockForWrite();
+        cube->setData(*qube->data());
+        cube->lock()->unlock();
+        // (e) The worker now owns qube.
+        delete qube;
+        // (f) Resume the phase machine on the GUI thread.
+        QMetaObject::invokeMethod(
+            this, [this, generation, cube] {
+              if (generation == m_generation)
+                continueAfterCubeCopy(cube);
+            },
+            Qt::QueuedConnection);
+      }));
+    } else {
+      // No cube data (e.g. cancelled mid-calc): resume directly.
+      continueAfterCubeCopy(info->cube);
     }
+  }
 
+  void OrbitalExtension::continueAfterCubeCopy(Cube *cube)
+  {
+    // N.1/1.2: re-check the epoch — a document switch may have superseded this
+    // calculation while the copy was in flight.
+    if (m_runningGeneration != m_generation ||
+        m_currentRunningCalculation < 0 ||
+        m_currentRunningCalculation >= (int)m_queue.size())
+      return;
+    (void)cube;
     calculatePosMesh();
   }
 

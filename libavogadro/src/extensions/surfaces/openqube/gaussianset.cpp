@@ -218,38 +218,13 @@ bool GaussianSet::startCubeCalculationAsync(Cube *cube, unsigned int state)
 
 bool GaussianSet::calculateCubeMO(Cube *cube, unsigned int state)
 {
-  // Set up the calculation and ideally use the new QtConcurrent code to
-  // multithread the calculation...
-  if (state < 1 || state > static_cast<unsigned int>(m_moMatrix.rows()))
+  // Thin synchronous wrapper: run the heavy setup + map off the GUI thread via
+  // the async entry point, then block on the watcher. This keeps the shell
+  // allocation/initialisation off the calling (GUI) thread even when reached
+  // through BasisSet::blockingCalculateCubeMO.
+  if (!startCubeCalculationAsync(cube, state))
       return false;
-
-  // Must be called before calculations begin - use different init for Orca written data
-  if (!m_useOrcaNorm) {
-      initCalculation();
-  } else {
-      initCalculationForOrca();
-  }
-  // Set up the points we want to calculate the density at
-  m_gaussianShells = new QVector<GaussianShell>(cube->data()->size());
-
-  for (int i = 0; i < m_gaussianShells->size(); ++i) {
-      (*m_gaussianShells)[i].set = this;
-      (*m_gaussianShells)[i].tCube = cube;
-      (*m_gaussianShells)[i].pos = i;
-      (*m_gaussianShells)[i].state = state;
-  }
-
-  // Lock the cube until we are done.
-  cube->lock()->lockForWrite();
-
-  // Watch for the future
-  connect(&m_watcher, SIGNAL(finished()), this, SLOT(calculationComplete()));
-
-  // The main part of the mapped reduced function...
-  m_future = QtConcurrent::map(*m_gaussianShells, GaussianSet::processPoint);
-  // Connect our watcher to our future
-  m_watcher.setFuture(m_future);
-
+  m_watcher.waitForFinished();
   return true;
 }
 
@@ -301,41 +276,13 @@ bool GaussianSet::startCubeDensityCalculationAsync(Cube *cube)
 
 bool GaussianSet::calculateCubeDensity(Cube *cube)
 {
-  if (m_density.size() == 0) {
-    qDebug() << "Cannot calculate density -- density matrix not set.";
+  // Thin synchronous wrapper mirroring calculateCubeMO: run density setup +
+  // map off the GUI thread via the async entry point, then block on the
+  // watcher so the calling thread (e.g. BasisSet::blockingCalculateCubeDensity)
+  // is not stalled by the shell allocation.
+  if (!startCubeDensityCalculationAsync(cube))
     return false;
-  }
-
-  // FIXME Still not working, committed so others could see current state.
-  // - seems to work for Orca data
-
-  // Must be called before calculations begin - use different init for Orca written data
-  if (!m_useOrcaNorm) {
-      initCalculation();
-  } else {
-      initCalculationForOrca();
-  }
-
-  // Set up the points we want to calculate the density at
-  m_gaussianShells = new QVector<GaussianShell>(cube->data()->size());
-
-  for (int i = 0; i < m_gaussianShells->size(); ++i) {
-    (*m_gaussianShells)[i].set = this;
-    (*m_gaussianShells)[i].tCube = cube;
-    (*m_gaussianShells)[i].pos = i;
-  }
-
-  // Lock the cube until we are done.
-  cube->lock()->lockForWrite();
-
-  // Watch for the future
-  connect(&m_watcher, SIGNAL(finished()), this, SLOT(calculationComplete()));
-
-  // The main part of the mapped reduced function...
-  m_future = QtConcurrent::map(*m_gaussianShells, GaussianSet::processDensity);
-  // Connect our watcher to our future
-  m_watcher.setFuture(m_future);
-
+  m_watcher.waitForFinished();
   return true;
 }
 

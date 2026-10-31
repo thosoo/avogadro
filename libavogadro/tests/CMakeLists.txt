@@ -430,6 +430,46 @@ set_property(SOURCE ${surfaceextensiontest_SRCS} PROPERTY LABELS avogadro)
 set_property(TARGET surfaceextensiontest PROPERTY LABELS avogadro)
 set_property(TEST surfaceextensionTest PROPERTY LABELS avogadro)
 
+# Guards the OpenSpec task 5 (2.3, D3) refactor: the MO cube-data handoff copy
+# runs on a worker thread and resumes the phase machine exactly once, so
+# calculateMesh() runs once (2 meshes) and both lobes become stable.
+set(surfaceextensionmothrottletest_SRCS
+  surfaceextensionmothrottletest.cpp
+  ../src/extensions/surfaces/surfaceextension.cpp
+  ../src/extensions/surfaces/surfaceextension.h
+  ../src/extensions/surfaces/surfacedialog.cpp
+  ../src/extensions/surfaces/surfacedialog.h
+  ../src/extensions/surfaces/surfacedialog.ui
+  ../src/extensions/surfaces/vdwsurface.cpp
+  ../src/extensions/surfaces/vdwsurface.h)
+add_executable(surfaceextensionmothrottletest ${surfaceextensionmothrottletest_SRCS})
+target_include_directories(surfaceextensionmothrottletest PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/surfaces
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../avogadro/src)
+set_target_properties(surfaceextensionmothrottletest PROPERTIES
+  AUTOUIC_SEARCH_PATHS "${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions")
+target_link_libraries(surfaceextensionmothrottletest
+  PRIVATE
+  Qt6::Core
+  Qt6::Gui
+  Qt6::Widgets
+  Qt6::OpenGL
+  Qt6::OpenGLWidgets
+  Qt6::Test
+  Qt6::Concurrent
+  avogadro
+  OpenQube
+  OpenBabel3::openbabel)
+target_compile_definitions(surfaceextensionmothrottletest PRIVATE
+  TESTDATA_DIR="${CMAKE_SOURCE_DIR}/testfiles")
+add_test(surfaceextensionmothrottletestTest ${CMAKE_BINARY_DIR}/bin/surfaceextensionmothrottletest)
+set_tests_properties(surfaceextensionmothrottletestTest PROPERTIES
+  ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+set_property(SOURCE ${surfaceextensionmothrottletest_SRCS} PROPERTY LABELS avogadro)
+set_property(TARGET surfaceextensionmothrottletest PROPERTY LABELS avogadro)
+set_property(TEST surfaceextensionmothrottletestTest PROPERTY LABELS avogadro)
+
 add_executable(qt6signalpatternstest qt6signalpatternstest.cpp)
 target_compile_definitions(qt6signalpatternstest PRIVATE
   AVOGADRO_SOURCE_DIR="${CMAKE_SOURCE_DIR}")

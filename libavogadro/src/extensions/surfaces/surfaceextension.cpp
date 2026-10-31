@@ -34,6 +34,8 @@
 #include "surfacedialog.h"
 
 #include <vector>
+#include <QMetaObject>
+#include <QtConcurrent/QtConcurrentRun>
 #include <avogadro/toolgroup.h>
 #include <avogadro/molecule.h>
 #include <avogadro/atom.h>
@@ -668,24 +670,49 @@ namespace Avogadro
             m_surfaceDialog->cubeType() == Cube::ElectronDensity) {
           if (m_basis)
             disconnect(&m_basis->watcher(), 0, this, 0);
-          if (m_qube) {
-            m_cube->setData(*m_qube->data());
-            delete m_qube;
-            m_qube = 0;
+          // Hand the grid-sized data copy off to a worker thread (D3) so the
+          // GUI thread is not stalled by the memcpy. Take ownership of m_qube,
+          // null the member; the worker copies under the cube write lock and
+          // then resumes the phase machine on the GUI via a queued call.
+          OpenQube::Cube *qube = m_qube;
+          m_qube = 0;
+          if (qube) {
+            unsigned int generation = m_runningGeneration;
+            Cube *cube = m_cube;
+            // Discard the future: the queued continuation tracks completion.
+            static_cast<void>(
+                QtConcurrent::run([this, generation, cube, qube]() {
+              // Stale document switch while copying: drop the cube, no-op.
+              if (generation != m_generation) {
+                delete qube;
+                return;
+              }
+              cube->lock()->lockForWrite();
+              cube->setData(*qube->data());
+              cube->lock()->unlock();
+              delete qube;
+              QMetaObject::invokeMethod(
+                  this, [this, generation] {
+                    if (generation == m_generation)
+                      continueAfterCubeCopy();
+                  },
+                  Qt::QueuedConnection);
+            }));
           }
+          // Async copy dispatched on a worker; the queued continuation
+          // (continueAfterCubeCopy) resumes the phase machine. Return here so
+          // continueAfterCubeCopy() is invoked exactly once and calculateMesh()
+          // is not started a second time by the fall-through below.
+          return;
         }
+        // No async copy ran (VdW, or an MO with no qube): advance to the mesh
+        // phase directly.
         disconnect(m_progress, 0, this, 0);
         // FIXME Skipped for now!
         if (m_surfaceDialog->cubeColorType() != Cube::None) {
 
         }
-      }
-      case 1: { // color cube done (if needed) - now calculate the mesh
-        m_calculationPhase = 2;
-        // Disconnect the signals and slots that we are now finished with
-        disconnect(m_progress, 0, this, 0);
-
-        calculateMesh(m_cube, m_surfaceDialog->isoValue());
+        continueAfterCubeCopy();
         return;
       }
       case 2: { // Mesh calculated - now display it in an engine if possible
@@ -734,6 +761,19 @@ namespace Avogadro
           m_surfaceDialog->enableCalculation(true);
       }
     }
+  }
+
+  void SurfaceExtension::continueAfterCubeCopy()
+  {
+    // N.1/1.3: re-check the epoch — a document switch may have superseded this
+    // calculation while the copy was in flight.
+    if (m_runningGeneration != m_generation)
+      return;
+
+    // Advance past the (no-op) color-cube phase to the mesh-calculation phase.
+    m_calculationPhase = 2;
+    disconnect(m_progress, 0, this, 0);
+    calculateMesh(m_cube, m_surfaceDialog->isoValue());
   }
 
   void SurfaceExtension::calculateCanceled()

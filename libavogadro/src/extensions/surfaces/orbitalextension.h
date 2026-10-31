@@ -151,6 +151,13 @@ namespace Avogadro
     void calculateCube();
     void calculateCubeDone();
     void calculatePosMesh();
+    /**
+     * Resume after the OpenQube->Avogadro cube-data copy (D3). Called on the
+     * GUI thread via a queued method invocation from the copy worker once the
+     * grid-sized copy is done. Re-checks the generation epoch before handing
+     * off to calculatePosMesh() so a document switch during the copy no-ops.
+     */
+    void continueAfterCubeCopy(Cube *cube);
     void calculatePosMeshDone();
     void calculateNegMesh();
     void calculateNegMeshDone();

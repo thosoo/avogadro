@@ -142,6 +142,14 @@ namespace Avogadro
     void calculateDone();
 
     /**
+     * Resume the phase machine after the OpenQube->Avogadro cube-data copy
+     * (D3). Called on the GUI thread via a queued method invocation from the
+     * copy worker once the grid-sized copy is done. Re-checks the generation
+     * epoch before advancing to the mesh-calculation phase.
+     */
+    void continueAfterCubeCopy();
+
+    /**
      * This is called once the calculation is canceled - clean up.
      */
     void calculateCanceled();
