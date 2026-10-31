@@ -79,6 +79,12 @@ namespace Avogadro
     //! Load the appropriate basis set (if possible)
     bool loadBasis();
 
+    // White-box MO-path test subclasses this class and drives calculate()
+    // through the mesh generators (m_meshGen1/m_meshGen2). The destructor
+    // deletes those QThreads with no quiesce, so this helper joins them first
+    // to avoid "QThread: Destroyed while thread is still running" at teardown.
+    void quiesceMeshGenerators(int timeoutMs = 10000);
+
   private:
     QList<unsigned long> m_cubes; // These are the standard cubes
     QVector<unsigned long> m_moCubes; // These are the MO cubes

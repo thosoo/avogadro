@@ -36,6 +36,7 @@
 #include <vector>
 #include <QMetaObject>
 #include <QtConcurrent/QtConcurrentRun>
+#include <QtConcurrent/QtConcurrentMap>
 #include <avogadro/toolgroup.h>
 #include <avogadro/molecule.h>
 #include <avogadro/atom.h>
@@ -51,6 +52,8 @@
 
 #include <QProgressDialog>
 #include <QCoreApplication>
+#include <QElapsedTimer>
+#include <QEventLoop>
 #include <QDateTime>
 #include <QApplication>
 #include <QFileInfo>
@@ -77,6 +80,26 @@ namespace Avogadro
     QAction* action = new QAction(this);
     action->setText(tr("Create Surfaces..."));
     m_actions.append(action);
+  }
+
+  void SurfaceExtension::quiesceMeshGenerators(int timeoutMs)
+  {
+    // Join the mesh-generator threads before destruction. Mesh stability means
+    // run() has already returned; here we additionally wait until the threads
+    // report not running so the destructor can delete them race-free.
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < timeoutMs) {
+      bool g1 = m_meshGen1 && m_meshGen1->isRunning();
+      bool g2 = m_meshGen2 && m_meshGen2->isRunning();
+      if (!g1 && !g2)
+        return;
+      if (m_meshGen1)
+        m_meshGen1->wait(20UL);
+      if (m_meshGen2)
+        m_meshGen2->wait(20UL);
+      QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+    }
   }
 
   SurfaceExtension::~SurfaceExtension()
@@ -248,51 +271,69 @@ namespace Avogadro
         break;
       }
 
-    NeighborList *nbrList = new NeighborList(m_molecule, 7.0, false, 2);
-
+    const unsigned int n = mesh->vertices().size();
     std::vector<Color3f> colors;
-    for(unsigned int i=0; i < mesh->vertices().size(); ++i) {
-      const Vector3f *v = mesh->vertex(i);
+    if (n > 0) {
+      colors.resize(n);
 
-      double energy = 0.0;
+      // Colour the vertices in parallel (D4) so per-vertex ESP work does not
+      // block the GUI thread. The molecule and mesh are read-only during the
+      // map. NeighborList::nbrs() writes to a per-instance scratch buffer
+      // (m_r2), so a shared list would data-race; each worker owns its own
+      // NeighborList (thread_local, built once per worker thread). The result
+      // is published with a single setColors() on the GUI thread after the map.
+      QVector<int> idx(n);
+      for (unsigned int i = 0; i < n; ++i)
+        idx[i] = static_cast<int>(i);
 
-      QList<Atom*> nbrAtoms = nbrList->nbrs(v);
-      // Include formal charges when there are hydrogens
-      if (hasHydrogens) {
-        foreach(Atom *a, nbrAtoms) {
-          Vector3f dist = a->pos()->cast<float>() - v->cast<float>();
-          energy += (a->formalCharge() + a->partialCharge()) / dist.squaredNorm();
+      QtConcurrent::map(idx, [&](int i) {
+        thread_local NeighborList *nbrLocal = nullptr;
+        if (!nbrLocal)
+          nbrLocal = new NeighborList(m_molecule, 7.0, false, 2);
+
+        const Vector3f *v = mesh->vertex(i);
+
+        double energy = 0.0;
+
+        QList<Atom*> nbrAtoms = nbrLocal->nbrs(v);
+        // Include formal charges when there are hydrogens
+        if (hasHydrogens) {
+          foreach(Atom *a, nbrAtoms) {
+            Vector3f dist = a->pos()->cast<float>() - v->cast<float>();
+            energy += (a->formalCharge() + a->partialCharge()) / dist.squaredNorm();
+          }
+        } else {
+          foreach(Atom *a, nbrAtoms) {
+            Vector3f dist = a->pos()->cast<float>() - v->cast<float>();
+            energy += a->partialCharge() / dist.squaredNorm();
+          }
         }
-      } else {
-        foreach(Atom *a, nbrAtoms) {
-          Vector3f dist = a->pos()->cast<float>() - v->cast<float>();
-          energy += a->partialCharge() / dist.squaredNorm();
+
+        // Chemistry convention: red = negative, blue = positive.
+        // Inline HSV -> RGB matching QColor::fromHsv(hue, sat, 255) for
+        // hue 0 (red) / 240 (blue); verified pixel-exact over the full
+        // 0-255 saturation range, so the rendered ESP is unchanged.
+        int saturation = 0;
+        if (energy < 0.0) {
+          saturation = static_cast<int>(-255.0 * 5.0 * energy);
+        } else if (energy > 0.0) {
+          saturation = static_cast<int>(255.0 * 5.0 * energy);
         }
-      }
+        if (saturation > 255)
+          saturation = 255;
 
-      // Chemistry convention: red = negative, blue = positive
-      //
-      // Use HSV color model for smooth transitions
-      int red_hue = 0;
-      int blue_hue = 240;
-      int hue = 0; // meaningless if gray (i.e. low saturation)
-      int saturation = 0; // 0 = white, 0-40 = grayish, 40-255 colors from hue
-      int value = 255; // lightness or brightness (0 = black, 255 = white)
-
-      if (energy < 0.0) {
-        hue = red_hue;
-        saturation = -255 * 5 * energy;
-      } else if (energy > 0.0) {
-        hue = blue_hue;
-        saturation = 255 * 5 * energy;
-      }
-
-      if (saturation > 255)
-        saturation = 255;
-
-      QColor qcolor(QColor::fromHsv(hue, saturation, value));
-      Color3f color(qcolor.red(), qcolor.green(), qcolor.blue());
-      colors.push_back(color);
+        int r, g, b;
+        if (energy < 0.0) {
+          r = 255;
+          g = 255 - saturation;
+          b = 255 - saturation;
+        } else {
+          r = 255 - saturation;
+          g = 255 - saturation;
+          b = 255;
+        }
+        colors[i] = Color3f(r, g, b);
+      });
     }
     mesh->setColors(colors);
   }

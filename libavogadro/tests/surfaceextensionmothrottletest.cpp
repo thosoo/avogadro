@@ -25,6 +25,7 @@
 #include <avogadro/molecule.h>
 #include <avogadro/moleculefile.h>
 #include <avogadro/mesh.h>
+#include <avogadro/meshgenerator.h>
 
 using namespace Avogadro;
 
@@ -72,6 +73,15 @@ public:
     }
     return false;
   }
+
+  // Public wrapper so SurfaceMOPathTest (not derived from SurfaceExtension) can
+  // quiesce the mesh-generator threads before teardown. The protected
+  // SurfaceExtension::quiesceMeshGenerators() reaches the private m_meshGen1/
+  // m_meshGen2 QThreads; this derived-class wrapper exposes it to the test.
+  void quiesceMeshGenerators(int timeoutMs = 10000)
+  {
+    SurfaceExtension::quiesceMeshGenerators(timeoutMs);
+  }
 };
 
 class SurfaceMOPathTest : public QObject
@@ -111,6 +121,9 @@ private Q_SLOTS:
     QVERIFY2(ext.waitMeshesStable(),
              "MO lobes never became stable (continuation did not fire or the "
              "mesh generators did not run)");
+    // Join the mesh-generator threads before teardown so the destructor does
+    // not delete a still-running QThread (pre-existing teardown race).
+    ext.quiesceMeshGenerators();
 
     // calculateMesh MUST run exactly once: one positive + one negative lobe.
     // A double continuation would produce 4 meshes (two orphaned lobes).
