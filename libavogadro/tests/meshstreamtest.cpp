@@ -24,6 +24,8 @@
 #include <QElapsedTimer>
 #include <QScopedPointer>
 #include <QGuiApplication>
+
+#include "glwidgetprofileprobe.h"
 #include <QFile>
 #include <QTextStream>
 #include <QDebug>
@@ -159,6 +161,15 @@ void MeshStreamTest::initTestCase() {
             "skipping mesh streaming perf test", SkipAll);
     probeCtx.makeCurrent(nullptr);
   }
+
+  // Widget-path profile probe (fix-modern-tier-core-profile): the standalone
+  // probe above can resolve Compatibility while the QOpenGLWidget path below
+  // resolves Core (observed on some GLX/Mesa stacks); detect that here so the
+  // forced-legacy widget below never trips its mandated startup fatal.
+  if (glWidgetPathResolvesCoreProfile(fmt))
+    QSKIP("Resolved context is Core profile: the forced legacy tier requires "
+          "Compatibility; covered where a Compatibility context exists",
+          SkipAll);
 
   m_widget.reset(new MeshPaintWidget(fmt));
   m_widget->resize(256, 256);

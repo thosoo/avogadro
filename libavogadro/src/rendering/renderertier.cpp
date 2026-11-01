@@ -268,8 +268,11 @@ RendererTier resolveRendererTier(bool forced, RendererTier requested)
         minor = s_minor;
     if (haveContext && !s_probeValid) {
       // Probe once so the forced diagnostic names the real version.
-      if (probeContextVersion(s_major, s_minor))
+      if (probeContextVersion(s_major, s_minor)) {
         s_probeValid = true;
+        major = s_major;
+        minor = s_minor;
+      }
     }
     return resolveForcedTier(requested, major, minor, ctxProfile, haveContext);
   }
