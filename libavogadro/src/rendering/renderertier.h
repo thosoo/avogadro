@@ -17,6 +17,7 @@
 #define AVOGADRO_RENDERING_RENDERERTIER_H
 
 #include <QString>
+#include <QSurfaceFormat>
 
 namespace Avogadro {
 namespace rendering {
@@ -46,8 +47,36 @@ QString tierName(RendererTier tier);
 //! resolveRendererTier() as a hard failure instead.
 RendererTier requestedRendererTier(bool &forced);
 
-//! Whether the live GL context (must be current) meets the tier's floor.
-bool contextSupportsTier(RendererTier tier);
+//! Whether the live GL context (must be current) meets the tier's floor
+//! AND its profile requirement (design fix-modern-tier-core-profile D2).
+//! The resolved profile is passed in explicitly so the predicate can be unit
+//! tested without a live context; the caller reads it from the current
+//! context. compat/legacy depend on the fixed-function pipeline and are
+//! unavailable on a Core-profile context; the modern tier is version-gated
+//! only (its own draws are core-safe).
+bool contextSupportsTier(RendererTier tier,
+                         QSurfaceFormat::OpenGLContextProfile profile);
+
+//! Pure profile-aware support predicate (design D2): given a resolved GL
+//! version (major, minor) and profile, whether the tier can run. Used both by
+//! contextSupportsTier() (with the cached probed version) and by the unit
+//! test directly. compat/legacy require a non-Core profile; modern only needs
+//! its GL version floor.
+bool tierSupportedAt(int major, int minor,
+                     QSurfaceFormat::OpenGLContextProfile profile,
+                     RendererTier tier);
+
+//! Profile-aware forced-tier resolution (design D2, task 2.3): returns the
+//! requested tier when it can run on the given resolved (major, minor, profile),
+//! else Unavailable, logging the failing constraint (GL floor vs. profile).
+//! A forced legacy request with no live context resolves to Legacy (the always
+//! available escape hatch). This is the pure logic behind the forced-startup
+//! diagnostic; the public resolveRendererTier() reads the profile/version from
+//! the live context and delegates here so it can be unit tested with an
+//! injectable profile (task 2.3).
+RendererTier resolveForcedTier(RendererTier requested, int major, int minor,
+                               QSurfaceFormat::OpenGLContextProfile profile,
+                               bool haveContext);
 
 //! Resolve the tier to run (design D7): an explicitly forced request is
 //! honoured when compiled in and supported, and returns Unavailable otherwise

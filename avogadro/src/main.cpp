@@ -358,12 +358,15 @@ int main(int argc, char *argv[])
     return 0;
   }
 
-  QOpenGLContext testContext;
-  if (!testContext.create()) {
-    QMessageBox::information(0, "Avogadro", "This system does not support OpenGL.");
-    return -1;
-  }
-
+  // Configure the default surface format (GL 3.3 CompatibilityProfile) BEFORE
+  // any OpenGL context is created, so the global share context and every
+  // widget context are born with the requested profile. The early probe below
+  // used to create a context with Qt's built-in 2.0/NoProfile default first;
+  // that poisoned the global share context and later forced widget contexts
+  // onto a Core profile even though CompatibilityProfile was requested
+  // (gpu-rendering-pipeline fix-modern-tier-core-profile D1: an unusable GL
+  // stack now surfaces through the widget's existing invalid-context
+  // diagnostics instead of a modal startup box).
   QSurfaceFormat defFormat = QSurfaceFormat::defaultFormat();
   defFormat.setSamples(4);
   // Request a GL 3.3 compatibility context so the modern instanced rendering

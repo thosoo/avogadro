@@ -159,7 +159,8 @@ class GLPainterPrivate
     GLPainterPrivate() : widget ( 0 ), newQuality(-1), quality ( 0 ), overflow(0),
                          spheres ( 0 ), cylinders ( 0 ),
                          textRenderer ( new TextRenderer ), initialized ( false ), sharing ( 0 ),
-                         type(Primitive::OtherType), id ( -1 ), color(0)  {};
+                         type(Primitive::OtherType), id ( -1 ), color(0),
+                         coreFixedFunctionWarned ( false )  {};
     ~GLPainterPrivate()
     {
       deleteMeshVBOs();
@@ -232,6 +233,19 @@ class GLPainterPrivate
     bool meshVBOWarned = false; // fallback warning emitted at most once (see
                                 // ensureMeshVBO); per-draw re-attempt would
                                 // otherwise flood the log on the fallback path.
+
+    //! Core-profile containment (fix-modern-tier-core-profile D3): true once
+    //! the fixed-function-skip diagnostic has been emitted, so it is logged
+    //! a single time rather than per overlay draw.
+    bool coreFixedFunctionWarned = false;
+
+    //! True when the current context exposes the fixed-function pipeline (a
+    //! non-Core profile). On a Core context the fixed-function entry points
+    //! used by these draws (glBegin/glMaterial/glLight/glEnable(GL_LIGHTING)/
+    //! glVertexPointer) are invalid and raise GL errors every frame, so the
+    //! caller skips the draw after a one-time diagnostic. Returns true when
+    //! there is no current context to inspect (isValid() then governs).
+    bool coreFixedFunctionAvailable();
   };
 
   inline bool GLPainterPrivate::isValid()
@@ -263,6 +277,22 @@ class GLPainterPrivate
       newQuality = -1;
     }
     return true;
+  }
+
+  bool GLPainterPrivate::coreFixedFunctionAvailable()
+  {
+    if (!widget || !widget->context())
+      return true;
+    if (widget->context()->format().profile() != QSurfaceFormat::CoreProfile)
+      return true;
+    if (!coreFixedFunctionWarned) {
+      coreFixedFunctionWarned = true;
+      qInfo().noquote() << "Core-profile OpenGL context: fixed-function GLPainter "
+                       << "draws (axes glyph, surface-mesh flush, text/tool overlays) "
+                       << "skipped; the fixed-function pipeline is removed in GL 3.3 "
+                       << "Core. The modern shader tier renders the molecule normally.";
+    }
+    return false;
   }
 
   bool GLPainterPrivate::ensureMeshVBO(const Mesh &mesh, bool colored,
@@ -584,6 +614,11 @@ class GLPainterPrivate
     if(!d->isValid())
       return;
 
+    // Core-profile containment (D3): skip the fixed-function sphere draw on a
+    // Core context (glMaterial/glBegin are invalid there).
+    if (!d->coreFixedFunctionAvailable())
+      return;
+
     // Default to the minimum detail level for this quality
     int detailLevel = PAINTER_MAX_DETAIL_LEVEL / 3;
 
@@ -608,6 +643,11 @@ class GLPainterPrivate
                                  double radius )
   {
     if(!d->isValid()) { return; }
+
+    // Core-profile containment (D3): skip the fixed-function cylinder draw on a
+    // Core context.
+    if (!d->coreFixedFunctionAvailable())
+      return;
 
     // Default to the minimum detail level for this quality
     int detailLevel = PAINTER_MAX_DETAIL_LEVEL / 3;
@@ -635,6 +675,11 @@ class GLPainterPrivate
                                       double radius, int order, double shift )
   {
     if(!d->isValid()) { return; }
+
+    // Core-profile containment (D3): skip the fixed-function cylinder draw on a
+    // Core context.
+    if (!d->coreFixedFunctionAvailable())
+      return;
 
     // Default to the minimum detail level for this quality
     int detailLevel = PAINTER_MAX_DETAIL_LEVEL / 3;
@@ -664,6 +709,11 @@ class GLPainterPrivate
                            double baseRadius,
                            double)
   {
+    // Core-profile containment (D3): skip the fixed-function cone draw on a
+    // Core context (glBegin/glVertex3dv are invalid there).
+    if (!d->coreFixedFunctionAvailable())
+      return;
+
     const int CONE_TESS_LEVEL = 30;
     // This draws a cone which will be most useful for drawing arrows etc.
     Eigen::Vector3d axis = cap - base;
@@ -716,6 +766,11 @@ class GLPainterPrivate
     // Draw a line between two points of the specified thickness
     if(!d->isValid()) { return; }
 
+    // Core-profile containment (D3): glDisable(GL_LIGHTING) is invalid on a
+    // Core context.
+    if (!d->coreFixedFunctionAvailable())
+      return;
+
     glPushAttrib(GL_LIGHTING_BIT);
     glDisable(GL_LIGHTING);
 
@@ -737,6 +792,11 @@ class GLPainterPrivate
   {
     // Draw multiple lines between two points of the specified thickness
     if(!d->isValid()) { return; }
+
+    // Core-profile containment (D3): glPushMatrix/glMultMatrix/glEnable(GL_LIGHTING)
+    // are invalid on a Core context.
+    if (!d->coreFixedFunctionAvailable())
+      return;
 
     // construct the 4D transformation matrix
     Eigen::Matrix4d matrix;
@@ -809,6 +869,11 @@ class GLPainterPrivate
   {
     if(!d->isValid()) { return; }
 
+    // Core-profile containment (D3): glMaterial/glBegin/glVertex3dv are invalid
+    // on a Core context.
+    if (!d->coreFixedFunctionAvailable())
+      return;
+
     // Sort out the winding order by assigning in the correct order
     Eigen::Vector3d tp2, tp3;
 
@@ -849,6 +914,11 @@ class GLPainterPrivate
   {
     if(!d->isValid()) { return; }
 
+    // Core-profile containment (D3): glBegin/glVertex3dv are invalid on a Core
+    // context.
+    if (!d->coreFixedFunctionAvailable())
+      return;
+
     // Don't want planes to be too shiny.
     d->color.applyAsFlatMaterials();
     d->color.apply();
@@ -865,6 +935,11 @@ class GLPainterPrivate
   {
     // Draw a spline between two points of the specified thickness
     if(!d->isValid()) { return; }
+
+    // Core-profile containment (D3): gluNurbs/glEnable(GL_AUTO_NORMAL) are
+    // invalid on a Core context.
+    if (!d->coreFixedFunctionAvailable())
+      return;
 
     // The first value is repeated three times as is the last in order to complete the curve
     QVector<Eigen::Vector3d> points = pts;
@@ -987,6 +1062,11 @@ class GLPainterPrivate
   {
     assert( d->widget );
 
+    // Core-profile containment (D3): glLoadIdentity/glDisable(GL_LIGHTING) are
+    // invalid on a Core context.
+    if (!d->coreFixedFunctionAvailable())
+      return;
+
     // Get vectors representing the two lines out from the center of the circle.
     Eigen::Vector3d u = direction1 - origin;
     Eigen::Vector3d v = direction2 - origin;
@@ -1078,6 +1158,11 @@ class GLPainterPrivate
   {
     assert( d->widget );
 
+    // Core-profile containment (D3): glLoadIdentity/glDisable(GL_LIGHTING) are
+    // invalid on a Core context.
+    if (!d->coreFixedFunctionAvailable())
+      return;
+
     // Get vectors representing the two lines out from the center of the circle.
     Eigen::Vector3d u = direction1 - origin;
     Eigen::Vector3d v = direction2 - origin;
@@ -1167,6 +1252,11 @@ class GLPainterPrivate
   {
     assert( d->widget );
 
+    // Core-profile containment (D3): glLoadIdentity/glDisable(GL_LIGHTING) are
+    // invalid on a Core context.
+    if (!d->coreFixedFunctionAvailable())
+      return;
+
     glPushAttrib(GL_ALL_ATTRIB_BITS);
     glPushMatrix();
     glLoadIdentity();
@@ -1192,6 +1282,11 @@ class GLPainterPrivate
   {
     assert( d->widget );
 
+    // Core-profile containment (D3): glDisable(GL_LIGHTING) is invalid on a
+    // Core context.
+    if (!d->coreFixedFunctionAvailable())
+      return;
+
     glPushAttrib(GL_LIGHTING_BIT);
     glDisable(GL_LIGHTING);
 
@@ -1212,6 +1307,11 @@ class GLPainterPrivate
                                const double lineWidth)
   {
     assert( d->widget );
+
+    // Core-profile containment (D3): glDisable(GL_LIGHTING) is invalid on a
+    // Core context.
+    if (!d->coreFixedFunctionAvailable())
+      return;
 
     glPushAttrib(GL_LIGHTING_BIT);
     glDisable(GL_LIGHTING);
@@ -1236,6 +1336,10 @@ class GLPainterPrivate
   void GLPainter::drawMesh(const Mesh & mesh, int mode)
   {
     // Now we draw the given mesh to the OpenGL widget
+    // Core-profile containment (D3): client-state entry points (glVertexPointer/
+    // glNormalPointer) and GL_LIGHTING are invalid on a Core context.
+    if (!d->coreFixedFunctionAvailable())
+      return;
     switch (mode)
     {
       case 0:
@@ -1299,6 +1403,10 @@ class GLPainterPrivate
   void GLPainter::drawColorMesh(const Mesh & mesh, int mode)
   {
     // Now we draw the given mesh to the OpenGL widget
+    // Core-profile containment (D3): client-state entry points and GL_LIGHTING
+    // are invalid on a Core context.
+    if (!d->coreFixedFunctionAvailable())
+      return;
     switch (mode)
     {
       case 0:
@@ -1453,6 +1561,11 @@ class GLPainterPrivate
     if (!d->isValid()) {
       return;
     }
+
+    // Core-profile containment (D3): glBegin/glVertex3dv are invalid on a Core
+    // context.
+    if (!d->coreFixedFunctionAvailable())
+      return;
 
     glPushAttrib(GL_LIGHTING_BIT);
     glDisable(GL_LIGHTING);

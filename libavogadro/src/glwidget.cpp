@@ -713,20 +713,35 @@ GLWidget::GLWidget( Molecule *molecule,
     // GL 3.3 CompatibilityProfile context; note it emits GL_INVALID_ENUM on a
     // Core context, so the D3 drain in ModernRendererBackend::drawInstances()
     // clears it before the cylinder check (see design.md D2).
-    glEnable( GL_LIGHTING );
+    //
+    // Core-profile containment (fix-modern-tier-core-profile D3): on a resolved
+    // Core context the fixed-function lighting enums are invalid, so skipping
+    // this block avoids the per-frame GL_INVALID_ENUM. The trade-off is that
+    // the fixed-function-only consumers listed below render degraded (unlit /
+    // unshaded) rather than corrupt; the modern tier, which runs on a Core
+    // context, is unaffected because it lights its own shaders.
+    if (fmt.profile() == QSurfaceFormat::CoreProfile) {
+      qInfo().noquote() << "Core-profile OpenGL context: fixed-function lighting "
+                           "init skipped (GL enums invalid on Core). Degraded "
+                           "fixed-function consumers: axes navigation glyph, text "
+                           "overlays, active-tool overlay, legacy mesh flush. The "
+                           "modern shader tier renders normally on this context.";
+    } else {
+      glEnable( GL_LIGHTING );
 
-    glLightfv( GL_LIGHT0, GL_AMBIENT, LIGHT_AMBIENT );
-    glLightfv( GL_LIGHT0, GL_DIFFUSE, LIGHT0_DIFFUSE );
-    glLightfv( GL_LIGHT0, GL_SPECULAR, LIGHT0_SPECULAR );
-    glLightfv( GL_LIGHT0, GL_POSITION, LIGHT0_POSITION );
-    glEnable( GL_LIGHT0 );
+      glLightfv( GL_LIGHT0, GL_AMBIENT, LIGHT_AMBIENT );
+      glLightfv( GL_LIGHT0, GL_DIFFUSE, LIGHT0_DIFFUSE );
+      glLightfv( GL_LIGHT0, GL_SPECULAR, LIGHT0_SPECULAR );
+      glLightfv( GL_LIGHT0, GL_POSITION, LIGHT0_POSITION );
+      glEnable( GL_LIGHT0 );
 
-    // Create a second light source to illuminate those shadows a little better
-    glLightfv( GL_LIGHT1, GL_AMBIENT, LIGHT_AMBIENT );
-    glLightfv( GL_LIGHT1, GL_DIFFUSE, LIGHT1_DIFFUSE );
-    glLightfv( GL_LIGHT1, GL_SPECULAR, LIGHT1_SPECULAR );
-    glLightfv( GL_LIGHT1, GL_POSITION, LIGHT1_POSITION );
-    glEnable( GL_LIGHT1 );
+      // Create a second light source to illuminate those shadows a little better
+      glLightfv( GL_LIGHT1, GL_AMBIENT, LIGHT_AMBIENT );
+      glLightfv( GL_LIGHT1, GL_DIFFUSE, LIGHT1_DIFFUSE );
+      glLightfv( GL_LIGHT1, GL_SPECULAR, LIGHT1_SPECULAR );
+      glLightfv( GL_LIGHT1, GL_POSITION, LIGHT1_POSITION );
+      glEnable( GL_LIGHT1 );
+    }
 
     // Modern-tier backend (gpu-rendering-pipeline task 2.4). The instanced
     // geometry VAOs, shaders and instance VBOs are GPU objects bound to this
