@@ -59,7 +59,7 @@ greeter-display method used during diagnosis).
       click / draw stroke / right-click delete behave; on a forced-core run (if
       reproducible), 2.3/3.1 diagnostics appear and nothing renders corrupt. Verify:
       screenshots + logs attached to the session.
-- [ ] 4.3 Windows behavior unchanged: CI `Windows Installer` workflow green (the reorder
+- [x] 4.3 Windows behavior unchanged: CI `Windows Installer` workflow green (the reorder
       touches the shared startup path; MSVC must compile it). Verify:
       `gh workflow run 168745168 --ref <branch> --repo thosoo/avogadro` and watch the
       run.
@@ -111,7 +111,10 @@ greeter-display method used during diagnosis).
   the passing picking/tool test suites on both stacks.
 - **4.3** Windows Installer run 41332587489 green on the first commit of this branch
   (validates MSVC compile of the core changes); re-dispatched per task on each
-  subsequent code commit — final-commit run 41346998329 is the merge gate.
+  subsequent code commit — final-commit run 41346998329 is the merge gate:
+  **completed success (57m58s)**, installer packaging + full Windows test suite green.
+  Linux Qt6 CI on the same final code: run 41346990696 **completed success (40m25s)**
+  — the Core-resolving-runner GL tests now skip honestly instead of aborting.
 - **4.4** Second reviewer pass on the complete final diff: verdict **OK, no blockers**,
   3 CONCERN + 3 NIT findings, all applied in b70e3a619 (legacy gated in the default
   tier loop; glShadeModel/GL_NORMALIZE moved into the non-Core branch; per-frame
