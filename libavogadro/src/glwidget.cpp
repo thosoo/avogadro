@@ -723,9 +723,13 @@ GLWidget::GLWidget( Molecule *molecule,
     if (fmt.profile() == QSurfaceFormat::CoreProfile) {
       qInfo().noquote() << "Core-profile OpenGL context: fixed-function lighting "
                            "init skipped (GL enums invalid on Core). Degraded "
-                           "fixed-function consumers: axes navigation glyph, text "
-                           "overlays, active-tool overlay, legacy mesh flush. The "
-                           "modern shader tier renders normally on this context.";
+                           "fixed-function consumers are skipped here (not corrupt): "
+                           "axes navigation glyph, text overlays, active-tool "
+                           "overlay, legacy mesh flush. The modern shader tier "
+                           "runs, but its camera matrices still come from the GL "
+                           "matrix stack, which is dead on Core, so geometry may "
+                           "render displaced until the camera is decoupled from "
+                           "the stack (documented follow-up).";
     } else {
       glEnable( GL_LIGHTING );
 
@@ -2647,6 +2651,15 @@ namespace Avogadro {
 
   void GLWidget::renderAxesOverlay()
   {
+    // Core-profile containment (fix-modern-tier-core-profile D3): the glyph
+    // preamble uses the fixed-function matrix stack (glMatrixMode/glOrtho/
+    // glLoadIdentity), which is invalid on a resolved Core context. Skip the
+    // whole overlay on Core so it does not raise GL errors every frame; the
+    // modern tier renders without this fixed-function overlay.
+    if (context() &&
+        context()->format().profile() == QSurfaceFormat::CoreProfile)
+      return;
+
     // Render x, y, z axes as an overlay on the widget
     // Save the opengl projection matrix and set up an orthogonal projection
     glMatrixMode(GL_PROJECTION);

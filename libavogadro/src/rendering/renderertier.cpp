@@ -145,6 +145,11 @@ RendererTier requestedRendererTier(bool &forced)
   return RendererTier::Modern;
 }
 
+//! GL floor check helper (defined below): true when (major,minor) meets a
+//! (floorMajor,floorMinor) floor. Forward-declared here so tierSupportedAt()
+//! shares the single implementation resolveForcedTier() also uses.
+bool versionMeetsFloor(int major, int minor, int floorMajor, int floorMinor);
+
 bool tierSupportedAt(int major, int minor,
                      QSurfaceFormat::OpenGLContextProfile profile,
                      RendererTier tier)
@@ -153,8 +158,7 @@ bool tierSupportedAt(int major, int minor,
   int floorMinor = 0;
   tierGlFloor(tier, floorMajor, floorMinor);
 
-  const bool versionOk = (major > floorMajor) ||
-                         (major == floorMajor && minor >= floorMinor);
+  const bool versionOk = versionMeetsFloor(major, minor, floorMajor, floorMinor);
   if (!versionOk)
     return false;
 
@@ -210,11 +214,15 @@ RendererTier resolveForcedTier(RendererTier requested, int major, int minor,
     return RendererTier::Unavailable;
   }
 
-  // A forced legacy request with no live context resolves to Legacy: it is the
-  // escape hatch that needs no probe (no GL floor, and the unit test runs
-  // without a context). When a context IS current, legacy is gated by profile
-  // like compat (design D2).
-  if (requested == RendererTier::Legacy && !haveContext)
+  // Legacy is the always-available escape hatch: it has no GL floor and runs
+  // on any fixed-function context. Honour it when there is no live context, or
+  // when the context's version could not be probed (major/minor still 0 --
+  // e.g. a broken driver whose GL_VERSION is unreadable), so a forced legacy
+  // still starts rather than qFatalling on exactly the broken GL the hatch
+  // exists for. When the version IS probed, legacy is then gated by profile
+  // like compat (design D2): a probed Core context cannot run it.
+  if (requested == RendererTier::Legacy &&
+      (!haveContext || (major == 0 && minor == 0)))
     return requested;
 
   if (tierSupportedAt(major, minor, profile, requested))

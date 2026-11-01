@@ -218,8 +218,12 @@ void RendererTierTest::forcedTierProfileDiagnostic()
            RendererTier::Unavailable);
 
   // Forced modern on the same Core context proceeds (core-safe, version met).
-  QCOMPARE(resolveForcedTier(RendererTier::Modern, 4, 6, P::CoreProfile, true),
-           RendererTier::Modern);
+  // Skip on builds where the modern tier is compiled out (macOS), where this
+  // assertion would otherwise fail.
+  if (tierCompiledIn(RendererTier::Modern)) {
+    QCOMPARE(resolveForcedTier(RendererTier::Modern, 4, 6, P::CoreProfile, true),
+             RendererTier::Modern);
+  }
 
   // Forced legacy on a compatibility profile runs.
   QCOMPARE(resolveForcedTier(RendererTier::Legacy, 4, 6, P::CompatibilityProfile, true),

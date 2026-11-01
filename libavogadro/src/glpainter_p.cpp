@@ -1484,6 +1484,13 @@ class GLPainterPrivate
   int GLPainter::drawText ( int x, int y, const QString &string )
   {
     if(!d->isValid()) { return 0; }
+
+    // Core-profile containment (D3): the text renderer issues fixed-function
+    // calls (glMatrixMode/glOrtho/glBegin) that are invalid on a Core context,
+    // so skip the draw after a one-time diagnostic instead of raising GL
+    // errors every frame.
+    if (!d->coreFixedFunctionAvailable())
+      return 0;
     d->textRenderer->begin ( d->widget );
     int val = d->textRenderer->draw ( x, y, string );
 
@@ -1495,6 +1502,10 @@ class GLPainterPrivate
   {
     assert( d->widget );
     if(!d->isValid()) { return 0; }
+
+    // Core-profile containment (D3): fixed-function text draw, skipped on Core.
+    if (!d->coreFixedFunctionAvailable())
+      return 0;
     d->textRenderer->begin( d->widget );
     d->textRenderer->draw ( pos.x(), pos.y(), string );
     d->textRenderer->end( );
@@ -1504,6 +1515,10 @@ class GLPainterPrivate
   int GLPainter::drawText ( const Eigen::Vector3d &pos, const QString &string )
   {
     if(!d->isValid()) { return 0; }
+
+    // Core-profile containment (D3): fixed-function text draw, skipped on Core.
+    if (!d->coreFixedFunctionAvailable())
+      return 0;
     d->textRenderer->begin ( d->widget );
     int val = d->textRenderer->draw ( pos, string );
     d->textRenderer->end( );
@@ -1513,6 +1528,11 @@ class GLPainterPrivate
   int GLPainter::drawText(const Eigen::Vector3d &pos, const QString &string, const QFont &font)
   {
     if(!d->isValid()) { return 0; }
+
+    // Core-profile containment (D3): GLWidget::renderText uses the fixed-function
+    // matrix stack (glMatrixMode/glOrtho), invalid on a Core context, so skip.
+    if (!d->coreFixedFunctionAvailable())
+      return 0;
     d->widget->renderText(pos.x(), pos.y(), pos.z(), string, font);
     return 0;
   }
