@@ -178,13 +178,14 @@ public:
   //! EBO sets are deleted and recreated. No-op when the level is unchanged.
   void setDetailLevel(LodLevel level);
 
-  //! Current tessellation level (A_EXPORT-ed test getter; task 4.1).
-  A_EXPORT LodLevel detailLevel() const;
+  //! Current tessellation level (test getter; task 4.1). Exported by the
+  //! class-level A_EXPORT — a member-level A_EXPORT here is C2487 on MSVC.
+  LodLevel detailLevel() const;
 
-  //! Number of indices in the current unit-sphere geometry (A_EXPORT-ed test
-  //! getter; task 4.1). Grows with the tessellation level, so a test can
-  //! confirm setDetailLevel() actually rebuilt the geometry, not just the enum.
-  A_EXPORT int sphereIndexCount() const;
+  //! Number of indices in the current unit-sphere geometry (test getter;
+  //! task 4.1). Grows with the tessellation level, so a test can confirm
+  //! setDetailLevel() actually rebuilt the geometry, not just the enum.
+  int sphereIndexCount() const;
 
 private:
   template <typename T>
