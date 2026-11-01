@@ -63,7 +63,7 @@ greeter-display method used during diagnosis).
       touches the shared startup path; MSVC must compile it). Verify:
       `gh workflow run 168745168 --ref <branch> --repo thosoo/avogadro` and watch the
       run.
-- [ ] 4.4 Run the `reviewer` subagent on the complete diff (startup ordering + GL state
+- [x] 4.4 Run the `reviewer` subagent on the complete diff (startup ordering + GL state
       handling are regression-sensitive). Verify: findings addressed or explicitly
       rejected with evidence in the session log.
 
@@ -110,10 +110,12 @@ greeter-display method used during diagnosis).
   functional). Interactive bond-click/draw/delete not exercised remotely; covered by
   the passing picking/tool test suites on both stacks.
 - **4.3** Windows Installer run 41332587489 green on the first commit of this branch
-  (validates MSVC compile of the core changes); re-dispatched on the final commit
-  (run 41344811995) — pending at checkbox-flip time.
-- **4.4** First reviewer pass (verdict OK-with-notes) on the initial diff; all six
-  findings applied (drawText/axes guards, honest diagnostic wording, forced-legacy
-  escape hatch, shared floor helper, macOS QSKIP). A second reviewer pass on the
-  complete final diff (including main.cpp-before-QApplication reorder, forced-tier
-  stale-copy fix, test skips) runs before completion.
+  (validates MSVC compile of the core changes); re-dispatched per task on each
+  subsequent code commit — final-commit run 41346998329 is the merge gate.
+- **4.4** Second reviewer pass on the complete final diff: verdict **OK, no blockers**,
+  3 CONCERN + 3 NIT findings, all applied in b70e3a619 (legacy gated in the default
+  tier loop; glShadeModel/GL_NORMALIZE moved into the non-Core branch; per-frame
+  matrix-stack uploads skipped on Core; probeContextVersion context guard; unused
+  includes dropped) — full suite re-verified 40/40 under xvfb afterwards. First-pass
+  findings (drawText/axes guards, honest diagnostic wording, forced-legacy escape
+  hatch, shared floor helper, macOS QSKIP) were applied earlier in cbdafdbd7.
