@@ -38,7 +38,6 @@
 #include <QTranslator>
 #include <QSurfaceFormat>
 #include <QGuiApplication>
-#include <QOpenGLContext>
 #include <QDebug>
 #include <QLibraryInfo>
 #include <QProcess>

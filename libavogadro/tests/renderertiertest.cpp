@@ -9,7 +9,6 @@
  *****************************************************************/
 
 #include <QtTest>
-#include <QScopedValueRollback>
 
 #include "libavogadro/src/rendering/renderertier.h"
 

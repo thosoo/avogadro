@@ -43,6 +43,10 @@ int leadingInt(const QString &s)
 //! Returns false when no context is current or the string is unparsable.
 bool probeContextVersion(int &major, int &minor)
 {
+  // No GL call may be issued without a current context (latent-defence review
+  // finding): callers today guarantee one, but make the helper safe standalone.
+  if (!QOpenGLContext::currentContext())
+    return false;
   // glGetString is declared by the Qt OpenGL headers; the returned GLubyte*
   // is just a NUL-terminated ASCII string, so take it as const char*.
   const char *versionStr =
@@ -295,12 +299,16 @@ RendererTier resolveRendererTier(bool forced, RendererTier requested)
       : QSurfaceFormat::NoProfile;
 
   for (RendererTier tier : order) {
-    if (tierCompiledIn(tier) &&
-        (tier == RendererTier::Legacy ||
-         contextSupportsTier(tier, ctxProfile)))
+    // Every tier — legacy included — goes through the same support gate
+    // (review finding): a Legacy bypass here silently selected the
+    // fixed-function legacy tier on GL 3.2 Core contexts, where its per-frame
+    // path would raise GL errors while rendering nothing. Contexts that
+    // cannot serve any tier fall through to the loud Unavailable path below.
+    if (tierCompiledIn(tier) && contextSupportsTier(tier, ctxProfile))
       return tier;
   }
-  // LEGACY compiled out too: nothing renderable remains.
+  // Nothing renderable remains (legacy compiled out, or the context serves
+  // no compiled-in tier).
   return RendererTier::Unavailable;
 }
 
