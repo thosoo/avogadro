@@ -9,17 +9,18 @@
  *****************************************************************/
 
 #include <QtTest>
-#include <QScopedValueRollback>
 
 #include "libavogadro/src/rendering/renderertier.h"
 
 using namespace Avogadro;
 using rendering::RendererTier;
 using rendering::requestedRendererTier;
+using rendering::resolveForcedTier;
 using rendering::resolveRendererTier;
 using rendering::tierCompiledIn;
 using rendering::tierGlFloor;
 using rendering::tierName;
+using rendering::tierSupportedAt;
 
 namespace {
 
@@ -63,6 +64,8 @@ private Q_SLOTS:
   void tierNamesMatchOverrideSpellings();
   void legacyResolvesWithoutContext();
   void floorsMatchDesign();
+  void profileAwareTierSupport();
+  void forcedTierProfileDiagnostic();
 
 private:
   // The forced-legacy resolution path never probes the context, so these run
@@ -169,6 +172,69 @@ void RendererTierTest::floorsMatchDesign()
   QCOMPARE(minor, 0);
   tierGlFloor(RendererTier::Legacy, major, minor);
   QVERIFY(major <= 1 && minor == 0);
+}
+
+// Design fix-modern-tier-core-profile D2 / task 2.2: the profile-aware
+// predicate. A Core context cannot run the fixed-function compat/legacy tiers,
+// but the modern (shader) tier is core-safe; and the version floor still
+// applies to every tier.
+void RendererTierTest::profileAwareTierSupport()
+{
+  using P = QSurfaceFormat::OpenGLContextProfile;
+
+  // A high-version Core context: modern runs, compat and legacy do not.
+  QVERIFY(tierSupportedAt(4, 6, P::CoreProfile, RendererTier::Modern));
+  QVERIFY(!tierSupportedAt(4, 6, P::CoreProfile, RendererTier::Compat));
+  QVERIFY(!tierSupportedAt(4, 6, P::CoreProfile, RendererTier::Legacy));
+
+  // The same version with a compatibility profile: every tier runs.
+  QVERIFY(tierSupportedAt(4, 6, P::CompatibilityProfile, RendererTier::Modern));
+  QVERIFY(tierSupportedAt(4, 6, P::CompatibilityProfile, RendererTier::Compat));
+  QVERIFY(tierSupportedAt(4, 6, P::CompatibilityProfile, RendererTier::Legacy));
+
+  // The version floor still gates the modern tier on a Core context.
+  QVERIFY(!tierSupportedAt(3, 2, P::CompatibilityProfile, RendererTier::Modern));
+  QVERIFY(tierSupportedAt(3, 3, P::CompatibilityProfile, RendererTier::Modern));
+
+  // Below the compat floor, nothing runs.
+  QVERIFY(!tierSupportedAt(1, 9, P::CompatibilityProfile, RendererTier::Compat));
+}
+
+// Design fix-modern-tier-core-profile D2 / task 2.3: forced-tier resolution on
+// a Core-resolving context fails loudly with the profile reason instead of
+// silently degrading, while a core-safe forced modern tier proceeds.
+void RendererTierTest::forcedTierProfileDiagnostic()
+{
+  using P = QSurfaceFormat::OpenGLContextProfile;
+
+  // Forced legacy on a Core context cannot run (fixed-function path needs a
+  // non-Core profile): Unavailable, not a silent fallback.
+  QCOMPARE(resolveForcedTier(RendererTier::Legacy, 4, 6, P::CoreProfile, true),
+           RendererTier::Unavailable);
+
+  // Forced compat on a Core context also cannot run.
+  QCOMPARE(resolveForcedTier(RendererTier::Compat, 4, 6, P::CoreProfile, true),
+           RendererTier::Unavailable);
+
+  // Forced modern on the same Core context proceeds (core-safe, version met).
+  // Skip on builds where the modern tier is compiled out (macOS), where this
+  // assertion would otherwise fail.
+  if (tierCompiledIn(RendererTier::Modern)) {
+    QCOMPARE(resolveForcedTier(RendererTier::Modern, 4, 6, P::CoreProfile, true),
+             RendererTier::Modern);
+  }
+
+  // Forced legacy on a compatibility profile runs.
+  QCOMPARE(resolveForcedTier(RendererTier::Legacy, 4, 6, P::CompatibilityProfile, true),
+           RendererTier::Legacy);
+
+  // Forced legacy with no live context resolves to Legacy (escape hatch).
+  QCOMPARE(resolveForcedTier(RendererTier::Legacy, 0, 0, P::NoProfile, false),
+           RendererTier::Legacy);
+
+  // Below the GL floor, even a compatibility profile cannot run compat.
+  QCOMPARE(resolveForcedTier(RendererTier::Compat, 1, 4, P::CompatibilityProfile, true),
+           RendererTier::Unavailable);
 }
 
 #include "renderertiertest.moc"

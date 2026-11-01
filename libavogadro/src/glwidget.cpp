@@ -703,30 +703,43 @@ GLWidget::GLWidget( Molecule *molecule,
     //  glBlendFunc(GL_ONE, GL_ONE);
     glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
 
-    glEnable( GL_NORMALIZE );
+    if (fmt.profile() == QSurfaceFormat::CoreProfile) {
+      qInfo().noquote() << "Core-profile OpenGL context: fixed-function lighting "
+                           "init skipped (GL enums invalid on Core). Degraded "
+                           "fixed-function consumers are skipped here (not corrupt): "
+                           "axes navigation glyph, text overlays, active-tool "
+                           "overlay, legacy mesh flush. The modern shader tier "
+                           "runs, but its camera matrices still come from the GL "
+                           "matrix stack, which is dead on Core, so geometry may "
+                           "render displaced until the camera is decoupled from "
+                           "the stack (documented follow-up).";
+    } else {
+      // Fixed-function-only state (review finding: glShadeModel and
+      // GL_NORMALIZE are removed in GL 3.3 Core just like the lighting enums,
+      // so they belong inside the non-Core branch). The fixed-function
+      // lighting state follows: the legacy GLPainter (and the compat tier)
+      // enable lighting themselves but rely on these ambient/diffuse/specular/
+      // position values set here; removing them would darken the legacy render
+      // (GL's default ambient is black) and break modern-vs-legacy visual
+      // parity, so this block is retained (D2 revert-and-keep clause). It is
+      // valid on a GL 3.3 CompatibilityProfile context.
+      glShadeModel( GL_SMOOTH );
+      glEnable( GL_NORMALIZE );
+      glEnable( GL_LIGHTING );
 
-    // Fixed-function lighting state. The legacy GLPainter (and the compat tier)
-    // enable lighting themselves but rely on these ambient/diffuse/specular/
-    // position values set here; removing them would darken the legacy render
-    // (GL's default ambient is black) and break modern-vs-legacy visual parity,
-    // so this block is retained (D2 revert-and-keep clause). It is valid on a
-    // GL 3.3 CompatibilityProfile context; note it emits GL_INVALID_ENUM on a
-    // Core context, so the D3 drain in ModernRendererBackend::drawInstances()
-    // clears it before the cylinder check (see design.md D2).
-    glEnable( GL_LIGHTING );
+      glLightfv( GL_LIGHT0, GL_AMBIENT, LIGHT_AMBIENT );
+      glLightfv( GL_LIGHT0, GL_DIFFUSE, LIGHT0_DIFFUSE );
+      glLightfv( GL_LIGHT0, GL_SPECULAR, LIGHT0_SPECULAR );
+      glLightfv( GL_LIGHT0, GL_POSITION, LIGHT0_POSITION );
+      glEnable( GL_LIGHT0 );
 
-    glLightfv( GL_LIGHT0, GL_AMBIENT, LIGHT_AMBIENT );
-    glLightfv( GL_LIGHT0, GL_DIFFUSE, LIGHT0_DIFFUSE );
-    glLightfv( GL_LIGHT0, GL_SPECULAR, LIGHT0_SPECULAR );
-    glLightfv( GL_LIGHT0, GL_POSITION, LIGHT0_POSITION );
-    glEnable( GL_LIGHT0 );
-
-    // Create a second light source to illuminate those shadows a little better
-    glLightfv( GL_LIGHT1, GL_AMBIENT, LIGHT_AMBIENT );
-    glLightfv( GL_LIGHT1, GL_DIFFUSE, LIGHT1_DIFFUSE );
-    glLightfv( GL_LIGHT1, GL_SPECULAR, LIGHT1_SPECULAR );
-    glLightfv( GL_LIGHT1, GL_POSITION, LIGHT1_POSITION );
-    glEnable( GL_LIGHT1 );
+      // Create a second light source to illuminate those shadows a little better
+      glLightfv( GL_LIGHT1, GL_AMBIENT, LIGHT_AMBIENT );
+      glLightfv( GL_LIGHT1, GL_DIFFUSE, LIGHT1_DIFFUSE );
+      glLightfv( GL_LIGHT1, GL_SPECULAR, LIGHT1_SPECULAR );
+      glLightfv( GL_LIGHT1, GL_POSITION, LIGHT1_POSITION );
+      glEnable( GL_LIGHT1 );
+    }
 
     // Modern-tier backend (gpu-rendering-pipeline task 2.4). The instanced
     // geometry VAOs, shaders and instance VBOs are GPU objects bound to this
@@ -776,10 +789,11 @@ GLWidget::GLWidget( Molecule *molecule,
                "Avogadro choose a supported tier.",
                qPrintable(rendering::tierName(requestedTier)));
       } else {
-        qFatal("No rendering tier can run on this system: the compiled-in tiers "
-               "do not support this OpenGL context and the legacy tier is not "
-               "part of this build (AVO_RENDERER_LEGACY). Rebuild with "
-               "AVO_RENDERER_LEGACY=ON or update the OpenGL driver.");
+        qFatal("No rendering tier can run on this OpenGL context: the modern "
+               "tier needs GL 3.3, and the fixed-function compat/legacy tiers "
+               "cannot run on a Core-profile context. Update the OpenGL "
+               "driver to one that offers a compatibility profile (or GL 3.3 "
+               "or newer).");
       }
     }
 
@@ -835,15 +849,23 @@ GLWidget::GLWidget( Molecule *molecule,
     resizeGL(width(), height()); // fix for bug #1797069. don't remove!
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
-    // setup the OpenGL projection matrix using the camera
-    glMatrixMode( GL_PROJECTION );
-    glLoadIdentity();
-    d->camera->applyProjection();
+    // Core-profile containment (fix-modern-tier-core-profile 3.1): the
+    // fixed-function matrix stack does not exist on a Core context, so the
+    // per-frame camera upload is skipped there instead of raising per-frame
+    // GL_INVALID_ENUM (the modern backend's draw-path error isolation drains
+    // whatever stale state remains). The residual identity-transform rendering
+    // on Core is the documented Camera-decoupling follow-up.
+    if (context()->format().profile() != QSurfaceFormat::CoreProfile) {
+      // setup the OpenGL projection matrix using the camera
+      glMatrixMode( GL_PROJECTION );
+      glLoadIdentity();
+      d->camera->applyProjection();
 
-    // setup the OpenGL modelview matrix using the camera
-    glMatrixMode( GL_MODELVIEW );
-    glLoadIdentity();
-    d->camera->applyModelview();
+      // setup the OpenGL modelview matrix using the camera
+      glMatrixMode( GL_MODELVIEW );
+      glLoadIdentity();
+      d->camera->applyModelview();
+    }
 
     render();
   }
@@ -2632,6 +2654,15 @@ namespace Avogadro {
 
   void GLWidget::renderAxesOverlay()
   {
+    // Core-profile containment (fix-modern-tier-core-profile D3): the glyph
+    // preamble uses the fixed-function matrix stack (glMatrixMode/glOrtho/
+    // glLoadIdentity), which is invalid on a resolved Core context. Skip the
+    // whole overlay on Core so it does not raise GL errors every frame; the
+    // modern tier renders without this fixed-function overlay.
+    if (context() &&
+        context()->format().profile() == QSurfaceFormat::CoreProfile)
+      return;
+
     // Render x, y, z axes as an overlay on the widget
     // Save the opengl projection matrix and set up an orthogonal projection
     glMatrixMode(GL_PROJECTION);

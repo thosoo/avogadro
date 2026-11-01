@@ -9,6 +9,9 @@
 // qopenglfunctions.h pulls in qopengl.h, which includes the system GL headers
 // and exposes the legacy entry points (glGetString) in the global namespace.
 #include <QOpenGLFunctions>
+// QOpenGLContext::currentContext() (used to read the resolved profile for the
+// profile-aware tier check, design fix-modern-tier-core-profile D2).
+#include <QOpenGLContext>
 
 namespace Avogadro {
 namespace rendering {
@@ -40,6 +43,10 @@ int leadingInt(const QString &s)
 //! Returns false when no context is current or the string is unparsable.
 bool probeContextVersion(int &major, int &minor)
 {
+  // No GL call may be issued without a current context (latent-defence review
+  // finding): callers today guarantee one, but make the helper safe standalone.
+  if (!QOpenGLContext::currentContext())
+    return false;
   // glGetString is declared by the Qt OpenGL headers; the returned GLubyte*
   // is just a NUL-terminated ASCII string, so take it as const char*.
   const char *versionStr =
@@ -142,7 +149,34 @@ RendererTier requestedRendererTier(bool &forced)
   return RendererTier::Modern;
 }
 
-bool contextSupportsTier(RendererTier tier)
+//! GL floor check helper (defined below): true when (major,minor) meets a
+//! (floorMajor,floorMinor) floor. Forward-declared here so tierSupportedAt()
+//! shares the single implementation resolveForcedTier() also uses.
+bool versionMeetsFloor(int major, int minor, int floorMajor, int floorMinor);
+
+bool tierSupportedAt(int major, int minor,
+                     QSurfaceFormat::OpenGLContextProfile profile,
+                     RendererTier tier)
+{
+  int floorMajor = 0;
+  int floorMinor = 0;
+  tierGlFloor(tier, floorMajor, floorMinor);
+
+  const bool versionOk = versionMeetsFloor(major, minor, floorMajor, floorMinor);
+  if (!versionOk)
+    return false;
+
+  // The modern tier draws with shaders and is core-safe, so it only needs its
+  // GL version floor. compat/legacy use the fixed-function pipeline
+  // (glMaterial/glLight/glMatrixMode), which is removed in the Core profile,
+  // so they are unavailable on a Core-profile context (design D2).
+  if (tier == RendererTier::Modern)
+    return true;
+  return profile != QSurfaceFormat::CoreProfile;
+}
+
+bool contextSupportsTier(RendererTier tier,
+                         QSurfaceFormat::OpenGLContextProfile profile)
 {
   if (!s_probeValid) {
     if (!probeContextVersion(s_major, s_minor))
@@ -150,11 +184,72 @@ bool contextSupportsTier(RendererTier tier)
     s_probeValid = true;
   }
 
+  return tierSupportedAt(s_major, s_minor, profile, tier);
+}
+
+//! Profile label for diagnostics: "Core" vs "Compatibility"/"NoProfile".
+const char *profileLabel(QSurfaceFormat::OpenGLContextProfile profile)
+{
+  switch (profile) {
+    case QSurfaceFormat::CoreProfile:
+      return "Core";
+    case QSurfaceFormat::CompatibilityProfile:
+      return "Compatibility";
+    default:
+      return "NoProfile";
+  }
+}
+
+//! GL floor check helper, shared by tierSupportedAt() and resolveForcedTier().
+bool versionMeetsFloor(int major, int minor, int floorMajor, int floorMinor)
+{
+  return (major > floorMajor) || (major == floorMajor && minor >= floorMinor);
+}
+
+RendererTier resolveForcedTier(RendererTier requested, int major, int minor,
+                               QSurfaceFormat::OpenGLContextProfile profile,
+                               bool haveContext)
+{
+  if (!tierCompiledIn(requested)) {
+    qWarning().noquote() << kRendererEnv << "requested the" << tierName(requested)
+                         << "tier but it was compiled out of this build"
+                         << " (AVO_RENDERER_* CMake options).";
+    // Caller turns Unavailable into a clear startup failure (design D7).
+    return RendererTier::Unavailable;
+  }
+
+  // Legacy is the always-available escape hatch: it has no GL floor and runs
+  // on any fixed-function context. Honour it when there is no live context, or
+  // when the context's version could not be probed (major/minor still 0 --
+  // e.g. a broken driver whose GL_VERSION is unreadable), so a forced legacy
+  // still starts rather than qFatalling on exactly the broken GL the hatch
+  // exists for. When the version IS probed, legacy is then gated by profile
+  // like compat (design D2): a probed Core context cannot run it.
+  if (requested == RendererTier::Legacy &&
+      (!haveContext || (major == 0 && minor == 0)))
+    return requested;
+
+  if (tierSupportedAt(major, minor, profile, requested))
+    return requested;
+
+  // Failed to honour the forced tier: name the failing constraint so the field
+  // report is attributable (design D2). Either the context is below the tier's
+  // GL floor, or the resolved profile cannot serve the fixed-function path that
+  // compat/legacy require on a Core context.
   int floorMajor = 0;
   int floorMinor = 0;
-  tierGlFloor(tier, floorMajor, floorMinor);
-  return (s_major > floorMajor) ||
-         (s_major == floorMajor && s_minor >= floorMinor);
+  tierGlFloor(requested, floorMajor, floorMinor);
+  if (!versionMeetsFloor(major, minor, floorMajor, floorMinor)) {
+    qWarning().noquote() << kRendererEnv << "requested the" << tierName(requested)
+                         << "tier but this context is below its GL floor (needs GL"
+                         << QStringLiteral("%1.%2).").arg(floorMajor).arg(floorMinor);
+  } else {
+    qWarning().noquote() << kRendererEnv << "requested the" << tierName(requested)
+                         << "tier but the resolved context profile ("
+                         << profileLabel(profile) << ") does not support the "
+                         << "fixed-function path this tier requires.";
+  }
+  return RendererTier::Unavailable;
 }
 
 RendererTier resolveRendererTier(bool forced, RendererTier requested)
@@ -164,22 +259,26 @@ RendererTier resolveRendererTier(bool forced, RendererTier requested)
                                  RendererTier::Legacy };
 
   if (forced) {
-    if (tierCompiledIn(requested)) {
-      if (requested == RendererTier::Legacy || contextSupportsTier(requested))
-        return requested;
-      int floorMajor = 0;
-      int floorMinor = 0;
-      tierGlFloor(requested, floorMajor, floorMinor);
-      qWarning().noquote() << kRendererEnv << "requested the" << tierName(requested)
-                           << "tier but this context is below its GL floor (needs GL"
-                           << QStringLiteral("%1.%2).").arg(floorMajor).arg(floorMinor);
-    } else {
-      qWarning().noquote() << kRendererEnv << "requested the" << tierName(requested)
-                           << "tier but it was compiled out of this build"
-                              " (AVO_RENDERER_* CMake options).";
+    // Read the resolved context version + profile and delegate to the pure
+    // forced resolver (design D2, task 2.3).
+    const bool haveContext =
+      QOpenGLContext::currentContext() &&
+      QOpenGLContext::currentContext()->isValid();
+    const QSurfaceFormat::OpenGLContextProfile ctxProfile =
+      haveContext
+        ? QOpenGLContext::currentContext()->format().profile()
+        : QSurfaceFormat::NoProfile;
+    int major = s_major,
+        minor = s_minor;
+    if (haveContext && !s_probeValid) {
+      // Probe once so the forced diagnostic names the real version.
+      if (probeContextVersion(s_major, s_minor)) {
+        s_probeValid = true;
+        major = s_major;
+        minor = s_minor;
+      }
     }
-    // Caller turns Unavailable into a clear startup failure (design D7).
-    return RendererTier::Unavailable;
+    return resolveForcedTier(requested, major, minor, ctxProfile, haveContext);
   }
 
 #ifdef Q_OS_MAC
@@ -188,12 +287,28 @@ RendererTier resolveRendererTier(bool forced, RendererTier requested)
   return RendererTier::Legacy;
 #endif
 
+  // Resolve the live context's profile so the chosen tier's profile constraint
+  // is logged explicitly (design D2, spec "default tier choice on a Core-only
+  // context is explicit"): a Core context cannot run the fixed-function
+  // compat/legacy tiers, so the modern tier is what runs and the log should
+  // say so.
+  const QSurfaceFormat::OpenGLContextProfile ctxProfile =
+    (QOpenGLContext::currentContext() &&
+     QOpenGLContext::currentContext()->isValid())
+      ? QOpenGLContext::currentContext()->format().profile()
+      : QSurfaceFormat::NoProfile;
+
   for (RendererTier tier : order) {
-    if (tierCompiledIn(tier) &&
-        (tier == RendererTier::Legacy || contextSupportsTier(tier)))
+    // Every tier — legacy included — goes through the same support gate
+    // (review finding): a Legacy bypass here silently selected the
+    // fixed-function legacy tier on GL 3.2 Core contexts, where its per-frame
+    // path would raise GL errors while rendering nothing. Contexts that
+    // cannot serve any tier fall through to the loud Unavailable path below.
+    if (tierCompiledIn(tier) && contextSupportsTier(tier, ctxProfile))
       return tier;
   }
-  // LEGACY compiled out too: nothing renderable remains.
+  // Nothing renderable remains (legacy compiled out, or the context serves
+  // no compiled-in tier).
   return RendererTier::Unavailable;
 }
 

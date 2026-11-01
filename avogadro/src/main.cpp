@@ -38,7 +38,6 @@
 #include <QTranslator>
 #include <QSurfaceFormat>
 #include <QGuiApplication>
-#include <QOpenGLContext>
 #include <QDebug>
 #include <QLibraryInfo>
 #include <QProcess>
@@ -191,6 +190,32 @@ int main(int argc, char *argv[])
   // share group so the existing sharing design is legal. Must run before the
   // QApplication is constructed. (fix-shared-gl-contexts)
   QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+
+  // Configure the default surface format (GL 3.3 CompatibilityProfile) BEFORE
+  // any OpenGL context is created. Qt's QApplication creates the process's
+  // global shared context on X11 during construction (AA_ShareOpenGLContexts),
+  // so setDefaultFormat must run before it — otherwise Qt warns "setting a new
+  // default format ... after the global shared context is created" and the
+  // shared context (and every widget context) is born with Qt's built-in
+  // default profile. With the requested CompatibilityProfile the modern tier's
+  // fixed-function matrix stack is live; a context born Core would leave it
+  // dead and project geometry wrongly. The early QOpenGLContext probe that used
+  // to create such a context first has been removed; an unusable GL stack now
+  // surfaces through the widget's existing invalid-context diagnostics instead
+  // of a modal startup box. (gpu-rendering-pipeline fix-modern-tier-core-profile
+  // D1)
+  QSurfaceFormat defFormat = QSurfaceFormat::defaultFormat();
+  defFormat.setSamples(4);
+  // Request a GL 3.3 compatibility context so the modern instanced rendering
+  // tier (gpu-rendering-pipeline task 2.4) can run while the legacy fixed-
+  // function tier stays available on the same context. CompatibilityProfile
+  // (not Core) is required for the legacy fixed-function path; Apple caps GL at
+  // 3.2 and exposes no compatibility profile, so this is skipped there.
+  #ifndef Q_OS_MAC
+  defFormat.setVersion(3, 3);
+  defFormat.setProfile(QSurfaceFormat::CompatibilityProfile);
+  #endif
+  QSurfaceFormat::setDefaultFormat(defFormat);
 
   Application app(argc, argv);
 #ifdef WIN32
@@ -357,25 +382,6 @@ int main(int argc, char *argv[])
     printHelp(arguments[0]);
     return 0;
   }
-
-  QOpenGLContext testContext;
-  if (!testContext.create()) {
-    QMessageBox::information(0, "Avogadro", "This system does not support OpenGL.");
-    return -1;
-  }
-
-  QSurfaceFormat defFormat = QSurfaceFormat::defaultFormat();
-  defFormat.setSamples(4);
-  // Request a GL 3.3 compatibility context so the modern instanced rendering
-  // tier (gpu-rendering-pipeline task 2.4) can run while the legacy fixed-
-  // function tier stays available on the same context. CompatibilityProfile
-  // (not Core) is required for the legacy fixed-function path; Apple caps GL at
-  // 3.2 and exposes no compatibility profile, so this is skipped there.
-  #ifndef Q_OS_MAC
-  defFormat.setVersion(3, 3);
-  defFormat.setProfile(QSurfaceFormat::CompatibilityProfile);
-  #endif
-  QSurfaceFormat::setDefaultFormat(defFormat);
 
   // Now load any files supplied on the command-line or via launching a file.
   // Additionally, process and remove any command line arguments.

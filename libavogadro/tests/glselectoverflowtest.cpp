@@ -33,6 +33,8 @@
 #include <QMessageLogContext>
 #include <QScopedPointer>
 #include <QGuiApplication>
+
+#include "glwidgetprofileprobe.h"
 #include <cmath>
 
 #include <Eigen/Geometry>
@@ -175,6 +177,14 @@ QScopedPointer<GLWidget> GLSelectOverflowTest::makeLegacyWidget(Molecule *mol, C
     probeCtx.makeCurrent(nullptr);
   }
 
+  // Widget-path profile probe (fix-modern-tier-core-profile): a standalone
+  // QOpenGLContext probe resolves Compatibility while the QOpenGLWidget path
+  // resolves Core on some GLX/Mesa stacks. Probe through a real QOpenGLWidget
+  // so the forced-legacy GLWidget below never trips its mandated startup
+  // fatal; the caller skips with a clear message instead.
+  if (glWidgetPathResolvesCoreProfile(fmt))
+    return QScopedPointer<GLWidget>();
+
   GLWidget *widget = new GLWidget(mol, fmt, nullptr);
   widget->setColorMap(color);
   widget->resize(256, 256);
@@ -271,7 +281,8 @@ void GLSelectOverflowTest::testLegacyPickingStillWorks()
   Molecule *mol = buildPickedMolecule();
   QScopedPointer<GLWidget> widget(makeLegacyWidget(mol, &color));
   if (!widget)
-    QSKIP("No GL 3.3 compatibility context available on this runner; "
+    QSKIP("No usable Compatibility context on this runner (standalone probe "
+          "failed, or the QOpenGLWidget path resolved a Core profile); "
           "skipping GL_SELECT end-to-end test; unit tests cover the overflow logic",
           SkipAll);
 
@@ -316,7 +327,8 @@ void GLSelectOverflowTest::testOverflowDetectedAndReported()
   Molecule *mol = buildDenseMolecule(80000);
   QScopedPointer<GLWidget> widget(makeLegacyWidget(mol, &color));
   if (!widget)
-    QSKIP("No GL 3.3 compatibility context available on this runner; "
+    QSKIP("No usable Compatibility context on this runner (standalone probe "
+          "failed, or the QOpenGLWidget path resolved a Core profile); "
           "skipping GL_SELECT overflow test; unit tests cover the overflow logic",
           SkipAll);
 
