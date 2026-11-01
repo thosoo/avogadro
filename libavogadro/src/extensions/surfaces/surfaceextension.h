@@ -31,6 +31,8 @@
 
 #include <QVector>
 #include <QList>
+#include <QFuture>
+#include <atomic>
 
 class QProgressDialog;
 
@@ -72,8 +74,20 @@ namespace Avogadro
     // are declared protected — standard C++, no access-suppression flags.
     SurfaceDialog *m_surfaceDialog;
     Molecule *m_molecule;
-    unsigned long m_generation;        // N.1: bumped on each document switch
+    // N.1: bumped on each document switch. Atomic because worker threads (the
+    // cube-copy worker, the ESP-color worker) read it without further
+    // synchronization; relaxed is enough — the epoch compare is self-validating
+    // (a mismatch makes the callback no-op).
+    std::atomic<unsigned long> m_generation;
     unsigned long m_runningGeneration; // N.1: captured per launched calculation
+    // D3: tracks the in-flight cube-data copy worker (QtConcurrent::run) so
+    // setMolecule can quiesce it on a document switch before releasing the cube
+    // it may still be writing into (mirrors OrbitalExtension).
+    QFuture<void> m_cubeCopyFuture;
+    // D4/P1: tracks the in-flight ESP-color maps (one per mesh) so setMolecule
+    // can quiesce them on a document switch before the molecule's meshes/atoms
+    // are deleteLater'd, closing the worker-side use-after-free window.
+    QList<QFuture<void>> m_espFutures;
     VdWSurface *m_VdWsurface;
 
     //! Load the appropriate basis set (if possible)
@@ -99,6 +113,10 @@ namespace Avogadro
     Mesh *m_mesh1, *m_mesh2;
     MeshGenerator *m_meshGen1;
     MeshGenerator *m_meshGen2;
+    // D5: guard so the negative-lobe mesh (mesh2) is started exactly once,
+    // from mesh1's finished continuation, instead of both lobes starting
+    // concurrently in calculateMesh().
+    bool m_mesh2Started = false;
 
     Cube *m_cube;
     OpenQube::Cube *m_qube;

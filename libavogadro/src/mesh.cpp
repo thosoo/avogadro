@@ -27,6 +27,7 @@
 
 #include <QReadWriteLock>
 #include <QDebug>
+#include <utility>
 
 using Eigen::Vector3f;
 using std::vector;
@@ -90,6 +91,14 @@ namespace Avogadro {
     return true;
   }
 
+  bool Mesh::setVertices(vector<Vector3f> &&values)
+  {
+    QWriteLocker lock(m_lock);
+    m_vertices = std::move(values);
+    ++m_revision;
+    return true;
+  }
+
   unsigned int Mesh::revision() const
   {
     QReadLocker lock(m_lock);
@@ -132,6 +141,28 @@ namespace Avogadro {
     QWriteLocker lock(m_lock);
     m_normals.clear();
     m_normals = values;
+    ++m_revision;
+    return true;
+  }
+
+  bool Mesh::setNormals(vector<Vector3f> &&values)
+  {
+    QWriteLocker lock(m_lock);
+    m_normals = std::move(values);
+    ++m_revision;
+    return true;
+  }
+
+  bool Mesh::setGeometry(vector<Vector3f> &&vertices,
+                         vector<Vector3f> &&normals)
+  {
+    // One write-lock section, one revision bump: install both buffers together
+    // so the GLPainter VBO cache sees a single coherent geometry change
+    // (design D10 / task 4.2) instead of two separate setVertices/setNormals
+    // calls that would bump the revision twice and re-upload twice.
+    QWriteLocker lock(m_lock);
+    m_vertices = std::move(vertices);
+    m_normals = std::move(normals);
     ++m_revision;
     return true;
   }

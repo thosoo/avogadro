@@ -140,6 +140,14 @@ namespace Avogadro {
     bool setVertices(const std::vector<Eigen::Vector3f> &values);
 
     /**
+     * Move the vertices vector into the mesh (deep copy avoided). This is the
+     * zero-copy counterpart to the const-ref overload above: the caller's
+     * buffer is std::moved-from and left in a valid but unspecified state.
+     * Keep the const-ref version for lvalue callers.
+     */
+    bool setVertices(std::vector<Eigen::Vector3f> &&values);
+
+    /**
      * Add one or more vertices, i.e., the vector is expected to be of length
      * 3 x n where n is an integer.
      */
@@ -165,6 +173,25 @@ namespace Avogadro {
      * Clear the normals vector and assign new values.
      */
     bool setNormals(const std::vector<Eigen::Vector3f> &values);
+
+    /**
+     * Move the normals vector into the mesh (deep copy avoided). Zero-copy
+     * counterpart to the const-ref overload above: the caller's buffer is
+     * std::moved-from and left in a valid but unspecified state.
+     */
+    bool setNormals(std::vector<Eigen::Vector3f> &&values);
+
+    /**
+     * Move both the vertices and normals vectors into the mesh in a single
+     * write-lock section and bump the revision exactly once. This is the
+     * assembled-mesh counterpart to the individual setVertices/setNormals move
+     * overloads: the MeshGenerator builds both buffers and installs them
+     * together, so one lock + one revision bump (design D10 / task 4.2) rather
+     * than two. The caller's buffers are std::moved-from and left in a valid
+     * but unspecified state.
+     */
+    bool setGeometry(std::vector<Eigen::Vector3f> &&vertices,
+                     std::vector<Eigen::Vector3f> &&normals);
 
     /**
      * Add one or more normals, i.e., the vector is expected to be of length

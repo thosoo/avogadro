@@ -132,11 +132,16 @@ namespace Avogadro {
 
     /**
      * @return Vector containing all the data in a one-dimensional array.
+     *
+     * D6: grid data is stored single precision (std::vector<float>) to halve
+     * transient memory. Callers that read values expect a double and get an
+     * implicit float->double promotion.
      */
-    std::vector<double> * data();
+    std::vector<float> * data();
 
     /**
-     * Set the values in the cube to those passed in the vector.
+     * Set the values in the cube to those passed in the vector (double input,
+     * converted element-wise to the single-precision storage).
      */
     bool setData(const std::vector<double> &values);
 
@@ -234,7 +239,7 @@ namespace Avogadro {
     friend class Molecule;
 
   protected:
-    std::vector<double> m_data;
+    std::vector<float> m_data;
     Eigen::Vector3d m_min, m_max, m_spacing;
     Eigen::Vector3i m_points;
     double m_minValue, m_maxValue;
@@ -247,7 +252,7 @@ namespace Avogadro {
   inline bool Cube::setValue(unsigned int i, double value)
   {
     if (i < m_data.size()) {
-      m_data[i] = value;
+      m_data[i] = static_cast<float>(value);
       if (value > m_maxValue) m_maxValue = value;
       if (value < m_minValue) m_minValue = value;
       return true;

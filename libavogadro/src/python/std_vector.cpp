@@ -54,6 +54,27 @@ struct std_vector_double_ptr_to_python_list
   }
 
 };
+
+struct std_vector_float_ptr_to_python_list
+{
+  typedef std::vector<float>::const_iterator iter;
+
+  //
+  // example: std::vector<float>* Cube::data() (D6 single-precision storage)
+  //
+  static PyObject* convert(std::vector<float>* list)
+  {
+    // the python list
+    boost::python::list pyList;
+
+    for (iter i = list->begin(); i != list->end(); ++i) {
+      pyList.append(static_cast<double>(*i));
+    }
+
+    return incref(pyList.ptr());
+  }
+
+};
  
 
 template <class C>
@@ -196,6 +217,7 @@ void export_std_vector()
   export_std_vector< std::vector<QColor> >(); // for Mesh
   
   to_python_converter<std::vector<double>*, std_vector_double_ptr_to_python_list >();
+  to_python_converter<std::vector<float>*, std_vector_float_ptr_to_python_list >();
 
   /*  
   class_<QListTest>("QListTest")

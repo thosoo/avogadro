@@ -140,7 +140,7 @@ namespace Avogadro {
     return true;
   }
 
-  std::vector<double> * Cube::data()
+  std::vector<float> * Cube::data()
   {
     return &m_data;
   }
@@ -152,11 +152,15 @@ namespace Avogadro {
       return false;
     }
     if (static_cast<int>(values.size()) == m_points.x() * m_points.y() * m_points.z()) {
-      m_data = values;
+      // D6: element-wise double->float conversion into the single-precision
+      // storage (called from the cube-handoff worker and grid-file import).
+      m_data.resize(values.size());
+      for (std::size_t i = 0; i < values.size(); ++i)
+        m_data[i] = static_cast<float>(values[i]);
       qDebug() << "Loaded in cube data" << m_data.size();
       // Now to update the minimum and maximum values
       m_minValue = m_maxValue = m_data[0];
-      foreach(double val, m_data) {
+      foreach(float val, m_data) {
         if (val < m_minValue)
           m_minValue = val;
         else if (val > m_maxValue)
@@ -227,7 +231,7 @@ namespace Avogadro {
   {
     unsigned int index = i*m_points.y()*m_points.z() + j*m_points.z() + k;
     if (index < m_data.size())
-      return m_data.at(index);
+      return static_cast<double>(m_data.at(index));
     else {
 //      qDebug() << "Attempt to identify out of range index" << index << m_data.size();
       return 0.0;
@@ -240,7 +244,7 @@ namespace Avogadro {
                          pos.y()*m_points.z() +
                          pos.z();
     if (index < m_data.size())
-      return m_data.at(index);
+      return static_cast<double>(m_data.at(index));
     else {
       qDebug() << "Attempted to access an index out of range.";
       return 6969.0;
@@ -309,7 +313,7 @@ namespace Avogadro {
   {
     unsigned int index = i*m_points.y()*m_points.z() + j*m_points.z() + k;
     if (index < m_data.size()) {
-      m_data[index] = value;
+      m_data[index] = static_cast<float>(value);
       return true;
     }
     else

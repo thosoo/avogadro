@@ -1307,7 +1307,12 @@ namespace Avogadro{
       OpenBabel::vector3 y(0.0, cube->spacing().y(), 0.0);
       OpenBabel::vector3 z(0.0, 0.0, cube->spacing().z());
       obgrid->SetLimits(origin, x, y, z);
-      obgrid->SetValues(cube->m_data);
+      // D6: grid storage is single precision; OpenBabel's SetValues wants
+      // double, so promote the values for the round-trip export only.
+      std::vector<double> gridValues(cube->m_data.size());
+      for (std::size_t i = 0; i < cube->m_data.size(); ++i)
+        gridValues[i] = static_cast<double>(cube->m_data[i]);
+      obgrid->SetValues(gridValues);
       obmol.SetData(obgrid);
     }
 

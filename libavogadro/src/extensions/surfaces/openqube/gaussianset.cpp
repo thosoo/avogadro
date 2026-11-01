@@ -328,10 +328,43 @@ inline bool GaussianSet::isSmall(double val)
     return false;
 }
 
+void GaussianSet::computeScreeningCutoffs()
+{
+  // Add the final gtoIndices entry so shell i's primitives are the range
+  // [m_gtoIndices[i], m_gtoIndices[i+1]) — mirroring the indexing used by the
+  // point* functions.
+  m_gtoIndices.push_back(m_gtoA.size());
+
+  // Per-shell maximum squared distance (r^2) at which the shell can still
+  // contribute more than kScreenTolerance. A contracted Gaussian decays as
+  // exp(-alpha r^2); the contribution drops below kScreenTolerance once
+  // alpha r^2 > -ln(kScreenTolerance). Using the smallest exponent in the
+  // shell (the widest, slowest-decaying primitive) gives a conservative
+  // cutoff that never skips a contribution above the tolerance.
+  m_shellRMax2.resize(m_symmetry.size());
+  for (unsigned int i = 0; i < m_symmetry.size(); ++i) {
+    // Defensive: a degenerate (empty) shell has no primitives and can never
+    // contribute; leave its cutoff at +inf (never skipped) rather than read
+    // out of range. Parsers always add >= 1 GTO per shell, so this is
+    // unreachable in practice.
+    if (m_gtoIndices[i] == m_gtoIndices[i + 1])
+      continue;
+    double minExponent = m_gtoA[m_gtoIndices[i]];
+    for (unsigned int j = m_gtoIndices[i] + 1; j < m_gtoIndices[i + 1]; ++j) {
+      if (m_gtoA[j] < minExponent)
+        minExponent = m_gtoA[j];
+    }
+    m_shellRMax2[i] = -std::log(kScreenTolerance) / minExponent;
+  }
+}
+
 void GaussianSet::initCalculation()
 {
   if (m_init)
     return;
+  // D7: finalise the gtoIndices range and compute the per-shell distance
+  // screening cutoffs before the normalisation loop.
+  computeScreeningCutoffs();
   // This currently just involves normalising all contraction coefficients
   m_numAtoms = m_molecule.numAtoms();
   m_gtoCN.clear();
@@ -341,8 +374,6 @@ void GaussianSet::initCalculation()
   unsigned int skip = 0; // for unimplemented shells
 
   m_moIndices.resize(m_symmetry.size());
-  // Add a final entry to the gtoIndices
-  m_gtoIndices.push_back(m_gtoA.size());
   for(unsigned int i = 0; i < m_symmetry.size(); ++i) {
     switch (m_symmetry[i]) {
     case S:
@@ -519,6 +550,9 @@ void GaussianSet::initCalculationForOrca()
 {
   if (m_init)
     return;
+  // D7: finalise the gtoIndices range and compute the per-shell distance
+  // screening cutoffs before the normalisation loop.
+  computeScreeningCutoffs();
   // This currently just involves normalising all contraction coefficients
   m_numAtoms = m_molecule.numAtoms();
   m_gtoCN.clear();
@@ -528,8 +562,6 @@ void GaussianSet::initCalculationForOrca()
   unsigned int skip = 0; // for unimplemented shells
 
   m_moIndices.resize(m_symmetry.size());
-  // Add a final entry to the gtoIndices
-  m_gtoIndices.push_back(m_gtoA.size());
   for(unsigned int i = 0; i < m_symmetry.size(); ++i) {
     switch (m_symmetry[i]) {
     case S:
@@ -816,6 +848,8 @@ void GaussianSet::processPoint(GaussianShell &shell)
   double tmp = 0.0;
   if (!set->m_useOrcaNorm) {
       for (unsigned int i = 0; i < basisSize; ++i) {
+          // D7: skip shells whose atom is beyond the screening cutoff.
+          if (dr2[set->m_atomIndices[i]] > set->m_shellRMax2[i]) continue;
           switch(basis[i]) {
           case S:
               tmp += pointS(shell.set, i,
@@ -848,6 +882,8 @@ void GaussianSet::processPoint(GaussianShell &shell)
       }
   } else {
       for (unsigned int i = 0; i < basisSize; ++i) {
+        // D7: skip shells whose atom is beyond the screening cutoff.
+        if (dr2[set->m_atomIndices[i]] > set->m_shellRMax2[i]) continue;
         switch(basis[i]) {
         case S:
           tmp += pointS(shell.set, i,
@@ -908,11 +944,22 @@ void GaussianSet::processDensity(GaussianShell &shell)
     dr2.push_back(deltas[i].squaredNorm());
   }
 
-  // Calculate the basis set values at this point
-  MatrixXd values(matrixSize, 1);
+  // D8: reuse a per-thread scratch buffer instead of heap-allocating a matrix
+  // per grid point. Resized only when matrixSize changes; identical name and
+  // all later uses kept unchanged.
+  // D7 interaction: the density contraction below reads EVERY AO entry of
+  // values, but a screened-out shell never writes its segment. Zero the
+  // buffer each point so a skipped shell contributes exactly 0 (its true
+  // contribution is < kScreenTolerance), matching the unscreened result.
+  thread_local MatrixXd values;
+  if (values.size() != static_cast<int>(matrixSize))
+    values.resize(matrixSize, 1);
+  values.setZero();
   if (!set->m_useOrcaNorm) {
       for (unsigned int i = 0; i < basisSize; ++i) {
           unsigned int cAtom = set->m_atomIndices[i];
+          // D7: skip shells whose atom is beyond the screening cutoff.
+          if (dr2[set->m_atomIndices[i]] > set->m_shellRMax2[i]) continue;
           switch(basis[i]) {
           case S:
               pointS(shell.set, dr2[cAtom], i, values);
@@ -941,6 +988,8 @@ void GaussianSet::processDensity(GaussianShell &shell)
   } else {
       for (unsigned int i = 0; i < basisSize; ++i) {
           unsigned int cAtom = set->m_atomIndices[i];
+          // D7: skip shells whose atom is beyond the screening cutoff.
+          if (dr2[set->m_atomIndices[i]] > set->m_shellRMax2[i]) continue;
           switch(basis[i]) {
           case S:
               pointS(shell.set, dr2[cAtom], i, values);
@@ -1026,24 +1075,7 @@ inline double GaussianSet::pointP(GaussianSet *set, unsigned int moIndex,
     z += set->m_gtoCN[cIndex++] * delta.z() * tmpGTO;
   }
 
-  static volatile void* lastData = 0;
-  if (!lastData) {
-    lastData = set->m_moMatrix.data();
-    qDebug() << "[POINTP-DATA] first data=" << set->m_moMatrix.data()
-             << " size=" << set->m_moMatrix.size() << " rows=" << set->m_moMatrix.rows();
-  } else if (set->m_moMatrix.data() != lastData) {
-    qDebug() << "[POINTP-DATA-CHANGED] data=" << set->m_moMatrix.data()
-             << " was=" << lastData << " size=" << set->m_moMatrix.size();
-  }
   // Calculate the prefactors for Px, Py and Pz
-  if (baseIndex >= (unsigned int)set->m_moMatrix.rows() ||
-      baseIndex+2 >= (unsigned int)set->m_moMatrix.rows() ||
-      indexMO >= (unsigned int)set->m_moMatrix.cols()) {
-    qDebug() << "[POINTP-OOB] baseIndex:" << baseIndex << "+2:" << baseIndex+2
-             << " indexMO:" << indexMO << " rows:" << set->m_moMatrix.rows()
-             << " cols:" << set->m_moMatrix.cols()
-             << " moIndex(shell.state-1):" << (set->m_symmetry.size());
-  }
   double Px = set->m_moMatrix.coeffRef(baseIndex  , indexMO);
   double Py = set->m_moMatrix.coeffRef(baseIndex+1, indexMO);
   double Pz = set->m_moMatrix.coeffRef(baseIndex+2, indexMO);

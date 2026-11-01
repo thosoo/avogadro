@@ -120,7 +120,12 @@ namespace Avogadro
     // N.1: bump the generation counter first, before any teardown, so a
     // stale completion callback from the outgoing document can no longer be
     // mistaken for work of the incoming document.
-    m_generation++;
+    // fetch_add is atomic (m_generation is read on worker threads), so this is
+    // not a data race. Using the default seq_cst ordering (not relaxed) gives a
+    // happens-before with the teardown that immediately follows, closing the
+    // formal gap: a worker that re-reads m_generation after the switch sees the
+    // new epoch. The epoch compare is self-validating either way.
+    m_generation.fetch_add(1);
 
     // N.2: quiesce background work owned by the outgoing document before
     // releasing its data. A cube calc runs on QtConcurrent (writes through
@@ -138,6 +143,13 @@ namespace Avogadro
       m_basis->watcher().future().waitForFinished();
     if (m_meshGen && m_meshGen->isRunning())
       m_meshGen->wait();
+    // D3: quiesce the in-flight cube-data copy worker before releasing the
+    // cube it may still be writing into. Its queued continuation
+    // (continueAfterCubeCopy) re-checks the epoch and no-ops on a switch, so
+    // this only needs to bound the copy's lifetime; the cube object is safe
+    // because the copy completes before any teardown frees it.
+    if (m_cubeCopyFuture.isRunning())
+      m_cubeCopyFuture.waitForFinished();
     QApplication::restoreOverrideCursor();
 
     // N.1: the queue mutex is held from checkQueue() until
@@ -147,6 +159,21 @@ namespace Avogadro
     // Stale completion slots now no-op without touching m_runningMutex.
     if (calcInFlight)
       m_runningMutex->unlock();
+
+    // 8.2 (reviewer NOTE 1): a calc that was still in flight leaves its
+    // OpenQube cube write-locked — the unlock lives in the completion slot,
+    // which will never be delivered now that the watcher connections are
+    // gone. The GUI thread acquired that lock, so release it here exactly
+    // once, then drop the cube: deleting a locked QReadWriteLock in
+    // calculateCube() would be formal UB. (When no calc was in flight the
+    // lock is not held and m_qube is either null or a fresh, unlocked cube
+    // awaiting its calc — deleting it here is equally safe.)
+    if (m_qube) {
+      if (calcInFlight)
+        m_qube->lock()->unlock();
+      delete m_qube;
+      m_qube = 0;
+    }
 
     // Now safe to tear down: nothing references m_basis / m_queue.
     m_queue.clear();
@@ -479,9 +506,17 @@ namespace Avogadro
         endIndex = m_basis->numMOs() - 1;
       }
 
+      // D11: background precalculation runs at most at Medium resolution
+      // regardless of the persisted default quality, so it cannot repeat the
+      // whole cost xN at Very High. Explicit per-orbital calculation keeps
+      // the user-chosen quality (unchanged path in orbitalwidget.cpp).
+      OrbitalWidget::OrbitalQuality q = m_widget->precalcLimit()
+          ? OrbitalWidget::clampPrecalcQuality(m_widget->defaultQuality())
+          : OrbitalWidget::OQ_Medium;
+
       for (int i = startIndex; i <= endIndex; i++) {
         addCalculationToQueue(i+1,  // orbital
-                              OrbitalWidget::OrbitalQualityToDouble(m_widget->defaultQuality()),
+                              OrbitalWidget::OrbitalQualityToDouble(q),
                               m_widget->isovalue(),
                               priority);
 
@@ -614,31 +649,37 @@ namespace Avogadro
     OpenQube::Cube *qube = m_qube;
     m_qube = 0;
     if (qube) {
-      unsigned int generation = m_runningGeneration;
+      const unsigned long generation = m_runningGeneration;
       Cube *cube = info->cube;
-      // Discard the future: the queued continuation tracks completion.
-      static_cast<void>(
-          QtConcurrent::run([this, generation, cube, qube]() {
+      // Track the copy worker so setMolecule can quiesce it on a document
+      // switch before releasing the cube. The queued continuation still tracks
+      // phase advancement; this member only bounds the copy's lifetime.
+      m_cubeCopyFuture = QtConcurrent::run([this, generation, cube, qube]() {
         // (a) Stale document switch while copying: drop the cube, no-op.
         if (generation != m_generation) {
           delete qube;
           return;
         }
-        // (b)-(d) Copy under the molecule-cube write lock (lock stays on this
+        // (b)-(e) Copy under the molecule-cube write lock (lock stays on this
         // worker; the unlock happens here, keeping the pair on one thread).
+        // Re-check the epoch AFTER acquiring the lock: a switch landing after
+        // the first guard but before the copy is caught here, so we never
+        // setData into a cube whose molecule is being torn down.
         cube->lock()->lockForWrite();
-        cube->setData(*qube->data());
+        if (generation == m_generation) {
+          cube->setData(*qube->data());
+        }
         cube->lock()->unlock();
-        // (e) The worker now owns qube.
+        // (f) The worker now owns qube.
         delete qube;
-        // (f) Resume the phase machine on the GUI thread.
+        // (g) Resume the phase machine on the GUI thread.
         QMetaObject::invokeMethod(
             this, [this, generation, cube] {
               if (generation == m_generation)
                 continueAfterCubeCopy(cube);
             },
             Qt::QueuedConnection);
-      }));
+      });
     } else {
       // No cube data (e.g. cancelled mid-calc): resume directly.
       continueAfterCubeCopy(info->cube);

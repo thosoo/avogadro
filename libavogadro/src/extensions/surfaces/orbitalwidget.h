@@ -21,6 +21,8 @@
 
 #include <QWidget>
 
+#include <algorithm>
+
 #include <avogadro/primitive.h>
 #include <avogadro/glwidget.h>
 
@@ -45,6 +47,27 @@ namespace Avogadro {
         OQ_High,
         OQ_VeryHigh
       };
+
+      // Pin the ordering so clampPrecalcQuality's std::min(defaultQuality,
+      // OQ_Medium) in OrbitalExtension::precalculateOrbitals (D11) selects
+      // the intended coarser quality. Conjoined comparisons, not chained <:
+      // (L < M < H) would promote (L < M) to int and vacuously pass.
+      static_assert(static_cast<int>(OrbitalQuality::OQ_Low)
+                        < static_cast<int>(OrbitalQuality::OQ_Medium)
+                    && static_cast<int>(OrbitalQuality::OQ_Medium)
+                        < static_cast<int>(OrbitalQuality::OQ_High)
+                    && static_cast<int>(OrbitalQuality::OQ_High)
+                        < static_cast<int>(OrbitalQuality::OQ_VeryHigh),
+                    "OrbitalQuality must increase Low<Medium<High<VeryHigh");
+
+      // D11: background precalculation runs at most at Medium resolution
+      // regardless of the persisted default quality; an explicit per-orbital
+      // request keeps the user-chosen quality ( OrbitalExtension passes its
+      // queue resolution through this clamp). Unit-tested by precalcpolicytest.
+      static OrbitalQuality clampPrecalcQuality(OrbitalQuality q)
+      {
+        return std::min(q, OQ_Medium);
+      }
 
       //! Constructor
       explicit OrbitalWidget(QWidget *parent = nullptr,

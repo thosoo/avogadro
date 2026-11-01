@@ -570,6 +570,17 @@ GLWidget::GLWidget( Molecule *molecule,
     d->camera->setParent( this );
     m_glslEnabled = false;
     m_navigateTool = 0;
+    // D10 / task 4.3: single-shot timer that clears the interaction flag and
+    // requests a repaint ~250 ms after the last mouse drag, so surfaces hidden
+    // during a drag reappear shortly after release. Parented to this widget.
+    m_cameraInteracting = false;
+    m_interactionTimer.setSingleShot( true );
+    m_interactionTimer.setInterval( 250 );
+    m_interactionTimer.setParent( this );
+    connect( &m_interactionTimer, &QTimer::timeout, this, [this] {
+      m_cameraInteracting = false;
+      update();
+    } );
 
 #ifdef ENABLE_THREADED_GL
     qDebug() << "Threaded GL enabled.";
@@ -648,6 +659,16 @@ GLWidget::GLWidget( Molecule *molecule,
              << "vendor:" << reinterpret_cast<const char*>(glGetString(GL_VENDOR))
              << "version:" << reinterpret_cast<const char*>(glGetString(GL_VERSION))
              << "requested samples:" << context()->format().samples();
+
+    // D10 / task 4.4: log the resolved GL version + profile (Compatibility vs.
+    // Core) so the fixed-function fallback condition is visible in the field.
+    const QSurfaceFormat fmt = context()->format();
+    const char *profile = (fmt.profile() == QSurfaceFormat::CompatibilityProfile)
+        ? "Compatibility" : (fmt.profile() == QSurfaceFormat::CoreProfile)
+        ? "Core" : "NoProfile";
+    qInfo() << "OpenGL resolved format:"
+            << "version" << fmt.majorVersion() << fmt.minorVersion()
+            << "profile" << profile;
 
     // Try to initialise GLEW if GLSL was enabled, test for OpenGL 2.0 support
     #ifdef ENABLE_GLSL
@@ -1583,6 +1604,12 @@ GLWidget::GLWidget( Molecule *molecule,
     if (meshes.isEmpty())
       return;
 
+    // D10 / task 4.3: while the user is dragging the camera, skip surfacing
+    // meshes entirely (they re-render ~250 ms after release). This avoids
+    // re-uploading large surfaces every frame during a drag.
+    if (m_cameraInteracting)
+      return;
+
     // Meshes are translucent (alpha ~0.75) and drawn over the opaque molecule,
     // so blending is enabled for the whole flush (matching the legacy
     // transparent pass) and restored afterwards. glPolygonMode / GL_LIGHTING
@@ -1600,6 +1627,12 @@ GLWidget::GLWidget( Molecule *molecule,
       // mid-draw (SurfaceEngine's pattern, surfaceengine.cpp:82-100).
       if (!inst.mesh->lock()->tryLockForRead())
         continue;
+      // D10 / task 4.1: backface culling. Closed isosurfaces halve fill cost
+      // by culling the far faces; enable it around each draw and restore it
+      // afterwards so other passes are unaffected. glCullFace(GL_BACK) is the
+      // default face, set explicitly for clarity.
+      glEnable(GL_CULL_FACE);
+      glCullFace(GL_BACK);
       // Per-vertex color (ESP surface) vs. the instance's solid color.
       if (inst.colored)
         d->painter->drawColorMesh(*inst.mesh, inst.mode);
@@ -1610,6 +1643,7 @@ GLWidget::GLWidget( Molecule *molecule,
                              inst.color[3] / 255.0f);
         d->painter->drawMesh(*inst.mesh, inst.mode);
       }
+      glDisable(GL_CULL_FACE);
       inst.mesh->lock()->unlock();
     }
     glDisable(GL_BLEND);
@@ -2865,6 +2899,15 @@ namespace Avogadro {
   {
     // Set the event to ignored, check whether any tools accept it
     event->ignore();
+
+    // D10 / task 4.3: a held button means the user is dragging the camera
+    // (rotate/pan). Flag the interaction and (re)arm the 250 ms timer so
+    // surfaces are skipped while dragging and reappear shortly after release.
+    if ( event->buttons() != Qt::NoButton ) {
+      if ( !m_cameraInteracting )
+        m_cameraInteracting = true;
+      m_interactionTimer.start( 250 );
+    }
 
 #ifdef ENABLE_THREADED_GL
     d->renderMutex.lock();

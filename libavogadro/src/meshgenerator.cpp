@@ -27,16 +27,23 @@
 #include "meshgenerator.h"
 
 #include <Eigen/Geometry>
+#include <algorithm>
+#include <utility>
 #include <avogadro/cube.h>
 #include <avogadro/mesh.h>
 
 #include <QReadWriteLock>
+#include <QtConcurrent/QtConcurrentRun>
+#include <QFuture>
 #include <QDebug>
 
 using Eigen::Vector3f;
 using Eigen::Vector3i;
 
 namespace Avogadro {
+
+  // Test-only slab-count override (see meshgenerator.h). 0 means "auto".
+  int MeshGenerator::testThreadCount = 0;
 
   MeshGenerator::MeshGenerator(QObject *parent) :
     QThread(parent),
@@ -95,37 +102,77 @@ namespace Avogadro {
     m_mesh->setStable(false);
     m_mesh->clear();
 
-    m_vertices.reserve(m_dim.x()*m_dim.y()*m_dim.z()*3);
-    m_normals.reserve(m_dim.x()*m_dim.y()*m_dim.z()*3);
+    // D5: bound the pre-allocation to a sane cap (1<<21 ~ 2.1M cells) instead
+    // of reserving 3 vertices AND normals per grid point (up to ~2 GB at 64M
+    // points). std::vector still grows geometrically if the surface is larger.
+    const std::size_t cap = std::min<std::size_t>(
+        static_cast<std::size_t>(m_dim.x()) * m_dim.y() * m_dim.z(), 1u << 21);
+    m_vertices.reserve(cap);
+    m_normals.reserve(cap);
 
+    // D9 read-lock contract: without the read lock the cube data is being
+    // mutated concurrently — skip generation rather than march against moving
+    // data (and rather than unlock a lock that was never acquired below).
     if (!m_cube->lock()->tryLockForRead()) {
       qDebug() << "Cannot get a read lock...";
+      return;
     }
 
-    // Now to march the cube
-    for(int i = 0; i < m_dim.x()-1; ++i) {
-      for(int j = 0; j < m_dim.y()-1; ++j) {
-        for(int k = 0; k < m_dim.z()-1; ++k) {
-          marchingCube(Vector3i(i, j, k));
-        }
-      }
-      if (m_vertices.capacity() < m_vertices.size() + m_dim.y()*m_dim.x()*3) {
-        m_vertices.reserve(m_vertices.capacity()*2);
-        m_normals.reserve(m_normals.capacity()*2);
-      }
-      emit progressValueChanged(i);
+    // D9: parallel marching cubes. Partition the outer (x) cell loop into K
+    // contiguous slabs; each worker marches its slab into its own local
+    // buffers (cube reads are read-only), then slabs are concatenated in
+    // slab order, so the result is identical to serial and run-to-run
+    // deterministic. K is clamped so small grids do not oversubscribe;
+    // idealThreadCount() may report -1 (unknown), so floor the auto choice at
+    // 1. testThreadCount > 0 substitutes for the auto choice (test hook).
+    const int K = testThreadCount > 0
+        ? testThreadCount
+        : std::max(1, std::min<int>(8, QThread::idealThreadCount()));
+
+    std::vector<std::vector<Eigen::Vector3f>> slabsV(K);
+    std::vector<std::vector<Eigen::Vector3f>> slabsN(K);
+    std::vector<std::vector<unsigned int>> slabsI(K);
+    for (int k = 0; k < K; ++k) {
+      const std::size_t slabCap = cap / static_cast<std::size_t>(K) + 1024;
+      slabsV[k].reserve(slabCap);
+      slabsN[k].reserve(slabCap);
+      slabsI[k].reserve(slabCap / 3 + 1024);
+    }
+
+    std::vector<QFuture<void>> futures;
+    futures.reserve(K);
+    for (int k = 0; k < K; ++k) {
+      futures.push_back(QtConcurrent::run(&MeshGenerator::generateSlab, this,
+                                          k, K, &slabsV[k], &slabsN[k],
+                                          &slabsI[k]));
+    }
+    for (int k = 0; k < K; ++k) {
+      futures[k].waitForFinished();
     }
 
     m_cube->lock()->unlock();
 
-    // Copy the data across
-    m_mesh->setVertices(m_vertices);
-    m_mesh->setNormals(m_normals);
+    // Concatenate slab buffers in order into the member buffers, then move
+    // them into the Mesh in one write-lock + one revision bump (task 4.2 /
+    // design D10) instead of two separate setters.
+    m_vertices.clear();
+    m_normals.clear();
+    m_indices.clear();
+    for (int k = 0; k < K; ++k) {
+      m_vertices.insert(m_vertices.end(), slabsV[k].begin(), slabsV[k].end());
+      m_normals.insert(m_normals.end(), slabsN[k].begin(), slabsN[k].end());
+      m_indices.insert(m_indices.end(), slabsI[k].begin(), slabsI[k].end());
+    }
+
+    // Move the data across (zero-copy): the move overloads std::move the
+    // buffers straight into the Mesh instead of deep-copying them.
+    m_mesh->setGeometry(std::move(m_vertices), std::move(m_normals));
     m_mesh->setStable(true);
 
     // Now we are done give all that memory back
     m_vertices.resize(0);
     m_normals.resize(0);
+    m_indices.resize(0);
   }
 
   void MeshGenerator::clear()
@@ -165,7 +212,10 @@ namespace Avogadro {
     return 0;
   }
 
-  bool MeshGenerator::marchingCube(const Vector3i &pos)
+  bool MeshGenerator::marchingCube(const Vector3i &pos,
+                                   std::vector<Eigen::Vector3f>* verts,
+                                   std::vector<Eigen::Vector3f>* norms,
+                                   std::vector<unsigned int>* idx)
   {
     float afCubeValue[8];
     Vector3f asEdgeVertex[12];
@@ -228,22 +278,51 @@ namespace Avogadro {
       if (!m_reverseWinding) {
         for(int j = 0; j < 3; ++j) {
           iVertex = a2iTriangleConnectionTable[iFlagIndex][3*i+j];
-          m_indices.push_back(m_vertices.size());
-          m_normals.push_back(asEdgeNorm[iVertex]);
-          m_vertices.push_back(asEdgeVertex[iVertex]);
+          idx->push_back(verts->size());
+          norms->push_back(asEdgeNorm[iVertex]);
+          verts->push_back(asEdgeVertex[iVertex]);
         }
       }
       else {
         for(int j = 2; j >= 0; --j) {
           iVertex = a2iTriangleConnectionTable[iFlagIndex][3*i+j];
-          m_indices.push_back(m_vertices.size());
-          m_normals.push_back(-asEdgeNorm[iVertex]);
-          m_vertices.push_back(asEdgeVertex[iVertex]);
+          idx->push_back(verts->size());
+          norms->push_back(-asEdgeNorm[iVertex]);
+          verts->push_back(asEdgeVertex[iVertex]);
         }
       }
 
     }
     return true;
+  }
+
+  bool MeshGenerator::marchingCube(const Vector3i &pos)
+  {
+    return marchingCube(pos, &m_vertices, &m_normals, &m_indices);
+  }
+
+  void MeshGenerator::generateSlab(MeshGenerator *gen, int k, int kCount,
+                                   std::vector<Eigen::Vector3f>* verts,
+                                   std::vector<Eigen::Vector3f>* norms,
+                                   std::vector<unsigned int>* idx)
+  {
+    const int rows = gen->m_dim.x() - 1;
+    const int kStart = k * rows / kCount;
+    const int kEnd = std::min<int>((k + 1) * rows / kCount, rows);
+    for (int i = kStart; i < kEnd; ++i) {
+      for (int j = 0; j < gen->m_dim.y() - 1; ++j) {
+        for (int c = 0; c < gen->m_dim.z() - 1; ++c) {
+          gen->marchingCube(Vector3i(i, j, c), verts, norms, idx);
+        }
+      }
+    }
+    // D9: one progress tick per finished slab, mapped onto the original
+    // per-row (0 .. dim.x()-1) range. Emitted after the whole slab, not per
+    // row (the m_indices bookkeeping is upstream legacy: an identity list of
+    // the pushed-vertex positions; Mesh has no index storage and nothing
+    // consumes it, but task 5.3 mandates the existing marchingCube body).
+    if (kEnd > kStart)
+      emit gen->progressValueChanged(kEnd - 1);
   }
 
   // Lists the positions, relative to vertex0, of the 8 vertices of a cube

@@ -55,6 +55,7 @@ set(tests
   selectionset
   meshrevision
   meshstream
+  meshgenparallel
   consumerparity
   threadedparity
   builderpool
@@ -469,6 +470,74 @@ set_tests_properties(surfaceextensionmothrottletestTest PROPERTIES
 set_property(SOURCE ${surfaceextensionmothrottletest_SRCS} PROPERTY LABELS avogadro)
 set_property(TARGET surfaceextensionmothrottletest PROPERTY LABELS avogadro)
 set_property(TEST surfaceextensionmothrottletestTest PROPERTY LABELS avogadro)
+
+# D7 distance-screening guard (fix-surface-visualization-performance, task
+# 7.1): screened vs unscreened grids agree within tolerance, screening is
+# deterministic, and the density path behaves the same. Needs only the OpenQube
+# basis-set machinery (linked from the OpenQube library) plus the molecule
+# file reader from avogadro; no plugin/dialog sources.
+add_executable(screeningtest screeningtest.cpp)
+target_include_directories(screeningtest PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/surfaces
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../avogadro/src)
+target_link_libraries(screeningtest
+  PRIVATE
+  Qt6::Core
+  Qt6::Gui
+  Qt6::Test
+  Qt6::Concurrent
+  avogadro
+  OpenQube
+  OpenBabel3::openbabel)
+target_compile_definitions(screeningtest PRIVATE
+  TESTDATA_DIR="${CMAKE_SOURCE_DIR}/testfiles")
+add_test(screeningTest ${CMAKE_BINARY_DIR}/bin/screeningtest)
+set_tests_properties(screeningTest PROPERTIES
+  ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+set_property(SOURCE screeningtest.cpp PROPERTY LABELS avogadro)
+set_property(TARGET screeningtest PROPERTY LABELS avogadro)
+set_property(TEST screeningTest PROPERTY LABELS avogadro)
+
+# D11 precalculation-policy pin (fix-surface-visualization-performance, task
+# 7.3): unit-tests OrbitalWidget::clampPrecalcQuality (Low/Medium pass
+# through, High/VeryHigh clamp to Medium) and pins that precalculateOrbitals
+# routes its queue resolution through the clamp. Includes the real
+# orbitalwidget.h, so AUTOUIC must generate ui_orbitalwidget.h — mirror the
+# surfaceextensiontest include/AUTOUIC setup (header-only; no extension TU
+# compiled). AUTOUIC cannot see the ui_ include inside the transitively
+# included orbitalwidget.h, so generate the header explicitly with
+# qt6_wrap_ui into this directory's binary dir (already on the include path).
+qt6_wrap_ui(precalcpolicytest_UI
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/surfaces/orbitalwidget.ui)
+add_executable(precalcpolicytest precalcpolicytest.cpp
+  ${precalcpolicytest_UI})
+target_include_directories(precalcpolicytest PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/surfaces
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../avogadro/src)
+set_target_properties(precalcpolicytest PROPERTIES
+  AUTOUIC "OFF")
+target_compile_definitions(precalcpolicytest PRIVATE
+  AVOGADRO_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+target_link_libraries(precalcpolicytest
+  PRIVATE
+  Qt6::Core
+  Qt6::Gui
+  Qt6::Widgets
+  Qt6::OpenGL
+  Qt6::OpenGLWidgets
+  Qt6::Test
+  Qt6::Concurrent
+  avogadro
+  OpenQube
+  OpenBabel3::openbabel)
+add_test(precalcpolicyTest ${CMAKE_BINARY_DIR}/bin/precalcpolicytest)
+set_tests_properties(precalcpolicyTest PROPERTIES
+  ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+set_property(SOURCE precalcpolicytest.cpp PROPERTY LABELS avogadro)
+set_property(TARGET precalcpolicytest PROPERTY LABELS avogadro)
+set_property(TEST precalcpolicyTest PROPERTY LABELS avogadro)
+
 
 add_executable(qt6signalpatternstest qt6signalpatternstest.cpp)
 target_compile_definitions(qt6signalpatternstest PRIVATE

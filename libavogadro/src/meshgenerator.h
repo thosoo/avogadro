@@ -67,6 +67,14 @@
     explicit MeshGenerator(QObject *parent = 0);
 
     /**
+     * Test-only override for the slab count used by run(). When > 0 it
+     * substitutes for std::min(8, QThread::idealThreadCount()), letting a test
+     * force a serial (K=1) or parallel (K>1) run and compare results. Default
+     * 0 means "auto".
+     */
+    static int testThreadCount;
+
+    /**
      * Constructor. Can be used to initialize the MeshGenerator.
      * @param cube The source Cube with the volumetric data.
      * @param mesh The Mesh that will hold the isosurface.
@@ -149,9 +157,29 @@
                             const Eigen::Vector3f &pos);
 
     /**
-     * Perform a marching cubes step on a single cube.
+     * Perform a marching cubes step on a single cube, appending the resulting
+     * triangles to the supplied buffer vectors. The buffers are caller-owned
+     * so several workers can march concurrently into disjoint vectors.
+     */
+    bool marchingCube(const Eigen::Vector3i &pos,
+                      std::vector<Eigen::Vector3f>* verts,
+                      std::vector<Eigen::Vector3f>* norms,
+                      std::vector<unsigned int>* idx);
+
+    /**
+     * Thin wrapper that marches into this generator's own member buffers.
      */
     bool marchingCube(const Eigen::Vector3i &pos);
+
+    /**
+     * D9: static worker that marches the cell rows [k*rows/kCount,
+     * min((k+1)*rows/kCount, rows)) into slab-local buffers. Cube reads are
+     * read-only, so slabs are independent and concatenate deterministically.
+     */
+    static void generateSlab(MeshGenerator *gen, int k, int kCount,
+                             std::vector<Eigen::Vector3f>* verts,
+                             std::vector<Eigen::Vector3f>* norms,
+                             std::vector<unsigned int>* idx);
 
     float m_iso;               /** The value of the isosurface.                 */
     bool m_reverseWinding;     /** Whether the winding and normals are reversed */

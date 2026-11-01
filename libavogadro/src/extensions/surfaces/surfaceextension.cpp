@@ -37,6 +37,8 @@
 #include <QMetaObject>
 #include <QtConcurrent/QtConcurrentRun>
 #include <QtConcurrent/QtConcurrentMap>
+#include <QFuture>
+#include <QFutureWatcher>
 #include <avogadro/toolgroup.h>
 #include <avogadro/molecule.h>
 #include <avogadro/atom.h>
@@ -150,7 +152,12 @@ namespace Avogadro
 
     // N.1: bump the generation counter first, before any teardown, so a stale
     // completion callback from the outgoing document can no longer run.
-    m_generation++;
+    // fetch_add is atomic (m_generation is read on worker threads), so this is
+    // not a data race. Using the default seq_cst ordering (not relaxed) gives a
+    // happens-before with the teardown that immediately follows, closing the
+    // formal gap: a worker that re-reads m_generation after the switch sees the
+    // new epoch. The epoch compare is self-validating either way.
+    m_generation.fetch_add(1);
 
     // N.2: quiesce background work owned by the outgoing document before
     // releasing its data. Cube calcs run on QtConcurrent (writing through
@@ -175,6 +182,24 @@ namespace Avogadro
       m_meshGen1->wait();
     if (m_meshGen2 && m_meshGen2->isRunning())
       m_meshGen2->wait();
+    // D3: quiesce the in-flight cube-data copy worker before releasing the
+    // cube it may still be writing into. Its queued continuation
+    // (continueAfterCubeCopy) re-checks the epoch and no-ops on a switch, so
+    // this only bounds the copy's lifetime; the cube object is safe because
+    // the copy completes before any teardown frees it.
+    if (m_cubeCopyFuture.isRunning())
+      m_cubeCopyFuture.waitForFinished();
+    // P1: quiesce the in-flight ESP-color maps before releasing the molecule.
+    // The maps dereference mesh->vertex(i) and the molecule's atoms from pool
+    // threads; setMolecule runs on the GUI stack, so waiting here keeps those
+    // objects alive (their deleteLater events cannot fire until this returns).
+    // Clear the tracked futures afterwards so a later recalculation does not
+    // re-wait on already-completed maps.
+    for (QFuture<void> &f : m_espFutures) {
+      if (f.isRunning())
+        f.waitForFinished();
+    }
+    m_espFutures.clear();
     QApplication::restoreOverrideCursor();
 
     // A stale calculateDone() must now no-op (see the guard below).
@@ -193,6 +218,7 @@ namespace Avogadro
     // This will no longer be valid if the molecule has changed - clear them
     m_mesh1 = 0;
     m_mesh2 = 0;
+    m_mesh2Started = false;
     m_cube = 0;
     m_cubeColor = 0;
     m_calculationPhase = -1;
@@ -272,70 +298,120 @@ namespace Avogadro
       }
 
     const unsigned int n = mesh->vertices().size();
-    std::vector<Color3f> colors;
-    if (n > 0) {
-      colors.resize(n);
-
-      // Colour the vertices in parallel (D4) so per-vertex ESP work does not
-      // block the GUI thread. The molecule and mesh are read-only during the
-      // map. NeighborList::nbrs() writes to a per-instance scratch buffer
-      // (m_r2), so a shared list would data-race; each worker owns its own
-      // NeighborList (thread_local, built once per worker thread). The result
-      // is published with a single setColors() on the GUI thread after the map.
-      QVector<int> idx(n);
-      for (unsigned int i = 0; i < n; ++i)
-        idx[i] = static_cast<int>(i);
-
-      QtConcurrent::map(idx, [&](int i) {
-        thread_local NeighborList *nbrLocal = nullptr;
-        if (!nbrLocal)
-          nbrLocal = new NeighborList(m_molecule, 7.0, false, 2);
-
-        const Vector3f *v = mesh->vertex(i);
-
-        double energy = 0.0;
-
-        QList<Atom*> nbrAtoms = nbrLocal->nbrs(v);
-        // Include formal charges when there are hydrogens
-        if (hasHydrogens) {
-          foreach(Atom *a, nbrAtoms) {
-            Vector3f dist = a->pos()->cast<float>() - v->cast<float>();
-            energy += (a->formalCharge() + a->partialCharge()) / dist.squaredNorm();
-          }
-        } else {
-          foreach(Atom *a, nbrAtoms) {
-            Vector3f dist = a->pos()->cast<float>() - v->cast<float>();
-            energy += a->partialCharge() / dist.squaredNorm();
-          }
-        }
-
-        // Chemistry convention: red = negative, blue = positive.
-        // Inline HSV -> RGB matching QColor::fromHsv(hue, sat, 255) for
-        // hue 0 (red) / 240 (blue); verified pixel-exact over the full
-        // 0-255 saturation range, so the rendered ESP is unchanged.
-        int saturation = 0;
-        if (energy < 0.0) {
-          saturation = static_cast<int>(-255.0 * 5.0 * energy);
-        } else if (energy > 0.0) {
-          saturation = static_cast<int>(255.0 * 5.0 * energy);
-        }
-        if (saturation > 255)
-          saturation = 255;
-
-        int r, g, b;
-        if (energy < 0.0) {
-          r = 255;
-          g = 255 - saturation;
-          b = 255 - saturation;
-        } else {
-          r = 255 - saturation;
-          g = 255 - saturation;
-          b = 255;
-        }
-        colors[i] = Color3f(r, g, b);
-      });
+    if (n == 0) {
+      mesh->setColors(std::vector<Color3f>());
+      return;
     }
-    mesh->setColors(colors);
+
+    // Colour the vertices in parallel (D4) so per-vertex ESP work runs off the
+    // GUI thread and the event loop stays responsive until it completes.
+    // QtConcurrent::map runs the map on the thread pool and returns a
+    // QFuture<void>; it references its input container via iterators, so the
+    // index vector and colour buffer are heap-allocated to outlive the async
+    // map and are released by the watcher once the map completes. This avoids
+    // the use-after-free of the previous code, which discarded the future and
+    // called setColors() while pool threads were still writing the stack
+    // locals. Each vertex writes a distinct index, so there is no data race.
+    //
+    // The molecule and mesh are read-only during the map. NeighborList::nbrs()
+    // writes to a per-instance scratch buffer (m_r2), so a shared list would
+    // data-race; each worker owns its own NeighborList (thread_local).
+    // mesh/mol/hasHydrogens are captured by value so the copied lambda does
+    // not dangle after this function returns.
+    const unsigned long generation = m_generation;
+    Molecule *mol = m_molecule;
+    std::vector<Color3f> *colors = new std::vector<Color3f>(n);
+    QVector<int> *idx = new QVector<int>(n);
+    for (unsigned int i = 0; i < n; ++i)
+      (*idx)[i] = static_cast<int>(i);
+
+    QFuture<void> future = QtConcurrent::map(*idx,
+        [mesh, mol, hasHydrogens, colors, idx](int i) {
+          // thread_local cache keyed by molecule: rebuild the NeighborList when a
+          // worker later colors a different document's vertices. A stale list
+          // (carried from a previous molecule) would query the wrong molecule's
+          // atoms, producing wrong colors or dangling reads after that molecule
+          // was freed. Delete the old list on rebuild so the per-thread cache
+          // does not leak across documents.
+          thread_local struct { Molecule *mol; NeighborList *list; } cache =
+              {nullptr, nullptr};
+          if (cache.mol != mol) {
+            delete cache.list;
+            cache.list = new NeighborList(mol, 7.0, false, 2);
+            cache.mol = mol;
+          }
+          NeighborList *nbrLocal = cache.list;
+
+          const Vector3f *v = mesh->vertex(i);
+
+          double energy = 0.0;
+
+          QList<Atom*> nbrAtoms = nbrLocal->nbrs(v);
+          // Include formal charges when there are hydrogens
+          if (hasHydrogens) {
+            foreach(Atom *a, nbrAtoms) {
+              Vector3f dist = a->pos()->cast<float>() - v->cast<float>();
+              energy += (a->formalCharge() + a->partialCharge()) / dist.squaredNorm();
+            }
+          } else {
+            foreach(Atom *a, nbrAtoms) {
+              Vector3f dist = a->pos()->cast<float>() - v->cast<float>();
+              energy += a->partialCharge() / dist.squaredNorm();
+            }
+          }
+
+          // Chemistry convention: red = negative, blue = positive.
+          // Inline HSV -> RGB matching QColor::fromHsv(hue, sat, 255) for
+          // hue 0 (red) / 240 (blue); verified pixel-exact over the full
+          // 0-255 saturation range, so the rendered ESP is unchanged.
+          int saturation = 0;
+          if (energy < 0.0) {
+            saturation = static_cast<int>(-255.0 * 5.0 * energy);
+          } else if (energy > 0.0) {
+            saturation = static_cast<int>(255.0 * 5.0 * energy);
+          }
+          if (saturation > 255)
+            saturation = 255;
+
+          int r, g, b;
+          if (energy < 0.0) {
+            r = 255;
+            g = 255 - saturation;
+            b = 255 - saturation;
+          } else {
+            r = 255 - saturation;
+            g = 255 - saturation;
+            b = 255;
+          }
+
+          (*colors)[i] = Color3f(r, g, b);
+        });
+
+    // Track the map so setMolecule can quiesce it on a document switch before
+    // the molecule's meshes/atoms are deleteLater'd (P1: closes the worker-side
+    // use-after-free window where the map still reads mesh->vertex(i)).
+    m_espFutures.append(future);
+
+    // Publish on the GUI thread once the map completes, re-checking the epoch
+    // so a document switch mid-map does not color a mesh of the outgoing
+    // document. The surface engine reads vertex colors lazily from the mesh
+    // during drawColorMesh(), and setColors() takes the mesh write lock, so
+    // this is safe against the concurrent render path. Triggering a repaint
+    // here ensures the freshly colored mesh is presented without waiting for
+    // the next unrelated redraw.
+    QFutureWatcher<void> *watcher = new QFutureWatcher<void>(this);
+    connect(watcher, &QFutureWatcher<void>::finished, this,
+            [this, watcher, colors, idx, mesh, generation]() {
+              if (generation == m_generation) {
+                mesh->setColors(*colors);
+                if (m_glwidget)
+                  m_glwidget->update();
+              }
+              delete colors;
+              delete idx;
+              watcher->deleteLater();
+            });
+    watcher->setFuture(future);
   }
 
   Cube * SurfaceExtension::newCube()
@@ -515,7 +591,15 @@ namespace Avogadro
                            m_surfaceDialog->cubeType() == Cube::VdW);
     m_meshGen1->start();
 
-    // Calculate the negative part of the MO if this is an MO mesh
+    // Start the negative-lobe mesh (mesh2) later, from mesh1's finished()
+    // continuation (calculateDone, phase 2), so the two lobes never generate
+    // concurrently (bounded memory, design D5). Guard with m_mesh2Started so
+    // mesh2 is started exactly once.
+    m_mesh2Started = false;
+
+    // Calculate the negative part of the MO if this is an MO mesh. The mesh2
+    // object is created here; its generator is started in calculateDone() once
+    // mesh1 is stable.
     if (m_surfaceDialog->cubeType() == Cube::MO ||
         m_surfaceDialog->cubeType() == Cube::FromFile) {
       m_mesh2 = m_molecule->addMesh();
@@ -525,20 +609,9 @@ namespace Avogadro
       // Add pair information
       m_mesh1->setOtherMesh(m_mesh2->id());
       m_mesh2->setOtherMesh(m_mesh1->id());
-      // Now generate the mesh
-      if (!m_meshGen2) {
-        m_meshGen2 = new MeshGenerator;
-        connect(m_meshGen2, SIGNAL(finished()), this, SLOT(calculateDone()));
-      }
-      else {
-        disconnect(m_meshGen2, 0, this, 0);
-        delete m_meshGen2;
-        m_meshGen2 = new MeshGenerator;
-        connect(m_meshGen2, SIGNAL(finished()), this, SLOT(calculateDone()));
-      }
-      // Reverse the windings for the negative isosurface
-      m_meshGen2->initialize(cube, m_mesh2, -isoValue, true);
-      m_meshGen2->start();
+    }
+    else {
+      m_mesh2 = 0;
     }
 
     qDebug() << "calculateMesh called" << isoValue;
@@ -680,6 +753,7 @@ namespace Avogadro
     m_cubeColor = 0;
     m_mesh1 = 0;
     m_mesh2 = 0;
+    m_mesh2Started = false;
 
     // Now attempt to begin the calculation
     bool calculateCube = false;
@@ -718,18 +792,24 @@ namespace Avogadro
           OpenQube::Cube *qube = m_qube;
           m_qube = 0;
           if (qube) {
-            unsigned int generation = m_runningGeneration;
+            const unsigned long generation = m_runningGeneration;
             Cube *cube = m_cube;
-            // Discard the future: the queued continuation tracks completion.
-            static_cast<void>(
-                QtConcurrent::run([this, generation, cube, qube]() {
+            // Track the copy worker so setMolecule can quiesce it on a document
+            // switch before releasing the cube. The queued continuation still
+            // tracks phase advancement; this member only bounds the copy.
+            m_cubeCopyFuture = QtConcurrent::run([this, generation, cube, qube]() {
               // Stale document switch while copying: drop the cube, no-op.
               if (generation != m_generation) {
                 delete qube;
                 return;
               }
               cube->lock()->lockForWrite();
-              cube->setData(*qube->data());
+              // Re-check the epoch AFTER acquiring the lock: a switch landing
+              // after the first guard but before the copy is caught here, so
+              // we never setData into a cube being torn down.
+              if (generation == m_generation) {
+                cube->setData(*qube->data());
+              }
               cube->lock()->unlock();
               delete qube;
               QMetaObject::invokeMethod(
@@ -738,7 +818,7 @@ namespace Avogadro
                       continueAfterCubeCopy();
                   },
                   Qt::QueuedConnection);
-            }));
+            });
           }
           // Async copy dispatched on a worker; the queued continuation
           // (continueAfterCubeCopy) resumes the phase machine. Return here so
@@ -757,6 +837,29 @@ namespace Avogadro
         return;
       }
       case 2: { // Mesh calculated - now display it in an engine if possible
+        // Start the negative-lobe mesh (mesh2) now that mesh1 is stable and
+        // mesh2 has not started yet. This runs on mesh1's finished() continuation;
+        // mesh2's own finished() re-enters here, and once both meshes are stable
+        // the block below displays. Running the lobes one after the other keeps
+        // peak memory bounded by a single mesh (design D5).
+        if (m_mesh2 && !m_mesh2Started) {
+          if (!m_meshGen2) {
+            m_meshGen2 = new MeshGenerator;
+            connect(m_meshGen2, SIGNAL(finished()), this, SLOT(calculateDone()));
+          }
+          else {
+            disconnect(m_meshGen2, 0, this, 0);
+            delete m_meshGen2;
+            m_meshGen2 = new MeshGenerator;
+            connect(m_meshGen2, SIGNAL(finished()), this, SLOT(calculateDone()));
+          }
+          // Reverse the windings for the negative isosurface
+          m_meshGen2->initialize(m_cube, m_mesh2, -m_surfaceDialog->isoValue(),
+                                 true);
+          m_mesh2Started = true;
+          m_meshGen2->start();
+          return; // wait for mesh2 to finish before displaying
+        }
         if (!m_mesh2)
           m_calculationPhase = -1; // i.e. no calculation in progress any more
         else if (m_mesh1->stable() && m_mesh2 && m_mesh2->stable()) {

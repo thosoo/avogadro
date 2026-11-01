@@ -33,6 +33,8 @@
 #include <QMutex>
 #include <QList>
 #include <QTime>
+#include <QFuture>
+#include <atomic>
 
 class QProgressDialog;
 
@@ -181,8 +183,16 @@ namespace Avogadro
 
     QList<calcInfo> m_queue;
     int m_currentRunningCalculation;
-    unsigned long m_generation;        // N.1: bumped on each document switch
+    // N.1: bumped on each document switch. Atomic because worker threads (the
+    // cube-copy worker, the ESP-color worker) read it without further
+    // synchronization; relaxed is enough — the epoch compare is self-validating
+    // (a mismatch makes the callback no-op).
+    std::atomic<unsigned long> m_generation;
     unsigned long m_runningGeneration; // N.1: captured per launched calculation
+    // D3: tracks the in-flight cube-data copy worker (QtConcurrent::run) so
+    // setMolecule can quiesce it on a document switch before releasing the cube
+    // it may still be writing into.
+    QFuture<void> m_cubeCopyFuture;
     qint64 m_lastProgressEmit = 0;     // throttled progress emit timestamp
     MeshGenerator *m_meshGen;
     OpenQube::BasisSet *m_basis;

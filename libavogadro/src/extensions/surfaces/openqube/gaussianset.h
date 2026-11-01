@@ -62,6 +62,12 @@ class OPENQUBE_EXPORT GaussianSet : public BasisSet
   Q_OBJECT
 
 public:
+  // D7: a contracted Gaussian decays as exp(-alpha r^2); a shell contribution
+  // falls below this fraction once alpha r^2 > -ln(kScreenTolerance).
+  // Public settable inline variable (C++17) so tests can disable screening by
+  // setting it to 0 (an infinite cutoff skips no shells).
+  static inline double kScreenTolerance = 1e-12;
+
   /**
    * Constructor.
    */
@@ -204,6 +210,10 @@ private:
   std::vector<double> m_gtoA;              //! The GTO exponent
   std::vector<double> m_gtoC;              //! The GTO contraction coefficient
   std::vector<double> m_gtoCN;             //! The GTO contraction coefficient (normalized)
+  // D7: per-shell maximum squared distance (r^2) at which the shell can still
+  // contribute more than kScreenTolerance. Used to skip shells whose
+  // contribution at a point is negligible.
+  std::vector<double> m_shellRMax2;
   Eigen::MatrixXd m_moMatrix;              //! MO coefficient matrix
   Eigen::MatrixXd m_density;               //! Density matrix
 
@@ -223,6 +233,10 @@ private:
 
   void initCalculation();  //! Perform initialisation before any calculations
   void initCalculationForOrca();  //! Perform initialisation before any calculations for Orca output files or Orca written molden files
+  //! D7: finalise the gtoIndices range and compute the per-shell distance
+  //! screening cutoffs (m_shellRMax2). Called at the start of both init
+  //! functions, after the basis is fixed and before the normalisation loop.
+  void computeScreeningCutoffs();
   /// Re-entrant single point forms of the calculations
   static void processPoint(GaussianShell &shell);
   static void processDensity(GaussianShell &shell);
