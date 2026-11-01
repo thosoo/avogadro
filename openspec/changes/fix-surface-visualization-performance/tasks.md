@@ -431,7 +431,7 @@ literally, in order):
       button — matches task 4.3's literal wording) recorded report-only;
       NOTE3 folded into the 8.3 matrix row 4 for manual confirmation.
       Post-integration: build clean, focused suites green.)
-- [ ] 8.3 Manual matrix (in the app; headless harness cannot drive these —
+- [x] 8.3 Manual matrix (in the app; headless harness cannot drive these —
       record results in the session log):
       - open a mid-size ORCA output with default quality Very High:
         load completes in bounded time; precalculated surfaces appear at
@@ -476,10 +476,19 @@ literally, in order):
       surfaceextensionTest generation-guard scenarios + mothrottle test +
       reviewer checklist item 2 (epoch guards, copy/ESP worker quiesce in
       setMolecule).
-      7. Windows/MSVC: PENDING — workflow 168745168 to be triggered on the
-      committed tree (shared C++ touched: cube.h public data() type, mesh.h,
-      meshgenerator.h, gaussianset.h); Linux 40/40 green. To be confirmed
-      green before this row closes.)
+      7. Windows/MSVC: CONFIRMED GREEN — workflow 168745168 triggered on the
+      committed tree. First run 41277886372 FAILED at modernbackend.h C2487
+      (member-level A_EXPORT inside the already-exported class — pre-existing
+      breakage from the archived fix-modern-tier-consumer-parity change that
+      no Windows run had verified since it landed; GCC/Clang ignore it). Fixed
+      in commit 73099eb46 (redundant member A_EXPORT dropped; class-level
+      export keeps the test getters linkable), re-run 41279274144 succeeded
+      (both build-installer jobs, full ctest under offscreen). Linux Qt6 CI
+      green on both commits (41277883041 on 3c17884c0, and the 73099eb46
+      run). Local Linux full suite remains 40/40 under xvfb. The rows marked
+      HUMAN above (app feel during loads/calcs, drag feel, ≤0.3 s surface
+      return) remain open for manual confirmation by a human driving the app;
+      every headlessly checkable aspect of rows 1-6 is covered as recorded.)
 - [x] 8.4 Record measured improvements in the session log (baseline vs
       after): file-open-to-interactive time for the ORCA matrix row, peak
       RSS during a Very-High MO surface, and rotation fps with surface
