@@ -15,9 +15,11 @@ camera coupling as a follow-up non-goal. Current data flow (verified in the tree
   `gluProject`/`gluUnProject` (`camera.cpp:284,305`) — picking and tool placement are
   already stack-free, which is why they behaved correctly on `.12` while rendering did
   not.
-- The modern tier's only stack dependency is `GLWidget::currentModelViewProjection()`
-  (`glwidget.cpp:1290`): `glGetFloatv` of both matrices → QMatrix4x4 product, consumed
-  by 5 call sites (1149, 1225, 1271, 1328, 1509) that must not change.
+- The modern tier's GL-stack dependencies are `GLWidget::currentModelViewProjection()`
+  (`glwidget.cpp:1290`) and `GLWidget::currentModelView()` (`glwidget.cpp:1301`): both
+  read the stack via `glGetFloatv`. The uMVP reader is consumed by 5 call sites (1149,
+  1225, 1271, 1328, 1509) and the modelview reader by 4 (1150, 1229, 1272, 1510); the
+  consumers must not change — only the matrix source does.
 - Stack writers: `GLWidget::paintGL` (guarded to non-Core by the core-profile change),
   dead `paintGL2` (no callers), and the legacy `glRenderMode(GL_SELECT)` pick path
   (`glwidget.cpp:3439/3445`, unreachable on Core by tier gating). `renderText`'s stack
@@ -43,7 +45,10 @@ camera coupling as a follow-up non-goal. Current data flow (verified in the tree
   the compat/legacy tiers keep their exact path (frozen low tiers).
 - No work on the remaining degraded fixed-function consumers (axes glyph, text/tool
   overlays, legacy mesh flush) — separate concern.
-- `paintGL2` (dead code) is left untouched to keep the diff minimal.
+- `paintGL2` is not dead at source level (GLGraphicsView::drawBackground calls it,
+  though that view is never instantiated), so it is given the same authored-matrix
+  upload as the pick path to avoid a latent identity-projection render; no other
+  change to it.
 
 ## Decisions
 
@@ -52,10 +57,20 @@ camera coupling as a follow-up non-goal. Current data flow (verified in the tree
 `applyProjection()` computes the perspective matrix from its own members
 (`angleOfViewY`, aspect from parent widget size, `zNear`/`zFar` already computed
 locally) using the standard `gluPerspective` formula, and the orthographic matrix from
-the same parameters the `glOrtho` branch uses today, storing into `d->projection`. The
-stack upload (`gluPerspective`/`glOrtho`) is then performed **only when the resolved
-context is compatibility** — an implementation detail of the fixed-function tiers, not
-a data path. `glGetDoublev` read-back is deleted.
+the same parameters the `glOrtho` branch uses today, storing into `d->projection` with
+**no GL matrix-stack calls at all** (the spec delta's "performs no GL matrix-stack
+calls" scenario). `glGetDoublev` read-back and the `gluPerspective`/`glOrtho` stack
+writes are deleted.
+
+The stack upload becomes a pure consumer of the authored matrix, performed at the two
+live call sites rather than inside `applyProjection()`: the `paintGL` non-Core branch
+and the legacy `glRenderMode(GL_SELECT)` pick path both upload the authored matrix with
+`glMultMatrixd(d->camera->projection().data())` after `glLoadIdentity()` (respectively
+after `gluPickMatrix`), so the stack reproduces the Camera-authored matrix exactly and
+the pick·perspective product is preserved. `applyProjection()` is called unconditionally
+in `paintGL` (outside the Core guard) so `d->projection` is authored on every profile —
+including Core, where the fixed-function stack block is skipped (otherwise `d->projection`
+stays identity and the modern tier renders MV-only geometry on Core).
 
 *Why not keep the read-back on compat?* It is the coupling that bit us: any context
 where the stack is dead would silently zero the camera. CPU-side authoring makes the
@@ -64,11 +79,19 @@ stored matrix valid everywhere; the compat upload is then a pure consumer of it.
 two code paths for one matrix invites drift; Eigen-only with upload-from-computed keeps
 one authority.
 
-### D2: `currentModelViewProjection()` reads the Camera
+### D2: The modern tier reads the Camera, not the stack
 
-Replace the two `glGetFloatv` calls with
-`QMatrix4x4(camera->projection.matrix() · camera->modelview.matrix())` — the product
-computed in double, cast once to float. All five consumers stay untouched.
+Replace the stack reads in `currentModelViewProjection()` and `currentModelView()` with
+the Camera's stored matrices. `currentModelViewProjection()` returns
+`composeModelViewProjection(QMatrix4x4(camera->projection().matrix().cast<float>().data()),
+QMatrix4x4(camera->modelview().matrix().cast<float>().data()))` — reusing the tested
+composer so the existing transpose/order regression guards keep covering the real path.
+`currentModelView()` returns
+`QMatrix4x4(camera->modelview().matrix().cast<float>().data()).transposed()`.
+(`.cast<float>()` keeps the raw-array constructor MSVC-safe: `qreal` is `float` on
+Windows.) This needs a new read-only `const Eigen::Projective3d &projection() const`
+accessor on `Camera`. All five uMVP consumers and the four modelview consumers stay
+untouched.
 
 *Why not cache the product?* It is one 4×4 multiply per frame; caching adds
 invalidation plumbing for nothing measurable.
@@ -80,8 +103,19 @@ likewise come from the authored matrix. So "Camera-authored product == stack pro
 compat contexts" holds by construction. The existing modernrendertest uMVP-vs-stack
 `gluProject` cross-check stays as the regression guard, plus a new headless unit test
 asserting the authored perspective/orthographic matrices equal `gluPerspective`/
-`glOrtho` output element-wise (tolerance ~1e-12, via a compat-context probe in the
-existing test style).
+`glOrtho` output element-wise.
+
+*Test-tolerance note (oracle finding, resolved):* the new test has two comparisons.
+(1) Closed-form: the authored matrix vs the analytic `gluPerspective`/`glOrtho`
+formula, both double, at a 1e-12 tolerance.
+(2) Live compat-context probe: the authored matrix vs `glGetDoublev` of the actual
+fixed-function stack. The GL stack stores the matrix as GLfloat, so `glGetDoublev`
+returns the float-rounded matrix widened to double; comparing a double-authored
+matrix to it at 1e-12 falsely fails by the ~1e-7 float rounding (verified on real
+GL: the float-rounded authored matrix is bitwise-identical to the stack on
+llvmpipe). The live probe therefore compares the float-rounded authored matrix
+(`static_cast<float>`) to the live stack at a 1e-6 tolerance, which is 0 on real GL
+and still catches any real matrix error (> 1e-3).
 
 *Float-drift note:* the stack is double internally (`GetDoublev` today), the product
 cast to float is unchanged from today's behavior (the stack read was already float for

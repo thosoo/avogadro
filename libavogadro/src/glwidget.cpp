@@ -709,10 +709,9 @@ GLWidget::GLWidget( Molecule *molecule,
                            "fixed-function consumers are skipped here (not corrupt): "
                            "axes navigation glyph, text overlays, active-tool "
                            "overlay, legacy mesh flush. The modern shader tier "
-                           "runs, but its camera matrices still come from the GL "
-                           "matrix stack, which is dead on Core, so geometry may "
-                           "render displaced until the camera is decoupled from "
-                           "the stack (documented follow-up).";
+                           "runs with the Camera-authored projection and "
+                           "modelview matrices, decoupled from the (dead) GL "
+                           "matrix stack.";
     } else {
       // Fixed-function-only state (review finding: glShadeModel and
       // GL_NORMALIZE are removed in GL 3.3 Core just like the lighting enums,
@@ -849,17 +848,23 @@ GLWidget::GLWidget( Molecule *molecule,
     resizeGL(width(), height()); // fix for bug #1797069. don't remove!
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
+    // Author the camera projection CPU-side on every profile so the modern
+    // tier's uMVP (and project()/unProject()) see a valid matrix even on a
+    // Core profile context where the fixed-function matrix stack does not
+    // exist (fix-modern-tier-camera-decoupling).
+    d->camera->applyProjection();
+
     // Core-profile containment (fix-modern-tier-core-profile 3.1): the
     // fixed-function matrix stack does not exist on a Core context, so the
-    // per-frame camera upload is skipped there instead of raising per-frame
+    // per-frame stack upload is skipped there instead of raising per-frame
     // GL_INVALID_ENUM (the modern backend's draw-path error isolation drains
-    // whatever stale state remains). The residual identity-transform rendering
-    // on Core is the documented Camera-decoupling follow-up.
+    // whatever stale state remains). The fixed-function upload is a pure
+    // consumer of the Camera-authored matrices above.
     if (context()->format().profile() != QSurfaceFormat::CoreProfile) {
-      // setup the OpenGL projection matrix using the camera
+      // setup the OpenGL projection matrix from the camera's authored matrix
       glMatrixMode( GL_PROJECTION );
       glLoadIdentity();
-      d->camera->applyProjection();
+      glMultMatrixd( d->camera->projection().data() );
 
       // setup the OpenGL modelview matrix using the camera
       glMatrixMode( GL_MODELVIEW );
@@ -874,11 +879,14 @@ GLWidget::GLWidget( Molecule *molecule,
   {
     glClear( GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT );
 
-    // setup the OpenGL projection matrix using the camera
+    // setup the OpenGL projection matrix from the camera's authored matrix
+    // (applyProjection() now only authors it CPU-side, so upload it explicitly
+    // — same as the GL_SELECT pick path).
     glMatrixMode( GL_PROJECTION );
     glPushMatrix();
     glLoadIdentity();
     d->camera->applyProjection();
+    glMultMatrixd( d->camera->projection().data() );
 
     // setup the OpenGL modelview matrix using the camera
     glMatrixMode( GL_MODELVIEW );
@@ -1289,24 +1297,25 @@ GLWidget::GLWidget( Molecule *molecule,
 
   QMatrix4x4 GLWidget::currentModelViewProjection()
   {
-    // The model*projection matrix is the one paintGL() set up on the GL stack
-    // (projection * modelview). The backend's vertex shader evaluates
-    // uMVP * vec4(worldPos, 1.0), so compose MVP = projection * modelview.
-    GLfloat mvMat[16], projMat[16];
-    glGetFloatv(GL_MODELVIEW_MATRIX, mvMat);
-    glGetFloatv(GL_PROJECTION_MATRIX, projMat);
-    return composeModelViewProjection(QMatrix4x4(projMat), QMatrix4x4(mvMat));
+    // The Camera is the single authority for both matrices (fix-modern-tier-
+    // camera-decoupling): compose the standard projection * modelview product
+    // from the stored matrices, with no GL matrix-stack read, so it is valid
+    // even on a Core profile context where the fixed-function stack is dead.
+    // The backend's vertex shader evaluates uMVP * vec4(worldPos, 1.0).
+    const Eigen::Matrix4f proj = d->camera->projection().matrix().cast<float>();
+    const Eigen::Matrix4f mv = d->camera->modelview().matrix().cast<float>();
+    return composeModelViewProjection(QMatrix4x4(proj.data()), QMatrix4x4(mv.data()));
   }
 
   QMatrix4x4 GLWidget::currentModelView()
   {
-    // The model-view matrix paintGL() left on the GL stack. The backend's lit
-    // vertex shaders evaluate mat3(uModelView) * normal, so this must be the
-    // live modelview. Same .transposed() convention as composeModelViewProjection:
-    // Qt's raw-array constructor reads GL's column-major array as row-major.
-    GLfloat mvMat[16];
-    glGetFloatv(GL_MODELVIEW_MATRIX, mvMat);
-    return QMatrix4x4(mvMat).transposed();
+    // The model-view matrix the Camera stores (fix-modern-tier-camera-
+    // decoupling). The backend's lit vertex shaders evaluate
+    // mat3(uModelView) * normal, so this must be the camera's modelview. Same
+    // .transposed() convention as composeModelViewProjection: Qt's raw-array
+    // constructor reads a column-major array as row-major.
+    const Eigen::Matrix4f mv = d->camera->modelview().matrix().cast<float>();
+    return QMatrix4x4(mv.data()).transposed();
   }
 
   QMatrix4x4 GLWidget::composeModelViewProjection(const QMatrix4x4 &projMat,
@@ -3436,7 +3445,10 @@ namespace Avogadro {
       gluPickMatrix( cx,viewport[3]-cy, w, h,viewport );
 
       // now multiply that projection matrix with the perspective of the camera
+      // (applyProjection() authors the matrix CPU-side; the upload below is a
+      // pure consumer that composes it after gluPickMatrix).
       d->camera->applyProjection();
+      glMultMatrixd( d->camera->projection().data() );
 
       // now load the modelview matrix from the camera
       glMatrixMode( GL_MODELVIEW );

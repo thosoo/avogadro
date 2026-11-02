@@ -54,19 +54,23 @@ namespace Avogadro {
    * In order to setup the OpenGL matrices before rendering the molecule, do the
    * following:
    * @code
-    // setup the OpenGL projection matrix using the camera
+    // setup the OpenGL projection matrix from the camera's authored matrix
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    camera.applyPerspective();
+    camera.applyProjection();
+    glMultMatrixd(camera.projection().data());
 
     // setup the OpenGL modelview matrix using the camera
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     camera.applyModelview();
    * @endcode
-   * The reason why Camera class does not provide a single method to do all of this
-   * is that in some cases you don't want to. For instance, when doing OpenGL selection,
-   * you want to call gluPickMatrix() right before Camera::applyPerspective().
+   * applyProjection() authors the projection matrix CPU-side (see
+   * projection()); on a fixed-function context the authored matrix must be
+   * uploaded with glMultMatrixd() as above. The reason why Camera class does
+   * not provide a single method to do all of this is that in some cases you
+   * don't want to. For instance, when doing OpenGL selection, you want to call
+   * gluPickMatrix() right before Camera::applyProjection().
    */
   class CameraPrivate;
   class A_EXPORT Camera
@@ -111,19 +115,31 @@ namespace Avogadro {
         *         the camera orientation and position
         * @sa setModelview(), const Eigen::Projective3d & modelview() const */
       Eigen::Projective3d & modelview();
-      /** Calls gluPerspective() or glOrtho() with parameters automatically chosen
-        * for rendering the GLWidget's molecule with this camera. Should be called
-        * only in GL_PROJECTION matrix mode. Example code is given
-        * in the class's comment.
+      /** @return a constant reference to the 4x4 "projection" matrix representing
+        *         the camera's authored perspective/orthographic projection.
+        * @sa applyProjection(), modelview() */
+      const Eigen::Projective3d & projection() const;
+      /** Computes the camera's perspective (or orthographic) projection matrix
+        * CPU-side from its own parameters and stores it (see projection()), with
+        * no GL matrix-stack call, so it is valid on any profile including a Core
+        * context where the fixed-function stack does not exist. The
+        * fixed-function stack upload (compat/legacy tiers and the GL_SELECT pick
+        * path) is a pure consumer of the authored matrix; it no longer needs to
+        * be called in GL_PROJECTION matrix mode. Example code is given in the
+        * class's comment.
         * @deprecated Use applyProjection instead.
-        * @sa applyModelview(), initializeViewPoint()
+        * @sa applyModelview(), initializeViewPoint(), projection()
         */
       void applyPerspective() const;
-      /** Calls gluPerspective() or glOrtho() with parameters automatically chosen
-        * for rendering the GLWidget's molecule with this camera. Should be called
-        * only in GL_PROJECTION matrix mode. Example code is given
-        * in the class's comment.
-        * @sa applyModelview(), initializeViewPoint()
+      /** Computes the camera's perspective (or orthographic) projection matrix
+        * CPU-side from its own parameters and stores it (see projection()), with
+        * no GL matrix-stack call, so it is valid on any profile including a Core
+        * context where the fixed-function stack does not exist. The
+        * fixed-function stack upload (compat/legacy tiers and the GL_SELECT pick
+        * path) is a pure consumer of the authored matrix; it no longer needs to
+        * be called in GL_PROJECTION matrix mode. Example code is given in the
+        * class's comment.
+        * @sa applyModelview(), initializeViewPoint(), projection()
         */
       void applyProjection() const;
       /** Calls glMultMatrix() with the camera's "modelview" matrix. Should be called

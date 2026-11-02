@@ -46,6 +46,9 @@
 
 #include <GL/glu.h>
 
+#include <algorithm>
+#include <cmath>
+
 #include <Eigen/Geometry>
 
 #include "libavogadro/src/rendering/geometry.h"
@@ -258,6 +261,14 @@ class ModernRenderTest : public QObject
     // (modelview * projection)^T that distorts the scene non-uniformly.
     void testProjectionMatrixComposition();
     void testProjectionMatchesNativeStack();
+
+    // fix-modern-tier-camera-decoupling: the Camera authors its projection
+    // matrix CPU-side (no GL stack read-back). It must equal the matrix
+    // gluPerspective (perspective) / glOrtho (orthographic) produces for the
+    // same parameters, element-wise: verified against the closed-form formula
+    // (always runs) and, on a GL 3.3 context, against the live fixed-function
+    // stack (the compat-context probe).
+    void testCameraProjectionMatchesGLU();
 };
 
 void ModernRenderTest::testShaderSources()
@@ -1020,6 +1031,16 @@ void ModernRenderTest::testCompatBackendFlush()
   if (!ctx)
     QSKIP("No GL 3.3+ compatibility context available; skipping compat render",
           SkipSingle);
+  if (ctx->format().profile() == QSurfaceFormat::CoreProfile) {
+    // The compat backend drives the fixed-function pipeline, which is dead on a
+    // resolved Core profile (the compat tier is disabled there), so the flush
+    // cannot be exercised; skip rather than fail on a Core-only driver.
+    ctx->makeCurrent(nullptr);
+    delete off;
+    delete ctx;
+    QSKIP("Resolved context is a Core profile (fixed-function pipeline dead); "
+          "skipping compat render", SkipSingle);
+  }
 
   QOpenGLFunctions gl;
   gl.initializeOpenGLFunctions();
@@ -1478,6 +1499,159 @@ static Eigen::Matrix4f makePerspective(float fovYDeg, float aspect,
   return p;
 }
 
+// The exact matrix gluPerspective() produces for (fovYDeg, aspect, near, far),
+// including the -1 in P(3,2) (a bare perspective form like makePerspective
+// above omits it). Used to assert the Camera's CPU-authored projection matches
+// GLU's output element-wise.
+static Eigen::Matrix4d gluPerspectiveMatrix(double fovYDeg, double aspect,
+                                            double nearPlane, double farPlane)
+{
+  Eigen::Matrix4d p = Eigen::Matrix4d::Zero();
+  const double f = 1.0 / std::tan(fovYDeg * M_PI / 360.0);
+  p(0, 0) = f / aspect;
+  p(1, 1) = f;
+  p(2, 2) = (farPlane + nearPlane) / (nearPlane - farPlane);
+  p(2, 3) = (2.0 * farPlane * nearPlane) / (nearPlane - farPlane);
+  p(3, 2) = -1.0;
+  p(3, 3) = 0.0;
+  return p;
+}
+
+// The exact matrix glOrtho() produces for (left, right, bottom, top, near, far).
+static Eigen::Matrix4d glOrthoMatrix(double left, double right, double bottom,
+                                     double top, double nearPlane, double farPlane)
+{
+  Eigen::Matrix4d p = Eigen::Matrix4d::Zero();
+  p(0, 0) = 2.0 / (right - left);
+  p(0, 3) = -(right + left) / (right - left);
+  p(1, 1) = 2.0 / (top - bottom);
+  p(1, 3) = -(top + bottom) / (top - bottom);
+  p(2, 2) = -2.0 / (farPlane - nearPlane);
+  p(2, 3) = -(farPlane + nearPlane) / (farPlane - nearPlane);
+  p(3, 3) = 1.0;
+  return p;
+}
+
+// fix-modern-tier-camera-decoupling D3: the Camera authors its projection
+// matrix CPU-side (no GL stack read-back). The authored matrix must equal the
+// matrix gluPerspective (perspective) / glOrtho (orthographic) produces for
+// the same parameters, element-wise.
+void ModernRenderTest::testCameraProjectionMatchesGLU()
+{
+  // A small molecule so the camera has a non-trivial center/radius.
+  Avogadro::Molecule mol;
+  mol.addAtom(6, Eigen::Vector3d(0, 0, 0));
+  mol.addAtom(6, Eigen::Vector3d(1.5, 0, 0));
+
+  QSurfaceFormat fmt;
+  fmt.setVersion(3, 3);
+  fmt.setProfile(QSurfaceFormat::CompatibilityProfile);
+  fmt.setDepthBufferSize(24);
+
+  Avogadro::GLWidget widget(&mol, fmt);
+  widget.resize(kWidth, kHeight);
+  Avogadro::Camera *camera = widget.camera();
+  camera->setAngleOfViewY(45.0);
+
+  // Replicate the parameters the camera derives internally from the widget.
+  const double molRadius = widget.radius() + Avogadro::CAMERA_MOL_RADIUS_MARGIN;
+  const double dist = camera->distance(widget.center());
+  const double zNear = std::max(Avogadro::CAMERA_NEAR_DISTANCE, dist - molRadius);
+  const double zFar = dist + molRadius;
+  const double aspect = static_cast<double>(kWidth) / static_cast<double>(kHeight);
+
+  // --- Perspective ---
+  widget.setProjection(Avogadro::GLWidget::Perspective);
+  camera->applyProjection();
+  const Eigen::Matrix4d gotP = camera->projection().matrix();
+  const Eigen::Matrix4d refP = gluPerspectiveMatrix(45.0, aspect, zNear, zFar);
+  for (int r = 0; r < 4; ++r)
+    for (int c = 0; c < 4; ++c)
+      QVERIFY(std::fabs(gotP(r, c) - refP(r, c)) < 1e-12);
+
+  // --- Orthographic (orthoScale is 1.0 for a fresh camera) ---
+  widget.setProjection(Avogadro::GLWidget::Orthographic);
+  camera->applyProjection();
+  const Eigen::Matrix4d gotO = camera->projection().matrix();
+  const double halfHeight = molRadius; // d->orthoScale == 1.0
+  const double halfWidth = halfHeight * aspect;
+  const Eigen::Matrix4d refO = glOrthoMatrix(-halfWidth, halfWidth,
+                                             -halfHeight, halfHeight,
+                                             zNear, zFar);
+  for (int r = 0; r < 4; ++r)
+    for (int c = 0; c < 4; ++c)
+      QVERIFY(std::fabs(gotO(r, c) - refO(r, c)) < 1e-12);
+
+  // --- Live compat-context probe ---
+  // Verify the authored matrix matches the actual fixed-function stack product
+  // (gluPerspective/glOrtho -> glGetDoublev), following the existing
+  // testProjectionMatchesNativeStack probe style. QSKIP when no GL 3.3 context
+  // is available on the runner (e.g. the offscreen platform).
+  QOffscreenSurface *off = nullptr;
+  QOpenGLContext *ctx = makeGLContext(&off);
+  if (!ctx) {
+    QSKIP("No GL 3.3+ context available on this runner; skipping live projection probe",
+          SkipSingle);
+  }
+  if (ctx->format().profile() == QSurfaceFormat::CoreProfile) {
+    // The fixed-function matrix stack (gluPerspective/glOrtho/glGetDoublev) is
+    // dead on a resolved Core profile, so the live stack cannot be compared;
+    // the closed-form assertions above already verified the authored matrix.
+    // Note: CI runs this test with QT_QPA_PLATFORM=offscreen, which resolves a
+    // Core-only context, so this live probe QSKIPs in CI; the live comparison
+    // is exercised on a developer display that resolves a Compatibility
+    // context.
+    ctx->makeCurrent(nullptr);
+    delete off;
+    delete ctx;
+    QSKIP("Resolved context is a Core profile (fixed-function matrix stack is "
+          "dead); skipping live stack probe", SkipSingle);
+  }
+  QOpenGLFunctions gl;
+  gl.initializeOpenGLFunctions();
+
+  gl.glBindFramebuffer(GL_FRAMEBUFFER, 0);
+  gl.glViewport(0, 0, kWidth, kHeight);
+  double authored[16];
+
+  // Perspective against the live stack.
+  widget.setProjection(Avogadro::GLWidget::Perspective);
+  camera->applyProjection();
+  glMatrixMode(GL_PROJECTION);
+  glLoadIdentity();
+  gluPerspective(45.0, aspect, zNear, zFar);
+  double live[16];
+  glGetDoublev(GL_PROJECTION_MATRIX, live);
+  for (int i = 0; i < 16; ++i)
+    authored[i] = camera->projection().matrix().data()[i];
+  // The fixed-function stack stores the matrix as GLfloat, so compare the
+  // float-rounded authored matrix to glGetDoublev's output (which is the same
+  // float-rounded matrix widened to double). A double-vs-float comparison at a
+  // 1e-12 tolerance would falsely fail by the ~1e-7 float rounding; the
+  // float-rounded comparison is ~0 on real GL (verified: the float-rounded
+  // authored matrix is bitwise-identical to the stack on llvmpipe). The 1e-6
+  // bound is float-precision-tolerant across implementations while still
+  // catching any real matrix error (which would be > 1e-3).
+  for (int i = 0; i < 16; ++i)
+    QVERIFY(std::fabs(static_cast<double>(static_cast<float>(authored[i])) - live[i]) < 1e-6);
+
+  // Orthographic against the live stack.
+  widget.setProjection(Avogadro::GLWidget::Orthographic);
+  camera->applyProjection();
+  glMatrixMode(GL_PROJECTION);
+  glLoadIdentity();
+  glOrtho(-halfWidth, halfWidth, -halfHeight, halfHeight, zNear, zFar);
+  glGetDoublev(GL_PROJECTION_MATRIX, live);
+  for (int i = 0; i < 16; ++i)
+    authored[i] = camera->projection().matrix().data()[i];
+  for (int i = 0; i < 16; ++i)
+    QVERIFY(std::fabs(static_cast<double>(static_cast<float>(authored[i])) - live[i]) < 1e-6);
+
+  ctx->makeCurrent(nullptr);
+  delete off;
+  delete ctx;
+}
+
 // onScreenRadius must be invariant under orbiting the camera about the focus
 // point (a pure rotation changes only the rotation part: s stays 1, the focus
 // depth and P are unchanged). This is the "rotation at fixed zoom" that must
@@ -1731,6 +1905,16 @@ void ModernRenderTest::testProjectionMatchesNativeStack()
   if (!ctx)
     QSKIP("No GL 3.3+ context available on this runner; skipping projection cross-check",
           SkipSingle);
+  if (ctx->format().profile() == QSurfaceFormat::CoreProfile) {
+    // gluProject/glLoadMatrixf/glGetFloatv are fixed-function stack operations
+    // that are dead on a resolved Core profile, so the native-stack cross-check
+    // cannot be performed; skip it rather than fail on a Core-only driver.
+    ctx->makeCurrent(nullptr);
+    delete off;
+    delete ctx;
+    QSKIP("Resolved context is a Core profile (fixed-function matrix stack is "
+          "dead); skipping native-stack cross-check", SkipSingle);
+  }
 
   QOpenGLFunctions gl;
   gl.initializeOpenGLFunctions();

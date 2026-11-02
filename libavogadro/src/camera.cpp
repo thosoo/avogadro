@@ -29,6 +29,7 @@
 #include "glwidget.h"
 #include <avogadro/molecule.h>
 #include <Eigen/LU>
+#include <cmath>
 
 #ifdef Q_OS_MAC
 # include <OpenGL/glu.h>
@@ -37,6 +38,43 @@
 #endif
 
 using namespace Eigen;
+
+namespace {
+
+// Standard gluPerspective projection matrix (column-major, matches GLU's
+// output). Authored CPU-side so the Camera is the single authority for the
+// projection; the fixed-function stack upload (compat tiers / pick path) is a
+// pure consumer of this matrix.
+Eigen::Projective3d perspectiveMatrix(double fovYDeg, double aspect,
+                                      double zNear, double zFar)
+{
+  const double f = 1.0 / std::tan(fovYDeg * M_PI / 360.0);
+  Eigen::Matrix4d m = Eigen::Matrix4d::Zero();
+  m(0, 0) = f / aspect;
+  m(1, 1) = f;
+  m(2, 2) = (zFar + zNear) / (zNear - zFar);
+  m(2, 3) = (2.0 * zFar * zNear) / (zNear - zFar);
+  m(3, 2) = -1.0;
+  return Eigen::Projective3d(m);
+}
+
+// Standard glOrtho projection matrix (column-major), authored CPU-side.
+Eigen::Projective3d orthographicMatrix(double left, double right,
+                                       double bottom, double top,
+                                       double zNear, double zFar)
+{
+  Eigen::Matrix4d m = Eigen::Matrix4d::Zero();
+  m(0, 0) = 2.0 / (right - left);
+  m(0, 3) = -(right + left) / (right - left);
+  m(1, 1) = 2.0 / (top - bottom);
+  m(1, 3) = -(top + bottom) / (top - bottom);
+  m(2, 2) = -2.0 / (zFar - zNear);
+  m(2, 3) = -(zFar + zNear) / (zFar - zNear);
+  m(3, 3) = 1.0;
+  return Eigen::Projective3d(m);
+}
+
+} // namespace
 
 namespace Avogadro
 {
@@ -187,6 +225,11 @@ namespace Avogadro
     return d->modelview;
   }
 
+  const Eigen::Projective3d & Camera::projection() const
+  {
+    return d->projection;
+  }
+
   void Camera::initializeViewPoint()
   {
     d->modelview.setIdentity();
@@ -250,23 +293,26 @@ namespace Avogadro
     double zFar = distanceToMolCenter + molRadius;
     double aspectRatio = static_cast<double>(d->parent->width()) / d->parent->height();
 
+    // The projection matrix is authored CPU-side from the camera's own
+    // parameters (no GL matrix-stack calls, so it is valid on a Core profile
+    // context where the fixed-function stack does not exist). The stack upload
+    // on the compat/legacy tiers and the legacy pick path is a pure consumer
+    // of this matrix (see GLWidget::paintGL and the GL_SELECT pick path).
     switch(d->parent->projection()) {
     case GLWidget::Perspective:
-      // Renders the perpective projection of the molecule
-      gluPerspective( d->angleOfViewY, aspectRatio, zNear, zFar );
+      d->projection = perspectiveMatrix( d->angleOfViewY, aspectRatio, zNear, zFar );
       break;
     case GLWidget::Orthographic: {
-      // Renders the orthographic projection of the molecule
       const double halfHeight = d->orthoScale * molRadius;
       const double halfWidth = halfHeight * aspectRatio;
-      glOrtho(-halfWidth, halfWidth, -halfHeight, halfHeight, zNear, zFar);
+      d->projection = orthographicMatrix( -halfWidth, halfWidth,
+                                          -halfHeight, halfHeight,
+                                          zNear, zFar );
       break;
     }
     default:
       break;
     }
-
-    glGetDoublev(GL_PROJECTION_MATRIX, d->projection.data());
   }
 
   void Camera::applyModelview() const
