@@ -18,6 +18,7 @@
 #define MOPACAUX_H
 
 #include "config.h"
+#include "openqubeabi.h"
 
 #include <QTextStream>
 #include <Eigen/Core>
@@ -29,7 +30,7 @@ namespace OpenQube
 {
 class SlaterSet;
 
-class MopacAux
+class OPENQUBE_EXPORT MopacAux
 {
 public:
   MopacAux(QString filename, SlaterSet *basis);

@@ -18,6 +18,7 @@
 #define MOLDEN_H
 
 #include "config.h"
+#include "openqubeabi.h"
 
 #include <Eigen/Core>
 #include <vector>
@@ -27,7 +28,7 @@
 namespace OpenQube
 {
 
-class MoldenFile
+class OPENQUBE_EXPORT MoldenFile
 {
   // Parsing mode: section of the file currently being parsed
   enum mode { NotParsing, Atoms, GTO, STO, MO, SCF };

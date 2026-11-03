@@ -18,6 +18,7 @@
 #define GAUSSIANFCHK_H
 
 #include "config.h"
+#include "openqubeabi.h"
 
 #include <QIODevice>
 #include <Eigen/Core>
@@ -29,7 +30,7 @@ namespace OpenQube
 {
 class GaussianSet;
 
-class GaussianFchk
+class OPENQUBE_EXPORT GaussianFchk
 {
 public:
   GaussianFchk(const QString &filename, GaussianSet *basis);
