@@ -244,3 +244,33 @@ Note: `loadMoleculeAndDrive` now establishes the `orbitalSelected ->
 renderOrbital` connection that `dockWidget()` normally wires (the test sets the
 widget directly, bypassing `dockWidget()`), so the real selection->render chain
 is exercised in-process.
+
+### Windows/MSVC export fix and CI verification (post-claim)
+
+The original claim noted the Windows installer/MSVC leg was not run locally
+because shared C++/Qt headers changed. Pushing the change to `master`
+triggered the Windows Installer workflow, which **failed at the Build step**
+with 6 unresolved externals in `orbitalextension.dll`:
+
+- `OpenQube::GaussianFchk` / `OpenQube::MoldenFile` / `OpenQube::MopacAux`
+  constructors and destructors (LNK2019), referenced from `fillBasis()`.
+
+Root cause: `fillBasis()` (the construct-on-GUI-thread / fill-on-worker split)
+instantiates these reader classes directly from `orbitalextension.dll`, but
+they were internal to the OpenQube library (only reached through
+`BasisSetLoader::LoadBasisSet`), so on Windows/MSVC they were not
+`dllexport`ed. `GAMESSUSOutput`/`GamessukOut`/`ORCAOutput` were already
+exported (the original `parseBasisFile` referenced them directly); the three
+readers were not.
+
+Fix (commit `7973ade60`): mark `GaussianFchk`, `MoldenFile`, `MopacAux` as
+`OPENQUBE_EXPORT` and include `openqubeabi.h` where it was not transitively
+available (`gaussianfchk.h`, `mopacaux.h`). Linux behavior unchanged (GCC
+`OPENQUBE_EXPORT` = `visibility("default")`).
+
+Verification:
+- Linux: full ctest **44/44** under `xvfb-run -a` (exit 0); `orbitalselectiontest` **13/13**.
+- Windows/MSVC: Windows Installer workflow **success** (run `41691734892`,
+  conclusion `success`): `build-installer (tests)` 1h2m1s and
+  `build-installer (installer)` 39m40s both passed; `100% tests passed, 0 tests
+  failed out of 44`, including `orbitalselectionTest`.
