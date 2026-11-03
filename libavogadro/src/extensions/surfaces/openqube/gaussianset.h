@@ -172,6 +172,12 @@ public:
    * @param cube The cube to write the values of the MO into.
    * @param state The molecular orbital number (1-based).
    * @return True if the calculation was started successfully.
+   *
+   * Thread-affinity contract (design D2): this object's QFutureWatcher is
+   * consumed on the calling (GUI) thread, so this object must be constructed
+   * on (or have its QFutureWatcher re-homed to) the GUI thread — never on a
+   * QtConcurrent pool thread, whose lack of an event loop would swallow the
+   * finished() callout and silently wedge the calculation.
    */
   bool startCubeCalculationAsync(Cube *cube, unsigned int state);
 
@@ -180,6 +186,10 @@ public:
    * startCubeCalculationAsync for the threading/locking contract.
    * @param cube The cube to write the values of the density into.
    * @return True if the calculation was started successfully.
+   *
+   * Thread-affinity contract (design D2): same as startCubeCalculationAsync —
+   * construct this object on the GUI thread (or re-home its QFutureWatcher to
+   * it) or the watcher's finished() is never delivered.
    */
   bool startCubeDensityCalculationAsync(Cube *cube);
 

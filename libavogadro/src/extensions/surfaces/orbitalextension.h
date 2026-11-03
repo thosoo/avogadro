@@ -134,6 +134,17 @@ namespace Avogadro
       // checkQueue() from its tryLock until a calculation completes).
       m_runningMutex->lock();
     }
+    // fix-orbital-watcher-affinity D3: expose the loaded basis and let the
+    // test observe queue completion so the real async load path (construct on
+    // the GUI thread, fill on the worker) can be driven headlessly and its
+    // watcher affinity asserted.
+    OpenQube::BasisSet *basisForTest() const { return m_basis; }
+    bool anyCompletedForTest() const {
+      for (const calcInfo &c : m_queue)
+        if (c.state == Completed)
+          return true;
+      return false;
+    }
 #endif
 
   private slots:
@@ -229,12 +240,29 @@ namespace Avogadro
   private:
 
     /**
-     * D3 worker: parse a basis set from a file name + file-format tag and
-     * return a new OpenQube::BasisSet* (or null). Touches no member state, so
-     * it can run on a QtConcurrent worker thread; the caller owns the result.
+     * D1 GUI-thread step: determine the OpenQube BasisSet subclass
+     * (GaussianSet vs SlaterSet) from the file-format tag or the matched
+     * file's suffix and construct it. Constructing on the GUI thread makes the
+     * basis's internal QFutureWatcher GUI-affine, so its async completion
+     * signals are delivered to the event loop — a watcher constructed on a
+     * QtConcurrent pool thread has no event loop and its callouts are never
+     * delivered (see design D1). Touches no member state; the caller owns the
+     * result. Returns null for unknown/missing files.
      */
-    static OpenQube::BasisSet *parseBasisFile(const QString &fileName,
+    static OpenQube::BasisSet *constructBasis(const QString &fileName,
                                               const QString &format);
+
+    /**
+     * D1 worker-thread step: fill a pre-constructed basis via the appropriate
+     * stack reader (ORCAOutput, GaussianFchk, GAMESSUSOutput, GamessukOut,
+     * MoldenFile, MopacAux). Touches no member state, so it can run on the
+     * QtConcurrent worker thread. Returns false if the reader reports failure
+     * (e.g. an ORCA parse failure), in which case the caller should drop the
+     * basis.
+     */
+    static bool fillBasis(OpenQube::BasisSet *basis,
+                          const QString &fileName,
+                          const QString &format);
 
     QDockWidget *m_dock;
     OrbitalWidget *m_widget;

@@ -29,8 +29,13 @@
 #include <openqube/basissetloader.h>
 #include <openqube/basisset.h>
 #include <openqube/gaussianset.h>
+#include <openqube/slaterset.h>
 #include <openqube/gamessukout.h>
 #include <openqube/gamessus.h>
+#include <openqube/orca.h>
+#include <openqube/gaussianfchk.h>
+#include <openqube/molden.h>
+#include <openqube/mopacaux.h>
 #include <openqube/cube.h>
 
 #include <avogadro/molecule.h>
@@ -53,8 +58,13 @@
 
 using OpenQube::BasisSet;
 using OpenQube::GaussianSet;
+using OpenQube::SlaterSet;
 using OpenQube::GamessukOut;
 using OpenQube::GAMESSUSOutput;
+using OpenQube::ORCAOutput;
+using OpenQube::GaussianFchk;
+using OpenQube::MoldenFile;
+using OpenQube::MopacAux;
 
 namespace Avogadro
 {
@@ -960,7 +970,7 @@ namespace Avogadro
     startCalculation(hash.value(priorities.first()));
   }
 
-  OpenQube::BasisSet *OrbitalExtension::parseBasisFile(const QString &fileName,
+  OpenQube::BasisSet *OrbitalExtension::constructBasis(const QString &fileName,
                                                        const QString &format)
   {
     if (fileName.isEmpty())
@@ -969,15 +979,11 @@ namespace Avogadro
     // Check to see if this molecule has been tagged with a file format
     if (format == QLatin1String("gamout")) {
       qDebug() << " deduced from format ";
-      GaussianSet *gaussian = new GaussianSet;
-      GAMESSUSOutput gamout(fileName, gaussian);
-      return gaussian;
+      return new GaussianSet;
     }
     else if (format == QLatin1String("gukout")) {
       qDebug() << " deduced from format ";
-      GaussianSet *gaussian = new GaussianSet;
-      GamessukOut gukout(fileName, gaussian);
-      return gaussian;
+      return new GaussianSet;
     }
 
     // Everything looks good, a new basis set needs to be loaded
@@ -988,7 +994,100 @@ namespace Avogadro
       qDebug() << "No matching basis set file found: " << fileName;
       return nullptr;
     }
-    return OpenQube::BasisSetLoader::LoadBasisSet(basisFileName);
+
+    // Only MOPAC .aux files load into a SlaterSet; every other recognized
+    // format loads into a GaussianSet.
+    QFileInfo info(basisFileName);
+    QString completeSuffix = info.completeSuffix();
+    if (completeSuffix.contains("aux", Qt::CaseInsensitive))
+      return new SlaterSet;
+    return new GaussianSet;
+  }
+
+  bool OrbitalExtension::fillBasis(OpenQube::BasisSet *basis,
+                                   const QString &fileName,
+                                   const QString &format)
+  {
+    if (!basis)
+      return false;
+
+    // Check to see if this molecule has been tagged with a file format
+    if (format == QLatin1String("gamout")) {
+      qDebug() << " deduced from format ";
+      GaussianSet *gs = dynamic_cast<GaussianSet *>(basis);
+      if (!gs)
+        return false;
+      GAMESSUSOutput gamout(fileName, gs);
+      return true;
+    }
+    else if (format == QLatin1String("gukout")) {
+      qDebug() << " deduced from format ";
+      GaussianSet *gs = dynamic_cast<GaussianSet *>(basis);
+      if (!gs)
+        return false;
+      GamessukOut gukout(fileName, gs);
+      return true;
+    }
+
+    // Everything looks good, a new basis set needs to be loaded
+    // Check for files in this directory -- first the file itself
+    // and then any other similar file
+    QString basisFileName = OpenQube::BasisSetLoader::MatchBasisSet(fileName);
+    if (basisFileName.isEmpty())
+      return false;
+
+    QFileInfo info(basisFileName);
+    QString completeSuffix = info.completeSuffix();
+    if (completeSuffix.contains("fchk", Qt::CaseInsensitive)
+        || completeSuffix.contains("fch", Qt::CaseInsensitive)
+        || completeSuffix.contains("fck", Qt::CaseInsensitive)) {
+      GaussianSet *gs = dynamic_cast<GaussianSet *>(basis);
+      if (!gs)
+        return false;
+      GaussianFchk fchk(basisFileName, gs);
+      return true;
+    }
+    else if (completeSuffix.contains("gamout", Qt::CaseInsensitive)
+             || completeSuffix.contains("gamess", Qt::CaseInsensitive)) {
+      GaussianSet *gs = dynamic_cast<GaussianSet *>(basis);
+      if (!gs)
+        return false;
+      GAMESSUSOutput gamout(basisFileName, gs);
+      return true;
+    }
+    else if (completeSuffix.contains("gukout", Qt::CaseInsensitive)) {
+      GaussianSet *gs = dynamic_cast<GaussianSet *>(basis);
+      if (!gs)
+        return false;
+      GamessukOut gukout(basisFileName, gs);
+      return true;
+    }
+    else if (completeSuffix.contains("orca", Qt::CaseInsensitive)
+             || completeSuffix.contains("out", Qt::CaseInsensitive)) {
+      GaussianSet *gs = dynamic_cast<GaussianSet *>(basis);
+      if (!gs)
+        return false;
+      ORCAOutput orcaout(basisFileName, gs);
+      return orcaout.success();
+    }
+    else if (completeSuffix.contains("aux", Qt::CaseInsensitive)) {
+      SlaterSet *ss = dynamic_cast<SlaterSet *>(basis);
+      if (!ss)
+        return false;
+      MopacAux aux(basisFileName, ss);
+      return true;
+    }
+    else if (completeSuffix.contains("molden", Qt::CaseInsensitive)
+             || completeSuffix.contains("mold", Qt::CaseInsensitive)
+             || completeSuffix.contains("molf", Qt::CaseInsensitive)) {
+      GaussianSet *gs = dynamic_cast<GaussianSet *>(basis);
+      if (!gs)
+        return false;
+      MoldenFile mold(basisFileName, gs);
+      return true;
+    }
+
+    return false;
   }
 
   bool OrbitalExtension::loadBasis()
@@ -1002,19 +1101,30 @@ namespace Avogadro
         m_molecule ? m_molecule->property("File Format").toString() : QString();
     const unsigned long generation = m_generation;
 
+    // D1: construct the BasisSet subclass (and its internal QFutureWatcher) on
+    // the GUI thread, so the watcher is GUI-affine and its async completion
+    // signals are delivered to the event loop. The worker below only fills it.
+    OpenQube::BasisSet *basis = constructBasis(fileName, format);
+
     m_basisLoadFuture = QtConcurrent::run(
-        [this, fileName, format, generation]() {
-          OpenQube::BasisSet *basis = parseBasisFile(fileName, format);
+        [this, fileName, format, generation, basis]() {
+          // Worker fills the GUI-affine basis. If the reader reports failure
+          // (e.g. an ORCA parse failure), keep the basis alive so the
+          // GUI-thread continuation can delete it — a GUI-affine QObject must
+          // not be destroyed from the pool thread.
+          const bool filled = basis && fillBasis(basis, fileName, format);
           // Resume on the GUI thread. `this` is the invoke context: Qt cancels
           // the queued call if the extension is destroyed before delivery, so
           // the continuation cannot outlive the extension.
           QMetaObject::invokeMethod(
-              this, [this, generation, basis] {
+              this, [this, generation, basis, filled] {
                 if (generation != m_generation) {
                   delete basis; // stale: superseded by a document switch
                   return;
                 }
-                m_basis = basis;
+                m_basis = filled ? basis : nullptr;
+                if (!filled)
+                  delete basis; // fill failed: release on the GUI thread
                 finishBasisLoad();
               },
               Qt::QueuedConnection);

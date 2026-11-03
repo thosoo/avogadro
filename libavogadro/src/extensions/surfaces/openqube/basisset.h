@@ -36,6 +36,12 @@ namespace OpenQube
  * This is the base class for basis sets, and has two derived classes -
  * GaussianSet and SlaterSet. It must be populated with data, and can then be
  * used to calculate values of the basis set in a cube.
+ *
+ * Thread-affinity contract (design D2): an object of this class whose async
+ * completion signals are consumed on the GUI thread must be constructed on (or
+ * have its QFutureWatcher re-homed to) the GUI thread. QFutureWatcher callouts
+ * post to the watcher's own thread; a watcher constructed on a QtConcurrent
+ * pool thread (which has no event loop) never delivers its finished() signal.
  */
 
 class Cube;

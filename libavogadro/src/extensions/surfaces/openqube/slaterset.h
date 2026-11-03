@@ -126,8 +126,31 @@ public:
 
   void outputAll();
 
+  /**
+   * Calculate the MO over the entire range of the supplied Cube.
+   * @param cube The cube to write the values of the MO into.
+   * @param state The molecular orbital number (1-based).
+   * @note This function starts a threaded calculation; the QFutureWatcher's
+   * finished() is consumed by calculationComplete() on this object's thread.
+   *
+   * Thread-affinity contract (design D2): this object's QFutureWatcher is
+   * consumed on the calling (GUI) thread, so this object must be constructed
+   * on (or have its QFutureWatcher re-homed to) the GUI thread — never on a
+   * QtConcurrent pool thread, whose lack of an event loop would swallow the
+   * finished() callout and silently wedge the calculation.
+   */
   bool calculateCubeMO(Cube *cube, unsigned int state = 1);
 
+  /**
+   * Calculate the electron density over the entire range of the supplied Cube.
+   * @param cube The cube to write the values of the density into.
+   * @note This function starts a threaded calculation; see calculateCubeMO for
+   * the threading/affinity contract.
+   *
+   * Thread-affinity contract (design D2): same as calculateCubeMO — construct
+   * this object on the GUI thread (or re-home its QFutureWatcher to it) or the
+   * watcher's finished() is never delivered.
+   */
   bool calculateCubeDensity(Cube *cube);
 
   QFutureWatcher<void> & watcher() { return m_watcher; }
