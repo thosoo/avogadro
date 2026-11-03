@@ -207,7 +207,7 @@ bool GaussianSet::startCubeCalculationAsync(Cube *cube, unsigned int state)
             processPointSlab(k, slabCount, cube, state);
           }));
     }
-    for (const QFuture<void> &f : slabFutures)
+    for (QFuture<void> &f : slabFutures)
       f.waitForFinished();
   });
   // Connect our watcher to our future. The future is set on the calling
@@ -272,7 +272,7 @@ bool GaussianSet::startCubeDensityCalculationAsync(Cube *cube)
             processDensitySlab(k, slabCount, cube);
           }));
     }
-    for (const QFuture<void> &f : slabFutures)
+    for (QFuture<void> &f : slabFutures)
       f.waitForFinished();
   });
   m_watcher.setFuture(m_future);
