@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
 
   //print the qube values
   int linecount=0;
-  for(unsigned int i=0;i<m_qube->data()->size();i++)
+  for(unsigned int i=0;i<m_qube->pointCount();i++)
   {
     if(i%points.z()==0 && i>0)
     {

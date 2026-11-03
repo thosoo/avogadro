@@ -77,6 +77,12 @@ namespace Avogadro {
 
       double isovalue() {return m_isovalue;};
       OrbitalQuality defaultQuality() {return m_quality;};
+      // The quality currently selected in the widget's quality combo (D4): the
+      // OrbitalExtension enqueues an explicit per-orbital request at this
+      // quality. Inline so orbitalselectiontest need not link orbitalwidget.cpp.
+      OrbitalQuality selectedQuality() {
+        return OrbitalQuality(ui.combo_quality->currentIndex());
+      };
 
       bool precalcLimit() {return m_precalc_limit;}
       int precalcRange() {return m_precalc_range;}

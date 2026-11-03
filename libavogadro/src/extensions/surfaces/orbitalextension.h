@@ -94,6 +94,19 @@ namespace Avogadro
                        tr("Calculate and visualize molecular orbitals"))
 
   public:
+    // D4: the decision a renderOrbital click takes, based on the orbital's
+    // queue state. Extracted into a pure, GLWidget-free helper so the
+    // selection semantics are unit-testable (orbitalselectiontest).
+    enum class SelectionPlan {
+      RenderNow,          // orbital is already completed -> render immediately
+      RenderWhenReady,    // orbital is queued or running -> mark pending, render on completion
+      EnqueueThenRender   // orbital is neither completed nor queued -> enqueue, render on completion
+    };
+
+    // Pure decision helper (D4): completed -> RenderNow; queuedOrRunning ->
+    // RenderWhenReady; neither -> EnqueueThenRender. No GLWidget dependency.
+    static SelectionPlan planOrbitalSelection(bool completed, bool queuedOrRunning);
+
     OrbitalExtension(QObject* parent = 0);
     virtual ~OrbitalExtension();
 
@@ -101,6 +114,27 @@ namespace Avogadro
     virtual QString menuPath(QAction* action) const;
     virtual QDockWidget * dockWidget();
     virtual void setMolecule(Molecule *molecule);
+
+#ifdef AVOGADRO_TEST_ORBITAL_SELECTION
+    // Test hooks (orbitalselectiontest, task 3.5): expose the D4
+    // pending-orbital member and let the test set up the minimal state needed
+    // to drive the real calculationComplete() completion path headlessly (the
+    // full path needs a populated widget table and a live GLWidget). These are
+    // public because the test calls them directly.
+    unsigned int pendingOrbitalForTest() const { return m_pendingOrbital; }
+    void setWidgetForTest(OrbitalWidget *w) { m_widget = w; }
+    void setQueueForTest(const QList<calcInfo> &q) { m_queue = q; }
+    void setUpCompletionForTest(const QList<calcInfo> &queue, int runningIndex,
+                                unsigned int pendingOrbital) {
+      m_queue = queue;
+      m_currentRunningCalculation = runningIndex;
+      m_runningGeneration = m_generation;
+      m_pendingOrbital = pendingOrbital;
+      // Balance the unlock in calculationComplete() (normally held by
+      // checkQueue() from its tryLock until a calculation completes).
+      m_runningMutex->lock();
+    }
+#endif
 
   private slots:
     /**
@@ -171,11 +205,36 @@ namespace Avogadro
     void renderOrbital(unsigned int orbital);
 
     /**
+     * Render the most recent completed calculation of the given orbital on the
+     * surface engine (the D4 RenderNow path). Returns false (and does nothing)
+     * if no completed calculation exists for that orbital or no surface engine
+     * is available.
+     */
+    bool renderCompletedOrbital(unsigned int orbital);
+
+    /**
      * Update the progress of the current calculation
      */
     void updateProgress(int current);
 
+    /**
+     * The D3 setMolecule tail, run on the GUI thread from the basis-load
+     * continuation once the async parse produced a BasisSet and the epoch is
+     * still current: enables/disables the dock, fills the orbital table
+     * (HOMO/LUMO detection) and starts precalculation. Extracted from
+     * setMolecule so the async basis-load continuation can drive it.
+     */
+    void finishBasisLoad();
+
   private:
+
+    /**
+     * D3 worker: parse a basis set from a file name + file-format tag and
+     * return a new OpenQube::BasisSet* (or null). Touches no member state, so
+     * it can run on a QtConcurrent worker thread; the caller owns the result.
+     */
+    static OpenQube::BasisSet *parseBasisFile(const QString &fileName,
+                                              const QString &format);
 
     QDockWidget *m_dock;
     OrbitalWidget *m_widget;
@@ -193,6 +252,9 @@ namespace Avogadro
     // setMolecule can quiesce it on a document switch before releasing the cube
     // it may still be writing into.
     QFuture<void> m_cubeCopyFuture;
+    // D3: tracks the in-flight basis-set parse worker (QtConcurrent::run) so
+    // setMolecule can quiesce it on a document switch before releasing m_basis.
+    QFuture<void> m_basisLoadFuture;
     qint64 m_lastProgressEmit = 0;     // throttled progress emit timestamp
     MeshGenerator *m_meshGen;
     OpenQube::BasisSet *m_basis;
@@ -200,6 +262,10 @@ namespace Avogadro
     Molecule *m_molecule;
     OpenQube::Cube *m_qube;
     QTime m_time;
+    // D4: the orbital the user selected while it was queued/running (0 = none).
+    // Rendered automatically when its calculation completes; cleared on a
+    // document switch so no stale surface renders after the switch.
+    unsigned int m_pendingOrbital;
   };
 
   class OrbitalExtensionFactory : public QObject, public PluginFactory

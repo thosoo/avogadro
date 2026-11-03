@@ -32,8 +32,6 @@
 namespace OpenQube
 {
 
-struct GaussianShell;
-
 /**
  * Enumeration of the Gaussian type orbitals.
  */
@@ -138,6 +136,14 @@ public:
   bool getUseOrcaNormalization() {return (m_useOrcaNorm);}
 
   /**
+   * Test-only override for the slab count used by the async cube entry points.
+   * When > 0 it substitutes for the clamped ideal thread count, letting a test
+   * force a serial (K=1) or parallel (K>1) run and assert bitwise-identical
+   * results (mirrors MeshGenerator::testThreadCount). Default 0 means "auto".
+   */
+  static int testSlabCount;
+
+  /**
    * Calculate the MO over the entire range of the supplied Cube.
    * @param cube The cube to write the values of the MO into.
    * @note This function starts a threaded calculation. Use watcher()
@@ -225,7 +231,17 @@ private:
   QFuture<void> m_future;
   QFutureWatcher<void> m_watcher;
   Cube *m_cube; //! Cube to put the results into
-  QVector<GaussianShell> *m_gaussianShells;
+
+  // D5: per-atom shell buckets. Shells are emitted grouped by atom (m_atomIndices
+  // is non-decreasing), so atom a's shells are the contiguous index range
+  // [m_atomShellBucketStart[a], m_atomShellBucketStart[a+1]). Built once per
+  // init from the atom indices.
+  std::vector<unsigned int> m_atomShellBucketStart; //! size m_numAtoms+1
+  // D5: conservative per-atom screening cutoff = the LARGEST m_shellRMax2 over
+  // the atom's shells. The atom is skipped only when dr2 exceeds it, i.e. when
+  // EVERY shell of the atom is beyond its own cutoff, so no shell the flat
+  // loop would evaluate is dropped and results stay bitwise-identical.
+  std::vector<double> m_atomShellCutoff;            //! size m_numAtoms
 
   bool m_useOrcaNorm;       //! if the data come from Orca use different calculations/normalizations
 
@@ -237,9 +253,19 @@ private:
   //! screening cutoffs (m_shellRMax2). Called at the start of both init
   //! functions, after the basis is fixed and before the normalisation loop.
   void computeScreeningCutoffs();
-  /// Re-entrant single point forms of the calculations
-  static void processPoint(GaussianShell &shell);
-  static void processDensity(GaussianShell &shell);
+  //! D5: build the per-atom shell buckets and per-atom cutoffs from the
+  //! non-decreasing m_atomIndices. Called after m_numAtoms is known (i.e.
+  //! after computeScreeningCutoffs in both init functions).
+  void buildAtomShellBuckets();
+
+  // D5: evaluate one contiguous slab of grid points [lo, hi) sequentially.
+  // The slab partition is deterministic: each point is computed with the same
+  // per-shell screening and the same pointX call order as the flat loop, so
+  // results are bitwise-identical across partitions. Runs on a worker thread;
+  // reads only init-time state (no member mutation).
+  void processPointSlab(int slabIndex, int slabCount, Cube *cube,
+                        unsigned int state);
+  void processDensitySlab(int slabIndex, int slabCount, Cube *cube);
   static double pointS(GaussianSet *set, unsigned int moIndex,
                        double dr2, unsigned int indexMO);
   static double pointP(GaussianSet *set, unsigned int moIndex,

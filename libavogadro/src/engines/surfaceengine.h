@@ -36,6 +36,16 @@
 
 namespace Avogadro {
 
+#ifdef AVOGADRO_TEST_COMBO_REBUILDS
+  // Test-only hook (surfaceenginehygienetest, task 2.3): counts how many times
+  // SurfaceEngine::updateOrbitalCombo() has run. Defined in surfaceengine.cpp
+  // under the same macro; the test compiles that TU with this macro set so
+  // these symbols are linkable there (mirrors the AVOGADRO_TEST_UPLOAD_COUNTER
+  // hook in glpainter_p.cpp).
+  int surfaceEngineComboRebuildCount();
+  void surfaceEngineResetComboRebuildCount();
+#endif
+
   class Mesh;
   class SurfaceSettingsWidget;
 
@@ -96,6 +106,11 @@ namespace Avogadro {
       QList <unsigned long> m_meshes;
 
       bool renderBox(PainterDevice *pd);
+
+      // Single-lock-release-site helper for updateOrbitalCombo (design D2):
+      // acquires the mesh read lock and always releases it (RAII), so an
+      // early-out for a stale/missing cube cannot leak the lock.
+      void addMeshToCombo(Mesh *mesh, int &index);
 
     private slots:
       /**

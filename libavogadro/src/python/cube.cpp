@@ -33,7 +33,7 @@ void export_Cube()
 
     .add_property("data", 
         make_function(&Cube::data, return_value_policy<return_by_value>()), 
-        &Cube::setData, 
+        static_cast<bool (Cube::*)(const std::vector<double> &)>(&Cube::setData),
         "List containing all the data in a one-dimensional array.")
 
     //
@@ -111,7 +111,7 @@ void export_Cube()
 
     // provide setData, it returns bool...
     .def("setData", 
-        &Cube::setData, 
+        static_cast<bool (Cube::*)(const std::vector<double> &)>(&Cube::setData),
         "Set the values in the cube.")
 
     .def("addData", 

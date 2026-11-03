@@ -56,6 +56,7 @@ set(tests
   meshrevision
   meshstream
   meshgenparallel
+  meshlock
   consumerparity
   threadedparity
   builderpool
@@ -431,6 +432,41 @@ set_property(SOURCE ${surfaceextensiontest_SRCS} PROPERTY LABELS avogadro)
 set_property(TARGET surfaceextensiontest PROPERTY LABELS avogadro)
 set_property(TEST surfaceextensionTest PROPERTY LABELS avogadro)
 
+# Surface-engine hygiene regression (fix-orbital-visualization, tasks 2.1-2.4,
+# design D2): drives the real SurfaceEngine (which is not exported from
+# libavogadro, so surfaceengine.cpp is compiled directly into the test) to
+# assert the stale-cube lock leak is gone, repeated setMolecule does not
+# multiply per-primitive connections, and the combo contains only valid MO
+# entries. AVOGADRO_TEST_COMBO_REBUILDS makes the combo-rebuild counter hook
+# linkable (mirrors the AVOGADRO_TEST_UPLOAD_COUNTER pattern).
+set(surfaceenginehygienetest_SRCS
+  surfaceenginehygienetest.cpp
+  ../src/engines/surfaceengine.cpp
+  ../src/engines/surfaceengine.h)
+add_executable(surfaceenginehygienetest ${surfaceenginehygienetest_SRCS})
+target_include_directories(surfaceenginehygienetest PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/engines)
+set_target_properties(surfaceenginehygienetest PROPERTIES
+  AUTOUIC_SEARCH_PATHS "${CMAKE_CURRENT_SOURCE_DIR}/../src/engines")
+target_link_libraries(surfaceenginehygienetest
+  PRIVATE
+  Qt6::Core
+  Qt6::Gui
+  Qt6::Widgets
+  Qt6::OpenGL
+  Qt6::OpenGLWidgets
+  Qt6::Test
+  avogadro
+  OpenBabel3::openbabel)
+target_compile_definitions(surfaceenginehygienetest PRIVATE
+  AVOGADRO_TEST_COMBO_REBUILDS)
+add_test(surfaceenginehygieneTest ${CMAKE_BINARY_DIR}/bin/surfaceenginehygienetest)
+set_tests_properties(surfaceenginehygieneTest PROPERTIES
+  ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+set_property(SOURCE ${surfaceenginehygienetest_SRCS} PROPERTY LABELS avogadro)
+set_property(TARGET surfaceenginehygienetest PROPERTY LABELS avogadro)
+set_property(TEST surfaceenginehygieneTest PROPERTY LABELS avogadro)
+
 # Guards the OpenSpec task 5 (2.3, D3) refactor: the MO cube-data handoff copy
 # runs on a worker thread and resumes the phase machine exactly once, so
 # calculateMesh() runs once (2 meshes) and both lobes become stable.
@@ -498,6 +534,34 @@ set_property(SOURCE screeningtest.cpp PROPERTY LABELS avogadro)
 set_property(TARGET screeningtest PROPERTY LABELS avogadro)
 set_property(TEST screeningTest PROPERTY LABELS avogadro)
 
+# D5 slab-based cube-evaluation determinism guard (fix-orbital-visualization,
+# task 5.4): asserts bitwise-identical grid values across slab partitions
+# (testSlabCount = 1 vs 4 vs auto), that repeated auto runs are bitwise
+# identical, and that all values are finite. Needs only the OpenQube
+# basis-set machinery plus the synthetic basis built via addAtom/addBasis/
+# addMO; no plugin/dialog sources.
+add_executable(cubeevaltest cubeevaltest.cpp)
+target_include_directories(cubeevaltest PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/surfaces
+  ${CMAKE_CURRENT_SOURCE_DIR}/../../avogadro/src)
+target_link_libraries(cubeevaltest
+  PRIVATE
+  Qt6::Core
+  Qt6::Gui
+  Qt6::Test
+  Qt6::Concurrent
+  avogadro
+  OpenQube
+  OpenBabel3::openbabel)
+target_compile_definitions(cubeevaltest PRIVATE
+  TESTDATA_DIR="${CMAKE_SOURCE_DIR}/testfiles")
+add_test(cubeevalTest ${CMAKE_BINARY_DIR}/bin/cubeevaltest)
+set_tests_properties(cubeevalTest PROPERTIES
+  ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+set_property(SOURCE cubeevaltest.cpp PROPERTY LABELS avogadro)
+set_property(TARGET cubeevaltest PROPERTY LABELS avogadro)
+set_property(TEST cubeevalTest PROPERTY LABELS avogadro)
+
 # D11 precalculation-policy pin (fix-surface-visualization-performance, task
 # 7.3): unit-tests OrbitalWidget::clampPrecalcQuality (Low/Medium pass
 # through, High/VeryHigh clamp to Medium) and pins that precalculateOrbitals
@@ -537,6 +601,51 @@ set_tests_properties(precalcpolicyTest PROPERTIES
 set_property(SOURCE precalcpolicytest.cpp PROPERTY LABELS avogadro)
 set_property(TARGET precalcpolicytest PROPERTY LABELS avogadro)
 set_property(TEST precalcpolicyTest PROPERTY LABELS avogadro)
+
+# Orbital-selection semantics regression (fix-orbital-visualization, task 3.5,
+# design D4): unit-tests planOrbitalSelection and the pending-orbital lifecycle
+# (latest click wins; pending cleared after completion). OrbitalExtension is a
+# plugin (not exported from libavogadro), so orbitalextension.cpp is compiled
+# directly into the test; it needs orbitalwidget.cpp + orbitaltablemodel.cpp
+# for the completion path, and the generated ui_orbitalwidget.h via qt6_wrap_ui
+# (AUTOUIC cannot see the ui_ include inside orbitalwidget.h).
+qt6_wrap_ui(orbitalselectiontest_UI
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/surfaces/orbitalwidget.ui
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/surfaces/orbitalsettingsdialog.ui)
+set(orbitalselectiontest_SRCS
+  orbitalselectiontest.cpp
+  ../src/extensions/surfaces/orbitalextension.cpp
+  ../src/extensions/surfaces/orbitalwidget.cpp
+  ../src/extensions/surfaces/orbitaltablemodel.cpp
+  ../src/extensions/surfaces/orbitalsettingsdialog.cpp
+  ../src/extensions/surfaces/htmldelegate.cpp
+  ${orbitalselectiontest_UI})
+add_executable(orbitalselectiontest ${orbitalselectiontest_SRCS})
+target_include_directories(orbitalselectiontest PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/surfaces)
+set_target_properties(orbitalselectiontest PROPERTIES
+  AUTOUIC_SEARCH_PATHS "${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/surfaces")
+target_compile_definitions(orbitalselectiontest PRIVATE
+  AVOGADRO_TEST_ORBITAL_SELECTION)
+target_link_libraries(orbitalselectiontest
+  PRIVATE
+  Qt6::Core
+  Qt6::Gui
+  Qt6::Widgets
+  Qt6::OpenGL
+  Qt6::OpenGLWidgets
+  Qt6::Test
+  Qt6::Concurrent
+  avogadro
+  OpenQube
+  OpenBabel3::openbabel)
+add_test(orbitalselectionTest ${CMAKE_BINARY_DIR}/bin/orbitalselectiontest)
+set_tests_properties(orbitalselectionTest PROPERTIES
+  ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+set_property(SOURCE ${orbitalselectiontest_SRCS} PROPERTY LABELS avogadro)
+set_property(TARGET orbitalselectiontest PROPERTY LABELS avogadro)
+set_property(TEST orbitalselectionTest PROPERTY LABELS avogadro)
 
 
 add_executable(qt6signalpatternstest qt6signalpatternstest.cpp)

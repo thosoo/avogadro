@@ -230,6 +230,14 @@ namespace Avogadro {
 
     /**
      * Sanity checking function - is the mesh sane?
+     *
+     * The caller must hold the mesh read lock (or otherwise have exclusive
+     * access); this method does not take the lock itself (design D1). It only
+     * reads three vector sizes, so taking a lock here would be both
+     * unnecessary and unsafe: a write lock would self-deadlock when a thread
+     * that already holds the mesh read lock (e.g. a SurfaceEngine render pass
+     * reached through SceneBuilder::drawMesh) calls it, because
+     * QReadWriteLock is non-recursive.
      * @return True if the Mesh object is sane and composed of the right number
      * of elements.
      */

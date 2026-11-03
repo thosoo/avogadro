@@ -129,7 +129,6 @@ namespace Avogadro {
     // // Find HOMO and scroll to it
     QModelIndex homo = m_tableModel->HOMO();
     homo = m_sortedTableModel->mapFromSource(homo);
-    qDebug() << "HOMO at: " << homo.row();
     ui.table->scrollTo(homo, QAbstractItemView::PositionAtCenter);
   }
 

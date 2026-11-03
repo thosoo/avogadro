@@ -112,9 +112,27 @@ public:
   bool setLimits(const Molecule &mol, double spacing, double padding);
 
   /**
-   * @return Vector containing all the data in a one-dimensional array.
+   * @return The number of grid points (the product of the dimensions), without
+   * allocating any grid storage. Use this for size-only reads; the slab
+   * partitioning and mesh sizing never need the buffer.
    */
-  std::vector<double> * data();
+  unsigned int pointCount() const;
+
+  /**
+   * @return Vector containing all the data in a one-dimensional array.
+   * D6: grid data is stored single precision (std::vector<float>). The buffer
+   * is allocated lazily by ensureData() (in the calculating worker); data()
+   * itself does not allocate, so a size-only reader must use pointCount() and
+   * a reader that needs the values must ensure the buffer is present first.
+   */
+  std::vector<float> * data();
+
+  /**
+   * Allocate (and zero) the grid storage to pointCount() if its size is not
+   * already correct. Called by the evaluation worker before the first setValue
+   * and by readers that legitimately need the buffer.
+   */
+  void ensureData();
 
   /**
    * Set the values in the cube to those passed in the vector.
@@ -214,7 +232,7 @@ public:
   QReadWriteLock * lock() const;
 
 protected:
-  std::vector<double> m_data;
+  std::vector<float> m_data;
   Eigen::Vector3d m_min, m_max, m_spacing;
   Eigen::Vector3i m_points;
   double m_minValue, m_maxValue;
@@ -226,7 +244,7 @@ protected:
 inline bool Cube::setValue(unsigned int i, double value)
 {
   if (i < m_data.size()) {
-    m_data[i] = value;
+    m_data[i] = static_cast<float>(value);
     if (value > m_maxValue)
       m_maxValue = value;
     if (value < m_minValue)

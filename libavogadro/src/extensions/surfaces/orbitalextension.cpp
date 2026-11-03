@@ -70,7 +70,8 @@ namespace Avogadro
     m_meshGen(0),
     m_basis(0),
     m_molecule(0),
-    m_qube(0)
+    m_qube(0),
+    m_pendingOrbital(0)
   {
     QAction* action = new QAction(this);
     action->setText(tr("Molecular Orbitals..."));
@@ -79,7 +80,28 @@ namespace Avogadro
 
   OrbitalExtension::~OrbitalExtension()
   {
+    // Quiesce the in-flight basis-set parse worker so it cannot call
+    // QMetaObject::invokeMethod(this, ...) on a destroyed extension. The
+    // queued continuation is cancelled by Qt if this is destroyed before
+    // delivery.
+    if (m_basisLoadFuture.isRunning())
+      m_basisLoadFuture.waitForFinished();
+    if (m_cubeCopyFuture.isRunning())
+      m_cubeCopyFuture.waitForFinished();
     delete m_runningMutex;
+  }
+
+  OrbitalExtension::SelectionPlan
+  OrbitalExtension::planOrbitalSelection(bool completed, bool queuedOrRunning)
+  {
+    // D4: a completed orbital renders immediately; a queued/running one is
+    // marked pending and rendered on completion; one that is neither is
+    // enqueued (at the selected quality) and rendered on completion.
+    if (completed)
+      return SelectionPlan::RenderNow;
+    if (queuedOrRunning)
+      return SelectionPlan::RenderWhenReady;
+    return SelectionPlan::EnqueueThenRender;
   }
 
   QList<QAction *> OrbitalExtension::actions() const
@@ -150,6 +172,13 @@ namespace Avogadro
     // because the copy completes before any teardown frees it.
     if (m_cubeCopyFuture.isRunning())
       m_cubeCopyFuture.waitForFinished();
+    // D3: quiesce the in-flight basis-set parse worker before releasing
+    // m_basis. Its queued continuation re-checks the epoch and discards the
+    // stale result on a switch (and Qt cancels the queued call if the
+    // extension is destroyed before delivery), so this only needs to bound the
+    // parse's lifetime — the worker touches no member state.
+    if (m_basisLoadFuture.isRunning())
+      m_basisLoadFuture.waitForFinished();
     QApplication::restoreOverrideCursor();
 
     // N.1: the queue mutex is held from checkQueue() until
@@ -179,6 +208,10 @@ namespace Avogadro
     m_queue.clear();
     m_currentRunningCalculation = -1;
     m_runningGeneration = 0;
+    // D4: clear any pending orbital so a surface from the outgoing document
+    // cannot render after the switch (the epoch guard already discards stale
+    // completions, but the pending marker must not survive either).
+    m_pendingOrbital = 0;
 
     if (m_basis) {
       delete m_basis;
@@ -192,91 +225,11 @@ namespace Avogadro
     if (!m_molecule)
       return;
 
+    // D3: dispatch the basis parse off the GUI thread. The synchronous tail
+    // (dock enable/disable, HOMO/LUMO table fill, precalculation) now runs on
+    // the GUI thread from the async continuation via finishBasisLoad(), after
+    // the epoch re-check.
     loadBasis();
-
-    if (!m_basis || m_basis->numElectrons() == 0) {
-        if (m_dock) {
-          m_widget->setEnabled(false);
-          QList<Orbital> list;
-          list.clear();
-          m_widget->fillTable(list);
-
-          if (m_dock->toggleViewAction()->isChecked())
-            m_dock->toggleViewAction()->activate(QAction::Trigger);
-        }
-      return; // no electrons, no orbitals, no orbital widget
-    }
-    // Show dock
-    if (m_dock &&
-        molecule &&
-        m_basis) {
-      m_widget->setEnabled(true);
-      if (!m_dock->toggleViewAction()->isChecked())
-        m_dock->toggleViewAction()->activate(QAction::Trigger);
-    }
-
-
-    // Send MO data to table
-    if (m_basis) {
-      QList<Orbital> list;
-      unsigned int homo = ceil( m_basis->numElectrons() / 2.0 );
-      unsigned int lumo = homo + 1;
-      unsigned int count = homo - 1;
-      bool leqHOMO = true; // orbital <= homo
-
-      // energies and symmetries
-      //TODO: Alpha / Beta orbitals
-      QList<QVariant> alphaEnergies;
-      QVariant property = molecule->property("alphaOrbitalEnergies");
-      if (property.isValid())
-        alphaEnergies = property.toList();
-      QStringList alphaSymmetries;
-      property = molecule->property("alphaOrbitalSymmetries");
-      if (property.isValid())
-        alphaSymmetries = property.toStringList();
-
-      for (size_t i = 0; i < m_basis->numMOs(); i++) {
-        QString num = "";
-        if (i+1 != homo && i+1 != lumo) {
-          num = (leqHOMO) ? "-" : "+";
-          num += QString::number(count);
-        }
-
-        QString desc = QString("%1")
-          // (HOMO|LUMO)(+|-)[0-9]+
-          .arg( (leqHOMO)
-                ? tr("HOMO", "Highest Occupied MO") + num
-                : tr("LUMO", "Lowest Unoccupied MO") + num
-                );
-        qDebug() << desc;
-
-        Orbital orb;
-        // Get the energy from the molecule property list, if available
-        if (static_cast<size_t>(alphaEnergies.size()) > i)
-          orb.energy = alphaEnergies[i].toDouble();
-        else
-          orb.energy = 0.0;
-        // symmetries (if available)
-        if (static_cast<size_t>(alphaSymmetries.size()) > i)
-          orb.symmetry = alphaSymmetries[i];
-        orb.index = i;
-        orb.description = desc;
-        orb.queueEntry = 0;
-        orb.min = 0;
-        orb.max = 0;
-        orb.current = 0;
-
-        list.append(orb);
-        if (i+1 < homo) count--;
-        else if (i+1 == homo) leqHOMO = false;
-        else if (i+1 >= lumo) count++;
-      }
-      m_widget->fillTable(list);
-    }
-
-    qDebug() << "PreCalculate" ;
-
-    precalculateOrbitals();
 
     // FIXME: Add this feature back in, refactor ideally.
 #if 0
@@ -865,61 +818,111 @@ namespace Avogadro
     if (info->priority == 0)
       m_widget->selectOrbital(info->orbital);
 
+    // D4: if the user selected this orbital while it was queued/running (the
+    // latest click wins), render it now that the calculation is complete —
+    // before checkQueue() so a queued follow-up does not pre-empt it. Clear
+    // the pending marker first so a later stale completion cannot re-render.
+    if (m_pendingOrbital == info->orbital) {
+      m_pendingOrbital = 0;
+      renderCompletedOrbital(info->orbital);
+    }
+
     qDebug() << info->orbital << " all calculations complete.";
     checkQueue();
   }
 
-  void OrbitalExtension::renderOrbital(unsigned int orbital)
+  bool OrbitalExtension::renderCompletedOrbital(unsigned int orbital)
   {
-    qDebug() << "Attempting to render orbital " << orbital;
+    // No current GLWidget (e.g. headless unit test): nothing to render into.
+    GLWidget *current = GLWidget::current();
+    if (!current) {
+      qDebug() << "No current GLWidget; cannot render orbital " << orbital;
+      return false;
+    }
+
     // TODO Actually select the engine. For now, just use the first
     // surface engine
     Engine *engine = 0;
 
-    foreach (Engine *e, GLWidget::current()->engines()) {
+    foreach (Engine *e, current->engines()) {
       if (e->identifier() == "Surfaces") {
         engine = e;
       }
     }
     if (!engine) {
       qDebug() << "Engine is null - no engines of this type loaded.";
-      return; // prevent a crash if the surface engine isn't loaded
+      return false; // prevent a crash if the surface engine isn't loaded
     }
 
     engine->setMolecule(m_molecule); // prevent a crash after switching file
 
     // Find the most recent calc matching the selected orbital:
-    calcInfo calc;
     int index = -1;
     for (int i = 0; i < m_queue.size(); i++) {
-      calc = m_queue[i];
-      if ( calc.orbital == orbital &&
-           calc.state == Completed ) {
+      if ( m_queue.at(i).orbital == orbital &&
+           m_queue.at(i).state == Completed ) {
         index = i;
       }
     }
 
     if (index == -1) {
       qDebug() << "Orbital not found, or still calculating. Cannot render.";
-      return;
+      return false;
     }
 
-    if (engine) {
-      QSettings settings;
-      engine->writeSettings(settings);
-      settings.setValue("colorMode", 1);
-      settings.setValue("mesh1Id",static_cast<int>(m_queue[index].posMesh->id()));
-      settings.setValue("mesh2Id",static_cast<int>(m_queue[index].negMesh->id()));
-      engine->readSettings(settings);
-      engine->setEnabled(true);
-      // Trigger a repaint with the new mesh
-      /// FIXME Should be using m_molecule->update() to trigger a repaint in
-      /// all open displays, this currently causes crashes - need to track
-      /// down the cause.
-      GLWidget::current()->update();
+    QSettings settings;
+    engine->writeSettings(settings);
+    settings.setValue("colorMode", 1);
+    settings.setValue("mesh1Id",static_cast<int>(m_queue[index].posMesh->id()));
+    settings.setValue("mesh2Id",static_cast<int>(m_queue[index].negMesh->id()));
+    engine->readSettings(settings);
+    engine->setEnabled(true);
+    // Trigger a repaint with the new mesh
+    /// FIXME Should be using m_molecule->update() to trigger a repaint in
+    /// all open displays, this currently causes crashes - need to track
+    /// down the cause.
+    current->update();
+    return true;
+  }
+
+  void OrbitalExtension::renderOrbital(unsigned int orbital)
+  {
+    qDebug() << "Attempting to render orbital " << orbital;
+
+    // Determine the orbital's state in the queue so the click always responds
+    // (D4): a completed orbital renders now; a queued/running one is marked
+    // pending and renders on completion; one that is neither is enqueued.
+    bool completed = false;
+    bool queuedOrRunning = false;
+    for (int i = 0; i < m_queue.size(); i++) {
+      if (m_queue.at(i).orbital == orbital) {
+        if (m_queue.at(i).state == Completed)
+          completed = true;
+        else
+          queuedOrRunning = true;
+      }
     }
-    else
-      qDebug() << "Engine is null - no engines of this type loaded.";
+
+    switch (planOrbitalSelection(completed, queuedOrRunning)) {
+    case SelectionPlan::RenderNow:
+      renderCompletedOrbital(orbital);
+      break;
+    case SelectionPlan::RenderWhenReady:
+      // The table's progress column already shows the running/queued calc, so
+      // no extra UI is needed here; mark it pending so it renders on
+      // completion. The latest click wins (m_pendingOrbital is overwritten).
+      m_pendingOrbital = orbital;
+      break;
+    case SelectionPlan::EnqueueThenRender:
+      addCalculationToQueue(orbital,
+                            OrbitalWidget::OrbitalQualityToDouble(
+                              m_widget->selectedQuality()),
+                            m_widget->isovalue(),
+                            /*priority=*/0);
+      checkQueue();
+      m_pendingOrbital = orbital;
+      break;
+    }
   }
 
   void OrbitalExtension::checkQueue()
@@ -957,63 +960,146 @@ namespace Avogadro
     startCalculation(hash.value(priorities.first()));
   }
 
-  bool OrbitalExtension::loadBasis()
+  OpenQube::BasisSet *OrbitalExtension::parseBasisFile(const QString &fileName,
+                                                       const QString &format)
   {
-    if (m_molecule->fileName().isEmpty()) {
-      return false;
-    }
+    if (fileName.isEmpty())
+      return nullptr;
 
     // Check to see if this molecule has been tagged with a file format
-    QVariant fileFormat = m_molecule->property("File Format");
-    if (fileFormat.isValid()) {
-      QString format = fileFormat.toString();
-      if (format == QLatin1String("gamout")) {
-        qDebug() << " deduced from format ";
-        if (m_basis) {
-          delete m_basis;
-          m_basis = 0;
-        }
-        GaussianSet *gaussian = new GaussianSet;
-        GAMESSUSOutput gamout(m_molecule->fileName(), gaussian);
-        m_basis = gaussian;
-        return true;
-      }
-      else if (format == QLatin1String("gukout")) {
-        qDebug() << " deduced from format ";
-        if (m_basis) {
-          delete m_basis;
-          m_basis = 0;
-        }
-        GaussianSet *gaussian = new GaussianSet;
-        GamessukOut gukout(m_molecule->fileName(), gaussian);
-        m_basis = gaussian;
-        return true;
-      }
+    if (format == QLatin1String("gamout")) {
+      qDebug() << " deduced from format ";
+      GaussianSet *gaussian = new GaussianSet;
+      GAMESSUSOutput gamout(fileName, gaussian);
+      return gaussian;
+    }
+    else if (format == QLatin1String("gukout")) {
+      qDebug() << " deduced from format ";
+      GaussianSet *gaussian = new GaussianSet;
+      GamessukOut gukout(fileName, gaussian);
+      return gaussian;
     }
 
     // Everything looks good, a new basis set needs to be loaded
     // Check for files in this directory -- first the file itself
     // and then any other similar file
-    if (m_basis) {
-      delete m_basis;
-      m_basis = 0;
+    QString basisFileName = OpenQube::BasisSetLoader::MatchBasisSet(fileName);
+    if (basisFileName.isEmpty()) {
+      qDebug() << "No matching basis set file found: " << fileName;
+      return nullptr;
     }
-    // Set up the MOs along with the electron density maps
-    QString basisFileName =
-        OpenQube::BasisSetLoader::MatchBasisSet(m_molecule->fileName());
-    if (basisFileName.isEmpty())
-    {
-      qDebug() << "No matching basis set file found: " <<  m_molecule->fileName();
-      return false;
+    return OpenQube::BasisSetLoader::LoadBasisSet(basisFileName);
+  }
+
+  bool OrbitalExtension::loadBasis()
+  {
+    // D3: dispatch the parse to a worker thread and resume on the GUI thread
+    // via a queued continuation. Capture the file name, file-format tag and the
+    // current generation epoch so the continuation can discard a stale parse
+    // after a document switch (the worker touches no member state).
+    const QString fileName = m_molecule ? m_molecule->fileName() : QString();
+    const QString format =
+        m_molecule ? m_molecule->property("File Format").toString() : QString();
+    const unsigned long generation = m_generation;
+
+    m_basisLoadFuture = QtConcurrent::run(
+        [this, fileName, format, generation]() {
+          OpenQube::BasisSet *basis = parseBasisFile(fileName, format);
+          // Resume on the GUI thread. `this` is the invoke context: Qt cancels
+          // the queued call if the extension is destroyed before delivery, so
+          // the continuation cannot outlive the extension.
+          QMetaObject::invokeMethod(
+              this, [this, generation, basis] {
+                if (generation != m_generation) {
+                  delete basis; // stale: superseded by a document switch
+                  return;
+                }
+                m_basis = basis;
+                finishBasisLoad();
+              },
+              Qt::QueuedConnection);
+        });
+    return true;
+  }
+
+  void OrbitalExtension::finishBasisLoad()
+  {
+    if (!m_basis || m_basis->numElectrons() == 0) {
+      if (m_dock) {
+        m_widget->setEnabled(false);
+        QList<Orbital> list;
+        list.clear();
+        m_widget->fillTable(list);
+
+        if (m_dock->toggleViewAction()->isChecked())
+          m_dock->toggleViewAction()->activate(QAction::Trigger);
+      }
+      return; // no electrons, no orbitals, no orbital widget
     }
-    else
-    {
-      m_basis = OpenQube::BasisSetLoader::LoadBasisSet(basisFileName);
-      if (m_basis)
-        return true;
+    // Show dock
+    if (m_dock && m_molecule && m_basis) {
+      m_widget->setEnabled(true);
+      if (!m_dock->toggleViewAction()->isChecked())
+        m_dock->toggleViewAction()->activate(QAction::Trigger);
     }
 
-    return false;
+    // Send MO data to table
+    if (m_basis) {
+      QList<Orbital> list;
+      unsigned int homo = ceil( m_basis->numElectrons() / 2.0 );
+      unsigned int lumo = homo + 1;
+      unsigned int count = homo - 1;
+      bool leqHOMO = true; // orbital <= homo
+
+      // energies and symmetries
+      //TODO: Alpha / Beta orbitals
+      QList<QVariant> alphaEnergies;
+      QVariant property = m_molecule->property("alphaOrbitalEnergies");
+      if (property.isValid())
+        alphaEnergies = property.toList();
+      QStringList alphaSymmetries;
+      property = m_molecule->property("alphaOrbitalSymmetries");
+      if (property.isValid())
+        alphaSymmetries = property.toStringList();
+
+      for (size_t i = 0; i < m_basis->numMOs(); i++) {
+        QString num = "";
+        if (i+1 != homo && i+1 != lumo) {
+          num = (leqHOMO) ? "-" : "+";
+          num += QString::number(count);
+        }
+
+        QString desc = QString("%1")
+          // (HOMO|LUMO)(+|-)[0-9]+
+          .arg( (leqHOMO)
+                ? tr("HOMO", "Highest Occupied MO") + num
+                : tr("LUMO", "Lowest Unoccupied MO") + num
+                );
+
+        Orbital orb;
+        // Get the energy from the molecule property list, if available
+        if (static_cast<size_t>(alphaEnergies.size()) > i)
+          orb.energy = alphaEnergies[i].toDouble();
+        else
+          orb.energy = 0.0;
+        // symmetries (if available)
+        if (static_cast<size_t>(alphaSymmetries.size()) > i)
+          orb.symmetry = alphaSymmetries[i];
+        orb.index = i;
+        orb.description = desc;
+        orb.queueEntry = 0;
+        orb.min = 0;
+        orb.max = 0;
+        orb.current = 0;
+
+        list.append(orb);
+        if (i+1 < homo) count--;
+        else if (i+1 == homo) leqHOMO = false;
+        else if (i+1 >= lumo) count++;
+      }
+      m_widget->fillTable(list);
+    }
+    precalculateOrbitals();
   }
 
   void OrbitalExtension::updateProgress(int current)

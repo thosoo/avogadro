@@ -43,7 +43,9 @@ Cube::~Cube()
 bool Cube::setLimits(const Vector3d &min, const Vector3d &max,
                      const Vector3i &points)
 {
-  // We can calculate all necessary properties and initialise our data
+  // D7: store the geometry only; grid storage is allocated lazily by
+  // ensureData() in the calculating worker, so the GUI thread never
+  // zero-fills a grid-sized buffer.
   Vector3d delta = max - min;
   m_spacing = Vector3d(delta.x() / (points.x()-1),
                        delta.y() / (points.y()-1),
@@ -51,7 +53,6 @@ bool Cube::setLimits(const Vector3d &min, const Vector3d &max,
   m_min = min;
   m_max = max;
   m_points = points;
-  m_data.resize(m_points.x() * m_points.y() * m_points.z());
   return true;
 }
 
@@ -75,7 +76,6 @@ bool Cube::setLimits(const Vector3d &min, const Vector3i &dim,
   m_max = max;
   m_points = dim;
   m_spacing = Vector3d(spacing, spacing, spacing);
-  m_data.resize(m_points.x() * m_points.y() * m_points.z());
   return true;
 }
 
@@ -85,7 +85,6 @@ bool Cube::setLimits(const Cube &cube)
   m_max = cube.m_max;
   m_points = cube.m_points;
   m_spacing = cube.m_spacing;
-  m_data.resize(m_points.x() * m_points.y() * m_points.z());
   return true;
 }
 
@@ -115,7 +114,22 @@ bool Cube::setLimits(const Molecule &mol, double spacing, double padding)
   return setLimits(min, max, spacing);
 }
 
-std::vector<double> * Cube::data()
+unsigned int Cube::pointCount() const
+{
+  return m_points.x() * m_points.y() * m_points.z();
+}
+
+void Cube::ensureData()
+{
+  // D7: allocate (and zero) the grid storage to pointCount() when its size is
+  // not already correct. Called by the evaluating worker before the first
+  // setValue; grid-sized allocation never happens on the GUI thread.
+  unsigned int n = pointCount();
+  if (m_data.size() != n)
+    m_data.assign(n, 0.0f);
+}
+
+std::vector<float> * Cube::data()
 {
   return &m_data;
 }
@@ -126,12 +140,16 @@ bool Cube::setData(const std::vector<double> &values)
     qDebug() << "Zero sized vector passed to Cube::setData. Nothing to do.";
     return false;
   }
-  if (static_cast<int>(values.size()) == m_points.x() * m_points.y() * m_points.z()) {
-    m_data = values;
+  if (static_cast<int>(values.size()) == static_cast<int>(pointCount())) {
+    // D6: element-wise double->float conversion into the single-precision
+    // storage.
+    m_data.resize(values.size());
+    for (std::size_t i = 0; i < values.size(); ++i)
+      m_data[i] = static_cast<float>(values[i]);
     qDebug() << "Loaded in cube data" << m_data.size();
     // Now to update the minimum and maximum values
     m_minValue = m_maxValue = m_data[0];
-    foreach(double val, m_data) {
+    foreach(float val, m_data) {
       if (val < m_minValue)
         m_minValue = val;
       else if (val > m_maxValue)
@@ -141,7 +159,7 @@ bool Cube::setData(const std::vector<double> &values)
   }
   else {
     qDebug() << "The vector passed to Cube::setData does not have the correct"
-             << "size. Expected" << m_points.x() * m_points.y() * m_points.z()
+             << "size. Expected" << pointCount()
              << "got" << values.size();
     return false;
   }
@@ -151,14 +169,14 @@ bool Cube::addData(const std::vector<double> &values)
 {
   // Initialise the cube to zero if necessary
   if (!m_data.size()) {
-    m_data.resize(m_points.x() * m_points.y() * m_points.z());
+    ensureData();
   }
   if (values.size() != m_data.size() || !values.size()) {
     qDebug() << "Attempted to add values to cube - sizes do not match...";
     return false;
   }
   for (unsigned int i = 0; i < m_data.size(); i++) {
-    m_data[i] += values[i];
+    m_data[i] += static_cast<float>(values[i]);
     if (m_data[i] < m_minValue)
       m_minValue = m_data[i];
     else if (m_data[i] > m_maxValue)

@@ -35,7 +35,8 @@ using std::vector;
 namespace Avogadro {
 
   Mesh::Mesh(QObject *parent) : Primitive(MeshType, parent), m_vertices(0),
-    m_normals(0), m_colors(0), m_stable(true), m_other(FALSE_ID), m_cube(0),
+    m_normals(0), m_colors(0), m_stable(true), m_isoValue(0.0f),
+    m_other(FALSE_ID), m_cube(0),
     m_revision(0), m_lock(new QReadWriteLock)
   {
     m_vertices.reserve(100);
@@ -234,7 +235,13 @@ namespace Avogadro {
 
   bool Mesh::valid() const
   {
-    QWriteLocker lock(m_lock);
+    // Lock-free by design (D1): valid() only reads three vector sizes and
+    // mutates nothing. Taking the write lock here would self-deadlock when a
+    // thread that already holds the mesh read lock (e.g. the SurfaceEngine
+    // render passes, reached through SceneBuilder::drawMesh) calls it,
+    // because QReadWriteLock is non-recursive. The caller must hold the mesh
+    // read lock (or otherwise have exclusive access); see the declaration in
+    // mesh.h.
     if (m_vertices.size() == m_normals.size()) {
       if (m_colors.size() == 1 || m_colors.size() == m_vertices.size()) {
         return true;

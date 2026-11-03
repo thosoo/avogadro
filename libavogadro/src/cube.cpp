@@ -53,7 +53,9 @@ namespace Avogadro {
   bool Cube::setLimits(const Vector3d &min, const Vector3d &max,
                        const Vector3i &points)
   {
-    // We can calculate all necessary properties and initialise our data
+    // D7: store the geometry only; grid storage is allocated lazily by
+    // ensureData()/setData() so newCube() on the GUI thread never zero-fills a
+    // grid-sized buffer. This only sets up the cube metadata.
     Vector3d delta = max - min;
     m_spacing = Vector3d(delta.x() / (points.x()-1),
                          delta.y() / (points.y()-1),
@@ -61,7 +63,6 @@ namespace Avogadro {
     m_min = min;
     m_max = max;
     m_points = points;
-    m_data.resize(m_points.x() * m_points.y() * m_points.z());
     return true;
   }
 
@@ -75,7 +76,6 @@ namespace Avogadro {
     m_spacing = Vector3d(spacing, spacing, spacing);
     m_points = Vector3i(ceil(delta.x()) + 1, ceil(delta.y()) + 1,
                         ceil(delta.z()) + 1);
-    m_data.resize(m_points.x() * m_points.y() * m_points.z());
 
     // Calculate the correct max for the spacing and number of points
     m_max = Vector3d(min.x() + m_spacing.x() * (m_points.x()-1),
@@ -95,7 +95,6 @@ namespace Avogadro {
     m_max = max;
     m_points = dim;
     m_spacing = Vector3d(spacing, spacing, spacing);
-    m_data.resize(m_points.x() * m_points.y() * m_points.z());
     return true;
   }
 
@@ -136,8 +135,22 @@ namespace Avogadro {
     m_max = cube.m_max;
     m_points = cube.m_points;
     m_spacing = cube.m_spacing;
-    m_data.resize(m_points.x() * m_points.y() * m_points.z());
     return true;
+  }
+
+  unsigned int Cube::pointCount() const
+  {
+    return m_points.x() * m_points.y() * m_points.z();
+  }
+
+  void Cube::ensureData()
+  {
+    // D7: allocate (and zero) the grid storage to pointCount() when its size
+    // is not already correct. Called by writers that set values directly on a
+    // geometry-only cube (e.g. the VdW surface path).
+    unsigned int n = pointCount();
+    if (m_data.size() != n)
+      m_data.assign(n, 0.0f);
   }
 
   std::vector<float> * Cube::data()
@@ -151,7 +164,7 @@ namespace Avogadro {
       qDebug() << "Zero sized vector passed to Cube::setData. Nothing to do.";
       return false;
     }
-    if (static_cast<int>(values.size()) == m_points.x() * m_points.y() * m_points.z()) {
+    if (static_cast<int>(values.size()) == static_cast<int>(pointCount())) {
       // D6: element-wise double->float conversion into the single-precision
       // storage (called from the cube-handoff worker and grid-file import).
       m_data.resize(values.size());
@@ -170,7 +183,36 @@ namespace Avogadro {
     }
     else {
       qDebug() << "The vector passed to Cube::setData does not have the correct"
-               << "size. Expected" << m_points.x() * m_points.y() * m_points.z()
+               << "size. Expected" << pointCount()
+               << "got" << values.size();
+      return false;
+    }
+  }
+
+  bool Cube::setData(const std::vector<float> &values)
+  {
+    if (!values.size()) {
+      qDebug() << "Zero sized vector passed to Cube::setData. Nothing to do.";
+      return false;
+    }
+    if (static_cast<int>(values.size()) == static_cast<int>(pointCount())) {
+      // D6: direct single-precision copy (no conversion pass) from the
+      // OpenQube cube, which is already single precision.
+      m_data = values;
+      qDebug() << "Loaded in cube data" << m_data.size();
+      // Now to update the minimum and maximum values
+      m_minValue = m_maxValue = m_data[0];
+      foreach(float val, m_data) {
+        if (val < m_minValue)
+          m_minValue = val;
+        else if (val > m_maxValue)
+          m_maxValue = val;
+      }
+      return true;
+    }
+    else {
+      qDebug() << "The vector passed to Cube::setData does not have the correct"
+               << "size. Expected" << pointCount()
                << "got" << values.size();
       return false;
     }
@@ -180,7 +222,7 @@ namespace Avogadro {
   {
     // Initialise the cube to zero if necessary
     if (!m_data.size()) {
-      m_data.resize(m_points.x() * m_points.y() * m_points.z());
+      ensureData();
     }
     if (values.size() != m_data.size() || !values.size()) {
       qDebug() << "Attempted to add values to cube - sizes do not match...";

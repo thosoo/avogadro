@@ -156,7 +156,8 @@ bool SlaterSet::calculateCubeMO(Cube *cube, unsigned int state)
   // It is more efficient to process each shell over the entire cube than it
   // is to process each MO at each point in the cube. This is probably the best
   // point at which to multithread too - QtConcurrent!
-  m_slaterShells.resize(cube->data()->size());
+  cube->ensureData(); // D7: grid storage must be present before setValue
+  m_slaterShells.resize(cube->pointCount());
 
   qDebug() << "Number of points:" << m_slaterShells.size();
 
@@ -191,7 +192,8 @@ bool SlaterSet::calculateCubeDensity(Cube *cube)
   // It is more efficient to process each shell over the entire cube than it
   // is to process each MO at each point in the cube. This is probably the best
   // point at which to multithread too - QtConcurrent!
-  m_slaterShells.resize(cube->data()->size());
+  cube->ensureData(); // D7: grid storage must be present before setValue
+  m_slaterShells.resize(cube->pointCount());
 
   qDebug() << "Number of points for density:" << m_slaterShells.size();
 

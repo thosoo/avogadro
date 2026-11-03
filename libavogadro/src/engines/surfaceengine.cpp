@@ -43,6 +43,38 @@ using namespace Eigen;
 
 namespace Avogadro {
 
+#ifdef AVOGADRO_TEST_COMBO_REBUILDS
+  // Test-only hook (surfaceenginehygienetest, task 2.3): counts how many times
+  // SurfaceEngine::updateOrbitalCombo() has run. Incremented at the top of
+  // updateOrbitalCombo(); reset/read by the test, which compiles
+  // surfaceengine.cpp directly with this macro defined so these symbols are
+  // linkable there (mirrors the AVOGADRO_TEST_UPLOAD_COUNTER hook in
+  // glpainter_p.cpp).
+  int g_surfaceEngineComboRebuilds = 0;
+  int surfaceEngineComboRebuildCount() { return g_surfaceEngineComboRebuilds; }
+  void surfaceEngineResetComboRebuildCount() { g_surfaceEngineComboRebuilds = 0; }
+#endif
+
+  // RAII guard for a mesh read lock acquired with tryLockForRead. Unlike
+  // QReadLocker (which blocks in lockForRead), this preserves the engine's
+  // existing "skip the mesh rather than block the GUI thread" behaviour: if
+  // the read lock cannot be acquired immediately the guard simply reports
+  // isLocked()==false and releases nothing on destruction. Used by
+  // addMeshToCombo so the lock is released on every exit path (design D2).
+  class MeshReadTryLockGuard {
+  public:
+    explicit MeshReadTryLockGuard(QReadWriteLock *lock)
+      : m_lock(lock), m_locked(m_lock ? m_lock->tryLockForRead() : false) {}
+    ~MeshReadTryLockGuard() {
+      if (m_locked)
+        m_lock->unlock();
+    }
+    bool isLocked() const { return m_locked; }
+  private:
+    QReadWriteLock *m_lock;
+    bool m_locked;
+  };
+
   // Our settings widget class
   class SurfaceSettingsWidget : public QWidget, public Ui::SurfaceSettingsWidget
   {
@@ -207,8 +239,60 @@ namespace Avogadro {
     return true;
   }
 
+  void SurfaceEngine::addMeshToCombo(Mesh *mesh, int &index)
+  {
+    // RAII read-lock guard: the lock is released on every exit path (including
+    // the stale-cube early-out below), so no mesh remains read-locked after
+    // updateOrbitalCombo returns (design D2). QReadWriteLock is not recursive
+    // for write, so a leaked reader here would wedge the next mesh generator
+    // (Mesh::clear takes a write lock) forever.
+    MeshReadTryLockGuard locker(mesh->lock());
+    if (!locker.isLocked()) {
+      qDebug() << "Cannot get a read lock on the mesh...";
+      return;
+    }
+
+    // Update the index if we have hit the currently selected Mesh
+    if (m_mesh1 && m_mesh1->id() == mesh->id())
+      index = m_settingsWidget->orbital1Combo->count();
+
+    // Now figure out the mesh type and add it to the map
+    // N.4/4.1: guard the cube lookup — a stale cube id after a document
+    // switch must not dereference a null Cube.
+    Cube *cube = m_molecule->cubeById(mesh->cube());
+    if (!cube)
+      return;
+    Cube::Type cubeType = cube->cubeType();
+    QString comboText;
+    if (cubeType == Cube::VdW) {
+      comboText = tr("Van der Waals, isosurface = %L1",
+                     "Van der Waals isosurface with a cutoff of %1");
+      m_settingsWidget->orbital1Combo->addItem(comboText.arg(mesh->isoValue()));
+      m_meshes.push_back(mesh->id());
+    }
+    else if (cubeType == Cube::ElectronDensity) {
+      comboText = tr("Electron density, isosurface = %L1",
+                     "Electron density isosurface with a cutoff of %1");
+      m_settingsWidget->orbital1Combo->addItem(comboText.arg(mesh->isoValue()));
+      m_meshes.push_back(mesh->id());
+    }
+    else if (cubeType == Cube::MO) {
+      if (mesh->isoValue() > 0.0) {
+        comboText = tr("%1, isosurface = %L2",
+                       "%1 is mesh name, %2 is the isosurface cutoff");
+        m_settingsWidget->orbital1Combo->addItem(comboText
+                                                 .arg(mesh->name())
+                                                 .arg(mesh->isoValue()));
+        m_meshes.push_back(mesh->id());
+      }
+    }
+  }
+
   void SurfaceEngine::updateOrbitalCombo()
   {
+#ifdef AVOGADRO_TEST_COMBO_REBUILDS
+    ++g_surfaceEngineComboRebuilds;
+#endif
     if (!m_settingsWidget || !m_molecule)
       return;
 
@@ -224,45 +308,7 @@ namespace Avogadro {
     m_meshes.clear();
 
     foreach(Mesh *mesh, m_molecule->meshes()) {
-      if (!mesh->lock()->tryLockForRead()) {
-        qDebug() << "Cannot get a read lock on the mesh...";
-        continue;
-      }
-      // Update the index if we have hit the currently selected Mesh
-      if (m_mesh1 && m_mesh1->id() == mesh->id())
-        index = m_settingsWidget->orbital1Combo->count();
-
-      // Now figure out the mesh type and add it to the map
-      // N.4/4.1: guard the cube lookup — a stale cube id after a document
-      // switch must not dereference a null Cube.
-      Cube *cube = m_molecule->cubeById(mesh->cube());
-      if (!cube)
-        continue;
-      Cube::Type cubeType = cube->cubeType();
-      QString comboText;
-      if (cubeType == Cube::VdW) {
-        comboText = tr("Van der Waals, isosurface = %L1",
-                       "Van der Waals isosurface with a cutoff of %1");
-        m_settingsWidget->orbital1Combo->addItem(comboText.arg(mesh->isoValue()));
-        m_meshes.push_back(mesh->id());
-      }
-      else if (cubeType == Cube::ElectronDensity) {
-        comboText = tr("Electron density, isosurface = %L1",
-                       "Electron density isosurface with a cutoff of %1");
-        m_settingsWidget->orbital1Combo->addItem(comboText.arg(mesh->isoValue()));
-        m_meshes.push_back(mesh->id());
-      }
-      else if (cubeType == Cube::MO) {
-        if (mesh->isoValue() > 0.0) {
-          comboText = tr("%1, isosurface = %L2",
-                         "%1 is mesh name, %2 is the isosurface cutoff");
-          m_settingsWidget->orbital1Combo->addItem(comboText
-                                                   .arg(mesh->name())
-                                                   .arg(mesh->isoValue()));
-          m_meshes.push_back(mesh->id());
-        }
-      }
-      mesh->lock()->unlock();
+      addMeshToCombo(mesh, index);
     }
     m_settingsWidget->orbital1Combo->setCurrentIndex(index);
   }
@@ -390,9 +436,12 @@ namespace Avogadro {
       m_settingsWidget->negColor->setColor(initial);
       updateOrbitalCombo();
 
-      // Connect the molecule updated signal
+      // Connect the molecule updated signal. Qt::UniqueConnection so a
+      // settings-widget destruction/recreation on the same engine with an
+      // unchanged molecule cannot double up this per-molecule connection.
       if (m_molecule)
-        connect(m_molecule, SIGNAL(updated()), this, SLOT(updateOrbitalCombo()));
+        connect(m_molecule, SIGNAL(updated()), this, SLOT(updateOrbitalCombo()),
+                Qt::UniqueConnection);
     }
     return m_settingsWidget;
   }
@@ -432,14 +481,27 @@ namespace Avogadro {
 
   void SurfaceEngine::setMolecule(const Molecule *molecule)
   {
+    // Idempotent binding (design D2): disconnect this engine from the
+    // previously-connected molecule (m_molecule is still the old one here),
+    // then connect to the new molecule with Qt::UniqueConnection so repeated
+    // setMolecule calls cannot accumulate duplicate per-primitive connections.
+    if (m_molecule) {
+      disconnect(m_molecule, SIGNAL(primitiveAdded(Primitive*)),
+                 this, SLOT(addPrimitive(Primitive*)));
+      disconnect(m_molecule, SIGNAL(primitiveUpdated(Primitive*)),
+                 this, SLOT(updatePrimitive(Primitive*)));
+      disconnect(m_molecule, SIGNAL(primitiveRemoved(Primitive*)),
+                 this, SLOT(removePrimitive(Primitive*)));
+    }
+
     Engine::setMolecule(molecule);
     if (m_molecule) {
       connect(m_molecule, SIGNAL(primitiveAdded(Primitive*)),
-            this, SLOT(addPrimitive(Primitive*)));
+              this, SLOT(addPrimitive(Primitive*)), Qt::UniqueConnection);
       connect(m_molecule, SIGNAL(primitiveUpdated(Primitive*)),
-            this, SLOT(updatePrimitive(Primitive*)));
+              this, SLOT(updatePrimitive(Primitive*)), Qt::UniqueConnection);
       connect(m_molecule, SIGNAL(primitiveRemoved(Primitive*)),
-            this, SLOT(removePrimitive(Primitive*)));
+              this, SLOT(removePrimitive(Primitive*)), Qt::UniqueConnection);
     }
 
     updateOrbitalCombo();
@@ -447,14 +509,24 @@ namespace Avogadro {
 
   void SurfaceEngine::setMolecule(Molecule *molecule)
   {
+    // Idempotent binding (design D2) — see the const overload above.
+    if (m_molecule) {
+      disconnect(m_molecule, SIGNAL(primitiveAdded(Primitive*)),
+                 this, SLOT(addPrimitive(Primitive*)));
+      disconnect(m_molecule, SIGNAL(primitiveUpdated(Primitive*)),
+                 this, SLOT(updatePrimitive(Primitive*)));
+      disconnect(m_molecule, SIGNAL(primitiveRemoved(Primitive*)),
+                 this, SLOT(removePrimitive(Primitive*)));
+    }
+
     Engine::setMolecule(molecule);
     if (m_molecule) {
       connect(m_molecule, SIGNAL(primitiveAdded(Primitive*)),
-            this, SLOT(addPrimitive(Primitive*)));
+              this, SLOT(addPrimitive(Primitive*)), Qt::UniqueConnection);
       connect(m_molecule, SIGNAL(primitiveUpdated(Primitive*)),
-            this, SLOT(updatePrimitive(Primitive*)));
+              this, SLOT(updatePrimitive(Primitive*)), Qt::UniqueConnection);
       connect(m_molecule, SIGNAL(primitiveRemoved(Primitive*)),
-            this, SLOT(removePrimitive(Primitive*)));
+              this, SLOT(removePrimitive(Primitive*)), Qt::UniqueConnection);
     }
 
     updateOrbitalCombo();

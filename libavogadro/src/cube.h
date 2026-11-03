@@ -140,10 +140,31 @@ namespace Avogadro {
     std::vector<float> * data();
 
     /**
+     * @return The number of grid points (the product of the dimensions), without
+     * allocating any grid storage. Use this for size-only reads.
+     */
+    unsigned int pointCount() const;
+
+    /**
+     * Allocate (and zero) the grid storage to pointCount() if its size is not
+     * already correct. Called before the first setValue on a cube whose
+     * setLimits stored geometry only (D7), e.g. the VdW surface path which
+     * writes values directly.
+     */
+    void ensureData();
+
+    /**
      * Set the values in the cube to those passed in the vector (double input,
      * converted element-wise to the single-precision storage).
      */
     bool setData(const std::vector<double> &values);
+
+    /**
+     * Set the values in the cube to those passed in the vector (single-precision
+     * input, direct copy — no conversion pass). Used by the MO/density copy
+     * worker, whose source OpenQube cube is already single precision.
+     */
+    bool setData(const std::vector<float> &values);
 
     /**
      * Adds the values in the cube to those passed in the vector.

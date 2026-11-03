@@ -42,6 +42,7 @@
 #include <openbabel/chains.h>
 
 #include <QMessageBox>
+#include <QReadWriteLock>
 #include <QString>
 #include <QDebug>
 
@@ -149,6 +150,13 @@ namespace Avogadro {
       updateMesh(pd);
 
     if (m_mesh) {
+      // Hold the mesh read lock for the whole check-and-draw: Mesh::valid() is
+      // now lock-free (D1) and requires the caller to hold the mesh read lock
+      // (or have exclusive access). The nested read locks taken by stable()
+      // and drawColorMesh (which reads the vertex/normal/color vectors) are
+      // permitted because QReadWriteLock allows a thread to re-acquire a read
+      // lock it already holds.
+      QReadLocker meshLock(m_mesh->lock());
       if (m_mesh->stable() && m_mesh->valid()) {
         pd->painter()->setColor(0.0, 0.0, 0.0, 1.0);
         pd->painter()->drawColorMesh(*m_mesh);
@@ -177,6 +185,12 @@ namespace Avogadro {
   bool CartoonEngine::renderQuick(PainterDevice *pd)
   {
     if (m_mesh) {
+      // Hold the mesh read lock for the whole check-and-draw (D1):
+      // SceneBuilder::drawMesh calls Mesh::valid(), which is now lock-free and
+      // requires the caller to hold the mesh read lock (or have exclusive
+      // access). QReadWriteLock permits a thread to re-acquire a read lock it
+      // already holds, so the nested read taken by stable() is fine.
+      QReadLocker meshLock(m_mesh->lock());
       if (m_mesh->stable()) {
         pd->painter()->drawMesh(*m_mesh);
       }

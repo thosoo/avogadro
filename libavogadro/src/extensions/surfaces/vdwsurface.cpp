@@ -98,7 +98,8 @@ namespace Avogadro
   void VdWSurface::calculateCube(Cube *cube)
   {
     // Set up the calculation and ideally use the new QtConcurrent code to
-    m_VdWvector.resize(cube->data()->size());
+    cube->ensureData(); // D7: grid storage must be present before setValue
+    m_VdWvector.resize(cube->pointCount());
     m_cube = cube;
 
     for (int i = 0; i < m_VdWvector.size(); ++i) {

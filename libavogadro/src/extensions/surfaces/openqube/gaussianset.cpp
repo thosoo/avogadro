@@ -41,19 +41,14 @@ using Eigen::MatrixXd;
 
 namespace OpenQube
 {
-struct GaussianShell
-{
-  GaussianSet *set;  // A pointer to the GaussianSet, cannot write to member vars
-  Cube *tCube;       // The target cube, used to initialise temp cubes too
-  unsigned int pos;  // The index ofposition of the point to calculate the MO for
-  unsigned int state;// The MO number to calculate
-};
-
 static const double BOHR_TO_ANGSTROM = 0.529177249;
 static const double ANGSTROM_TO_BOHR = 1.0 / BOHR_TO_ANGSTROM;
 
+// D5: slab-count test override (0 = auto, mirroring MeshGenerator).
+int GaussianSet::testSlabCount = 0;
+
 GaussianSet::GaussianSet() : m_numMOs(0), m_numAtoms(0), m_init(false),
-  m_cube(0), m_gaussianShells(0), m_useOrcaNorm(false)
+  m_cube(0), m_useOrcaNorm(false)
 {
 }
 
@@ -185,29 +180,34 @@ bool GaussianSet::startCubeCalculationAsync(Cube *cube, unsigned int state)
   // until calculationComplete() unlocks it (also on the calling thread), so
   // the lock/unlock pair stays thread-affine across the worker hop.
   cube->lock()->lockForWrite();
+  m_cube = cube; // remembered so calculationComplete() can unlock the same cube
 
   // Watch for the future (connection established on the calling thread).
   connect(&m_watcher, SIGNAL(finished()), this, SLOT(calculationComplete()));
 
-  // Run the heavy per-point setup (shell-vector allocation + initialisation)
-  // and the point map on a worker thread so the GUI thread is not blocked.
-  // QtConcurrent::run returns immediately with a future the watcher can wait
-  // on, so a synchronous caller below can block on it right away.
-  m_future = QtConcurrent::run([this, cube, state]() {
-    // Set up the points we want to calculate the density at.
-    m_gaussianShells = new QVector<GaussianShell>(cube->data()->size());
-
-    for (int i = 0; i < m_gaussianShells->size(); ++i) {
-        (*m_gaussianShells)[i].set = this;
-        (*m_gaussianShells)[i].tCube = cube;
-        (*m_gaussianShells)[i].pos = i;
-        (*m_gaussianShells)[i].state = state;
+  // D5: run the heavy per-point evaluation on K worker threads, each over a
+  // contiguous slab of grid points (no per-point object is allocated). K is
+  // overridable via testSlabCount; otherwise the ideal thread count clamped to
+  // [1,16]. QtConcurrent::run returns immediately with a future the watcher
+  // can wait on, so a synchronous caller below can block on it right away.
+  const int slabCount = testSlabCount > 0
+      ? testSlabCount
+      : std::max(1, std::min(QThread::idealThreadCount(), 16));
+  m_future = QtConcurrent::run([this, cube, state, slabCount]() {
+    // D7: allocate (and zero) the grid storage once, here in the worker,
+    // before any slab writes to it. Doing this per-slab would be a data race
+    // (concurrent assign/setValue on the same vector).
+    cube->ensureData();
+    QVector<QFuture<void>> slabFutures;
+    slabFutures.reserve(slabCount);
+    for (int k = 0; k < slabCount; ++k) {
+      slabFutures.append(QtConcurrent::run(
+          [this, cube, state, slabCount, k]() {
+            processPointSlab(k, slabCount, cube, state);
+          }));
     }
-
-    // The main part of the mapped reduced function...
-    QFuture<void> mapFuture =
-        QtConcurrent::map(*m_gaussianShells, GaussianSet::processPoint);
-    mapFuture.waitForFinished();
+    for (const QFuture<void> &f : slabFutures)
+      f.waitForFinished();
   });
   // Connect our watcher to our future. The future is set on the calling
   // thread, so a synchronous caller can wait on it immediately.
@@ -249,25 +249,30 @@ bool GaussianSet::startCubeDensityCalculationAsync(Cube *cube)
   // Lock the cube until we are done. Acquired on the calling thread and held
   // until calculationComplete() unlocks it (also on the calling thread).
   cube->lock()->lockForWrite();
+  m_cube = cube; // remembered so calculationComplete() can unlock the same cube
 
   // Watch for the future (connection established on the calling thread).
   connect(&m_watcher, SIGNAL(finished()), this, SLOT(calculationComplete()));
 
-  // Run the heavy per-point setup and the density map on a worker thread.
-  m_future = QtConcurrent::run([this, cube]() {
-    // Set up the points we want to calculate the density at.
-    m_gaussianShells = new QVector<GaussianShell>(cube->data()->size());
-
-    for (int i = 0; i < m_gaussianShells->size(); ++i) {
-      (*m_gaussianShells)[i].set = this;
-      (*m_gaussianShells)[i].tCube = cube;
-      (*m_gaussianShells)[i].pos = i;
+  // D5: run the heavy per-point density evaluation on K slab workers (no
+  // per-point object is allocated). K is overridable via testSlabCount.
+  const int slabCount = testSlabCount > 0
+      ? testSlabCount
+      : std::max(1, std::min(QThread::idealThreadCount(), 16));
+  m_future = QtConcurrent::run([this, cube, slabCount]() {
+    // D7: allocate (and zero) the grid storage once, here in the worker,
+    // before any slab writes to it (per-slab ensureData would race).
+    cube->ensureData();
+    QVector<QFuture<void>> slabFutures;
+    slabFutures.reserve(slabCount);
+    for (int k = 0; k < slabCount; ++k) {
+      slabFutures.append(QtConcurrent::run(
+          [this, cube, slabCount, k]() {
+            processDensitySlab(k, slabCount, cube);
+          }));
     }
-
-    // The main part of the mapped reduced function...
-    QFuture<void> mapFuture =
-        QtConcurrent::map(*m_gaussianShells, GaussianSet::processDensity);
-    mapFuture.waitForFinished();
+    for (const QFuture<void> &f : slabFutures)
+      f.waitForFinished();
   });
   m_watcher.setFuture(m_future);
 
@@ -314,9 +319,11 @@ BasisSet * GaussianSet::clone()
 void GaussianSet::calculationComplete()
 {
   disconnect(&m_watcher, SIGNAL(finished()), this, SLOT(calculationComplete()));
-  (*m_gaussianShells)[0].tCube->lock()->unlock();
-  delete m_gaussianShells;
-  m_gaussianShells = 0;
+  // D5: the per-point shell vector is gone; unlock the cube stored at dispatch
+  // (m_cube) and release it. The lock was acquired on the calling thread and is
+  // released here (also on the calling thread), keeping the pair thread-affine.
+  m_cube->lock()->unlock();
+  m_cube = 0;
   emit finished();
 }
 
@@ -358,6 +365,45 @@ void GaussianSet::computeScreeningCutoffs()
   }
 }
 
+void GaussianSet::buildAtomShellBuckets()
+{
+  // D5: shells are emitted grouped by atom, so m_atomIndices is non-decreasing.
+  // Build the per-atom contiguous shell ranges and the conservative per-atom
+  // cutoff (the largest per-shell cutoff) so a worker can skip an atom in O(1)
+  // when every shell of it is beyond its own cutoff.
+  m_atomShellBucketStart.assign(m_numAtoms + 1, 0);
+  m_atomShellCutoff.assign(m_numAtoms, 0.0);
+
+  // Count shells per atom (m_atomIndices is non-decreasing, so contiguous).
+  std::vector<unsigned int> counts(m_numAtoms, 0);
+  for (size_t i = 0; i < m_atomIndices.size(); ++i) {
+    unsigned int atom = m_atomIndices[i];
+#ifndef NDEBUG
+    // Defensive: verify the atom index is in range and monotonic.
+    Q_ASSERT(atom < m_numAtoms);
+#endif
+    ++counts[atom];
+  }
+
+  // Prefix sum to get the bucket start for each atom.
+  for (unsigned int a = 0; a < m_numAtoms; ++a)
+    m_atomShellBucketStart[a + 1] = m_atomShellBucketStart[a] + counts[a];
+
+  // Per-atom cutoff: the maximum per-shell cutoff. Only when dr2 exceeds this
+  // is every shell of the atom negligible, so no shell the flat loop would
+  // evaluate is dropped (keeps the result bitwise-identical and within the
+  // screening tolerance).
+  for (unsigned int a = 0; a < m_numAtoms; ++a) {
+    double cutoff = 0.0;
+    for (unsigned int s = m_atomShellBucketStart[a];
+         s < m_atomShellBucketStart[a + 1]; ++s) {
+      if (m_shellRMax2[s] > cutoff)
+        cutoff = m_shellRMax2[s];
+    }
+    m_atomShellCutoff[a] = cutoff;
+  }
+}
+
 void GaussianSet::initCalculation()
 {
   if (m_init)
@@ -367,6 +413,8 @@ void GaussianSet::initCalculation()
   computeScreeningCutoffs();
   // This currently just involves normalising all contraction coefficients
   m_numAtoms = m_molecule.numAtoms();
+  // D5: build the per-atom shell buckets + cutoffs once the atom count is known.
+  buildAtomShellBuckets();
   m_gtoCN.clear();
 
   // Initialise the new data structures that are hopefully more efficient
@@ -555,6 +603,8 @@ void GaussianSet::initCalculationForOrca()
   computeScreeningCutoffs();
   // This currently just involves normalising all contraction coefficients
   m_numAtoms = m_molecule.numAtoms();
+  // D5: build the per-atom shell buckets + cutoffs once the atom count is known.
+  buildAtomShellBuckets();
   m_gtoCN.clear();
 
   // Initialise the new data structures that are hopefully more efficient
@@ -822,219 +872,241 @@ void GaussianSet::initCalculationForOrca()
 //  outputAll();
 }
 /// This is the stuff we actually use right now - porting to new data structure
-void GaussianSet::processPoint(GaussianShell &shell)
+void GaussianSet::processPointSlab(int slabIndex, int slabCount, Cube *cube,
+                                   unsigned int state)
 {
-  GaussianSet *set = shell.set;
-  unsigned int atomsSize = set->m_numAtoms;
-  unsigned int basisSize = set->m_symmetry.size();
-  std::vector<int> &basis = set->m_symmetry;
-  vector<Vector3d> deltas;
-  vector<double> dr2;
-  deltas.reserve(atomsSize);
-  dr2.reserve(atomsSize);
+  unsigned int atomsSize = m_numAtoms;
+  unsigned int basisSize = m_symmetry.size();
+  std::vector<int> &basis = m_symmetry;
+  unsigned int indexMO = state - 1;
 
-  unsigned int indexMO = shell.state-1;
-
-  // Calculate our position
-  Vector3d pos = shell.tCube->position(shell.pos) * ANGSTROM_TO_BOHR;
-
-  // Calculate the deltas for the position
-  for (unsigned int i = 0; i < atomsSize; ++i) {
-    deltas.push_back(pos - set->m_molecule.atomPos(i));
-    dr2.push_back(deltas[i].squaredNorm());
+  // D5: per-thread grow-only scratch buffers, sized to the atom count once.
+  thread_local std::vector<Vector3d> deltas;
+  thread_local std::vector<double> dr2;
+  if (deltas.size() < atomsSize) {
+    deltas.resize(atomsSize);
+    dr2.resize(atomsSize);
   }
 
-  // Now calculate the value at this point in space
-  double tmp = 0.0;
-  if (!set->m_useOrcaNorm) {
-      for (unsigned int i = 0; i < basisSize; ++i) {
+  // D7: the grid storage was ensured (and zeroed) once by the outer worker
+  // before the slabs were spawned; pointCount() gives the size without
+  // allocating.
+  unsigned int nPoints = cube->pointCount();
+  unsigned int lo = static_cast<unsigned int>(
+      (static_cast<qint64>(nPoints) * slabIndex) / slabCount);
+  unsigned int hi = static_cast<unsigned int>(
+      (static_cast<qint64>(nPoints) * (slabIndex + 1)) / slabCount);
+
+  for (unsigned int p = lo; p < hi; ++p) {
+    // Calculate our position
+    Vector3d pos = cube->position(p) * ANGSTROM_TO_BOHR;
+    double tmp = 0.0;
+    if (!m_useOrcaNorm) {
+      for (unsigned int a = 0; a < atomsSize; ++a) {
+        dr2[a] = (pos - m_molecule.atomPos(a)).squaredNorm();
+        // D5: skip the whole atom when every shell is beyond its own cutoff.
+        if (dr2[a] > m_atomShellCutoff[a])
+          continue;
+        // D5: delta computed once per surviving atom (lazily).
+        deltas[a] = pos - m_molecule.atomPos(a);
+        for (unsigned int s = m_atomShellBucketStart[a];
+             s < m_atomShellBucketStart[a + 1]; ++s) {
           // D7: skip shells whose atom is beyond the screening cutoff.
-          if (dr2[set->m_atomIndices[i]] > set->m_shellRMax2[i]) continue;
-          switch(basis[i]) {
+          if (dr2[a] > m_shellRMax2[s])
+            continue;
+          switch (basis[s]) {
           case S:
-              tmp += pointS(shell.set, i,
-                            dr2[set->m_atomIndices[i]], indexMO);
-              break;
+            tmp += pointS(this, s, dr2[a], indexMO);
+            break;
           case P:
-              tmp += pointP(shell.set, i, deltas[set->m_atomIndices[i]],
-                      dr2[set->m_atomIndices[i]], indexMO);
-              break;
+            tmp += pointP(this, s, deltas[a], dr2[a], indexMO);
+            break;
           case D:
-              tmp += pointD(shell.set, i, deltas[set->m_atomIndices[i]],
-                      dr2[set->m_atomIndices[i]], indexMO);
-              break;
+            tmp += pointD(this, s, deltas[a], dr2[a], indexMO);
+            break;
           case D5:
-              tmp += pointD5(shell.set, i, deltas[set->m_atomIndices[i]],
-                      dr2[set->m_atomIndices[i]], indexMO);
-              break;
+            tmp += pointD5(this, s, deltas[a], dr2[a], indexMO);
+            break;
           case F:
-              tmp += pointF(shell.set, i, deltas[set->m_atomIndices[i]],
-                      dr2[set->m_atomIndices[i]], indexMO);
-              break;
+            tmp += pointF(this, s, deltas[a], dr2[a], indexMO);
+            break;
           case F7:
-              tmp += pointF7(shell.set, i, deltas[set->m_atomIndices[i]],
-                      dr2[set->m_atomIndices[i]], indexMO);
-              break;
+            tmp += pointF7(this, s, deltas[a], dr2[a], indexMO);
+            break;
           default:
-              // Not handled - return a zero contribution
-              ;
+            // Not handled - return a zero contribution
+            ;
           }
-      }
-  } else {
-      for (unsigned int i = 0; i < basisSize; ++i) {
-        // D7: skip shells whose atom is beyond the screening cutoff.
-        if (dr2[set->m_atomIndices[i]] > set->m_shellRMax2[i]) continue;
-        switch(basis[i]) {
-        case S:
-          tmp += pointS(shell.set, i,
-                        dr2[set->m_atomIndices[i]], indexMO);
-          break;
-        case P:
-          tmp += pointP(shell.set, i, deltas[set->m_atomIndices[i]],
-                        dr2[set->m_atomIndices[i]], indexMO);
-          break;
-        case D5:
-          tmp += pointOrcaD5(shell.set, i, deltas[set->m_atomIndices[i]],
-                         dr2[set->m_atomIndices[i]], indexMO);
-          break;
-        case F7:
-          tmp += pointOrcaF7(shell.set, i, deltas[set->m_atomIndices[i]],
-                         dr2[set->m_atomIndices[i]], indexMO);
-          break;
-        case G9:
-          tmp += pointOrcaG9(shell.set, i, deltas[set->m_atomIndices[i]],
-                         dr2[set->m_atomIndices[i]], indexMO);
-          break;
-        case H11:
-          tmp += pointOrcaH11(shell.set, i, deltas[set->m_atomIndices[i]],
-                         dr2[set->m_atomIndices[i]], indexMO);
-          break;
-        case I13:
-          tmp += pointOrcaI13(shell.set, i, deltas[set->m_atomIndices[i]],
-                         dr2[set->m_atomIndices[i]], indexMO);
-          break;
-        default:
-          // Not handled - return a zero contribution
-          ;
         }
       }
-  }
+    } else {
+      for (unsigned int a = 0; a < atomsSize; ++a) {
+        dr2[a] = (pos - m_molecule.atomPos(a)).squaredNorm();
+        if (dr2[a] > m_atomShellCutoff[a])
+          continue;
+        deltas[a] = pos - m_molecule.atomPos(a);
+        for (unsigned int s = m_atomShellBucketStart[a];
+             s < m_atomShellBucketStart[a + 1]; ++s) {
+          if (dr2[a] > m_shellRMax2[s])
+            continue;
+          switch (basis[s]) {
+          case S:
+            tmp += pointS(this, s, dr2[a], indexMO);
+            break;
+          case P:
+            tmp += pointP(this, s, deltas[a], dr2[a], indexMO);
+            break;
+          case D5:
+            tmp += pointOrcaD5(this, s, deltas[a], dr2[a], indexMO);
+            break;
+          case F7:
+            tmp += pointOrcaF7(this, s, deltas[a], dr2[a], indexMO);
+            break;
+          case G9:
+            tmp += pointOrcaG9(this, s, deltas[a], dr2[a], indexMO);
+            break;
+          case H11:
+            tmp += pointOrcaH11(this, s, deltas[a], dr2[a], indexMO);
+            break;
+          case I13:
+            tmp += pointOrcaI13(this, s, deltas[a], dr2[a], indexMO);
+            break;
+          default:
+            // Not handled - return a zero contribution
+            ;
+          }
+        }
+      }
+    }
 
-  // Set the value
-  shell.tCube->setValue(shell.pos, tmp);
+    // Set the value
+    cube->setValue(p, tmp);
+  }
 }
 
-void GaussianSet::processDensity(GaussianShell &shell)
+void GaussianSet::processDensitySlab(int slabIndex, int slabCount, Cube *cube)
 {
-  GaussianSet *set = shell.set;
-  unsigned int atomsSize = set->m_numAtoms;
-  unsigned int basisSize = set->m_symmetry.size();
-  unsigned int matrixSize = set->m_density.rows();
-  std::vector<int> &basis = set->m_symmetry;
-  vector<Vector3d> deltas;
-  vector<double> dr2;
-  deltas.reserve(atomsSize);
-  dr2.reserve(atomsSize);
+  unsigned int atomsSize = m_numAtoms;
+  unsigned int basisSize = m_symmetry.size();
+  unsigned int matrixSize = m_density.rows();
+  std::vector<int> &basis = m_symmetry;
 
-  // Calculate our position
-  Vector3d pos = shell.tCube->position(shell.pos) * ANGSTROM_TO_BOHR;
-  // Calculate the deltas for the position
-  for (unsigned int i = 0; i < atomsSize; ++i) {
-    deltas.push_back(pos - set->m_molecule.atomPos(i));
-    dr2.push_back(deltas[i].squaredNorm());
+  // D5: per-thread grow-only scratch buffers, sized to the atom count once.
+  thread_local std::vector<Vector3d> deltas;
+  thread_local std::vector<double> dr2;
+  if (deltas.size() < atomsSize) {
+    deltas.resize(atomsSize);
+    dr2.resize(atomsSize);
   }
-
-  // D8: reuse a per-thread scratch buffer instead of heap-allocating a matrix
-  // per grid point. Resized only when matrixSize changes; identical name and
-  // all later uses kept unchanged.
-  // D7 interaction: the density contraction below reads EVERY AO entry of
-  // values, but a screened-out shell never writes its segment. Zero the
-  // buffer each point so a skipped shell contributes exactly 0 (its true
-  // contribution is < kScreenTolerance), matching the unscreened result.
+  // D8: reuse a per-thread scratch buffer for the AO values. Resized only when
+  // matrixSize changes; zeroed each point so a screened-out shell contributes
+  // exactly 0 (its true contribution is < kScreenTolerance).
   thread_local MatrixXd values;
   if (values.size() != static_cast<int>(matrixSize))
     values.resize(matrixSize, 1);
-  values.setZero();
-  if (!set->m_useOrcaNorm) {
-      for (unsigned int i = 0; i < basisSize; ++i) {
-          unsigned int cAtom = set->m_atomIndices[i];
-          // D7: skip shells whose atom is beyond the screening cutoff.
-          if (dr2[set->m_atomIndices[i]] > set->m_shellRMax2[i]) continue;
-          switch(basis[i]) {
+
+  // D7: the grid storage was ensured (and zeroed) once by the outer worker
+  // before the slabs were spawned; pointCount() gives the size without
+  // allocating.
+  unsigned int nPoints = cube->pointCount();
+  unsigned int lo = static_cast<unsigned int>(
+      (static_cast<qint64>(nPoints) * slabIndex) / slabCount);
+  unsigned int hi = static_cast<unsigned int>(
+      (static_cast<qint64>(nPoints) * (slabIndex + 1)) / slabCount);
+
+  for (unsigned int p = lo; p < hi; ++p) {
+    // Calculate our position
+    Vector3d pos = cube->position(p) * ANGSTROM_TO_BOHR;
+    values.setZero();
+    if (!m_useOrcaNorm) {
+      for (unsigned int a = 0; a < atomsSize; ++a) {
+        dr2[a] = (pos - m_molecule.atomPos(a)).squaredNorm();
+        if (dr2[a] > m_atomShellCutoff[a])
+          continue;
+        deltas[a] = pos - m_molecule.atomPos(a);
+        for (unsigned int s = m_atomShellBucketStart[a];
+             s < m_atomShellBucketStart[a + 1]; ++s) {
+          if (dr2[a] > m_shellRMax2[s])
+            continue;
+          switch (basis[s]) {
           case S:
-              pointS(shell.set, dr2[cAtom], i, values);
-              break;
+            pointS(this, dr2[a], s, values);
+            break;
           case P:
-              pointP(shell.set, deltas[cAtom], dr2[cAtom], i, values);
-              break;
+            pointP(this, deltas[a], dr2[a], s, values);
+            break;
           case D:
-              pointD(shell.set, deltas[cAtom], dr2[cAtom], i, values);
-              break;
+            pointD(this, deltas[a], dr2[a], s, values);
+            break;
           case D5:
-              pointD5(shell.set, deltas[cAtom], dr2[cAtom], i, values);
-              break;
+            pointD5(this, deltas[a], dr2[a], s, values);
+            break;
           case F:
-              pointF(shell.set, deltas[cAtom], dr2[cAtom], i, values);
-              break;
+            pointF(this, deltas[a], dr2[a], s, values);
+            break;
           case F7:
-              pointF7(shell.set, deltas[cAtom], dr2[cAtom], i, values);
-              break;
+            pointF7(this, deltas[a], dr2[a], s, values);
+            break;
           default:
-              qDebug() << " unhandled function !!!! ";
-              // Not handled - return a zero contribution
-              ;
+            qDebug() << " unhandled function !!!! ";
+            // Not handled - return a zero contribution
+            ;
           }
+        }
       }
-  } else {
-      for (unsigned int i = 0; i < basisSize; ++i) {
-          unsigned int cAtom = set->m_atomIndices[i];
-          // D7: skip shells whose atom is beyond the screening cutoff.
-          if (dr2[set->m_atomIndices[i]] > set->m_shellRMax2[i]) continue;
-          switch(basis[i]) {
+    } else {
+      for (unsigned int a = 0; a < atomsSize; ++a) {
+        dr2[a] = (pos - m_molecule.atomPos(a)).squaredNorm();
+        if (dr2[a] > m_atomShellCutoff[a])
+          continue;
+        deltas[a] = pos - m_molecule.atomPos(a);
+        for (unsigned int s = m_atomShellBucketStart[a];
+             s < m_atomShellBucketStart[a + 1]; ++s) {
+          if (dr2[a] > m_shellRMax2[s])
+            continue;
+          switch (basis[s]) {
           case S:
-              pointS(shell.set, dr2[cAtom], i, values);
-              break;
+            pointS(this, dr2[a], s, values);
+            break;
           case P:
-              pointP(shell.set, deltas[cAtom], dr2[cAtom], i, values);
-              break;
+            pointP(this, deltas[a], dr2[a], s, values);
+            break;
           case D5:
-              pointOrcaD5(shell.set, deltas[cAtom], dr2[cAtom], i, values);
-              break;
+            pointOrcaD5(this, deltas[a], dr2[a], s, values);
+            break;
           case F7:
-              pointOrcaF7(shell.set, deltas[cAtom], dr2[cAtom], i, values);
-              break;
+            pointOrcaF7(this, deltas[a], dr2[a], s, values);
+            break;
           case G9:
-              pointOrcaG9(shell.set, deltas[cAtom], dr2[cAtom], i, values);
-              break;
+            pointOrcaG9(this, deltas[a], dr2[a], s, values);
+            break;
           case H11:
-              pointOrcaH11(shell.set, deltas[cAtom], dr2[cAtom], i, values);
-              break;
+            pointOrcaH11(this, deltas[a], dr2[a], s, values);
+            break;
           case I13:
-              pointOrcaI13(shell.set, deltas[cAtom], dr2[cAtom], i, values);
-              break;
+            pointOrcaI13(this, deltas[a], dr2[a], s, values);
+            break;
           default:
-              qDebug() << " unhandled function !!!! ";
-              // Not handled - return a zero contribution
-              ;
+            qDebug() << " unhandled function !!!! ";
+            // Not handled - return a zero contribution
+            ;
           }
+        }
       }
-  }
-
-  // Now calculate the value of the density at this point in space
-  double rho = 0.0;
-  for (unsigned int i = 0; i < matrixSize; ++i) {
-    // Calculate the off-diagonal parts of the matrix
-    for (unsigned int j = 0; j < i; ++j) {
-      rho += 2.0 * set->m_density.coeffRef(i, j)
-          * (values.coeffRef(i, 0) * values.coeffRef(j, 0));
     }
-    // Now calculate the matrix diagonal
-    rho += set->m_density.coeffRef(i, i)
-        * (values.coeffRef(i, 0) * values.coeffRef(i, 0));
-  }
 
-  // Set the value
-  shell.tCube->setValue(shell.pos, rho);
+    // Now calculate the value of the density at this point in space
+    double rho = 0.0;
+    for (unsigned int i = 0; i < matrixSize; ++i) {
+      for (unsigned int j = 0; j < i; ++j) {
+        rho += 2.0 * m_density.coeffRef(i, j)
+            * (values.coeffRef(i, 0) * values.coeffRef(j, 0));
+      }
+      rho += m_density.coeffRef(i, i)
+          * (values.coeffRef(i, 0) * values.coeffRef(i, 0));
+    }
+    cube->setValue(p, rho);
+  }
 }
 
 inline double GaussianSet::pointS(GaussianSet *set, unsigned int moIndex,

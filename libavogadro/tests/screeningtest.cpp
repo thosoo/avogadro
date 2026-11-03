@@ -98,8 +98,8 @@ private:
     return cube;
   }
 
-  static double maxAbsDiff(const std::vector<double> &a,
-                           const std::vector<double> &b)
+  static double maxAbsDiff(const std::vector<float> &a,
+                           const std::vector<float> &b)
   {
     if (a.size() != b.size())
       return -1.0;
@@ -156,8 +156,8 @@ void ScreeningTest::testScreenedMatchesUnscreened()
   GaussianSet::kScreenTolerance = 1e-12;
   QVERIFY2(unscreened != nullptr, err.constData());
 
-  const std::vector<double> &a = *screened->data();
-  const std::vector<double> &b = *unscreened->data();
+  const std::vector<float> &a = *screened->data();
+  const std::vector<float> &b = *unscreened->data();
   QCOMPARE(a.size(), b.size());
 
   // Each skipped shell contributes < kScreenTolerance (1e-12); the summed
@@ -189,8 +189,8 @@ void ScreeningTest::testDeterministic()
   delete basis2;
   QVERIFY2(c2 != nullptr, err.constData());
 
-  const std::vector<double> &a = *c1->data();
-  const std::vector<double> &b = *c2->data();
+  const std::vector<float> &a = *c1->data();
+  const std::vector<float> &b = *c2->data();
   QCOMPARE(a.size(), b.size());
   QVERIFY(maxAbsDiff(a, b) == 0.0);
 
@@ -217,8 +217,8 @@ void ScreeningTest::testDensityScreened()
   GaussianSet::kScreenTolerance = 1e-12;
   QVERIFY2(unscreened != nullptr, err.constData());
 
-  const std::vector<double> &a = *screened->data();
-  const std::vector<double> &b = *unscreened->data();
+  const std::vector<float> &a = *screened->data();
+  const std::vector<float> &b = *unscreened->data();
   double maxAbs = maxAbsDiff(a, b);
   QVERIFY2(maxAbs >= 0.0, "grid sizes differ");
   QVERIFY2(maxAbs < 1e-9,
