@@ -30,6 +30,7 @@ private Q_SLOTS:
   void planNeitherEnqueues();
   void latestSelectionWins();
   void pendingClearedAfterCompletion();
+  void documentSwitchClearsPending();
 
 private:
   // Build a widget whose table holds `n` orbitals (indices 0..n-1) so the
@@ -126,6 +127,36 @@ void OrbitalSelectionTest::pendingClearedAfterCompletion()
   QCOMPARE(ext.pendingOrbitalForTest(), 0u);
 
   delete widget;
+}
+
+// Task 7.3 row 5: switching documents while a parse/precalc is in flight must
+// not leave a stale pending orbital (design D4: setMolecule clears
+// m_pendingOrbital). setMolecule(nullptr) tears down the outgoing document's
+// state and returns before loadBasis(), so it cleanly exercises the pending
+// clear without needing a live basis file.
+void OrbitalSelectionTest::documentSwitchClearsPending()
+{
+  OrbitalExtension ext;
+
+  QList<calcInfo> queue;
+  calcInfo c;
+  c.orbital = 5;
+  c.resolution = 0.18;
+  c.isovalue = 0.02;
+  c.priority = 0;
+  c.state = Running;
+  c.posMesh = nullptr;
+  c.negMesh = nullptr;
+  c.cube = nullptr;
+  queue.append(c);
+  ext.setUpCompletionForTest(queue, /*runningIndex=*/0, /*pendingOrbital=*/5);
+  QCOMPARE(ext.pendingOrbitalForTest(), 5u);
+
+  // Simulate a document switch: setMolecule(nullptr) quiesces the outgoing
+  // document's work and clears the pending marker (the incoming document is
+  // null, so it returns before any basis parse).
+  ext.setMolecule(nullptr);
+  QCOMPARE(ext.pendingOrbitalForTest(), 0u);
 }
 
 OrbitalWidget *OrbitalSelectionTest::makePopulatedWidget(int n)

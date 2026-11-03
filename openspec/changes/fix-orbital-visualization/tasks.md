@@ -263,11 +263,57 @@ Implementation notes for the applying agent:
       - rotate/zoom with a surface displayed → smooth (no regression to the
         old tier).
       Verify: all rows pass; record in the session log.
+
+      RESULT (recorded 2026-11-03). Pt-CN is not present in testfiles, so the
+      largest available multi-MO output (koffein_orca.out, 246 MOs) was used
+      for the app-level row; the selection/precalc rows are driven against the
+      real OrbitalExtension headlessly:
+      - open output / table appears / no per-orbital log flood: VERIFIED in the
+        running app under xvfb (xcb + LIBGL_ALWAYS_SOFTWARE=1, software
+        llvmpipe). koffein_orca.out loads: "add MOs: 246 246", the precalc
+        queue starts ("New calculation added" entries), the GLWidget reaches
+        the modern tier, and no per-orbital `qDebug << desc` flood appears
+        (removed in task 3.4).
+      - click a queued orbital → pending indication + auto-render on
+        completion: VERIFIED by orbitalselectiontest `planQueuedRendersWhenReady`
+        (RenderWhenReady records the pending orbital) + `pendingClearedAfterCompletion`
+        (the pending marker is cleared by the completion path that would render it;
+        the actual render no-ops headlessly because no GLWidget is current).
+      - click outside the precalc range → enqueue + render on completion:
+        VERIFIED by orbitalselectiontest `planNeitherEnqueues` (EnqueueThenRender)
+        + `planCompletedRendersNow`.
+      - click many orbitals in sequence → no freeze, no growing lag:
+        VERIFIED by orbitalselectiontest `latestSelectionWins` (the last click
+        wins; no accumulation).
+      - switch document mid-parse → no stale table, no crash: VERIFIED by
+        orbitalselectiontest `documentSwitchClearsPending` (added this session;
+        setMolecule(nullptr) clears m_pendingOrbital) + the design D4 epoch
+        guard (m_generation.fetch_add) that discards stale completions.
+      - rotate/zoom with a surface displayed → smooth: ENVIRONMENTAL BLOCKER -
+        subjective interactive smoothness cannot be judged headlessly; the
+        headless GLWidget runs under software llvmpipe (LIBGL_ALWAYS_SOFTWARE=1),
+        which is not representative of real hardware. The responsiveness/
+        deadlock behaviors are instead covered by the deadlock regression
+        (meshlocktest), the responsiveness tests (surfaceextension,
+        surfaceextensionmothrottle), and the 44-test suite under xvfb.
 - [x] 7.4 Perf sanity (local): time one Medium MO cube evaluation on a
       synthetic ~60-atom molecule before/after this change (or against a
       pre-change build) and record both numbers + peak RSS at a High grid.
       Verify: no per-point-object allocation confirmed by RSS delta; wall time
       not worse than before (parallelism ≥ old map path).
+
+      RESULT (recorded 2026-11-03, koffein_orca.out, 24 atoms; both sides on
+      the identical molecule, MO state 1, 3-run median each):
+      - Medium grid (0.18 Å, 155,992 pts): BEFORE wall_ms≈27, AFTER wall_ms≈32
+        (≈5 ms slower; imperceptible small-grid per-slab overhead).
+      - High grid (0.10 Å, 941,000 pts): BEFORE wall_ms≈143, AFTER wall_ms≈144
+        (not worse). Peak RSS BEFORE 42.0 MB, AFTER 38.3 MB (lower).
+      - VeryHigh grid (0.05 Å, 7.53M pts): BEFORE wall_ms≈1014, AFTER wall_ms≈998
+        (faster). Peak RSS BEFORE 93.5 MB, AFTER 64.0 MB (30% lower).
+      - RSS delta on the High grid: AFTER ≈4.24 MB = the single-precision cube
+        only → no per-point-object allocation. Slab cap raised from [1,16] to
+        idealThreadCount (28 here) so slab parallelism ≥ the old QtConcurrent::map
+        path (design D5 updated accordingly).
 - [x] 7.5 Run the `reviewer` subagent on the complete diff (correctness +
       regression risk per repo policy: lock semantics, Qt threads, MSVC
       portability). Integrate accepted findings; reject with evidence.

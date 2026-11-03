@@ -104,10 +104,12 @@ clear `m_pendingOrbital` (the epoch guard already discards stale completions).
 
 ### D5: Slab-based cube evaluation (no per-point objects)
 Replace the `QVector<GaussianShell>` + `QtConcurrent::map` pair with K slab
-workers inside the existing `QtConcurrent::run` task (K = `idealThreadCount`
-clamped to [1,16], overridable via a new `GaussianSet::testSlabCount` hook,
-mirroring `MeshGenerator::testThreadCount`). Each worker processes a contiguous
-index range sequentially:
+workers inside the existing `QtConcurrent::run` task (K = `idealThreadCount`,
+overridable via a new `GaussianSet::testSlabCount` hook, mirroring
+`MeshGenerator::testThreadCount`; the old `QtConcurrent::map` path also used
+`idealThreadCount`, so the slab workers match its parallelism and wall time is
+not worse than before). Each worker processes a contiguous index range
+sequentially:
 
 - per-atom shell buckets precomputed once in `initCalculation` /
   `initCalculationForOrca` (shells are already emitted grouped by atom — the

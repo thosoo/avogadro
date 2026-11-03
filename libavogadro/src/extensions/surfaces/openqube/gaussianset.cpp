@@ -188,12 +188,15 @@ bool GaussianSet::startCubeCalculationAsync(Cube *cube, unsigned int state)
 
   // D5: run the heavy per-point evaluation on K worker threads, each over a
   // contiguous slab of grid points (no per-point object is allocated). K is
-  // overridable via testSlabCount; otherwise the ideal thread count clamped to
-  // [1,16]. QtConcurrent::run returns immediately with a future the watcher
-  // can wait on, so a synchronous caller below can block on it right away.
+  // overridable via testSlabCount; otherwise the ideal thread count, matching
+  // the old QtConcurrent::map path's parallelism so wall time is not worse
+  // than before (verified: 28-slab MO eval on the koffein High grid is
+  // comparable to the pre-change map). QtConcurrent::run returns immediately
+  // with a future the watcher can wait on, so a synchronous caller below can
+  // block on it right away.
   const int slabCount = testSlabCount > 0
       ? testSlabCount
-      : std::max(1, std::min(QThread::idealThreadCount(), 16));
+      : std::max(1, QThread::idealThreadCount());
   m_future = QtConcurrent::run([this, cube, state, slabCount]() {
     // D7: allocate (and zero) the grid storage once, here in the worker,
     // before any slab writes to it. Doing this per-slab would be a data race
@@ -256,10 +259,11 @@ bool GaussianSet::startCubeDensityCalculationAsync(Cube *cube)
   connect(&m_watcher, SIGNAL(finished()), this, SLOT(calculationComplete()));
 
   // D5: run the heavy per-point density evaluation on K slab workers (no
-  // per-point object is allocated). K is overridable via testSlabCount.
+  // per-point object is allocated). K is overridable via testSlabCount;
+  // otherwise the ideal thread count, matching the old map path's parallelism.
   const int slabCount = testSlabCount > 0
       ? testSlabCount
-      : std::max(1, std::min(QThread::idealThreadCount(), 16));
+      : std::max(1, QThread::idealThreadCount());
   m_future = QtConcurrent::run([this, cube, slabCount]() {
     // D7: allocate (and zero) the grid storage once, here in the worker,
     // before any slab writes to it (per-slab ensureData would race).
