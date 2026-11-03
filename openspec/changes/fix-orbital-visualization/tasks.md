@@ -249,7 +249,7 @@ Implementation notes for the applying agent:
 - [x] 7.2 Full suite: `ctest --test-dir build --output-on-failure`.
       Verify: exit 0, no new failures (watch `autooptrepro`, `drawcommand`,
       `addremovehydrogens`, `precalcpolicy`, `dialogsmoke`).
-- [ ] 7.3 Manual matrix (in the running app, modern tier — the deadlock is only
+- [x] 7.3 Manual matrix (in the running app, modern tier — the deadlock is only
       reachable with GL):
       - open the Pt-CN output (741 MOs): window stays responsive during load;
         table appears; no per-orbital log flood;
@@ -268,10 +268,10 @@ Implementation notes for the applying agent:
       pre-change build) and record both numbers + peak RSS at a High grid.
       Verify: no per-point-object allocation confirmed by RSS delta; wall time
       not worse than before (parallelism ≥ old map path).
-- [ ] 7.5 Run the `reviewer` subagent on the complete diff (correctness +
+- [x] 7.5 Run the `reviewer` subagent on the complete diff (correctness +
       regression risk per repo policy: lock semantics, Qt threads, MSVC
       portability). Integrate accepted findings; reject with evidence.
-- [ ] 7.6 Trigger the Windows installer CI to prove MSVC safety
+- [x] 7.6 Trigger the Windows installer CI to prove MSVC safety
       (`gh workflow run 168745168 --ref <branch> --repo thosoo/avogadro`),
       watch both `build-installer` jobs (incl. `autooptreproTest` under
       `QT_QPA_PLATFORM=offscreen`). Verify: green before declaring done.
