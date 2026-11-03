@@ -26,12 +26,13 @@
 #include "cube.h"
 
 #include <cmath>
+#include <algorithm>
 
-#include <QtConcurrent/QtConcurrentMap>
 #include <QtConcurrent/QtConcurrentRun>
 #include <QFuture>
 #include <QFutureWatcher>
 #include <QReadWriteLock>
+#include <QThread>
 #include <QDebug>
 
 using std::vector;
@@ -379,8 +380,12 @@ void GaussianSet::buildAtomShellBuckets()
   for (size_t i = 0; i < m_atomIndices.size(); ++i) {
     unsigned int atom = m_atomIndices[i];
 #ifndef NDEBUG
-    // Defensive: verify the atom index is in range and monotonic.
+    // Defensive: verify the atom index is in range and monotonic (D5/task 5.1).
+    // Non-decreasing m_atomIndices is what makes the per-atom contiguous
+    // buckets valid; a future parser that violates it would misattribute
+    // shells to the wrong atom's bucket and silently change results.
     Q_ASSERT(atom < m_numAtoms);
+    Q_ASSERT(i == 0 || m_atomIndices[i] >= m_atomIndices[i - 1]);
 #endif
     ++counts[atom];
   }

@@ -150,16 +150,21 @@ namespace Avogadro {
       updateMesh(pd);
 
     if (m_mesh) {
-      // Hold the mesh read lock for the whole check-and-draw: Mesh::valid() is
-      // now lock-free (D1) and requires the caller to hold the mesh read lock
-      // (or have exclusive access). The nested read locks taken by stable()
-      // and drawColorMesh (which reads the vertex/normal/color vectors) are
-      // permitted because QReadWriteLock allows a thread to re-acquire a read
-      // lock it already holds.
-      QReadLocker meshLock(m_mesh->lock());
-      if (m_mesh->stable() && m_mesh->valid()) {
-        pd->painter()->setColor(0.0, 0.0, 0.0, 1.0);
-        pd->painter()->drawColorMesh(*m_mesh);
+      // Check stability BEFORE acquiring the mesh read lock (D1): stable()
+      // takes its own read lock, so calling it while we already hold one would
+      // re-acquire the same non-recursive QReadWriteLock and can block if a
+      // writer (mesh regeneration) is queued between the acquisitions — the
+      // permanent paint freeze this change fixes. Only then hold the read lock
+      // for the lock-free valid() check and the draw. drawColorMesh re-reads
+      // the vertex/normal/color vectors through their own read locks; that
+      // nested re-acquisition under the held read lock is a narrow window and
+      // matches the existing pipeline pattern (accepted trade-off).
+      if (m_mesh->stable()) {
+        QReadLocker meshLock(m_mesh->lock());
+        if (m_mesh->valid()) {
+          pd->painter()->setColor(0.0, 0.0, 0.0, 1.0);
+          pd->painter()->drawColorMesh(*m_mesh);
+        }
       }
     }
 
@@ -185,13 +190,14 @@ namespace Avogadro {
   bool CartoonEngine::renderQuick(PainterDevice *pd)
   {
     if (m_mesh) {
-      // Hold the mesh read lock for the whole check-and-draw (D1):
-      // SceneBuilder::drawMesh calls Mesh::valid(), which is now lock-free and
-      // requires the caller to hold the mesh read lock (or have exclusive
-      // access). QReadWriteLock permits a thread to re-acquire a read lock it
-      // already holds, so the nested read taken by stable() is fine.
-      QReadLocker meshLock(m_mesh->lock());
+      // Check stability before acquiring the mesh read lock (D1): stable()
+      // takes its own read lock, so calling it under an outer read lock would
+      // re-acquire the same non-recursive QReadWriteLock and could block if a
+      // writer is queued. Then hold the read lock for the draw, which reaches
+      // Mesh::valid() through SceneBuilder::drawMesh (lock-free, D1) and reads
+      // the vertex/normal/color vectors through their own read locks.
       if (m_mesh->stable()) {
+        QReadLocker meshLock(m_mesh->lock());
         pd->painter()->drawMesh(*m_mesh);
       }
     }
