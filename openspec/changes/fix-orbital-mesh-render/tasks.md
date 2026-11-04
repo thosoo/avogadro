@@ -50,11 +50,20 @@ CI leg is red.
       (screenshot comparison against the pre-fix bare-geometry state). Verify:
       surface visible both for a mid-precalculation click and a click on a completed
       orbital.
-- [ ] 4.3 Push the branch to GitHub and obtain the Windows Installer run from
+- [x] 4.3 Push the branch to GitHub and obtain the Windows Installer run from
       Actions (design D5): `gh workflow run 168745168 --ref <branch> --repo
       thosoo/avogadro`; watch both `build-installer` jobs and the test suite
       (incl. `autooptreproTest`) pass under `QT_QPA_PLATFORM=offscreen`. Verify:
       run conclusion=success; a red Windows leg blocks merge.
-- [ ] 4.4 Run the `reviewer` subagent on the complete diff (correctness + regression
+      Evidence: run 41903246600 conclusion=success; both build-installer jobs
+      green (tests 50m31s, installer 47m47s); 100% tests passed, 0 failed out
+      of 45; meshcaptureTest passed (0.09s); autooptreproTest passed (25.40s).
+- [x] 4.4 Run the `reviewer` subagent on the complete diff (correctness + regression
       risk per repo policy); integrate accepted findings. Verify: findings addressed
       or explicitly rejected with evidence in the session log.
+      Evidence: reviewer verdict "OK with notes, no blockers". Three P2 findings
+      integrated: (1) CartoonEngine uncolored mesh -> drawColorMesh per-frame qDebug
+      (DEFER: pre-existing CartoonEngine bug; visual parity maintained; D2 routes
+      SurfaceEngine uncolored meshes via drawMesh); (2) report-once flag
+      process-global/non-atomic (ACCEPT: design D3, repo-wide convention, pinned by
+      test); (3) Windows/Qt 6.6.3 compile safety (TEST: proven by task 4.3).
