@@ -27,6 +27,7 @@
 
 #include <QtTest/QTest>
 #include <QtWidgets/QApplication>
+#include <QMouseEvent>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
 #include <QtGui/QSurfaceFormat>
@@ -235,6 +236,21 @@ public:
   // AutoOptThread* is reachable for spying on its setupFailed() signal.
   AutoOptThread *autoThread() const { return m_thread; }
 
+  // Test-only: simulate a force-field-less deployment by tearing down the
+  // worker. When the constructor finds no force field it bails before
+  // creating m_thread, leaving it null; this reproduces that state so the
+  // paint()/mouseReleaseEvent() D3 guards are exercised (they must not
+  // dereference a null worker).
+  void nullWorker()
+  {
+    if (m_thread) {
+      m_thread->exit();
+      m_thread->wait();
+      delete m_thread;
+      m_thread = 0;
+    }
+  }
+
   // Drag-path state for the task 2.1 write-back test. The members are
   // protected in AutoOptTool, so AutoOptReproTest (not a subclass) reaches
   // them through these public mutators defined on the subclass.
@@ -374,6 +390,19 @@ private slots:
   // not crash); the worker never ticks.
   void emptyMoleculeStartIdle();
   void draggedAtomWriteBackSkipped();
+
+  // fix-autoopt-tool-activation-crash task 2.1 (headless): a fresh tool with
+  // the settings dock built (m_comboFF non-null) but no prior canvas
+  // interaction (m_glwidget null) must not crash when Start is pressed, and
+  // must not report running. Then a mouse release on the fresh tool must not
+  // crash whether or not the worker was created (force-field-less deployment).
+  void freshToolStartBeforePaintIsSafe();
+
+  // fix-autoopt-tool-activation-crash task 2.1 (D3): with no force field the
+  // constructor never creates the worker (m_thread == 0), so paint() must
+  // return early (no snapshot read) and mouseReleaseEvent() must skip the
+  // marker bookkeeping — both without crashing.
+  void forceFieldlessToolIsInert();
 
   // LIVE-GUI scenario checks (fix-modern-tier-revision-churn 2.2 / 3.1).
   // Both drive the real GLWidget on a real GL context (Xvfb/llvmpipe or real
@@ -1269,6 +1298,78 @@ void AutoOptReproTest::draggedAtomWriteBackSkipped()
   tool.finished(true);
   // Coverage resumed: the dragged atom now receives its write-back (F[0]).
   QVERIFY(nearEq(*atoms[0]->pos(), Eigen::Vector3d(10.0, 0.0, 0.0), 1e-9));
+
+  delete mol;
+}
+
+void AutoOptReproTest::freshToolStartBeforePaintIsSafe()
+{
+  // fix-autoopt-tool-activation-crash task 2.1. Reproduces the field crash:
+  // activate the AutoOpt tool (its settings dock is built, so m_comboFF is
+  // non-null) and press Start without ever moving or clicking the pointer over
+  // the molecule view, so no paint() and no canvas mouse event has associated
+  // a GLWidget yet (m_glwidget stays null on a renderer that skips the tool
+  // overlay pass).
+  Molecule *mol = makeCarbonChain();
+  QVERIFY(mol);
+
+  GLWidget widget(mol, QSurfaceFormat());
+  widget.resize(640, 480);
+
+  AutoOptToolExposed tool;
+  tool.settingsWidget(); // build the settings dock (m_comboFF non-null)
+  QVERIFY(tool.ffCombo() != nullptr);
+  // NOTE: deliberately NOT calling tool.setGlw(&widget) — m_glwidget stays
+  // null, simulating activation without a prior canvas interaction.
+
+  // Start before any painted frame: must not crash and must not run. The
+  // enable() guard bails with a diagnostic (design D2) instead of
+  // dereferencing the null m_glwidget.
+  tool.enable();
+  QVERIFY(!tool.running());
+
+  // Mouse release on the fresh tool (no force-field bookkeeping): must not
+  // crash whether the worker exists (force field present) or not
+  // (force-field-less deployment, design D3). The handler ignores the event
+  // parameter, so a trivial release event suffices.
+  QMouseEvent releaseEvent(QEvent::MouseButtonRelease, QPointF(10, 10),
+                           QPointF(10, 10), Qt::LeftButton, Qt::NoButton,
+                           Qt::NoModifier);
+  tool.mouseReleaseEvent(&widget, &releaseEvent);
+  QVERIFY(!tool.running());
+
+  delete mol;
+}
+
+void AutoOptReproTest::forceFieldlessToolIsInert()
+{
+  // D3: a force-field-less deployment leaves the worker null (the constructor
+  // bails before creating it). paint() must return early without reading the
+  // snapshot, and mouseReleaseEvent() must skip the marker bookkeeping — both
+  // must not dereference the null worker. The assert is "no crash + inert",
+  // not "FF missing", so it holds in both the FF-present and FF-absent states.
+  Molecule *mol = makeCarbonChain();
+  QVERIFY(mol);
+
+  GLWidget widget(mol, QSurfaceFormat());
+  widget.resize(640, 480);
+
+  AutoOptToolExposed tool;
+  tool.settingsWidget();
+  QVERIFY(tool.ffCombo() != nullptr);
+  tool.setGlw(&widget);
+  tool.nullWorker(); // simulate the force-field-less deployment
+  QVERIFY(tool.autoThread() == nullptr);
+
+  // paint() with no worker: must not dereference m_thread (no snapshot read).
+  QVERIFY(!tool.paint(&widget));
+
+  // mouseReleaseEvent() with no worker: must skip setPendingFixAtom(0) and
+  // not crash.
+  QMouseEvent releaseEvent(QEvent::MouseButtonRelease, QPointF(10, 10),
+                           QPointF(10, 10), Qt::LeftButton, Qt::NoButton,
+                           Qt::NoModifier);
+  tool.mouseReleaseEvent(&widget, &releaseEvent);
 
   delete mol;
 }

@@ -52,10 +52,14 @@ using namespace Eigen;
 
 namespace Avogadro {
 
-  AutoOptTool::AutoOptTool(QObject *parent) : Tool(parent), m_clickedAtom(0),
+  AutoOptTool::AutoOptTool(QObject *parent) : Tool(parent), m_glwidget(0),
+  m_clickedAtom(0),
   m_leftButtonPressed(false), m_midButtonPressed(false), m_rightButtonPressed(false),
-  m_running(false), m_block(false), m_setupFailed(false), m_timerId(0) ,m_toolGroup(0),
-  m_settingsWidget(0), m_thread(0), m_lastEnergy(0.0)
+  m_running(false), m_block(false), m_setupFailed(false), m_timerId(0), m_toolGroup(0),
+  m_settingsWidget(0), m_selectedPrimitivesCenter(Eigen::Vector3d::Zero()),
+  m_forceField(0), m_thread(0), m_forceFieldList(), m_comboFF(0), m_comboAlgorithm(0),
+  m_stepsSpinBox(0), m_buttonStartStop(0), m_fixedMovable(0), m_ignoredMovable(0),
+  m_lastDraggingPosition(), m_lastEnergy(0.0)
   {
     QAction *action = activateAction();
     action->setIcon(QIcon(QString::fromUtf8(":/autoopttool/autoopttool.png")));
@@ -188,7 +192,10 @@ namespace Avogadro {
 
     m_clickedAtom = 0;
     // Route the marker release through the worker (single FF caller).
-    m_thread->setPendingFixAtom(0);
+    // Null-guard: with no force field the worker was never created, so there
+    // is no marker to release (design D3).
+    if (m_thread)
+      m_thread->setPendingFixAtom(0);
 
     widget->update();
     return 0;
@@ -236,6 +243,14 @@ namespace Avogadro {
 
   bool AutoOptTool::paint(GLWidget *widget)
   {
+    // Force-field-less deployment: the worker was never created (the
+    // constructor bailed on the force-field lookup), so there is no snapshot
+    // to read and no HUD to draw. Return early instead of dereferencing a
+    // null m_thread (design D3). With no force field the HUD block is
+    // unreachable anyway (m_running can never become true), so this only
+    // removes the crash.
+    if (!m_thread)
+      return false;
     QPoint labelPos(10, 10);
     QPoint debugPos(10, 50);
     glColor3f(1.0,1.0,1.0);
@@ -409,6 +424,21 @@ namespace Avogadro {
     if (!m_forceField)
       return;
 
+    // The settings dock may not have been built yet (m_comboFF is created by
+    // settingsWidget()), and the active GLWidget is only associated on the
+    // first canvas interaction (m_glwidget). Without either, Start cannot be
+    // honored yet; bail with a diagnostic instead of dereferencing a null or
+    // garbage pointer (design D2). The user's next canvas interaction
+    // associates the widget, after which Start works normally.
+    if (!m_comboFF) {
+      qWarning() << "AutoOptTool::enable: no force-field combo (settings widget not built); cannot start";
+      return;
+    }
+    if (!m_glwidget) {
+      qWarning() << "AutoOptTool::enable: no view associated yet (m_glwidget null); touch the canvas first";
+      return;
+    }
+
     if(!m_running) {
       // Re-find the force field by the current combo selection (same lookup as
       // timerEvent) so a user-changed force field is honoured on start.
@@ -484,7 +514,8 @@ namespace Avogadro {
 
       m_buttonStartStop->setText(tr("Start"));
 
-      m_glwidget->update(); // redraw AutoOpt label
+      if (m_glwidget)
+        m_glwidget->update(); // redraw AutoOpt label
 
       m_clickedAtom = 0;
       m_forceField->UnsetFixAtom();
@@ -498,6 +529,13 @@ namespace Avogadro {
 
   void AutoOptTool::timerEvent(QTimerEvent*)
   {
+    // Guard against a null view: timerEvent can only run while a session is
+    // active, but a view is only associated after the first canvas
+    // interaction. Removing that ordering assumption costs nothing (design D2).
+    if (!m_glwidget) {
+      qWarning() << "AutoOptTool::timerEvent: no view associated (m_glwidget null)";
+      return;
+    }
     if(m_block || m_glwidget->molecule()->numAtoms() < 2)
       return;
     else
@@ -510,6 +548,12 @@ namespace Avogadro {
     // write removes the unsynchronized write without changing behavior. The
     // field is still resolved every tick, so a mid-run combo change takes
     // effect on the next tick.
+    // The settings dock may not have been built yet (m_comboFF created by
+    // settingsWidget()); bail with a diagnostic instead of dereferencing it.
+    if (!m_comboFF) {
+      qWarning() << "AutoOptTool::timerEvent: no force-field combo (settings widget not built)";
+      return;
+    }
     OBForceField *ff =
         OBForceField::FindForceField(m_forceFieldList[m_comboFF->currentIndex()]);
 
