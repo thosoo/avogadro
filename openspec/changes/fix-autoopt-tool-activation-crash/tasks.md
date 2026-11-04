@@ -60,6 +60,16 @@ change complete.
       fully-initialized session path is unchanged by construction. The "no crash on
       the Core-tier machine" clause is covered by task 3.1's guards, which the
       headless tests exercise.)
-- [ ] 3.3 Run the `reviewer` subagent on the complete diff (correctness + regression
+- [x] 3.3 Run the `reviewer` subagent on the complete diff (correctness + regression
       risk per repo policy); integrate accepted findings. Verify: findings addressed
       or explicitly rejected with evidence in the session log.
+      (Reviewer verdict: **no blockers, diff is sound.** Reviewer confirmed the ctor init
+      list covers all 24 members in declaration order, the paint() return value is
+      discarded at all four glwidget.cpp call sites (the FF-less crash path), and the
+      recovery path (touch canvas then Start) is preserved. Accepted the P2 nit and
+      moved the `m_comboFF` guard above the `m_block` set in `timerEvent()` so a bailed
+      tick cannot wedge the session (commit d56e5812e). The pre-existing
+      `settingsWidgetDestroyed()` dangling-widget and `abort()`/`finished()` unguarded
+      derefs were explicitly rejected as out of scope (unreachable-with-null given the
+      new enable() gating). Re-ran the full suite post-fix: 44/44 tests pass, and
+      autooptreprotest passes 21/21 (0 skipped).)
