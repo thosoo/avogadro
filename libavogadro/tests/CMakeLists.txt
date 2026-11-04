@@ -42,6 +42,7 @@ pkg_check_modules(XTB xtb)
 set(tests
   chunkstore
   scenebuilder
+  meshcapture
   paritybsdy
   paritysphere
   paritystick
@@ -137,6 +138,17 @@ foreach (test ${tests})
     # Compile the real ball-and-stick engine so the molecule can be rendered
     # headlessly through the SceneBuilder emitter (task 1.2).
     list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)
+  endif()
+  if (${test} STREQUAL "meshcapture")
+    # meshcapturetest (fix-orbital-mesh-render, design D4) drives the
+    # SceneBuilder emitter directly to pin the D1 uncolored-mesh acceptance
+    # and the D3 "report once" diagnostic. SceneBuilder, Mesh, MeshGenerator
+    # and Cube are all A_EXPORT (dllexported from avogadro), so they are
+    # linked from the library rather than compiled directly: compiling an
+    # A_EXPORT class directly into a test TU would set A_EXPORT to
+    # __declspec(dllimport) on Windows and fail with C2491 (the direct-compile
+    # pattern in this file is reserved for NON-exported sources such as
+    # glpainter_p.cpp / geometry.cpp).
   endif()
   if (${test} STREQUAL "modernrenderer")
     # Compile the real ball-and-stick engine so the parity test (task 3.1)

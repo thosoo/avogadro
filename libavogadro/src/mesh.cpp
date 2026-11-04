@@ -243,7 +243,15 @@ namespace Avogadro {
     // read lock (or otherwise have exclusive access); see the declaration in
     // mesh.h.
     if (m_vertices.size() == m_normals.size()) {
-      if (m_colors.size() == 1 || m_colors.size() == m_vertices.size()) {
+      // D1 (fix-orbital-mesh-render): an uncolored mesh — zero per-vertex colors,
+      // the shape MeshGenerator produces for orbital, VdW, and density surfaces —
+      // is renderable with its instance/solid color (the semantics GLPainter has
+      // always applied: empty colors = "stream geometry only, use current color").
+      // The == 1 and == vertices.size() branches are unchanged, so colored meshes
+      // (ESP surfaces) are unaffected, and mismatched vertex/normal counts stay
+      // invalid.
+      if (m_colors.size() == 0 || m_colors.size() == 1 ||
+          m_colors.size() == m_vertices.size()) {
         return true;
       }
       else {

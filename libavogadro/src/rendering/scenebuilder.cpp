@@ -46,6 +46,25 @@ inline quint32 packPickTarget(Primitive::Type type, int id)
   return (static_cast<quint32>(type) << 28) |
          (static_cast<quint32>(id) & 0x0FFFFFFFu);
 }
+
+// D3 (fix-orbital-mesh-render): report an uncapturable mesh exactly once.
+// A single shared flag covers both drawMesh and drawColorMesh (the same mesh
+// primitive family), so repeated per-frame drops of a corrupt mesh are
+// silenced after the first report, matching the repo-wide "report once"
+// convention. Only lock-free accessors are used: the caller (e.g.
+// SurfaceEngine::renderTransparent) holds the mesh read lock, and
+// QReadWriteLock is NonRecursive by default, so reading the vector accessors
+// here would re-acquire the lock and deadlock.
+void reportMeshInvalidOnce(const Mesh &mesh, const char *entry)
+{
+  static bool reported = false;
+  if (reported)
+    return;
+  reported = true;
+  qWarning("SceneBuilder::%s: mesh %lu not captured (invalid vertex/normal/"
+           "color counts); dropped once",
+           entry, mesh.id());
+}
 } // namespace
 
 SceneBuilder::SceneBuilder()
@@ -150,8 +169,11 @@ void SceneBuilder::drawMultiLine(const Eigen::Vector3d &start,
 
 void SceneBuilder::drawMesh(const Mesh &mesh, int mode)
 {
-  if (!mesh.valid())
+  if (!mesh.valid()) {
+    // D3: never drop a mesh silently — report once (see reportMeshInvalidOnce).
+    reportMeshInvalidOnce(mesh, "drawMesh");
     return;
+  }
   MeshInstance inst;
   inst.mesh = &mesh;
   inst.mode = mode;
@@ -165,8 +187,11 @@ void SceneBuilder::drawMesh(const Mesh &mesh, int mode)
 
 void SceneBuilder::drawColorMesh(const Mesh &mesh, int mode)
 {
-  if (!mesh.valid())
+  if (!mesh.valid()) {
+    // D3: never drop a mesh silently — report once (see reportMeshInvalidOnce).
+    reportMeshInvalidOnce(mesh, "drawColorMesh");
     return;
+  }
   MeshInstance inst;
   inst.mesh = &mesh;
   inst.mode = mode;
