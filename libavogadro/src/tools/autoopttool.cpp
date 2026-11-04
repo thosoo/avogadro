@@ -536,6 +536,14 @@ namespace Avogadro {
       qWarning() << "AutoOptTool::timerEvent: no view associated (m_glwidget null)";
       return;
     }
+    // The settings dock may not have been built yet (m_comboFF created by
+    // settingsWidget()); bail with a diagnostic instead of dereferencing it.
+    // Checked before m_block is set so a bailed tick cannot wedge the session
+    // (m_block stays false and the next tick retries).
+    if (!m_comboFF) {
+      qWarning() << "AutoOptTool::timerEvent: no force-field combo (settings widget not built)";
+      return;
+    }
     if(m_block || m_glwidget->molecule()->numAtoms() < 2)
       return;
     else
@@ -548,12 +556,6 @@ namespace Avogadro {
     // write removes the unsynchronized write without changing behavior. The
     // field is still resolved every tick, so a mid-run combo change takes
     // effect on the next tick.
-    // The settings dock may not have been built yet (m_comboFF created by
-    // settingsWidget()); bail with a diagnostic instead of dereferencing it.
-    if (!m_comboFF) {
-      qWarning() << "AutoOptTool::timerEvent: no force-field combo (settings widget not built)";
-      return;
-    }
     OBForceField *ff =
         OBForceField::FindForceField(m_forceFieldList[m_comboFF->currentIndex()]);
 
