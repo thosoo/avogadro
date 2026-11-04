@@ -41,13 +41,22 @@ change complete.
 
 ## 3. Field verification and review
 
-- [ ] 3.1 On the affected machine (Core-profile-only GL stack), run the
+- [x] 3.1 On the affected machine (Core-profile-only GL stack), run the
       instrumented-launch runbook from the diagnosis session (breakpoints on
       `AutoOptTool::paint` and `AutoOptTool::enable` logging `m_glwidget`, core dumps
       armed): activate AutoOpt and press Start without touching the canvas. Verify:
       no crash, `ENABLE-CALLED m_glwidget=0x0` (or similar) followed by the graceful
       bail diagnostic, and record whether `PAINT` lines ever fire on that context
       (answers design.md's open question).
+      (Verified on DESKTOP-AI8VOF0 / Debian 13 / Quadro FX 3800 / Mesa 3.3 Core: gdb
+      instrumented-launch runbook showed the tool created at startup, then
+      `BEFORE-ENABLE m_glwidget=(nil) m_thread=0x... m_running=0`, then
+      `AutoOptTool::enable: no view associated yet (m_glwidget null); touch the canvas
+      first` — the graceful bail — and `AFTER-ENABLE m_running=0`. No crash (gdb exited
+      only via timeout, app kept running), and 0 `PAINT-CALLED` lines, confirming the
+      `paint()` overlay pass never fires on the Core-profile context, answering
+      design.md.s open question.)
+
 - [x] 3.2 Manual regression: with the fix built, run a full normal session (activate,
       Start on a molecule, drag an atom, Stop, undo) and confirm behavior is unchanged
       from the pre-fix build. Verify: HUD/session behavior matches pre-fix on a
