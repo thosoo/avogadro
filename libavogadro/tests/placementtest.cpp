@@ -38,6 +38,10 @@ using Eigen::Vector3d;
 
 namespace {
 
+  //! π as a local constant (M_PI is not guaranteed on MSVC without
+  //! _USE_MATH_DEFINES being set before <math.h> is first pulled in).
+  const double kPi = 3.14159265358979323846;
+
   //! Angle (radians) between two unit directions.
   double angleBetween(const Vector3d &a, const Vector3d &b)
   {
@@ -46,7 +50,7 @@ namespace {
 
   double deg2rad(double deg)
   {
-    return deg * M_PI / 180.0;
+    return deg * kPi / 180.0;
   }
 
   //! Standard tetrahedral vertices (unit length).
@@ -93,7 +97,7 @@ void PlacementTest::sp3OneHeavyNeighbor()
   const double angle = angleBetween(nHat, Vector3d(1, 0, 0));
   QVERIFY2(std::abs(angle - deg2rad(109.47)) < deg2rad(0.5),
            qPrintable(QString("sp3 1-nbr angle = %1 deg")
-                      .arg(angle * 180.0 / M_PI)));
+                      .arg(angle * 180.0 / kPi)));
 }
 
 void PlacementTest::sp2OneHeavyNeighbor()
@@ -104,7 +108,7 @@ void PlacementTest::sp2OneHeavyNeighbor()
   const double angle = angleBetween(nHat, Vector3d(1, 0, 0));
   QVERIFY2(std::abs(angle - deg2rad(120.0)) < deg2rad(0.5),
            qPrintable(QString("sp2 1-nbr angle = %1 deg")
-                      .arg(angle * 180.0 / M_PI)));
+                      .arg(angle * 180.0 / kPi)));
 }
 
 void PlacementTest::spOneHeavyNeighbor()
@@ -115,9 +119,9 @@ void PlacementTest::spOneHeavyNeighbor()
   // Linear: the new bond is a straight-line continuation (180° from the
   // existing bond, i.e. it points along the bond direction, -u).
   const double angle = angleBetween(nHat, Vector3d(1, 0, 0));
-  QVERIFY2(std::abs(angle - M_PI) < deg2rad(0.5),
+  QVERIFY2(std::abs(angle - kPi) < deg2rad(0.5),
            qPrintable(QString("sp 1-nbr angle = %1 deg")
-                      .arg(angle * 180.0 / M_PI)));
+                      .arg(angle * 180.0 / kPi)));
   // And it points directly away from the neighbor.
   QVERIFY(nHat.dot(Vector3d(1, 0, 0)) < -0.999);
 }
@@ -131,10 +135,10 @@ void PlacementTest::sp3TwoHeavyNeighbors()
   const double a2 = angleBetween(nHat, T2);
   QVERIFY2(std::abs(a1 - deg2rad(109.47)) < deg2rad(0.5),
            qPrintable(QString("sp3 2-nbr angle to b1 = %1 deg")
-                      .arg(a1 * 180.0 / M_PI)));
+                      .arg(a1 * 180.0 / kPi)));
   QVERIFY2(std::abs(a2 - deg2rad(109.47)) < deg2rad(0.5),
            qPrintable(QString("sp3 2-nbr angle to b2 = %1 deg")
-                      .arg(a2 * 180.0 / M_PI)));
+                      .arg(a2 * 180.0 / kPi)));
 }
 
 void PlacementTest::sp3ThreeHeavyNeighbors()

@@ -35,15 +35,19 @@ namespace Avogadro {
     const double kEps = 1e-6;
     // √2/2, used by the degree-2 Sp3 anti-bisector formula.
     const double kSqrtHalf = std::sqrt(0.5);
+    // π as a local constant: M_PI is not guaranteed on MSVC unless
+    // _USE_MATH_DEFINES is set before <math.h> is first pulled in (Eigen/Core
+    // may do so before global.h is reached), so avoid the dependency.
+    const double kPi = 3.14159265358979323846;
 
     //! Bond angle (radians) corresponding to a hybridization.
     double hybAngle(SketchHyb hyb)
     {
       switch (hyb) {
       case SketchHyb::Sp:
-        return M_PI; // 180°
+        return kPi; // 180°
       case SketchHyb::Sp2:
-        return 2.0 * M_PI / 3.0; // 120°
+        return 2.0 * kPi / 3.0; // 120°
       case SketchHyb::Sp3:
       default:
         return std::acos(-1.0 / 3.0); // 109.471°
@@ -113,7 +117,7 @@ namespace Avogadro {
                    Eigen::Vector3d(0, 1, 0));
       const double theta = hybAngle(hyb);
       // n̂ = normalize(u - v̂₂·tan(π - θ)); θ=180° -> tan(0)=0 -> n̂ = u.
-      nHat = normalized(u - vHat2 * std::tan(M_PI - theta), u);
+      nHat = normalized(u - vHat2 * std::tan(kPi - theta), u);
     } else if (n == 2) {
       const Eigen::Vector3d b1 = normalized(heavyNeighbors[0] - origin, fallbackAxis);
       const Eigen::Vector3d b2 = normalized(heavyNeighbors[1] - origin, fallbackAxis);
