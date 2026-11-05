@@ -417,6 +417,17 @@ private slots:
   // 1→2, the molecule revision bumps, the modern tier adopts a rebuild at or
   // after the click revision within ~one build, and ticks continue.
   void liveBondOrderClickDuringAutoOpt();
+
+  // add-draw-tool-click-extend 5.1 / 5.2 live-GUI scenarios (the OpenSpec
+  // frames these as manual; a real GL context under Xvfb can drive them, so
+  // they are exercised automatically instead of left to a human):
+  // 5.1 same-element click -> new atom + bond, single undo step;
+  // 5.1 different-element click -> alchemy (element change, no new atom);
+  // 5.2 same-element click while AutoOpt runs -> new atom created free, no
+  //    constraint markers left behind.
+  void liveClickExtendSameElementCreatesAtom();
+  void liveClickExtendDifferentElementNoNewAtom();
+  void liveClickExtendDuringAutoOpt();
 };
 
 void AutoOptReproTest::initTestCase()
@@ -1665,6 +1676,186 @@ void AutoOptReproTest::liveBondOrderClickDuringAutoOpt()
 
   autoopt.disable();
   delete undo;
+  delete widget;
+  delete mol;
+}
+
+//! Find a widget pixel where the GL pick resolves `atomIndex` as the nearest
+//! atom, so a real QTest click lands on the atom. Returns (-1,-1) when no such
+//! pixel is found within the probe neighbourhood (scene lag / pick offset).
+QPoint atomPickPoint(GLWidget *widget, Molecule *mol, int atomIndex)
+{
+  Atom *a = mol->atom(atomIndex);
+  if (!a)
+    return QPoint(-1, -1);
+  const Eigen::Vector3d sp = widget->camera()->project(*a->pos());
+  const QPoint base(qRound(sp.x()), qRound(sp.y()));
+  for (int dy = -5; dy <= 5; ++dy)
+    for (int dx = -2; dx <= 2; ++dx) {
+      QList<GLHit> h = widget->hits(base.x() + dx, base.y() + dy, 1, 1);
+      if (h.isEmpty() ||
+          static_cast<Primitive::Type>(h.first().type()) != Primitive::AtomType ||
+          h.first().name() != static_cast<unsigned int>(atomIndex))
+        continue;
+      QList<GLHit> box =
+        widget->hits(base.x() + dx - 4, base.y() + dy - 4, 9, 9);
+      if (!box.isEmpty() &&
+          static_cast<Primitive::Type>(box.first().type()) == Primitive::AtomType &&
+          box.first().name() == static_cast<unsigned int>(atomIndex))
+        return QPoint(base.x() + dx, base.y() + dy);
+    }
+  return QPoint(-1, -1);
+}
+
+void AutoOptReproTest::liveClickExtendSameElementCreatesAtom()
+{
+  // add-draw-tool-click-extend 5.1: a same-element click extends the molecule.
+  if (QGuiApplication::platformName() == QLatin1String("offscreen")) {
+    QSKIP("live click-extend needs a real window system: QOpenGLWidget cannot "
+          "present on the offscreen platform");
+  }
+  Molecule *mol = new Molecule;
+  Atom *a0 = mol->addAtom();
+  a0->setAtomicNumber(6); // carbon
+  a0->setPos(Eigen::Vector3d(0, 0, 0));
+  GLWidget *widget = makeLiveWidget(mol);
+  if (!liveGuiReady(widget) || !pickCoherent(widget, mol)) {
+    delete widget;
+    delete mol;
+    QSKIP(kLiveGuiSkipReason);
+  }
+
+  DrawToolExposed draw;
+  draw.setAddHydrogens(false);
+  draw.setElement(6); // carbon selected, matches the clicked atom
+  widget->setTool(&draw);
+  UndoStack *undo = new UndoStack(mol);
+  widget->setUndoStack(undo);
+
+  const QPoint clickNow = atomPickPoint(widget, mol, 0);
+  if (clickNow.x() < 0) {
+    delete undo;
+    delete widget;
+    delete mol;
+    QSKIP("no coherent atom-0 pick anchor under this GL stack");
+  }
+
+  const int before = mol->numAtoms();
+  QTest::mouseClick(widget, Qt::LeftButton, Qt::NoModifier, clickNow);
+  QTest::qWait(120);
+
+  // A new atom bonded to the clicked atom exists; the click is one undo step.
+  QCOMPARE(mol->numAtoms(), before + 1);
+  QCOMPARE(mol->numBonds(), 1);
+  QVERIFY(undo->count() > 0);
+  undo->undo();
+  QCOMPARE(mol->numAtoms(), before);
+  QCOMPARE(mol->numBonds(), 0);
+
+  delete undo;
+  delete widget;
+  delete mol;
+}
+
+void AutoOptReproTest::liveClickExtendDifferentElementNoNewAtom()
+{
+  // add-draw-tool-click-extend 5.1: a different-element click is the existing
+  // alchemy (element change, no new atom), unchanged.
+  if (QGuiApplication::platformName() == QLatin1String("offscreen")) {
+    QSKIP("live alchemy click needs a real window system: QOpenGLWidget cannot "
+          "present on the offscreen platform");
+  }
+  Molecule *mol = new Molecule;
+  Atom *a0 = mol->addAtom();
+  a0->setAtomicNumber(6); // carbon
+  a0->setPos(Eigen::Vector3d(0, 0, 0));
+  GLWidget *widget = makeLiveWidget(mol);
+  if (!liveGuiReady(widget) || !pickCoherent(widget, mol)) {
+    delete widget;
+    delete mol;
+    QSKIP(kLiveGuiSkipReason);
+  }
+
+  DrawToolExposed draw;
+  draw.setAddHydrogens(false);
+  draw.setElement(7); // nitrogen selected, differs from the clicked carbon
+  widget->setTool(&draw);
+
+  const QPoint clickNow = atomPickPoint(widget, mol, 0);
+  if (clickNow.x() < 0) {
+    delete widget;
+    delete mol;
+    QSKIP("no coherent atom-0 pick anchor under this GL stack");
+  }
+
+  QTest::mouseClick(widget, Qt::LeftButton, Qt::NoModifier, clickNow);
+  QTest::qWait(120);
+
+  // Alchemy: no new atom, element changed to nitrogen.
+  QCOMPARE(mol->numAtoms(), 1);
+  QCOMPARE(mol->numBonds(), 0);
+  QCOMPARE(a0->atomicNumber(), 7);
+
+  delete widget;
+  delete mol;
+}
+
+void AutoOptReproTest::liveClickExtendDuringAutoOpt()
+{
+  // add-draw-tool-click-extend 5.2: click-extend while AutoOpt runs leaves no
+  // constraint markers behind (D6) - the new atom and the clicked atom are
+  // free for the optimizer, and the fixed/ignored counts stay 0.
+  if (QGuiApplication::platformName() == QLatin1String("offscreen")) {
+    QSKIP("live click-extend during AutoOpt needs a real window system");
+  }
+  Molecule *mol = new Molecule;
+  Atom *a0 = mol->addAtom();
+  a0->setAtomicNumber(6);
+  a0->setPos(Eigen::Vector3d(0, 0, 0));
+  GLWidget *widget = makeLiveWidget(mol);
+  if (!liveGuiReady(widget) || !pickCoherent(widget, mol)) {
+    delete widget;
+    delete mol;
+    QSKIP(kLiveGuiSkipReason);
+  }
+
+  AutoOptToolExposed autoopt;
+  autoopt.settingsWidget();
+  autoopt.setGlw(widget);
+  autoopt.enable();
+  QVERIFY(autoopt.running());
+
+  DrawToolExposed draw;
+  draw.setAddHydrogens(false);
+  draw.setElement(6);
+  widget->setTool(&draw);
+
+  const QPoint clickNow = atomPickPoint(widget, mol, 0);
+  if (clickNow.x() < 0) {
+    autoopt.disable();
+    delete widget;
+    delete mol;
+    QSKIP("no coherent atom-0 pick anchor under this GL stack");
+  }
+
+  const int before = mol->numAtoms();
+  QTest::mouseClick(widget, Qt::LeftButton, Qt::NoModifier, clickNow);
+  QTest::qWait(150);
+
+  // New atom + bond created, and no constraint markers survived the gesture:
+  // DrawTool's own FF holds no fix/ignore, and AutoOpt's UFF fixed/ignored
+  // counts stay zero.
+  QCOMPARE(mol->numAtoms(), before + 1);
+  QCOMPARE(mol->numBonds(), 1);
+  OpenBabel::OBForceField *drawFF = draw.ff();
+  if (drawFF) {
+    QCOMPARE(drawFF->GetFixAtom(), 0u);
+    QCOMPARE(drawFF->GetIgnoreAtom(), 0u);
+  }
+  QCOMPARE(uff()->GetConstraints().GetFixedBitVec().CountBits(), 0u);
+  QCOMPARE(uff()->GetConstraints().GetIgnoredBitVec().CountBits(), 0u);
+
+  autoopt.disable();
   delete widget;
   delete mol;
 }
