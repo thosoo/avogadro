@@ -922,10 +922,11 @@ namespace Avogadro {
       bool              m_glslEnabled;
       Tool*             m_navigateTool; /// NavigateTool is a super tool
 
-      // D10 / task 4.3: while the user is dragging the camera (rotate/pan),
-      // surfaces are hidden and re-rendered ~250 ms after release so a large
-      // surface is not redrawn every frame during a drag. m_interactionTimer is
-      // a single-shot 250 ms timer that clears the flag and requests a repaint.
+      // While the user is dragging the camera (rotate/pan), surfaces render as a
+      // wireframe net (legacy renderQuick parity); the flag selects the flush
+      // mode (1 = GL_LINE during a drag), it no longer skips the draw. The solid
+      // surface returns when the flag clears on release. m_interactionTimer is a
+      // single-shot 250 ms timer that clears the flag and requests a repaint.
       bool m_cameraInteracting = false;
       QTimer m_interactionTimer;
 

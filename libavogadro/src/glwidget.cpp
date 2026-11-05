@@ -570,9 +570,11 @@ GLWidget::GLWidget( Molecule *molecule,
     d->camera->setParent( this );
     m_glslEnabled = false;
     m_navigateTool = 0;
-    // D10 / task 4.3: single-shot timer that clears the interaction flag and
-    // requests a repaint ~250 ms after the last mouse drag, so surfaces hidden
-    // during a drag reappear shortly after release. Parented to this widget.
+    // Single-shot timer that clears the interaction flag and requests a repaint
+    // ~250 ms after the last mouse drag. Surfaces render wireframe while the
+    // camera drags (legacy renderQuick parity); the flag selects the flush mode,
+    // it no longer skips. The timer is the backstop for releases the widget
+    // never sees. Parented to this widget.
     m_cameraInteracting = false;
     m_interactionTimer.setSingleShot( true );
     m_interactionTimer.setInterval( 250 );
@@ -1635,12 +1637,6 @@ GLWidget::GLWidget( Molecule *molecule,
     if (meshes.isEmpty())
       return;
 
-    // D10 / task 4.3: while the user is dragging the camera, skip surfacing
-    // meshes entirely (they re-render ~250 ms after release). This avoids
-    // re-uploading large surfaces every frame during a drag.
-    if (m_cameraInteracting)
-      return;
-
     // Meshes are translucent (alpha ~0.75) and drawn over the opaque molecule,
     // so blending is enabled for the whole flush (matching the legacy
     // transparent pass) and restored afterwards. glPolygonMode / GL_LIGHTING
@@ -1664,15 +1660,19 @@ GLWidget::GLWidget( Molecule *molecule,
       // default face, set explicitly for clarity.
       glEnable(GL_CULL_FACE);
       glCullFace(GL_BACK);
+      // While the camera is being dragged, render the mesh as a wireframe net
+      // (mode 1 = GL_LINE, legacy renderQuick parity) instead of skipping it;
+      // the solid surface returns once the interaction flag clears.
+      const int flushMode = m_cameraInteracting ? 1 : inst.mode;
       // Per-vertex color (ESP surface) vs. the instance's solid color.
       if (inst.colored)
-        d->painter->drawColorMesh(*inst.mesh, inst.mode);
+        d->painter->drawColorMesh(*inst.mesh, flushMode);
       else {
         d->painter->setColor(inst.color[0] / 255.0f,
                              inst.color[1] / 255.0f,
                              inst.color[2] / 255.0f,
                              inst.color[3] / 255.0f);
-        d->painter->drawMesh(*inst.mesh, inst.mode);
+        d->painter->drawMesh(*inst.mesh, flushMode);
       }
       glDisable(GL_CULL_FACE);
       inst.mesh->lock()->unlock();
@@ -2930,6 +2930,9 @@ namespace Avogadro {
 #ifdef ENABLE_THREADED_GL
     d->renderMutex.unlock();
 #endif
+    // Solid surface returns on the first post-release frame; the 250 ms timer
+    // remains the backstop for missed releases.
+    m_cameraInteracting = false;
     // Render the scene at full quality now the mouse button has been released
     update();
     emit mouseRelease(event);
@@ -2940,9 +2943,10 @@ namespace Avogadro {
     // Set the event to ignored, check whether any tools accept it
     event->ignore();
 
-    // D10 / task 4.3: a held button means the user is dragging the camera
-    // (rotate/pan). Flag the interaction and (re)arm the 250 ms timer so
-    // surfaces are skipped while dragging and reappear shortly after release.
+    // A held button means the user is dragging the camera (rotate/pan). Flag the
+    // interaction and (re)arm the 250 ms timer: surfaces render wireframe while
+    // dragging (legacy renderQuick parity); the flag selects the flush mode, it
+    // no longer skips.
     if ( event->buttons() != Qt::NoButton ) {
       if ( !m_cameraInteracting )
         m_cameraInteracting = true;
