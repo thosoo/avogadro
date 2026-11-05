@@ -42,7 +42,7 @@ the review must confirm those guards survived intact).
       build --output-on-failure` green — in particular `consumerparity`
       (mesh-flush upload counter must stay flat: the VBO cache invariant is
       untouched by this change) and `meshstream`. Verify: exit code 0.
-- [ ] 3.2 Manual matrix (real app, default modern tier; offscreen cannot
+- [x] 3.2 Manual matrix (real app, default modern tier; offscreen cannot
       drive mouse drags — design D6), each row against the spec delta:
       - ORCA orbital displayed, tilt/rotate: surface visible in EVERY frame
         as a wireframe net; release: solid returns on the first frame, no

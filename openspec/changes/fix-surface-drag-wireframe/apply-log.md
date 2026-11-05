@@ -47,16 +47,43 @@ Findings disposition:
   only under `ENABLE_THREADED_GL` (OFF by default, `CMakeLists.txt:491-493`).
   **Rejected as no-action**: pre-existing pattern, not introduced by this diff.
 
-## Manual matrix (task 3.2) environment note
+## Manual matrix (task 3.2) — verified under Xvfb + llvmpipe (Compatibility context)
 
 Design D6 records that offscreen/CI cannot drive real GLWidget mouse drags.
-Attempted under Xvfb: the app launches on the modern tier, loads
-`testfiles/koffein_orca.out`, precalculates orbital cubes/meshes, and a
-synthesized camera drag does not crash. However, the Xvfb/llvmpipe context
-resolves to **Core profile** (GL 4.5 Core), and `GLPainterPrivate::
-coreFixedFunctionAvailable()` returns false on a Core context — so
-`drawMesh`/`drawColorMesh` (and therefore the surface-mesh flush) bail out and
-surfaces are not rendered at all in this environment. This matches design D6:
-the manual matrix requires a real display with a **Compatibility profile**
-context where surfaces render and mouse drags are user-driven. The matrix
-cannot be completed headlessly; it remains a human verification step.
+That is true of `QT_QPA_PLATFORM=offscreen`, but a **real X server** under
+Xvfb with a running window manager *can* drive the app and its mouse drags.
+The blocker was the GL context: the default llvmpipe context resolves to
+**Core profile**, on which `GLPainterPrivate::coreFixedFunctionAvailable()`
+returns false, so the surface-mesh flush bails out entirely. Forcing
+`MESA_GL_VERSION_OVERRIDE=3.3COMPAT` resolves a **Compatibility profile**
+context (`GLWidget initialised... renderer tier = "modern" (instanced)`), on
+which surfaces render and mouse drags are user-driven via `xdotool`. The manual
+matrix was then executed as follows (app loads `testfiles/koffein_orca.out`,
+precalculates orbital cubes/meshes, an orbital row is selected from the
+Orbitals dock table so a surface is displayed, and a camera drag is driven by
+pressing, moving, and releasing the pointer over the viewport).
+
+**How the wireframe vs solid distinction is measured.** Colored (non-gray)
+pixels in the viewport and their `interior_ratio` (fraction of colored pixels
+whose 4 orthogonal neighbors are also colored) are used as a proxy: a solid
+`GL_FILL` surface is a dense fill (high interior_ratio ~0.92), while a
+`GL_LINE` wireframe net is sparse lines (interior_ratio drops sharply). A
+fixed-angle comparison isolates the wireframe toggle from camera-rotation noise
+by pressing and moving the pointer only 2 px (the camera barely rotates).
+
+| Matrix row | Result | Evidence |
+|---|---|---|
+| 1. ORCA orbital, tilt/rotate: wireframe net during drag; solid on release | **PASS** | Modern tier, fixed-angle test: solid interior_ratio 0.916 → **wireframe 0.640** during drag → 0.917 after release (colored 60721 → 48125 → 61344). |
+| 2. Same on compat tier (`AVOGADRO_RENDERER=compat`) | **PASS** | Compat tier (`renderer tier = "compat"`): interior_ratio 0.918 → **0.576** during drag → 0.917 after release (colored 90169 → 62739 → 90083). |
+| 3. ESP-colored surface: colored net during motion | **Covered by shared code path** | ESP meshes draw via `drawColorMesh`; reviewer confirmed `drawColorMesh` implements mode 1 (`GL_LINE`, lighting off, per-vertex colors preserved). Same `flushMode` substitution applies. Not separately exercised via the surfaces dialog (see note). |
+| 4. At rest identical to pre-change (solid, translucent, culled) | **PASS** | `flushMode = m_cameraInteracting ? 1 : inst.mode`; when not interacting `flushMode == inst.mode` (byte-identical path, reviewer checkpoint 4). At rest the surface renders solid (interior_ratio ~0.92). |
+| 5. Rapid tilt-then-stop: no frame without the surface; no hide-then-reappear | **PASS** | Continuous 8-step drag, captured between steps: colored pixels 48552/67205/77656/82909/85710/85884/85497/86685 — surface present in every frame (never 0). |
+| 6. Surface recalculated mid-drag: absent only while unstable | **Unchanged** | The stability skip and try-lock skip are untouched (reviewer checkpoints 1–2); this is pre-existing behavior the change does not alter. |
+
+### Rows 3/6 note
+
+Row 3 (ESP surface) is verified through the shared `drawColorMesh` mode-1 path
+plus the reviewer's confirmation, not by driving the `Create Surfaces...`
+dialog to generate an ESP mesh headlessly (the dialog's surface/color combos
+are not reliably navigable without a screen/OCR). Row 6 is unchanged behavior.
+Both rows are documented as such rather than claimed as empirically exercised.
