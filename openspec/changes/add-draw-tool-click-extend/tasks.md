@@ -124,7 +124,7 @@ regress AutoOpt coexistence).
 
 ## 5. Verification
 
-- [ ] 5.1 Manual matrix (headless harness cannot drive GLWidget mouse
+- [x] 5.1 Manual matrix (headless harness cannot drive GLWidget mouse
       events; do this in the app), each on the default tier:
       - click C with C selected on methane (adjust hydrogens ON): new C
         appears at a tetrahedral angle, one H removed; single undo restores
@@ -142,16 +142,16 @@ regress AutoOpt coexistence).
       - right-click a managed H mid-stroke, then left-click another atom:
         the second click works as a fresh gesture (hygiene 2.2)
       Verify: all rows match `specs/molecule-sketching/spec.md` scenarios.
-- [ ] 5.2 AutoOpt coexistence: start an AutoOpt session on a small molecule
+- [x] 5.2 AutoOpt coexistence: start an AutoOpt session on a small molecule
       (fixed/ignored counts 0), click-extend two new atoms, confirm the
       optimizer moves them within a tick or two, on-screen fixed/ignored
       counts stay 0/0 after the clicks, and no atom freezes that was not
       intentionally constrained. Verify: matches the
       "Sketching coexists with a running optimization" requirement.
-- [ ] 5.3 Full suite: `cmake --build build --parallel && ctest --test-dir
+- [x] 5.3 Full suite: `cmake --build build --parallel && ctest --test-dir
       build --output-on-failure` green (no regressions in `autooptrepro`,
       `drawcommand`, `addremovehydrogens`). Verify: exit code 0.
-- [ ] 5.4 Run the `reviewer` subagent on the complete diff (correctness +
+- [x] 5.4 Run the `reviewer` subagent on the complete diff (correctness +
       regression risk per repo policy); integrate accepted findings.
       Verify: review findings addressed or explicitly rejected with evidence
       in the session log.
