@@ -137,11 +137,16 @@ namespace Avogadro {
         if (anti.norm() >= kEps) {
           nHat = anti / anti.norm();
         } else {
+          // Collinear bonds (e.g. an allene center's two double bonds): a
+          // linear (180°) extension is geometrically impossible, so place
+          // perpendicular to the multiple-bond axis instead of overlapping a
+          // neighbor. Use the preferred direction if given, else a cardinal
+          // axis perpendicular to b1.
           const Eigen::Vector3d cr = b1.cross(b2);
           if (cr.norm() >= kEps)
             nHat = cr / cr.norm();
           else
-            nHat = normalized(preferredDir, fallbackAxis);
+            nHat = normalized(preferredDir, firstCardinalNonParallel(b1));
         }
       }
     } else {

@@ -46,13 +46,16 @@ from a hydrogen atom.
 ### Requirement: Placed atoms have plausible geometry
 The position of the atom created by a click-extend SHALL be derived from the
 clicked atom's bond graph: the bond angle SHALL follow the clicked atom's
-hybridization (triple bond or two double bonds → 180°; one double bond →
-120°; otherwise → ~109.47°), the bond length SHALL be the sum of the covalent
-radii of the clicked atom's element and the new element, and the surrounding
-geometry SHALL be computed from heavy-atom neighbors only (explicit hydrogen
-atoms do not consume a geometry slot). The computed position SHALL be finite
-and deterministic: the same molecule state and camera produce the same
-position on every invocation.
+hybridization (a triple-bond carbon has a single heavy neighbor and extends
+linearly → 180°; one double bond → 120°; two double bonds — an allene center
+whose two heavy neighbors are collinear — place the new bond perpendicular to
+the multiple-bond axis, because a linear extension is geometrically
+impossible when the two existing bonds are collinear; otherwise → ~109.47°),
+the bond length SHALL be the sum of the covalent radii of the clicked atom's
+element and the new element, and the surrounding geometry SHALL be computed
+from heavy-atom neighbors only (explicit hydrogen atoms do not consume a
+geometry slot). The computed position SHALL be finite and deterministic: the
+same molecule state and camera produce the same position on every invocation.
 
 #### Scenario: Extending a saturated carbon
 - **WHEN** the user click-extends from a carbon whose only heavy neighbor is
@@ -70,6 +73,13 @@ position on every invocation.
 - **WHEN** the user click-extends from a carbon participating in a triple
   bond
 - **THEN** the new bond is linear (180° ±2°) with the existing bond
+
+#### Scenario: Extending an allene center
+- **WHEN** the user click-extends from the central carbon of an allene (two
+  double bonds, two collinear heavy neighbors)
+- **THEN** the new bond is placed perpendicular to the multiple-bond axis
+  (approximately 90° to both existing bonds), never overlapping a neighbor,
+  and all coordinates are finite
 
 #### Scenario: Bond length follows the elements
 - **WHEN** the user click-extends from atom of element A with element B

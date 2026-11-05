@@ -97,7 +97,7 @@ origin) (clicked atom → neighbor i), bᵢ = normalize(dᵢ):
 |---|---|
 | 0 | n̂ = preferredDir, else (1,0,0) |
 | 1 | u = normalize(origin − p₁); pick a reference substituent of the neighbor (heavy first, else any neighbor incl. H — first in iteration order); v = cross(u, ref − p₁), degenerate → cross(u, first non-parallel cardinal axis); v̂₂ = normalize(cross(u, normalize(v))); **n̂ = normalize(u − v̂₂·tan(π − θ))** (the formula from builder.cpp's degree-1 branch; θ=180° reduces to n̂ = u) |
-| 2 | Sp2/Sp: n̂ = normalize(b₁ + b₂) (bisector; degenerate → cross(b₁,b₂)); Sp3: bis = normalize(b₁+b₂), v̂ = normalize(cross(b₁,b₂)), **n̂ = normalize(v̂ + bis·(√2/2))** — exactly 109.47° to both when the existing angle is tetrahedral |
+| 2 | Sp2/Sp: n̂ = -normalize(b₁ + b₂) (anti-bisector; ~120° to both for ideal Sp2; degenerate → cross(b₁,b₂), then a cardinal axis perpendicular to b₁ — a linear extension is impossible for collinear bonds, e.g. an allene center); Sp3: bis = normalize(b₁+b₂), v̂ = normalize(cross(b₁,b₂)), **n̂ = normalize(v̂ - bis·(√2/2))** — exactly 109.47° to both when the existing angle is tetrahedral (the "−" sign, not "+", is the correct tetrahedral 4th-vertex side; "+" yields 70.5°) |
 | 3+ | n̂ = −normalize(Σ bᵢ) (the remaining tetrahedral vertex); norm < 1e−6 → preferredDir, else +X |
 
 Then `pos = origin + n̂ · bondLength`. Every normalize is guarded (norm <

@@ -81,7 +81,10 @@ private slots:
   void spOneHeavyNeighbor();
   void sp3TwoHeavyNeighbors();
   void sp3ThreeHeavyNeighbors();
+  void spTwoCollinearNeighbors();
+  void sp2TwoHeavyNeighbors();
   void order4QuadrupleBond();
+  void sketchHybridizationTwoDoubleBonds();
   void hydrogensIgnored();
   void bondLengthIsRequested();
   void deterministicAndFinite();
@@ -153,6 +156,71 @@ void PlacementTest::sp3ThreeHeavyNeighbors()
            qPrintable(QString("3-nbr pos = (%1, %2, %3), expected (%4, %5, %6)")
                       .arg(pos.x()).arg(pos.y()).arg(pos.z())
                       .arg(expected.x()).arg(expected.y()).arg(expected.z())));
+}
+
+void PlacementTest::spTwoCollinearNeighbors()
+{
+  // Allene center: an sp carbon with two collinear double-bonded heavy
+  // neighbors (the three carbons of C=C=C are collinear). A linear (180°)
+  // extension is geometrically impossible here (a single direction cannot be
+  // 180° from two opposite directions), so the placement must fall back to a
+  // direction perpendicular to the multiple-bond axis. Pins the spec-vs-code
+  // resolution for the reviewer's finding 1.
+  const Vector3d origin(0, 0, 0);
+  const std::vector<Vector3d> nbrs{ Vector3d(1, 0, 0), Vector3d(-1, 0, 0) };
+  const double len = 1.54;
+  const Vector3d pos = placeSubstituent(origin, nbrs, SketchHyb::Sp, len);
+  QVERIFY(pos.allFinite());
+  const Vector3d nHat = (pos - origin).normalized();
+  // The new bond must be perpendicular to the multiple-bond axis (~90° to both
+  // existing bonds), never along +X (which would overlap the neighbor at +X).
+  const double a1 = angleBetween(nHat, Vector3d(1, 0, 0));
+  QVERIFY2(std::abs(a1 - kPi / 2.0) < deg2rad(1.0),
+           qPrintable(QString("sp collinear angle to b1 = %1 deg")
+                      .arg(a1 * 180.0 / kPi)));
+  // Deterministic across repeated calls.
+  QVERIFY(placeSubstituent(origin, nbrs, SketchHyb::Sp, len) == pos);
+}
+
+void PlacementTest::sp2TwoHeavyNeighbors()
+{
+  // Sp2 center with two 120°-apart heavy neighbors: the anti-bisector places
+  // the new bond at ~120° to both existing bonds.
+  const Vector3d origin(0, 0, 0);
+  // Two unit directions 120° apart in the xy plane.
+  const Vector3d b1(std::cos(0.0), std::sin(0.0), 0.0);
+  const double deg120 = 120.0 * kPi / 180.0;
+  const Vector3d b2(std::cos(deg120), std::sin(deg120), 0.0);
+  const std::vector<Vector3d> nbrs{ b1, b2 };
+  const Vector3d nHat = direction(origin, nbrs, SketchHyb::Sp2);
+  const double a1 = angleBetween(nHat, b1);
+  const double a2 = angleBetween(nHat, b2);
+  QVERIFY2(std::abs(a1 - deg2rad(120.0)) < deg2rad(0.5),
+           qPrintable(QString("sp2 2-nbr angle to b1 = %1 deg")
+                      .arg(a1 * 180.0 / kPi)));
+  QVERIFY2(std::abs(a2 - deg2rad(120.0)) < deg2rad(0.5),
+           qPrintable(QString("sp2 2-nbr angle to b2 = %1 deg")
+                      .arg(a2 * 180.0 / kPi)));
+}
+
+void PlacementTest::sketchHybridizationTwoDoubleBonds()
+{
+  // Two double bonds (an allene center) classify as Sp per design D3, and the
+  // resulting placement (spTwoCollinearNeighbors) is perpendicular to the
+  // multiple-bond axis.
+  Molecule mol;
+  Atom *c = mol.addAtom();
+  c->setAtomicNumber(6);
+  c->setPos(Vector3d(0, 0, 0));
+  Atom *a = mol.addAtom();
+  a->setAtomicNumber(6);
+  a->setPos(Vector3d(1, 0, 0));
+  Atom *b = mol.addAtom();
+  b->setAtomicNumber(6);
+  b->setPos(Vector3d(-1, 0, 0));
+  mol.addBond(c, a, 2);
+  mol.addBond(c, b, 2);
+  QVERIFY(sketchHybridization(c, &mol) == SketchHyb::Sp);
 }
 
 void PlacementTest::order4QuadrupleBond()

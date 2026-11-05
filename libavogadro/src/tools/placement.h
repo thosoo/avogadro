@@ -55,7 +55,9 @@ namespace Avogadro {
    *                  n̂ = normalize(v̂ - bis·(√2/2))  (~109.47° to both when
    *                  the existing angle is tetrahedral);
    *                  Sp2/Sp: n̂ = -normalize(b₁+b₂) (anti-bisector, ~120° to
-   *                  both for Sp2), degenerate -> cross(b₁,b₂), then +X
+   *                  both for Sp2), degenerate -> cross(b₁,b₂), then a
+   *                  cardinal axis perpendicular to b₁ (collinear bonds, e.g.
+   *                  an allene center, admit no linear extension)
    *   3+ heavy nbrs: n̂ = -normalize(Σ bᵢ) (remaining tetrahedral vertex);
    *                  norm < 1e-6 -> preferredDir, else +X
    *

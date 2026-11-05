@@ -558,6 +558,7 @@ namespace Avogadro {
           m_forceField->UnsetFixAtom();
         }
         resetStrokeState();
+        m_clickExtendCandidate = false;
       }
       return 0;
     }
