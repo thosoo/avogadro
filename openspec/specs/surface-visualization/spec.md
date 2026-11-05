@@ -12,48 +12,83 @@ the machine regardless of user quality settings.
 ## Requirements
 
 ### Requirement: GUI stays responsive during surface calculation
-While any surface phase runs (grid evaluation, mesh generation, coloring,
-data handoff between phases), the application's event loop SHALL remain
-responsive: user input SHALL be processed with no deterministic multi-second
-freeze caused by that work. Work proportional to the number of grid points or
-mesh vertices SHALL NOT execute on the GUI thread. Progress indication SHALL
-update at a bounded rate and SHALL NOT flood the event loop.
+While any surface phase runs (basis-set loading at document open, grid
+evaluation, grid data handoff, mesh generation, coloring), the application's
+event loop SHALL remain responsive: user input SHALL be processed with no
+deterministic multi-second freeze caused by that work. Work proportional to the
+number of grid points or mesh vertices — and parsing/loading of basis-set data
+proportional to the molecule's orbital count — SHALL NOT execute on the GUI
+thread. Progress indication SHALL update at a bounded rate and SHALL NOT flood
+the event loop. Per-orbital status logging SHALL be suppressed or batched so a
+many-orbital document does not emit one message per orbital while filling the
+orbital table.
+
+#### Scenario: Orbital cube calculation runs for a large molecule
+- **WHEN** an orbital cube calculation runs for a transition-metal complex at
+  high resolution and the user interacts with any dialog or menu during it
+- **THEN** the UI responds to the interaction within a fraction of a second at
+  every point of the calculation, including its start and phase transitions
 
 #### Scenario: Orbital cube calculation runs on a large ORCA output
 - **WHEN** an orbital cube calculation runs for a large molecule at high
   resolution and the user interacts with any dialog or menu during it
-- **THEN** the UI responds to the interaction within a fraction of a second
-  at every point of the calculation, including its start and phase
-  transitions
-
-#### Scenario: Phase transitions do not stall the GUI
-- **WHEN** a cube calculation finishes and its data is handed to the next
-  phase (mesh generation), then when the mesh finishes
-- **THEN** neither transition freezes the GUI proportionally to the data size
+- **THEN** the UI responds to the interaction within a fraction of a second at
+  every point of the calculation, including its start and phase transitions
 
 #### Scenario: ESP coloring does not freeze the GUI
-- **WHEN** a surface is colored by electrostatic potential at high vertex
-  counts
+- **WHEN** a surface is colored by electrostatic potential at high vertex counts
 - **THEN** the coloring runs off the GUI thread and the UI stays responsive
   until it completes
 
+#### Scenario: Opening a many-orbital output file
+- **WHEN** a quantum-output file with hundreds of molecular orbitals is opened
+- **THEN** the basis-set data is loaded without a deterministic multi-second
+  freeze of the window; the orbital table appears when loading completes; and
+  the log does not contain one line per orbital from the table fill
+
+#### Scenario: Phase transitions do not stall the GUI
+- **WHEN** a cube calculation finishes and its data is handed to the next phase
+  (grid copy, then mesh generation), then when the mesh finishes
+- **THEN** neither transition freezes the GUI proportionally to the data size
+
+#### Scenario: Document switch during basis loading
+- **WHEN** the active document changes while basis-set data for the outgoing
+  document is still loading
+- **THEN** the stale load result is discarded, no table or precalculation from
+  the outgoing document appears, and the loading worker is quiesced before its
+  data is released
+
 ### Requirement: Surface calculation has bounded memory
-Peak transient memory of surface generation SHALL be bounded by a small
-multiple of the produced result (cube + mesh) size, independent of grid
-point count: buffers SHALL NOT be pre-reserved proportional to the whole
-grid, and the positive/negative lobes of an orbital surface SHALL NOT
-generate concurrently. Grid data SHALL be stored single precision.
+Peak transient memory of surface generation SHALL be bounded by a small multiple
+of the produced result (cube + mesh) size, independent of grid point count: the
+cube evaluation SHALL NOT build per-point bookkeeping objects proportional to
+the grid point count, buffers SHALL NOT be pre-reserved proportional to the
+whole grid beyond the result itself, and the grid data SHALL be stored single
+precision. Grid-sized memory SHALL be allocated by the worker that fills it,
+not zero-filled on the GUI thread. MO+ / MO− generators run sequentially
+instead of concurrently.
 
 #### Scenario: Very-high-resolution orbital surface on a mid-size molecule
-- **WHEN** an MO surface is calculated at 0.05 Å spacing on a molecule whose
-  padded bounding box exceeds 15 Å
+- **WHEN** an MO surface is calculated at 0.05 Å spacing on a transition-metal
+  complex whose padded bounding box exceeds 15 Å
 - **THEN** peak process memory stays within a small multiple of the final
-  cube + mesh size (observed: no multi-gigabyte transient beyond the result)
+  cube + mesh size, with no multi-gigabyte transient beyond the result
+
+#### Scenario: No per-point object vector
+- **WHEN** an orbital cube calculation runs at any resolution
+- **THEN** transient allocation is independent of the grid point count except
+  for the result grids themselves (no allocation proportional to grid points ×
+  a per-point object size)
+
+#### Scenario: Grid allocation never blocks the GUI thread
+- **WHEN** a user requests a surface at a resolution whose grid storage is
+  hundreds of megabytes
+- **THEN** the requesting click returns immediately; the storage is allocated
+  by the calculating worker, not zero-filled on the GUI thread
 
 #### Scenario: Both lobes of an orbital
 - **WHEN** the positive and negative isosurfaces of one orbital are generated
-- **THEN** their mesh generation runs one after the other, not at the same
-  time
+- **THEN** their mesh generation runs one after the other, not at the same time
 
 ### Requirement: Rotation stays interactive with surfaces displayed
 While a camera motion is in progress (rotate, pan, zoom drag), displayed
@@ -99,16 +134,31 @@ SHALL be deterministic for identical inputs.
   generated meshes are equivalent
 
 ### Requirement: Surface generation is deterministic and finite
-For identical molecule state and calculation settings, surface generation
-SHALL produce the same result on every invocation: the same triangle count
-and equivalent vertex positions regardless of internal threading, with all
-coordinates finite.
+For identical molecule state and calculation settings, surface generation SHALL
+produce the same result on every invocation: the same triangle count and
+equivalent vertex positions regardless of internal threading, with all
+coordinates finite. Partitioning the orbital grid evaluation across worker
+slabs SHALL NOT change any computed grid value: for identical molecule, basis,
+and resolution, cube values are bitwise identical across different slab
+partitions, thread counts, and repeated runs.
 
 #### Scenario: Parallel mesh generation reproduces serial output
 - **WHEN** a mesh is generated twice, once with internal threading active and
   once serially (or twice threaded)
 - **THEN** triangle counts match, every vertex position matches within
   floating-point equality after ordering, and no NaN/Inf coordinates exist
+
+#### Scenario: Slab-partitioned cube evaluation is bitwise deterministic
+- **WHEN** the same orbital grid is evaluated with different slab partitions
+  (including a single whole-grid partition) on the same molecule, basis, and
+  resolution
+- **THEN** every grid value is bitwise identical across the partitions and
+  across repeated runs
+
+#### Scenario: Finiteness for degenerate basis input
+- **WHEN** a grid point lies far from every basis center or coincides with one
+- **THEN** the evaluated value is finite (no NaN/Inf), independent of the
+  partition the point was assigned to
 
 ### Requirement: Background orbital precalculation is policy-bounded
 Automatic precalculation of orbitals on document load SHALL run at most at
@@ -180,3 +230,89 @@ established for large orbital outputs is preserved, not traded away).
   selected
 - **THEN** its surface is calculated and rendered exactly as when the parse
   runs on the GUI thread
+
+### Requirement: Mesh painting is deadlock-free under engine-held mesh locks
+While a paint path emits a displayed surface (isosurface mesh) through the modern
+scene builder, the pipeline SHALL NOT attempt to acquire a mesh write lock on a
+thread that already holds that mesh's read lock, and any mesh validity check
+performed during scene emission SHALL NOT take a mesh write lock. A paint pass
+that encounters a mesh being regenerated SHALL skip or defer it in bounded time;
+it SHALL NOT block indefinitely. This SHALL hold on every rendering tier.
+
+#### Scenario: Clicking a completed orbital renders without freezing
+- **WHEN** the user selects an orbital whose surface meshes are already computed,
+  with the surfaces engine enabled on the modern tier
+- **THEN** the surface renders and the window remains responsive (no permanent
+  freeze of the paint path)
+
+#### Scenario: Validity check under a held read lock returns promptly
+- **WHEN** a thread holding a mesh's read lock performs the mesh validity check
+  on that same mesh
+- **THEN** the check returns immediately with the correct answer (regression
+  unit test; pre-fix behavior deadlocked)
+
+#### Scenario: Mesh regenerated while painted
+- **WHEN** a mesh is cleared or regenerated by a background worker while a frame
+  emits the scene containing it
+- **THEN** the frame either skips that mesh or draws a consistent version within
+  bounded time; the paint path never hangs
+
+
+### Requirement: Surface engine transient state is scoped and bounded
+The surfaces engine SHALL release every mesh lock it acquires on every exit path
+of its internal bookkeeping (including early-outs for stale or missing
+primitives), so no mesh remains read-locked by the GUI thread after engine
+bookkeeping returns. Re-invoking the engine's molecule/selection bindings SHALL
+NOT accumulate duplicate per-primitive signal connections: after N repeated
+selection actions, each mesh event triggers each per-primitive reaction at most
+once. Stale primitive references encountered during bookkeeping SHALL be skipped
+without crashing and without blocking later writers.
+
+#### Scenario: Stale cube during combo rebuild releases locks
+- **WHEN** the surfaces engine rebuilds its orbital list and encounters a mesh
+  whose cube no longer resolves
+- **THEN** no mesh lock remains held when the rebuild returns, and a later
+  writer can acquire the mesh write lock immediately
+
+#### Scenario: Repeated selections do not multiply per-event work
+- **WHEN** the user performs many orbital selections in one session and a mesh
+  event then fires
+- **THEN** the engine's per-primitive reaction runs exactly once per event,
+  independent of how many selections preceded it
+
+#### Scenario: Later writers are never wedged by engine bookkeeping
+- **WHEN** engine bookkeeping has run on a molecule containing meshes
+- **THEN** subsequent mesh regeneration acquires the mesh write lock without
+  waiting on any lock left behind by bookkeeping
+
+
+### Requirement: Orbital selection always responds and renders when ready
+While orbital calculations are queued or running, selecting an orbital row SHALL
+always produce visible behavior: a completed orbital SHALL render immediately
+(existing behavior); a queued or in-progress orbital SHALL show a pending
+indication and SHALL be rendered automatically when its calculation completes;
+an orbital that is neither queued nor completed SHALL be enqueued for
+calculation and then rendered automatically on completion. When several
+selections are made before their calculations finish, the most recent selection
+SHALL win. Switching documents SHALL clear any pending selection.
+
+#### Scenario: Click during a running calculation
+- **WHEN** the user clicks an orbital whose calculation is queued or in progress
+- **THEN** the row shows a pending indication, and when the calculation
+  completes, that orbital's surface renders automatically without a further click
+
+#### Scenario: Click an orbital outside the precalculated range
+- **WHEN** the user clicks an orbital that was never calculated and is not queued
+- **THEN** it is enqueued at the currently selected quality and its surface
+  renders automatically when the calculation completes
+
+#### Scenario: Latest selection wins
+- **WHEN** the user clicks orbital A (still calculating) and then orbital B
+  before either completes
+- **THEN** only B renders automatically on completion; A completes silently
+
+#### Scenario: Document switch clears pending selection
+- **WHEN** the active document changes while an orbital is pending
+- **THEN** no surface from the outgoing document renders after the switch
+
+## MODIFIED Requirements
