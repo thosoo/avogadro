@@ -29,6 +29,7 @@
 
 #include "drawtool.h"
 #include "drawcommand.h"
+#include "placement.h"
 
 #include <avogadro/navigate.h>
 #include <avogadro/primitive.h>
@@ -71,6 +72,7 @@ namespace Avogadro {
 
   DrawTool::DrawTool(QObject *parent) : Tool(parent),
                                         m_toolActivatedConnected(false),
+                                        m_clickExtendCandidate(false),
                                         m_beginAtomAdded(false),
                                         m_endAtomAdded(false),
                                         m_beginAtomId(FALSE_ID),
@@ -93,7 +95,8 @@ namespace Avogadro {
     QAction *action = activateAction();
     action->setIcon(QIcon(QString::fromUtf8(":/draw/draw.png")));
     action->setToolTip(tr("Draw Tool (F8)\n\n"
-                          "Left Mouse: \tClick and Drag to create Atoms and Bonds\n"
+                          "Left Mouse: \tClick an atom to extend the molecule (or change its element);\n"
+                          "            \tClick and Drag to draw bonds\n"
                           "Right Mouse: \tDelete Atom"));
     action->setShortcut(Qt::Key_F8);
 
@@ -158,6 +161,7 @@ namespace Avogadro {
       // paths transfer ownership).
       delete m_hydrogenCommand;
       resetStrokeState();
+      m_clickExtendCandidate = false;
       m_bondOrder = 1;
     }
   }
@@ -207,6 +211,7 @@ namespace Avogadro {
     m_buttons = event->buttons();
 
     m_movedSinceButtonPressed = false;
+    m_clickExtendCandidate = false;
     m_lastDraggingPosition = event->position().toPoint();
     m_initialDraggingPosition = event->position().toPoint();
 
@@ -235,6 +240,12 @@ namespace Avogadro {
         if(beginAtom && (beginAtom->atomicNumber() != m_element)) {
           m_prevAtomElement = beginAtom->atomicNumber();
           beginAtom->setAtomicNumber(m_element);
+        }
+        else if (beginAtom) {
+          // Same-element click: candidate for the click-to-extend gesture. No
+          // mutation and no force-field marker here; the release path
+          // synthesizes the extension if the pointer never moved.
+          m_clickExtendCandidate = true;
         }
       }
       else if(m_hits.size() && (m_hits[0].type() == Primitive::BondType)) {
@@ -281,7 +292,8 @@ namespace Avogadro {
         m_beginAtomId = beginAtom->id();
         m_beginMolecule = molecule;
         m_beginAtomAdded = true;
-        m_forceField->SetIgnoreAtom(beginAtom->index() + 1);
+        if (m_forceField)
+          m_forceField->SetIgnoreAtom(beginAtom->index() + 1);
       } // hits
       molecule->lock()->unlock();
     } // left button
@@ -315,6 +327,12 @@ namespace Avogadro {
     }
 
     if((m_buttons & Qt::LeftButton) && beginAtom) {
+      // BondCentricTool-style movement threshold: a drag beyond 2 manhattan
+      // pixels marks the gesture as moved, so a click (no significant motion)
+      // can be distinguished from a drag at release.
+      if ((event->position() - m_initialDraggingPosition).manhattanLength() > 2)
+        m_movedSinceButtonPressed = true;
+
       // Acquire a write lock - must unlock before returning
       if (!molecule->lock()->tryLockForWrite())
         return 0;
@@ -376,7 +394,8 @@ namespace Avogadro {
           m_endAtomId = FALSE_ID;
           m_prevAtomElement = beginAtom->atomicNumber();
           beginAtom->setAtomicNumber(m_element);
-          m_forceField->UnsetIgnoreAtom();
+          if (m_forceField)
+            m_forceField->UnsetIgnoreAtom();
         }
         else if(bond) {
           //          Atom *oldAtom = (Atom *)m_bond->GetEndAtom();
@@ -405,8 +424,10 @@ namespace Avogadro {
 
         // we hit an existing atom != endAtom
         if(existingAtom) {
-          m_forceField->UnsetIgnoreAtom();
-          m_forceField->SetFixAtom(existingAtom->index() + 1);
+          if (m_forceField) {
+            m_forceField->UnsetIgnoreAtom();
+            m_forceField->SetFixAtom(existingAtom->index() + 1);
+          }
           Bond *existingBond = molecule->bond(beginAtom, existingAtom);
           if(!existingBond) {
             if(prevBond) {
@@ -473,7 +494,8 @@ namespace Avogadro {
           endAtom = addAtom(widget, beginAtom, event->position().toPoint());
           m_endAtomAdded = true;
           m_endAtomId = endAtom->id();
-          m_forceField->SetIgnoreAtom(endAtom->index() + 1);
+          if (m_forceField)
+            m_forceField->SetIgnoreAtom(endAtom->index() + 1);
 
           if(!bond)
             bond = addBond(molecule, beginAtom, endAtom);
@@ -520,10 +542,48 @@ namespace Avogadro {
     }
 
     // Acquire a write lock, before returning release the lock
-    if (!molecule->lock()->tryLockForWrite())
+    if (!molecule->lock()->tryLockForWrite()) {
+      // A concurrent process (e.g. a running optimization's worker holding the
+      // molecule lock for a tick) lost the race. Abort the gesture cleanly:
+      // release the transient force-field markers and clear the stroke state
+      // so no stale state survives into the next gesture. This touches no
+      // molecule state, so no lock is needed here. (Molecule changes already
+      // applied at press/move remain without an undo command -- the same as
+      // today, but without the dangling-state wedge.)
+      if (m_beginAtomId != FALSE_ID || m_endAtomId != FALSE_ID ||
+          m_bondId != FALSE_ID || m_prevBondId != FALSE_ID) {
+        delete m_hydrogenCommand;
+        if (m_forceField) {
+          m_forceField->UnsetIgnoreAtom();
+          m_forceField->UnsetFixAtom();
+        }
+        resetStrokeState();
+      }
       return 0;
+    }
 
     if(m_buttons & Qt::LeftButton && (event->modifiers() == Qt::NoModifier)) {
+
+      // Click-to-extend synthesis (design D5.3): a same-element click (press
+      // and release without significant movement) creates a new atom of the
+      // selected element bonded to the clicked atom, so the assembly below
+      // produces the same undo command as a drag-created bond. Runs BEFORE the
+      // assembly so the synthesized end atom and bond are visible to it.
+      if (m_clickExtendCandidate && !m_movedSinceButtonPressed && beginAtom) {
+        // The begin atom may have been invalidated between press and release
+        // (e.g. a running optimization deleted it); validate against the live
+        // molecule before synthesizing.
+        Atom *clickBegin = molecule->atomById(beginAtom->id());
+        // Do not extend from a hydrogen when adjust-hydrogens is on.
+        if (clickBegin && !(m_addHydrogens && clickBegin->isHydrogen())) {
+          Atom *endAtomOut = nullptr;
+          Bond *bondOut = nullptr;
+          if (synthesizeClickExtend(molecule, clickBegin, &endAtomOut, &bondOut)) {
+            endAtom = endAtomOut;
+            bond = bondOut;
+          }
+        }
+      }
 
       if(m_beginAtomAdded || bond) {
 
@@ -645,8 +705,7 @@ namespace Avogadro {
             if ((begin && begin->isHydrogen()) ||
                 (end && end->isHydrogen())) {
               prevBond->setOrder(1); // restore
-              molecule->lock()->unlock();
-              return 0;
+              goto cleanup;
             }
           }
 
@@ -694,8 +753,7 @@ namespace Avogadro {
           // atom && — same AV class (null Atom::isHydrogen, cmp [rax+38h],1)
           // that was fixed at mouseMoveEvent 346/354.
           if (atom && m_addHydrogens && atom->isHydrogen() && int(atom->valence())) {
-            molecule->lock()->unlock();
-            return undo;
+            goto cleanup;
           }
           undo = new DeleteAtomDrawCommand(widget->molecule(), m_hits[0].name(),
                                            m_addHydrogens);
@@ -714,8 +772,7 @@ namespace Avogadro {
               Atom *begin = molecule->atomById(delBond->beginAtomId());
               Atom *end = molecule->atomById(delBond->endAtomId());
               if ((begin && begin->isHydrogen()) || (end && end->isHydrogen())) {
-                molecule->lock()->unlock();
-                return undo;
+                goto cleanup;
               }
             }
             undo = new DeleteBondDrawCommand(widget->molecule(), m_hits[0].name(),
@@ -725,10 +782,16 @@ namespace Avogadro {
       }
     }
 
-    // clean up after drawing
+  cleanup:
+    // clean up after drawing -- every exit path (including the rejected-delete
+    // and X-H-restore guards above) reaches here, so no stale stroke state or
+    // force-field marker survives into the next gesture.
     resetStrokeState();
-    m_forceField->UnsetIgnoreAtom();
-    m_forceField->UnsetFixAtom();
+    m_clickExtendCandidate = false;
+    if (m_forceField) {
+      m_forceField->UnsetIgnoreAtom();
+      m_forceField->UnsetFixAtom();
+    }
 
     molecule->lock()->unlock();
     return undo;
@@ -844,6 +907,67 @@ namespace Avogadro {
     bond->setBegin(beginAtom);
     bond->setEnd(endAtom);
     return bond;
+  }
+
+  bool DrawTool::synthesizeClickExtend(Molecule *molecule, Atom *beginAtom,
+                                       Atom **endAtomOut, Bond **bondOut)
+  {
+    if (!molecule || !beginAtom)
+      return false;
+
+    // Gather the positions of the clicked atom's heavy-atom neighbors (skip
+    // explicit hydrogens -- the placement helper is position-agnostic and only
+    // ever sees the caller-filtered heavy set). Track the neighbor atoms too,
+    // so the degree-1 azimuth reference can be derived (design D2/D4).
+    std::vector<Vector3d> heavyNeighbors;
+    std::vector<Atom *> heavyNbrAtoms;
+    foreach (unsigned long id, beginAtom->neighbors()) {
+      Atom *nbr = molecule->atomById(id);
+      if (nbr && !nbr->isHydrogen()) {
+        heavyNeighbors.push_back(*nbr->pos());
+        heavyNbrAtoms.push_back(nbr);
+      }
+    }
+
+    // Degree-1 reference (design D2/D4): when the clicked atom has exactly one
+    // heavy neighbor, use a substituent of that neighbor as the azimuth
+    // reference (heavy first, else any incl. H, first in iteration order) so
+    // the new bond is anti/staggered and, for sp2 centers, lies in the
+    // existing plane. Falls back to the cardinal axis inside the helper when
+    // the neighbor has no other substituent.
+    Vector3d preferredDir = Vector3d::Zero();
+    if (heavyNbrAtoms.size() == 1) {
+      Atom *nbr = heavyNbrAtoms[0];
+      for (int pass = 0; pass < 2 && preferredDir.norm() < 1e-9; ++pass) {
+        foreach (unsigned long sid, nbr->neighbors()) {
+          Atom *sub = molecule->atomById(sid);
+          if (!sub || sub == beginAtom)
+            continue;
+          if (pass == 0 && sub->isHydrogen())
+            continue; // pass 0: heavy substituents only
+          preferredDir = *sub->pos() - *nbr->pos();
+          break;
+        }
+      }
+    }
+
+    const SketchHyb hyb = sketchHybridization(beginAtom, molecule);
+    const double len = covalentBondLength(beginAtom->atomicNumber(), m_element);
+
+    Atom *endAtom = molecule->addAtom();
+    endAtom->setPos(placeSubstituent(*beginAtom->pos(), heavyNeighbors, hyb, len, preferredDir));
+    endAtom->setAtomicNumber(m_element);
+    m_endAtomAdded = true;
+    m_endAtomId = endAtom->id();
+
+    Bond *bond = addBond(molecule, beginAtom, endAtom);
+    m_bondId = bond->id();
+
+    if (endAtomOut)
+      *endAtomOut = endAtom;
+    if (bondOut)
+      *bondOut = bond;
+    return true;
   }
 
   bool DrawTool::prepareStrokeState(Molecule *molecule,

@@ -133,6 +133,12 @@ namespace Avogadro {
       bool                m_movedSinceButtonPressed;
       bool                m_toolActivatedConnected;
 
+      // Set at press when the user clicked an atom whose element equals the
+      // selected element (the click-extend candidate). Consumed at release to
+      // synthesize a new bonded atom (see synthesizeClickExtend). Reset at
+      // press, at release cleanup, and in toolActivated().
+      bool                m_clickExtendCandidate;
+
       QPoint              m_initialDraggingPosition;
       QPoint              m_lastDraggingPosition;
 
@@ -184,6 +190,16 @@ namespace Avogadro {
       Atom *addAtom(GLWidget *widget, Atom *beginAtom, const QPoint& p);
       void moveAtom(GLWidget *widget, Atom *atom, Atom *beginAtom, const QPoint& p);
       Bond *addBond(Molecule *molecule, Atom *beginAtom, Atom *endAtom);
+
+      //! Click-to-extend synthesis (design D5.3). When the user pressed on an
+      //! atom of the selected element and released without significant pointer
+      //! movement, create a new atom of the selected element bonded to
+      //! `beginAtom` at a chemically plausible position (see placement.h), set
+      //! the stroke state (m_endAtomAdded / m_bondId), and return the created
+      //! atom and bond via the out-parameters so the release assembly sees the
+      //! synthesized stroke. Returns true when an extension was synthesized.
+      bool synthesizeClickExtend(Molecule *molecule, Atom *beginAtom,
+                                 Atom **endAtom, Bond **bond);
 
       // Resolves the cross-event stroke state (stored atom/bond ids) to live
       // pointers against `molecule`. Returns false when any held id no longer

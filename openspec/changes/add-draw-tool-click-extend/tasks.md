@@ -11,7 +11,7 @@ regress AutoOpt coexistence).
 
 ## 1. Placement helper (pure geometry)
 
-- [ ] 1.1 Create `libavogadro/src/tools/placement.h` / `placement.cpp`:
+- [x] 1.1 Create `libavogadro/src/tools/placement.h` / `placement.cpp`:
       `SketchHyb` enum, `sketchHybridization(Atom*, Molecule*)` implementing
       design D3 (≥1 triple bond or ≥2 double bonds → Sp; exactly 1 double →
       Sp2; else Sp3) from the molecule's bond orders, and
@@ -22,11 +22,11 @@ regress AutoOpt coexistence).
       metal quadruple bonds) map to Sp per D3. Verify: compiles as part of
       the drawtool plugin (`drawtool_SRCS` in
       `libavogadro/src/tools/CMakeLists.txt:30` gains `placement.cpp`).
-- [ ] 1.2 Add a `covalentBondLength(int elementA, int elementB)` helper
+- [x] 1.2 Add a `covalentBondLength(int elementA, int elementB)` helper
       (design D4): `OBElements::GetCovalentRad(A) + GetCovalentRad(B)`,
       1.5 Å fallback when either radius is 0. Verify: unit test asserts
       C+C → 1.54 ±0.02 Å and an unknown element pair → 1.5.
-- [ ] 1.3 New headless unit test `libavogadro/tests/placementtest.cpp`
+- [x] 1.3 New headless unit test `libavogadro/tests/placementtest.cpp`
       registered as `placement` in the `tests` list
       (`libavogadro/tests/CMakeLists.txt`); compile
       `../src/tools/placement.cpp` directly into the test (same pattern as
@@ -50,14 +50,14 @@ regress AutoOpt coexistence).
 
 ## 2. Stroke-state hygiene (pre-existing bugs, design D7/D8)
 
-- [ ] 2.1 Guard every `m_forceField` dereference in drawtool.cpp with
+- [x] 2.1 Guard every `m_forceField` dereference in drawtool.cpp with
       `if (m_forceField)` (design D7): press SetIgnoreAtom (~266, ~424),
       move Unset/SetFixAtom (~337, ~365–366), release cleanup (~647–648).
       The destructor and `toolActivated()` guards already exist. Verify:
       build; `ctest -R autooptrepro --output-on-failure` still green (its
       binary may or may not resolve a force field, so also) full grep:
       no unguarded `m_forceField->` remains anywhere in the file.
-- [ ] 2.2 Restructure `mouseReleaseEvent` so every exit reaches the common
+- [x] 2.2 Restructure `mouseReleaseEvent` so every exit reaches the common
       cleanup block (design D8.1): the right-click managed-H early return
       (~652), the right-click X–H bond early return (~664), and the
       `m_prevBond` X–H restore early return (~596) must now fall through to
@@ -67,7 +67,7 @@ regress AutoOpt coexistence).
       `-R addremovehydrogens` green; manual — with adjust hydrogens ON,
       right-click an H: it is not deleted and the NEXT left click behaves
       normally (not swallowed).
-- [ ] 2.3 Fix the lock-failure exit of `mouseReleaseEvent` (design D8.2):
+- [x] 2.3 Fix the lock-failure exit of `mouseReleaseEvent` (design D8.2):
       when `tryLockForWrite()` fails and stroke state exists, release the
       force-field markers and null the stroke pointers (no molecule access
       needed) before returning 0; when no stroke state exists, return 0 as
@@ -76,10 +76,10 @@ regress AutoOpt coexistence).
 
 ## 3. DrawTool gesture wiring
 
-- [ ] 3.1 `drawtool.h`: add `bool m_clickExtendCandidate = false;` and a
+- [x] 3.1 `drawtool.h`: add `bool m_clickExtendCandidate = false;` and a
       small private helper declaring the synthesis used by release (design
       D5.3). Verify: builds.
-- [ ] 3.2 `drawtool.cpp` press path (atom-hit branch, ~line 221): add the
+- [x] 3.2 `drawtool.cpp` press path (atom-hit branch, ~line 221): add the
       `else` setting `m_clickExtendCandidate = true` — no mutation, no
       force-field call. The `element != m_element` alchemy branch stays
       byte-identical. ALSO reset `m_clickExtendCandidate = false`
@@ -90,11 +90,11 @@ regress AutoOpt coexistence).
       reliable one. Verify: build; manual smoke — click N with C selected
       still turns the N into C, and an alchemy click is never followed by an
       extension.
-- [ ] 3.3 `drawtool.cpp` `mouseMoveEvent`: at the top of the left-button
+- [x] 3.3 `drawtool.cpp` `mouseMoveEvent`: at the top of the left-button
       branch add the BondCentricTool threshold
       (`manhattanLength() > 2 → m_movedSinceButtonPressed = true`). Verify:
       build; a normal drag still stretches a bond.
-- [ ] 3.4 `drawtool.cpp` `mouseReleaseEvent`, left-button branch BEFORE the
+- [x] 3.4 `drawtool.cpp` `mouseReleaseEvent`, left-button branch BEFORE the
       `if(m_beginAtomAdded || m_bond)` assembly (design D5.3): when
       `m_clickExtendCandidate && !m_movedSinceButtonPressed` and
       `m_beginAtom` validates against the molecule
@@ -106,7 +106,7 @@ regress AutoOpt coexistence).
       `m_bondOrder()`. Let the existing assembly run unchanged. Verify:
       `cmake --build build --parallel && ctest --test-dir build
       --output-on-failure` green.
-- [ ] 3.5 Reset `m_clickExtendCandidate` in the `mouseReleaseEvent` cleanup
+- [x] 3.5 Reset `m_clickExtendCandidate` in the `mouseReleaseEvent` cleanup
       block and in `toolActivated()` (belt-and-suspenders; the unconditional
       press-time reset from 3.2 is the authoritative one). Verify: build;
       extending, then switching tools mid-anything, leaves no stale candidate
@@ -114,7 +114,7 @@ regress AutoOpt coexistence).
 
 ## 4. Documentation
 
-- [ ] 4.1 Update the DrawTool tooltip in the constructor to document all
+- [x] 4.1 Update the DrawTool tooltip in the constructor to document all
       gestures per design D5.5 (click atom = extend or element change; drag =
       draw bond; right-click = delete). Grep the repo for other
       user-facing draw-tool gesture docs (`docs/`, `README`, `.qhc`-adjacent

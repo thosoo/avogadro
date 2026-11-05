@@ -62,6 +62,7 @@ set(tests
   threadedparity
   builderpool
   renderertier
+  placement
   renderbench
   visualparity
   hidpiviewport
@@ -115,6 +116,10 @@ foreach (test ${tests})
     # draw commands) defined in drawcommand.cpp, which has no plugin factory
     # so it is safe to compile directly into the test.
     list(APPEND test_SRCS ../src/tools/drawcommand.cpp)
+    # drawtool.cpp also calls the click-to-extend placement helpers; they are
+    # compiled into the drawtool plugin, not exported from libavogadro, so the
+    # test compiles placement.cpp directly (as for drawcommand.cpp).
+    list(APPEND test_SRCS ../src/tools/placement.cpp)
     # The live drag / bond-click scenario checks (tasks 2.2 / 3.1) render the
     # molecule through the real ball-and-stick engine so GL picking resolves
     # real geometry. BSDYEngine is not exported from libavogadro; compile it
@@ -126,6 +131,12 @@ foreach (test ${tests})
     # renderertier.cpp, which has no A_EXPORT and is therefore not dllexported
     # on Windows; compile it directly into the test.
     list(APPEND test_SRCS ../src/rendering/renderertier.cpp)
+  endif()
+  if (${test} STREQUAL "placement")
+    # The placement helper (add-draw-tool-click-extend) is compiled into the
+    # drawtool plugin (drawtool_SRCS), not exported from libavogadro, so the
+    # test compiles placement.cpp directly, exactly as for renderertier.cpp.
+    list(APPEND test_SRCS ../src/tools/placement.cpp)
   endif()
   if (${test} STREQUAL "insertfragmentextension")
     list(APPEND test_SRCS

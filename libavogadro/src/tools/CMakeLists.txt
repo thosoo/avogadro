@@ -29,7 +29,8 @@ add_custom_target(tools COMMENT "Meta target to build all Avogadro tools.")
 ### drawtool
 set(drawtool_SRCS
   drawtool.cpp
-  drawcommand.cpp)
+  drawcommand.cpp
+  placement.cpp)
 avogadro_plugin(drawtool
   "${drawtool_SRCS}"
   drawtool.qrc)
