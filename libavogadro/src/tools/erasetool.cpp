@@ -230,7 +230,19 @@ namespace Avogadro {
       worldPts.append(widget->camera()->unProject(QPoint(qRound(p.x()),
                                                          qRound(p.y())), ref));
     }
+    // The overlay draws after the instanced/fixed-function frame, which has
+    // already filled the depth buffer with molecule geometry. Draw the lasso
+    // with depth testing disabled and the depth mask locked so it composites
+    // above the atoms instead of being occluded where the loop passes behind
+    // them. The state is restored on every exit below.
+    GLboolean depthTest = GL_FALSE;
+    glGetBooleanv(GL_DEPTH_TEST, &depthTest);
+    glDepthMask(GL_FALSE);
+    glDisable(GL_DEPTH_TEST);
     painter->drawLineLoop(worldPts, 1.0);
+    glDepthMask(GL_TRUE);
+    if (depthTest == GL_TRUE)
+      glEnable(GL_DEPTH_TEST);
     return true;
   }
 
