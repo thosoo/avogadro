@@ -23,4 +23,4 @@
 ## 5. Review and CI
 
 - [x] 5.1 Self-review the diff against design D1–D4 (flag placement, guard semantics, timer context object anchoring to `ui.table`) and remove the throwaway probe artifacts if any were staged
-- [ ] 5.2 Trigger the Windows installer workflow (`gh workflow run 168745168 --ref <branch> --repo thosoo/avogadro`) and verify the build and test suite pass on MSVC per repo policy before opening a PR
+- [x] 5.2 Trigger the Windows installer workflow (`gh workflow run 168745168 --ref <branch> --repo thosoo/avogadro`) and verify the build and test suite pass on MSVC per repo policy before opening a PR
