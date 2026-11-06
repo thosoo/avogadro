@@ -36,6 +36,11 @@ using namespace Avogadro;
 
 namespace {
 
+//! Portable pi constant. MSVC does not define M_PI unless _USE_MATH_DEFINES
+//! is set; the repo's test convention (placementtest) uses an explicit constant
+//! instead of relying on the platform macro.
+const double kPi = 3.14159265358979323846;
+
 //! Build a GLWidget bound to `mol` with a deterministic camera so atom
 //! projection is reproducible. The widget is NOT shown (QOpenGLWidget cannot
 //! present on the offscreen platform); the erase tool never uses GL picking, so
@@ -98,7 +103,7 @@ QVector<QPointF> loopAround(GLWidget *widget, const QList<Atom *> &targets,
   QVector<QPointF> loop;
   const int n = 24;
   for (int i = 0; i < n; ++i) {
-    const double ang = 2.0 * M_PI * i / n;
+    const double ang = 2.0 * kPi * i / n;
     loop << QPointF(c.x() + r * std::cos(ang), c.y() + r * std::sin(ang));
   }
   return loop;
@@ -388,6 +393,13 @@ void EraseToolTest::testManagedHydrogenParity()
 
     QCOMPARE(mol->numAtoms(), 0);
     QCOMPARE(mol->numBonds(), 0);
+
+    // P1 guard (adjust-OFF): one undo restores the methane exactly. A hydrogen
+    // victim must be re-added only after its heavy-atom neighbor is restored,
+    // otherwise its C-H bond is created against a missing atom (null-ended).
+    stack.undo();
+    QCOMPARE(mol->numAtoms(), 4);
+    QCOMPARE(mol->numBonds(), 3);
 
     delete widget;
     delete mol;

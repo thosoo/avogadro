@@ -159,6 +159,7 @@ namespace Avogadro {
     const QRectF bounds = pathBounds(m_lassoPath);
     const QList<Atom *> atoms = molecule->atoms();
     QList<int> victims;
+    QList<int> hydrogenVictims;
     for (int i = 0; i < atoms.size(); ++i) {
       Atom *atom = atoms.at(i);
       const Vector3d sp = widget->camera()->project(*atom->pos());
@@ -172,9 +173,20 @@ namespace Avogadro {
         // a victim, hydrogens included.
         if (m_addHydrogens && atom->isHydrogen() && int(atom->valence()))
           continue;
-        victims.append(i);
+        // Order matters for undo: a DeleteAtomDrawCommand records bonds only to
+        // non-hydrogen neighbors (drawcommand.cpp skips hydrogens), so a bonded
+        // hydrogen's bond is re-added only by that hydrogen's own command. If a
+        // hydrogen victim is restored before its heavy-atom neighbor, the bond
+        // is created against a not-yet-restored atom and ends up null-ended
+        // (FALSE_ID). Putting hydrogen victims first means an UndoSequence undo
+        // restores the heavy atom before the hydrogen re-adds its bond.
+        if (atom->isHydrogen())
+          hydrogenVictims.append(i);
+        else
+          victims.append(i);
       }
     }
+    victims = hydrogenVictims + victims;
 
     // D3: one DeleteAtomDrawCommand per victim inside an UndoSequence so a
     // single lasso is a single undo step. The commands snapshot atom data at
