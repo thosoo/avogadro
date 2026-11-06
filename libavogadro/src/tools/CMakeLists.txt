@@ -35,6 +35,12 @@ avogadro_plugin(drawtool
   "${drawtool_SRCS}"
   drawtool.qrc)
 
+### erasetool
+set(erasetool_SRCS erasetool.cpp drawcommand.cpp)
+avogadro_plugin(erasetool
+  "${erasetool_SRCS}"
+  erasetool.qrc)
+
 option(ENABLE_ZMATRIX_TOOL "Enable the z-matrix tool (experimental)" OFF)
 if(ENABLE_ZMATRIX_TOOL)
   ### zmatrixtool

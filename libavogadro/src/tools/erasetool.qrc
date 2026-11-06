@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/erase">
+        <file>erase.png</file>
+    </qresource>
+</RCC>

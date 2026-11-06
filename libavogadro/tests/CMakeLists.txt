@@ -63,6 +63,7 @@ set(tests
   builderpool
   renderertier
   placement
+  erasetool
   renderbench
   visualparity
   hidpiviewport
@@ -137,6 +138,17 @@ foreach (test ${tests})
     # drawtool plugin (drawtool_SRCS), not exported from libavogadro, so the
     # test compiles placement.cpp directly, exactly as for renderertier.cpp.
     list(APPEND test_SRCS ../src/tools/placement.cpp)
+  endif()
+  if (${test} STREQUAL "erasetool")
+    # EraseTool lives in a standalone MODULE plugin (not exported from
+    # libavogadro.so), so its source is compiled directly into the test. The
+    # lasso delete reuses DeleteAtomDrawCommand from drawcommand.cpp (which has
+    # no plugin factory, so it is safe to compile directly too). The tool's
+    # AVOGADRO_TOOL_FACTORY Q_PLUGIN_METADATA is skipped for this build only
+    # (the test instantiates the factory directly, never via Qt's plugin
+    # loader); the guard is in erasetool.h under AVOGADRO_TEST_NOPLUGIN.
+    list(APPEND test_SRCS ../src/tools/erasetool.cpp)
+    list(APPEND test_SRCS ../src/tools/drawcommand.cpp)
   endif()
   if (${test} STREQUAL "insertfragmentextension")
     list(APPEND test_SRCS
@@ -293,6 +305,11 @@ foreach (test ${tests})
     # symbols. The guard is in drawtool.h under this macro.
     target_compile_definitions(${test}test PRIVATE AVOGADRO_TEST_NOPLUGIN)
   endif()
+  if(${test} STREQUAL "erasetool")
+    # Skip EraseToolFactory's Q_PLUGIN_METADATA for this build only (see the
+    # test_SRCS block above); the guard is in erasetool.h.
+    target_compile_definitions(${test}test PRIVATE AVOGADRO_TEST_NOPLUGIN)
+  endif()
   if(${test} STREQUAL "consumerparity")
     # consumerparitytest reads the mesh-flush upload counter hook
     # (g_glpainterMeshUploadCount) that lives behind this macro in
@@ -304,7 +321,7 @@ foreach (test ${tests})
   # The parity binaries drive a real GLWidget for the legacy tier, which
   # QOpenGLWidget does not support on the offscreen platform: they need a
   # real X display (run ctest under xvfb-run) with the default xcb platform.
-  if(${test} MATCHES "^(parity|compatibility|glselectoverflow|meshstream|consumerparity|threadedparity|renderbench|visualparity|hidpiviewport|energyhud)")
+  if(${test} MATCHES "^(parity|compatibility|glselectoverflow|meshstream|consumerparity|threadedparity|renderbench|visualparity|hidpiviewport|energyhud|erasetool)")
     set(_test_env "LIBGL_ALWAYS_SOFTWARE=1")
   endif()
   if(${test} STREQUAL "forcefield")
