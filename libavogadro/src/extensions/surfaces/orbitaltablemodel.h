@@ -64,6 +64,13 @@ namespace Avogadro {
       //   otherwise the status bars always look disabled
       opt.initFrom(qobject_cast<QWidget*>(this->parent()));
 
+      // The status bar is horizontal. Without State_Horizontal, some styles
+      // (e.g. Fusion on Qt 6.4) take the vertical bar path: the percentage
+      // label is never drawn and the chunk is painted through a rotated
+      // painter at a rect unrelated to opt.rect, stamping blue fragments over
+      // unrelated cells when the table repaints during scroll.
+      opt.state |= QStyle::State_Horizontal;
+
       opt.rect = o.rect;
       opt.minimum = 1; // percentage
       opt.maximum = 100;

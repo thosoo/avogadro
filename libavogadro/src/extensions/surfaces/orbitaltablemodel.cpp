@@ -167,6 +167,10 @@ namespace Avogadro {
 
   bool OrbitalTableModel::clearOrbitals()
   {
+    // Clearing an already-empty table is a safe no-op: beginRemoveRows with
+    // an invalid (0, -1) range would otherwise be issued.
+    if (m_orbitals.isEmpty())
+      return true;
     beginRemoveRows(QModelIndex(), 0, m_orbitals.size() - 1);
     m_orbitals.clear();
     endRemoveRows();
@@ -175,6 +179,10 @@ namespace Avogadro {
 
   void OrbitalTableModel::setOrbitalProgressRange(int orbital, int min, int max, int stage, int totalStages)
   {
+    // D3: ignore an update that names an orbital with no row in the current
+    // table (1-based) instead of writing through an out-of-range index.
+    if (orbital < 1 || orbital > m_orbitals.size())
+      return;
     Orbital *orb = &m_orbitals[orbital - 1];
     orb->min = min;
     orb->current = min;
@@ -188,6 +196,8 @@ namespace Avogadro {
 
   void OrbitalTableModel::incrementStage(int orbital, int newmin, int newmax)
   {
+    if (orbital < 1 || orbital > m_orbitals.size())
+      return;
     Orbital *orb = &m_orbitals[orbital - 1];
     orb->stage++;
     orb->min = newmin;
@@ -200,6 +210,8 @@ namespace Avogadro {
 
   void OrbitalTableModel::setOrbitalProgressValue(int orbital, int currentValue)
   {
+    if (orbital < 1 || orbital > m_orbitals.size())
+      return;
     Orbital *orb = &m_orbitals[orbital - 1];
     orb->current = currentValue;
     // Update display
@@ -209,6 +221,8 @@ namespace Avogadro {
 
   void OrbitalTableModel::finishProgress(int orbital)
   {
+    if (orbital < 1 || orbital > m_orbitals.size())
+      return;
     Orbital *orb = &m_orbitals[orbital - 1];
     orb->stage = 1;
     orb->totalStages = 1;
@@ -223,6 +237,8 @@ namespace Avogadro {
 
   void OrbitalTableModel::resetProgress(int orbital)
   {
+    if (orbital < 1 || orbital > m_orbitals.size())
+      return;
     Orbital *orb = &m_orbitals[orbital - 1];
     orb->stage = 1;
     orb->totalStages = 1;
@@ -237,6 +253,8 @@ namespace Avogadro {
 
   void OrbitalTableModel::setProgressToZero(int orbital)
   {
+    if (orbital < 1 || orbital > m_orbitals.size())
+      return;
     Orbital *orb = &m_orbitals[orbital - 1];
     orb->stage = 1;
     orb->totalStages = 1;

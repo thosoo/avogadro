@@ -670,6 +670,49 @@ set_property(SOURCE ${orbitalselectiontest_SRCS} PROPERTY LABELS avogadro)
 set_property(TARGET orbitalselectiontest PROPERTY LABELS avogadro)
 set_property(TEST orbitalselectionTest PROPERTY LABELS avogadro)
 
+# Orbital-status-column regression (fix-orbital-status-column, tasks 4.2-4.4,
+# design D4): offscreen regression for the status-column paint path, the
+# bounds-safe progress mutators, and first-fill HOMO scroll. Compiles the real
+# OrbitalWidget + OrbitalTableModel + ProgressBarDelegate directly (the surfaces
+# extension is a plugin, not exported from libavogadro, so its sources compile
+# into the test). Needs the generated ui_orbitalwidget.h via qt6_wrap_ui.
+qt6_wrap_ui(orbitalstatustest_UI
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/surfaces/orbitalwidget.ui)
+set(orbitalstatustest_SRCS
+  orbitalstatustest.cpp
+  ../src/extensions/surfaces/orbitalextension.cpp
+  ../src/extensions/surfaces/orbitalwidget.cpp
+  ../src/extensions/surfaces/orbitaltablemodel.cpp
+  ../src/extensions/surfaces/orbitalsettingsdialog.cpp
+  ../src/extensions/surfaces/htmldelegate.cpp
+  ${orbitalstatustest_UI})
+add_executable(orbitalstatustest ${orbitalstatustest_SRCS})
+target_include_directories(orbitalstatustest PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions
+  ${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/surfaces)
+set_target_properties(orbitalstatustest PROPERTIES
+  AUTOUIC_SEARCH_PATHS "${CMAKE_CURRENT_SOURCE_DIR}/../src/extensions/surfaces")
+target_compile_definitions(orbitalstatustest PRIVATE
+  AVOGADRO_TEST_ORBITAL_STATUS)
+target_link_libraries(orbitalstatustest
+  PRIVATE
+  Qt6::Core
+  Qt6::Gui
+  Qt6::Widgets
+  Qt6::OpenGL
+  Qt6::OpenGLWidgets
+  Qt6::Test
+  Qt6::Concurrent
+  avogadro
+  OpenQube
+  OpenBabel3::openbabel)
+add_test(orbitalstatustest ${CMAKE_BINARY_DIR}/bin/orbitalstatustest)
+set_tests_properties(orbitalstatustest PROPERTIES
+  ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+set_property(SOURCE ${orbitalstatustest_SRCS} PROPERTY LABELS avogadro)
+set_property(TARGET orbitalstatustest PROPERTY LABELS avogadro)
+set_property(TEST orbitalstatustest PROPERTY LABELS avogadro)
+
 
 add_executable(qt6signalpatternstest qt6signalpatternstest.cpp)
 target_compile_definitions(qt6signalpatternstest PRIVATE

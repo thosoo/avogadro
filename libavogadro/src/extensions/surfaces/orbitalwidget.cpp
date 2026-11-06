@@ -22,6 +22,7 @@
 
 #include <QDebug>
 #include <QSettings>
+#include <QTimer>
 #include <algorithm>
 
 namespace Avogadro {
@@ -130,6 +131,23 @@ namespace Avogadro {
     QModelIndex homo = m_tableModel->HOMO();
     homo = m_sortedTableModel->mapFromSource(homo);
     ui.table->scrollTo(homo, QAbstractItemView::PositionAtCenter);
+
+    // D2: on the FIRST fill the view's header/scrollbar range are still in a
+    // pending-layout state, so the in-call scrollTo silently no-ops (verified
+    // with a gdb breakpoint on QTableView::scrollTo: the call fires with a
+    // valid index yet the scrollbar never moves). Retry the HOMO scroll once
+    // the layout settles: re-resolve HOMO through the live proxy and scroll to
+    // center only if the row still exists (the document could have switched in
+    // between). The timer is anchored to ui.table so the call is dropped if
+    // the table (and this widget) are torn down before it fires.
+    QTimer::singleShot(0, ui.table, [this]() {
+      QModelIndex homo = m_tableModel->HOMO();
+      if (!homo.isValid())
+        return;
+      QModelIndex mapped = m_sortedTableModel->mapFromSource(homo);
+      if (mapped.isValid())
+        ui.table->scrollTo(mapped, QAbstractItemView::PositionAtCenter);
+    });
   }
 
   void OrbitalWidget::setQuality(OrbitalQuality q)
