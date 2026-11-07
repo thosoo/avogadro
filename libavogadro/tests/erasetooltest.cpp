@@ -135,6 +135,39 @@ QUndoCommand *driveLasso(EraseTool &tool, GLWidget *widget,
   return tool.mouseReleaseEvent(widget, &release);
 }
 
+//! Drive a pure click: press and release at the same point (no travel). This is
+//! a sub-threshold gesture, so the tool routes it to the click path (D10).
+QUndoCommand *driveClick(EraseTool &tool, GLWidget *widget, const QPointF &pt)
+{
+  QMouseEvent press(QEvent::MouseButtonPress, pt, pt,
+                    Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+  tool.mousePressEvent(widget, &press);
+  QMouseEvent release(QEvent::MouseButtonRelease, pt, pt,
+                      Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+  return tool.mouseReleaseEvent(widget, &release);
+}
+
+//! A device-pixel point guaranteed to be clear of every atom's projection: it
+//! starts at a far corner and is pushed directly away from any atom within 64
+//! px, so a click there hits nothing (a click on empty space).
+QPointF farFromAtoms(GLWidget *widget, Molecule *mol)
+{
+  const QList<Atom *> atoms = mol->atoms();
+  QPointF p(750.0, 550.0);
+  for (int pass = 0; pass < 3; ++pass) {
+    for (Atom *a : atoms) {
+      const QPointF ap = projPoint(widget, a);
+      const double dx = p.x() - ap.x();
+      const double dy = p.y() - ap.y();
+      const double d = std::sqrt(dx * dx + dy * dy);
+      if (d < 64.0) {
+        p += QPointF(dx / (d + 1e-6), dy / (d + 1e-6)) * 128.0;
+      }
+    }
+  }
+  return p;
+}
+
 //! Cluster of four carbon atoms tightly grouped near the origin, plus a distant
 //! carbon bonded to the cluster so the "one endpoint outside" bond is covered.
 Molecule *makeClusterMolecule()
@@ -177,7 +210,10 @@ class EraseToolTest : public QObject
 private Q_SLOTS:
   void testPointInPolygon();
   void testContainmentDeletion();
-  void testTapNoop();
+  void testClickSingleAtom();
+  void testClickEmptySpace();
+  void testClickResolvesNearestAtom();
+  void testClickManagedHydrogenParity();
   void testSingleUndo();
   void testUnclosedLoopAutoCloses();
   void testManagedHydrogenParity();
@@ -241,8 +277,57 @@ void EraseToolTest::testContainmentDeletion()
   delete mol;
 }
 
-void EraseToolTest::testTapNoop()
+void EraseToolTest::testClickSingleAtom()
 {
+  // D10/D4: a sub-threshold press-release (a click) deletes the single atom
+  // under the pointer — no longer a no-op. This is the click half of the
+  // minimum-path guard: the same point dragged into a loop would instead be a
+  // lasso. A click on an atom deletes that atom and its bonds, one undo entry.
+  Molecule *mol = makeClusterMolecule();
+  GLWidget *widget = makeWidget(mol);
+  EraseTool tool;
+  tool.setAddHydrogens(Qt::Unchecked);
+
+  const QList<Atom *> atoms = mol->atoms();
+  Atom *target = atoms[0];
+  const QPointF click = projPoint(widget, target);
+
+  const int before = mol->numAtoms();
+  const unsigned beforeBonds = mol->numBonds();
+  unsigned refsBefore = 0;
+  for (Bond *b : mol->bonds())
+    if (b->beginAtomId() == target->id() || b->endAtomId() == target->id())
+      ++refsBefore;
+  UndoStack stack(mol);
+
+  // Press and release at the atom's projected position: no significant travel,
+  // so the gesture is a click and deletes exactly that atom.
+  QUndoCommand *cmd = driveClick(tool, widget, click);
+  QVERIFY(cmd != nullptr);                 // a click deletes (was a no-op)
+  stack.push(cmd);                         // applying the command deletes the atom
+  QCOMPARE(stack.count(), 1u);              // one undo entry
+  QCOMPARE(mol->numAtoms(), before - 1);
+  QVERIFY(mol->atomById(target->id()) == nullptr);
+  QCOMPARE(mol->numBonds(), beforeBonds - refsBefore); // its bonds go with it
+
+  // One undo restores the single atom and its bonds.
+  stack.undo();
+  QCOMPARE(mol->numAtoms(), before);
+  QCOMPARE(mol->numBonds(), beforeBonds);
+  QVERIFY(mol->atomById(target->id()) != nullptr);
+
+  // Redo re-deletes it.
+  stack.redo();
+  QCOMPARE(mol->numAtoms(), before - 1);
+
+  delete widget;
+  delete mol;
+}
+
+void EraseToolTest::testClickEmptySpace()
+{
+  // D10: a click whose pointer lies outside the pick radius of every atom (a
+  // click on empty space) deletes nothing.
   Molecule *mol = makeClusterMolecule();
   GLWidget *widget = makeWidget(mol);
   EraseTool tool;
@@ -251,35 +336,104 @@ void EraseToolTest::testTapNoop()
   const int before = mol->numAtoms();
   UndoStack stack(mol);
 
-  // Press and release at the same point: no significant travel, no delete.
-  const QPointF pt(400, 300);
-  QMouseEvent press(QEvent::MouseButtonPress, pt, pt,
-                    Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
-  tool.mousePressEvent(widget, &press);
-  QMouseEvent release(QEvent::MouseButtonRelease, pt, pt,
-                      Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
-  QUndoCommand *cmd = tool.mouseReleaseEvent(widget, &release);
+  const QPointF empty = farFromAtoms(widget, mol);
+  QUndoCommand *cmd = driveClick(tool, widget, empty);
   QVERIFY(cmd == nullptr);
-  QCOMPARE(mol->numAtoms(), before);
-  QCOMPARE(stack.count(), 0);
-
-  // A tiny twitch (below the minimum lasso length) is also a no-op.
-  QPointF a(400, 300), b(404, 300);
-  QMouseEvent press2(QEvent::MouseButtonPress, a, a,
-                     Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
-  tool.mousePressEvent(widget, &press2);
-  QMouseEvent move2(QEvent::MouseMove, b, b,
-                    Qt::NoButton, Qt::LeftButton, Qt::NoModifier);
-  tool.mouseMoveEvent(widget, &move2);
-  QMouseEvent release2(QEvent::MouseButtonRelease, b, b,
-                       Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
-  QUndoCommand *cmd2 = tool.mouseReleaseEvent(widget, &release2);
-  QVERIFY(cmd2 == nullptr);
   QCOMPARE(mol->numAtoms(), before);
   QCOMPARE(stack.count(), 0);
 
   delete widget;
   delete mol;
+}
+
+void EraseToolTest::testClickResolvesNearestAtom()
+{
+  // D10: a click near two atoms deletes the nearer one, not the farther.
+  Molecule *mol = makeClusterMolecule();
+  GLWidget *widget = makeWidget(mol);
+  EraseTool tool;
+  tool.setAddHydrogens(Qt::Unchecked);
+
+  const QList<Atom *> atoms = mol->atoms();
+  Atom *near = atoms[0];
+  Atom *far = atoms[1];
+  const QPointF pn = projPoint(widget, near);
+  const QPointF pf = projPoint(widget, far);
+  const double dx = pf.x() - pn.x();
+  const double dy = pf.y() - pn.y();
+  const double sep = std::sqrt(dx * dx + dy * dy);
+
+  // Click a few pixels toward `far` from the line between them so the point is
+  // strictly nearer to `near`; fall back to `near`'s exact position when the
+  // two atoms project very close together (then `near` is at distance 0).
+  QPointF click = pn;
+  if (sep > 6.0)
+    click += QPointF(dx / sep, dy / sep) * 3.0;
+
+  const int before = mol->numAtoms();
+  UndoStack stack(mol);
+  QUndoCommand *cmd = driveClick(tool, widget, click);
+  QVERIFY(cmd != nullptr);
+  stack.push(cmd);                         // applying the command deletes the atom
+  QCOMPARE(mol->numAtoms(), before - 1);
+  QVERIFY(mol->atomById(near->id()) == nullptr);   // the nearer atom is gone
+  QVERIFY(mol->atomById(far->id()) != nullptr);    // the farther atom survives
+
+  delete widget;
+  delete mol;
+}
+
+void EraseToolTest::testClickManagedHydrogenParity()
+{
+  // D5/D10: a click on a carbon removes its attached hydrogens per the
+  // managed-hydrogen policy — churned by the delete when adjust-hydrogens is on,
+  // deleted as independent victims when it is off.
+  {
+    // adjust-hydrogens ON: the single click delete churns the managed
+    // hydrogens; they are not independent click victims.
+    Molecule *mol = makeMethane();
+    GLWidget *widget = makeWidget(mol);
+    EraseTool tool;
+    tool.setAddHydrogens(Qt::Checked); // default policy
+
+    Atom *carbon = mol->atom(0);
+    UndoStack stack(mol);
+    QUndoCommand *cmd = driveClick(tool, widget, projPoint(widget, carbon));
+    QVERIFY(cmd != nullptr);
+    stack.push(cmd);                       // applying the command deletes the atom
+
+    // The carbon and all three managed hydrogens are gone in one step.
+    QCOMPARE(mol->numAtoms(), 0);
+    QCOMPARE(mol->numBonds(), 0);
+
+    delete widget;
+    delete mol;
+  }
+
+  {
+    // adjust-hydrogens OFF: the atom and its bonded explicit hydrogens are all
+    // deletion victims.
+    Molecule *mol = makeMethane();
+    GLWidget *widget = makeWidget(mol);
+    EraseTool tool;
+    tool.setAddHydrogens(Qt::Unchecked);
+
+    Atom *carbon = mol->atom(0);
+    UndoStack stack(mol);
+    QUndoCommand *cmd = driveClick(tool, widget, projPoint(widget, carbon));
+    QVERIFY(cmd != nullptr);
+    stack.push(cmd);                       // applying the command deletes the atom
+    QCOMPARE(mol->numAtoms(), 0);
+    QCOMPARE(mol->numBonds(), 0);
+
+    // One undo restores the methane exactly (carbon + 3 explicit hydrogens).
+    stack.undo();
+    QCOMPARE(mol->numAtoms(), 4);
+    QCOMPARE(mol->numBonds(), 3);
+
+    delete widget;
+    delete mol;
+  }
 }
 
 void EraseToolTest::testSingleUndo()

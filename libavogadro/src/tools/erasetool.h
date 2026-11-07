@@ -40,14 +40,17 @@ namespace Avogadro {
 
   /**
    * @class EraseTool erasetool.h <avogadro/erasetool.h>
-   * @brief Delete atoms by drawing a lasso around them.
+   * @brief Delete atoms by drawing a lasso around them, or one atom with a
+   * click.
    *
-   * Press on the canvas, drag a freehand loop, and release: every atom whose
-   * projected position lies inside the closed loop is deleted in a single undo
-   * step. A press-and-release without significant pointer travel is a no-op
-   * (a tap never deletes). Deletion is evaluated in screen space at release
-   * against the camera's projection, so the tool never uses GL picking and
-   * stays independent of pick-slop tuning.
+   * The tool offers two gestures. The lasso (press, drag a freehand loop, and
+   * release) deletes every atom whose projected position lies inside the closed
+   * loop in a single undo step. A press-and-release without significant pointer
+   * travel (a click) deletes the single atom nearest the click point, plus its
+   * attached hydrogens. The minimum-path guard routes a sub-threshold
+   * press-release to a click and a longer drag to a lasso. Deletion is
+   * evaluated in screen space at release against the camera's projection, so the
+   * tool never uses GL picking and stays independent of pick-slop tuning.
    */
   class EraseTool : public Tool
   {
@@ -83,6 +86,14 @@ namespace Avogadro {
       //! Pure and static so it is unit-testable without a GLWidget.
       static bool pointInPolygon(const QVector<QPointF> &poly, const QPointF &pt);
 
+      //! Screen-space nearest-atom lookup for the click gesture (D10). Projects
+      //! every atom through the camera, bbox-culls against a box around the click
+      //! point, and returns the index of the atom nearest the click within the
+      //! pick radius, or -1 if none is within the radius (a click on empty
+      //! space). Pure screen-space, no GL_SELECT (same approach as the lasso,
+      //! D2).
+      int nearestAtomAt(GLWidget *widget, const QPointF &pt);
+
     public Q_SLOTS:
       //! Called by the ToolGroup when another tool is activated. Abandons an
       //! in-flight lasso so no partial deletion or transient state survives.
@@ -115,8 +126,17 @@ namespace Avogadro {
       //! undo command (the interrupted-gesture exit path).
       void abandonLasso();
 
+      //! Assemble and return the click deletion (D10). The click point is the
+      //! last recorded path vertex (the release position). Deletes the single
+      //! atom nearest the click within the pick radius, plus its attached
+      //! hydrogens per the managed-hydrogen policy (D5), in one undo step, and
+      //! takes the molecule write lock at release (D6). Accepts the release
+      //! event. Returns 0 for a click on empty space.
+      QUndoCommand *handleClick(GLWidget *widget, QMouseEvent *event);
+
       //! Total length (device pixels) of the recorded path; used by the
-      //! minimum-path guard (a tap never deletes).
+      //! minimum-path guard (a sub-threshold press-release is a click, a longer
+      //! drag is a lasso).
       static double pathLength(const QVector<QPointF> &path);
 
       //! Bounding box (device pixels) of the recorded path; used to bbox-cull

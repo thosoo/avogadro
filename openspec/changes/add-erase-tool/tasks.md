@@ -5,7 +5,7 @@
 - [x] 1.1 Create `libavogadro/src/tools/erasetool.h` / `erasetool.cpp`: `EraseTool : public Tool` with `AVOGADRO_TOOL("Erase", tr("Erase"), …)` metadata, constructor (eraser icon `:/erase/erase.png`, tooltip describing the lasso gesture, no keyboard shortcut), `usefulness()` just below Draw, and a `settingsWidget()` with an "Adjust Hydrogens" checkbox (default checked). Verify the tools plugin builds: `cmake --build build --target erasetool`
 - [x] 1.2 Implement `mousePressEvent`: record the press point in device pixels, begin a lasso gesture (clear the path, set dragging), lazily connect `toolActivated` (`Qt::UniqueConnection`) to abandon an in-flight loop on tool switch, accept the event. Verify it builds.
 - [x] 1.3 Implement `mouseMoveEvent`: while dragging, append the pointer position (device pixels) to the lasso path; accept. Verify it builds.
-- [x] 1.4 Implement `mouseReleaseEvent` release assembly (D3/D4/D6): apply the minimum-path guard (D4 — abort on a tap, no command/undo/mutation), then acquire the molecule write lock with `tryLockForWrite` (D6 — abort cleanly on contention: discard polyline, no commands, no state), and on success construct one `DeleteAtomDrawCommand` per victim inside an `UndoSequence` (text "Lasso Delete") and return it. Verify it builds.
+- [x] 1.4 Implement `mouseReleaseEvent` release assembly (D3/D4/D6/D10): apply the minimum-path guard (D4 — route a sub-threshold press-release to a click and a longer drag to a lasso), then acquire the molecule write lock with `tryLockForWrite` (D6 — abort cleanly on contention: discard polyline, no commands, no state), and on success assemble the deletion — a single `DeleteAtomDrawCommand` for a click (D10) or one command per victim inside an `UndoSequence` for a lasso (D3), text "Lasso Delete" — and return it. Verify it builds.
 
 ## 2. Screen-space containment (D2)
 
@@ -37,4 +37,23 @@
 ## 7. Review and CI (D9)
 
 - [x] 7.1 Self-review the diff against design D1–D9 (containment space, guard semantics, undo grouping, hydrogen parity, lock discipline, overlay, gesture scoping, MSVC portability) and remove any throwaway artifacts.
-- [ ] 7.2 Trigger the Windows installer workflow (`gh workflow run 168745168 --ref <branch> --repo thosoo/avogadro`) and verify the build and test suite pass on MSVC per repo policy before opening a PR.
+- [x] 7.2 Trigger the Windows installer workflow (`gh workflow run 168745168 --ref <branch> --repo thosoo/avogadro`) and verify the build and test suite pass on MSVC per repo policy before opening a PR. Verified: run 42250370763 (Windows Installer on HEAD edf4f96db) completed success — `erasetool.cpp` compiled clean under MSVC in both jobs, Test step reported 100% tests passed (48/48).
+
+## 8. Single-click delete (D4, D6, D10)
+
+- [x] 8.1 At `mouseReleaseEvent`, branch on the minimum-path guard: a
+  sub-threshold press-release is a click. Route the click through screen-space
+  nearest-atom selection (D10): project atoms, bbox-cull against the click
+  point, and select the single atom nearest the click within the pick radius.
+  Acquire the molecule write lock with `tryLockForWrite` (D6); on contention
+  abort cleanly. Construct one `DeleteAtomDrawCommand` for the click victim
+  (adjustHydrogens per D5) and return it in one undo step. Verify it builds.
+- [x] 8.2 Implement the click single-atom deletion test: click on an atom
+  deletes that atom and its bonds (plus attached hydrogens per the
+  managed-hydrogen policy); click on empty space deletes nothing; a click near
+  two atoms deletes the nearer one.
+- [x] 8.3 Update the tap no-op test (6.3) to a click test: a sub-threshold
+  press-release over an atom now deletes that single atom (and its bonds and
+  attached hydrogens) and adds one undo entry; assert the click-vs-lasso
+  routing.
+- [x] 8.4 Re-run the erase suite plus neighboring suites and confirm all green.

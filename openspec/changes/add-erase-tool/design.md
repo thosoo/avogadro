@@ -29,16 +29,20 @@ motivation; behavior contract is in specs/erase-tool-interaction/spec.md.
 
 ## Decisions
 
-**D1 — Lasso over sweep or click-delete.** Alternatives: (a) click/tap delete —
-rejected as the primary gesture because accidental single clicks deleting atoms
-is the worst failure mode on touch and a regression risk on desktop; (b)
-sweep-erase (delete atoms the pointer crosses, live) — rejected because live
+**D1 — Lasso for group delete, single click for single-atom delete.** The
+Erase tool offers two gestures. The lasso (a freehand loop) is the primary
+group-delete gesture: it defers *all* work to release, nothing mutates before
+release, undo grouping is free (children execute on push), and containment is
+insensitive to pointer speed. A single click (a press-and-release without
+significant travel) is a secondary single-atom delete that removes the one atom
+under the pointer; it is not the primary gesture because an accidental single
+click deleting an atom is the worst failure mode on touch and a regression risk
+on desktop, so the minimum-path guard routes a sub-threshold press-release to a
+click and a longer drag to a lasso rather than making taps inert. Sweep-erase
+(delete atoms the pointer crosses, live) remains rejected because live
 mid-gesture mutation forces an "already applied" mode in the delete commands
 (~15 lines, new idiom for deletion), path interpolation so fast sweeps don't
-skip atoms, and heavier interrupted-gesture cleanup. Lasso defers *all* work to
-release: nothing mutates before release, undo grouping is free (children
-execute on push), tap-safety is enforced by a minimum-path guard rather than
-slop heuristics, and containment is insensitive to pointer speed.
+skip atoms, and heavier interrupted-gesture cleanup.
 
 **D2 — Containment in screen space at release.** Record the pointer path
 in device pixels (the same coordinate space the scaled mouse events and the
@@ -58,11 +62,13 @@ deletions — the exact flow the Draw tool's right-click uses today. No new
 command classes, no "already applied" mode needed. Undo text on the sequence
 ("Lasso Delete") with children carrying their existing texts.
 
-**D4 — Minimum-path guard makes taps inert.** A gesture whose polyline travel
-is below a small threshold (comparable to the click-vs-drag thresholds the other
-tools use) produces no command, no undo entry, no mutation. This is the
-enforcement of "a tap never deletes" — a guard at release, not an input-slop
-heuristic.
+**D4 — Minimum-path guard routes click vs. lasso.** A gesture whose polyline
+travel is below a small threshold (comparable to the click-vs-drag thresholds the
+tools use) is a click; a gesture at or above the threshold is a lasso. The
+guard therefore selects which deletion mode applies at release rather than
+making taps inert: a sub-threshold press-release deletes the single atom under
+the pointer, and a longer drag deletes the enclosed atoms. This is a guard at
+release, not an input-slop heuristic.
 
 **D5 — Managed-hydrogen parity by reuse.** Victims are determined in atom-id
 space; when adjust-hydrogens is enabled, managed hydrogens are excluded from the
@@ -92,6 +98,19 @@ shortcut; palette placement near the Draw tool. The tool connects to
 abandon an in-flight loop when another tool activates mid-gesture, and treats a
 null molecule / changed document as an abandon. Every exit path resets the
 polyline.
+
+**D10 — Click delete via screen-space nearest atom at release.** At release, if
+the recorded path travel is below the minimum-path threshold, the tool projects
+every atom position through the camera, bbox-culls against the click point, and
+selects the single atom nearest the click point within the atom pick radius —
+the same screen-space, no-GL_SELECT approach the lasso uses (D2). That atom is
+the sole victim; its attached hydrogens are handled by the managed-hydrogen
+policy (D5): with adjust-hydrogens enabled the single `DeleteAtomDrawCommand`
+carries `adjustHydrogens=true` so managed hydrogens churn away, and with it
+disabled the atom and its explicit bonded hydrogens are added as victims. The
+click is assembled into one undo step exactly as the lasso (D3) and returned at
+release, so nothing mutates before release; the click takes the molecule write
+lock at release like the lasso (D6).
 
 **D9 — MSVC/portability.** Plain Qt6 widget-less tool code following the
 existing tools' patterns; no threading primitives, no aggregate-init of

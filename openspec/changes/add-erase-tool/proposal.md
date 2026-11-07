@@ -13,8 +13,10 @@ deletion interaction.
   in this change; F7 is reserved for a future shortcut).
 - The tool deletes by **lasso**: press anywhere, drag a freehand loop, release —
   every atom enclosed by the loop is deleted; bonds follow their atoms.
-- A press-and-release without significant path (a tap) is a **no-op**: deletion
-  never happens on a single click, so accidental grazes erase nothing.
+- A press-and-release without significant path (a **click**) deletes the single
+  atom under the pointer (plus its attached hydrogens); a longer drag is a
+  lasso that deletes the enclosed atoms. The minimum-path guard routes a click
+  to a lasso, so a click is never a no-op.
 - One lasso = **one undo step** (an `UndoSequence` of existing
   `DeleteAtomDrawCommand`s); nothing is mutated before release.
 - Managed-hydrogen policy matches the Draw tool's right-click delete: with
@@ -29,10 +31,11 @@ deletion interaction.
 ## Capabilities
 
 ### New Capabilities
-- `erase-tool-interaction`: the Erase tool's lasso-deletion contract — tap
-  no-op, containment semantics, undo grouping, managed-hydrogen parity,
-  lock discipline during optimization, interrupted-lasso cleanup, and
-  overlay rendering on all tiers.
+- `erase-tool-interaction`: the Erase tool's deletion contract — lasso group
+  delete and single-click single-atom delete, click-vs-lasso routing,
+  containment semantics, undo grouping, managed-hydrogen parity, lock discipline
+  during optimization, interrupted-lasso cleanup, and overlay rendering on all
+  tiers.
 
 ### Modified Capabilities
 <!-- none: molecule-sketching's right-click delete and all other gestures are
@@ -49,6 +52,7 @@ deletion interaction.
   (`tryLock`) like the Draw tool; during a running AutoOpt session contention
   aborts the gesture cleanly with no residue (same pattern as the Draw tool's
   release path).
-- **Testing**: headless `QTest` mouse-drag sequences asserting containment
-  deletions, single-undo restoration, tap no-op, and interrupted-lasso cleanup;
+- **Testing**: headless `QTest` mouse sequences asserting containment deletions,
+  single-undo restoration, single-click single-atom deletion (and click on empty
+  space), managed-hydrogen parity on click, and interrupted-lasso cleanup;
   runs under the offscreen QPA platform like the existing tool tests.

@@ -26,6 +26,7 @@
 #include "drawcommand.h"
 
 #include <avogadro/atom.h>
+#include <avogadro/bond.h>
 #include <avogadro/camera.h>
 #include <avogadro/glwidget.h>
 #include <avogadro/painter.h>
@@ -40,6 +41,7 @@
 #include <QVBoxLayout>
 #include <QIcon>
 #include <QSettings>
+#include <QMouseEvent>
 #include <QDebug>
 
 #include <cmath>
@@ -48,10 +50,15 @@ using Eigen::Vector3d;
 
 namespace Avogadro {
 
-  //! Minimum total path length (device pixels) for a lasso to be a lasso.
-  //! A press-and-release (or a twitch) below this threshold is a tap and never
-  //! deletes (design D4).
+  //! Minimum total path length (device pixels) that distinguishes a lasso from
+  //! a click (design D4). A press-release whose travel is below this is a click;
+  //! a longer drag is a lasso.
   const double kMinLassoPath = 10.0;
+
+  //! Screen-space pick radius (device pixels) for the click gesture (D10). An
+  //! atom whose projected position is within this distance of the click point is
+  //! a candidate; the nearest one is deleted.
+  const double kAtomPickRadius = 12.0;
 
   EraseTool::EraseTool(QObject *parent) : Tool(parent),
     m_toolActivatedConnected(false),
@@ -63,7 +70,8 @@ namespace Avogadro {
     QAction *action = activateAction();
     action->setIcon(QIcon(QString::fromUtf8(":/erase/erase.png")));
     action->setToolTip(tr("Erase Tool\n\n"
-                          "Left Mouse: \tDrag a loop around atoms to delete them"));
+                          "Left Mouse Drag: \tDrag a loop around atoms to delete them\n"
+                          "Left Mouse Click: \tDelete the single atom under the pointer"));
     // No keyboard shortcut in this change (F7 is reserved for a future one).
   }
 
@@ -133,11 +141,10 @@ namespace Avogadro {
     // Record the final point.
     m_lassoPath.append(event->position());
 
-    // D4: minimum-path guard. A tap or twitch (path travel below the
-    // threshold) never deletes: no command, no undo entry, no mutation.
+    // D4: minimum-path guard. A sub-threshold press-release is a click (delete
+    // the single atom under the pointer); a longer drag is a lasso.
     if (pathLength(m_lassoPath) < kMinLassoPath) {
-      abandonLasso();
-      return 0;
+      return handleClick(widget, event);
     }
 
     Molecule *molecule = widget->molecule();
@@ -304,6 +311,112 @@ namespace Avogadro {
   {
     m_dragging = false;
     m_lassoPath.clear();
+  }
+
+  QUndoCommand *EraseTool::handleClick(GLWidget *widget, QMouseEvent *event)
+  {
+    // D10: a sub-threshold press-release is a click — delete the single atom
+    // nearest the click point within the pick radius. The click point is the
+    // release position (the last recorded path vertex).
+    if (!widget) {
+      abandonLasso();
+      return 0;
+    }
+
+    const QPointF click = m_lassoPath.isEmpty() ? QPointF() : m_lassoPath.last();
+
+    Molecule *molecule = widget->molecule();
+    if (!molecule) {
+      abandonLasso();
+      return 0;
+    }
+
+    // D2/D10: screen-space nearest atom, no GL_SELECT. Project every atom,
+    // bbox-cull against a box around the click, then pick the nearest within the
+    // pick radius. A click on empty space (no atom within the radius) deletes
+    // nothing.
+    const int index = nearestAtomAt(widget, click);
+    if (index < 0) {
+      abandonLasso();
+      return 0;
+    }
+
+    // D6: acquire the molecule write lock; on contention abort the gesture
+    // cleanly (discard the click, no commands, no transient state).
+    if (!molecule->lock()->tryLockForWrite()) {
+      abandonLasso();
+      return 0;
+    }
+
+    // D5/D10: determine the victim set. With adjust-hydrogens enabled, the
+    // single heavy-atom delete churns its managed hydrogens (adjustHydrogens =
+    // true). With it disabled, the atom and its bonded explicit hydrogens are
+    // all deletion victims. Hydrogen victims go first so an UndoSequence undo
+    // restores the heavy atom before each hydrogen re-adds its bond (same
+    // ordering invariant as the lasso, D5).
+    QList<int> victims;
+    QList<int> hydrogenVictims;
+    Atom *clickAtom = molecule->atomById(index);
+    if (m_addHydrogens) {
+      victims.append(index);
+    } else {
+      victims.append(index);
+      const QList<Bond *> bonds = molecule->bonds();
+      for (Bond *b : bonds) {
+        const unsigned long other = b->otherAtom(clickAtom->id());
+        Atom *h = molecule->atomById(other);
+        if (h && h->isHydrogen())
+          hydrogenVictims.append(static_cast<int>(other));
+      }
+    }
+    victims = hydrogenVictims + victims;
+
+    // D3: one DeleteAtomDrawCommand per victim inside an UndoSequence so a click
+    // is a single undo step. The commands snapshot atom data at construction
+    // (before any mutation); the deletions run later when the sequence is pushed
+    // under the undo stack's write lock.
+    UndoSequence *seq = new UndoSequence();
+    seq->setText(tr("Lasso Delete"));
+    for (int i : victims) {
+      DeleteAtomDrawCommand *cmd = new DeleteAtomDrawCommand(molecule, i,
+                                                             m_addHydrogens);
+      seq->append(cmd);
+    }
+
+    molecule->lock()->unlock();
+    abandonLasso();
+    if (event)
+      event->accept();
+    return seq;
+  }
+
+  int EraseTool::nearestAtomAt(GLWidget *widget, const QPointF &pt)
+  {
+    Molecule *molecule = widget->molecule();
+    if (!molecule)
+      return -1;
+
+    // Bbox around the click for a cheap pre-filter before the distance test.
+    const QRectF box(pt.x() - kAtomPickRadius, pt.y() - kAtomPickRadius,
+                     2.0 * kAtomPickRadius, 2.0 * kAtomPickRadius);
+
+    int best = -1;
+    const double bestDist2 = kAtomPickRadius * kAtomPickRadius;
+    const QList<Atom *> atoms = molecule->atoms();
+    for (int i = 0; i < atoms.size(); ++i) {
+      Atom *atom = atoms.at(i);
+      const Vector3d sp = widget->camera()->project(*atom->pos());
+      const QPointF p(sp.x(), sp.y());
+      if (!box.contains(p))
+        continue;
+      const double dx = p.x() - pt.x();
+      const double dy = p.y() - pt.y();
+      const double dist2 = dx * dx + dy * dy;
+      if (dist2 < bestDist2) {
+        best = i;
+      }
+    }
+    return best;
   }
 
   double EraseTool::pathLength(const QVector<QPointF> &path)

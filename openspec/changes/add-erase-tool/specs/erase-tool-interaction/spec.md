@@ -1,8 +1,9 @@
 ## Purpose
 
 Defines the interaction contract of the Erase tool: deletion by lasso (a freehand
-loop drawn on the canvas that removes the atoms it encloses), with tap-safety, one
-undo step per lasso, managed-hydrogen parity with the Draw tool's delete, clean
+loop drawn on the canvas that removes the atoms it encloses) and by single click
+(a press-and-release that removes the single atom under the pointer), with one
+undo step per gesture, managed-hydrogen parity with the Draw tool's delete, clean
 behavior during a running optimization, and a loop overlay that renders on every
 rendering tier.
 
@@ -40,25 +41,50 @@ auto-closed with a straight segment from its end to its start.
 - **THEN** atoms and bonds outside the loop are unchanged, including their
   positions, elements, and bond orders
 
-### Requirement: A tap never deletes
-A press and release without significant pointer travel SHALL NOT delete anything
-with the Erase tool: deletion SHALL happen only as the result of a drawn loop.
-An accidental touch, tap, or twitch on the canvas SHALL leave the molecule
-unchanged.
+### Requirement: A single click deletes one atom
+With the Erase tool active, a press-and-release without significant pointer
+travel (a click) SHALL delete the single atom whose projected position lies
+nearest the click point and within the atom pick radius, and bonds of the
+deleted atom SHALL be removed with it. That atom's attached hydrogens SHALL be
+removed according to the managed-hydrogen policy below. A click whose pointer
+lies outside the pick radius of every atom (a click on empty space) SHALL
+delete nothing. A press-and-release whose travel is at or above the minimum
+lasso threshold is a lasso and is governed by the lasso requirement, not this
+one: the minimum-path guard therefore distinguishes a click from a lasso, and a
+click is never a no-op.
 
-#### Scenario: Tap on an atom
+#### Scenario: Click on an atom
 - **WHEN** the user presses and releases without significant movement while the
   pointer is over an atom
-- **THEN** the molecule is unchanged and the undo stack gains no entry
+- **THEN** that atom is deleted, its bonds are removed, and the undo stack gains
+  one entry
 
-#### Scenario: Tap on empty space
-- **WHEN** the user presses and releases on empty canvas space
+#### Scenario: Click on empty space
+- **WHEN** the user presses and releases without significant movement on empty
+  canvas space
 - **THEN** the molecule is unchanged and no atom is created
 
-#### Scenario: Loop too small to be a loop
-- **WHEN** the user presses and drags a path whose travel is below the minimum
-  lasso threshold, then releases
-- **THEN** the molecule is unchanged and the undo stack gains no entry
+#### Scenario: Click resolves the nearest atom
+- **WHEN** the click point lies within the pick radius of one atom but is nearer
+  a different atom
+- **THEN** the nearer atom is deleted
+
+#### Scenario: Click is not a lasso
+- **WHEN** the user presses and releases with travel below the minimum lasso
+  threshold over an atom
+- **THEN** the gesture is a click and deletes that single atom (plus its
+  attached hydrogens), not a lasso
+
+#### Scenario: Click respects managed hydrogens
+- **WHEN** adjust-hydrogens is enabled and the user clicks a carbon whose
+  hydrogens are managed
+- **THEN** the carbon is deleted and its managed hydrogens are removed by the
+  hydrogen adjustment, not as independent click victims
+
+#### Scenario: Click with adjust-hydrogens off
+- **WHEN** adjust-hydrogens is disabled and the user clicks an atom that has
+  explicit bonded hydrogens
+- **THEN** the atom and its bonded hydrogens are deleted
 
 ### Requirement: One lasso is one undo step
 A single completed lasso that deletes N atoms SHALL appear as a single undo step:
