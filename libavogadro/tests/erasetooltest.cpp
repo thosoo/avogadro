@@ -355,10 +355,12 @@ void EraseToolTest::testClickResolvesNearestAtom()
   tool.setAddHydrogens(Qt::Unchecked);
 
   const QList<Atom *> atoms = mol->atoms();
-  Atom *near = atoms[0];
-  Atom *far = atoms[1];
-  const QPointF pn = projPoint(widget, near);
-  const QPointF pf = projPoint(widget, far);
+  // NB: `near`/`far` are MSVC far/near pointer qualifiers, so they cannot be
+  // used as local identifiers here (GCC treats them as ordinary names).
+  Atom *nearAtom = atoms[0];
+  Atom *farAtom = atoms[1];
+  const QPointF pn = projPoint(widget, nearAtom);
+  const QPointF pf = projPoint(widget, farAtom);
   const double dx = pf.x() - pn.x();
   const double dy = pf.y() - pn.y();
   const double sep = std::sqrt(dx * dx + dy * dy);
@@ -376,8 +378,8 @@ void EraseToolTest::testClickResolvesNearestAtom()
   QVERIFY(cmd != nullptr);
   stack.push(cmd);                         // applying the command deletes the atom
   QCOMPARE(mol->numAtoms(), before - 1);
-  QVERIFY(mol->atomById(near->id()) == nullptr);   // the nearer atom is gone
-  QVERIFY(mol->atomById(far->id()) != nullptr);    // the farther atom survives
+  QVERIFY(mol->atomById(nearAtom->id()) == nullptr);   // the nearer atom is gone
+  QVERIFY(mol->atomById(farAtom->id()) != nullptr);    // the farther atom survives
 
   delete widget;
   delete mol;
