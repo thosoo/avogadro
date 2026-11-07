@@ -401,7 +401,15 @@ namespace Avogadro {
                      2.0 * kAtomPickRadius, 2.0 * kAtomPickRadius);
 
     int best = -1;
-    const double bestDist2 = kAtomPickRadius * kAtomPickRadius;
+    // bestDist2 seeds at the radius squared so only atoms inside the pick
+    // radius qualify, but it is then tracked as the running *minimum* distance
+    // so the CLOSEST atom within the radius wins. The original code kept it a
+    // constant (kAtomPickRadius^2), so `dist2 < bestDist2` kept overwriting
+    // `best` with the LAST atom inside the radius instead of the nearest one.
+    // On a densely packed molecule an inner heavy atom (carbon) often shares
+    // the pick radius with a bonded hydrogen that sorts later in the atom
+    // list; that hydrogen was deleted instead of the carbon the user clicked.
+    double bestDist2 = kAtomPickRadius * kAtomPickRadius;
     const QList<Atom *> atoms = molecule->atoms();
     for (int i = 0; i < atoms.size(); ++i) {
       Atom *atom = atoms.at(i);
@@ -413,6 +421,7 @@ namespace Avogadro {
       const double dy = p.y() - pt.y();
       const double dist2 = dx * dx + dy * dy;
       if (dist2 < bestDist2) {
+        bestDist2 = dist2;
         best = i;
       }
     }

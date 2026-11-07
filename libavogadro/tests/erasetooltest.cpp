@@ -22,13 +22,17 @@
 #include <avogadro/molecule.h>
 #include <avogadro/undosequence.h>
 #include <avogadro/undostack.h>
+#include "libavogadro/src/engines/bsdyengine.h"
 
 #include <Eigen/Core>
 
 #include <QtTest>
 #include <QMouseEvent>
+#include <QOpenGLContext>
 
 #include <cmath>
+#include <cstdio>
+#include <QImage>
 
 using Eigen::Vector3d;
 
@@ -213,11 +217,13 @@ private Q_SLOTS:
   void testClickSingleAtom();
   void testClickEmptySpace();
   void testClickResolvesNearestAtom();
+  void testClickPicksClosestAtom();
   void testClickManagedHydrogenParity();
   void testSingleUndo();
   void testUnclosedLoopAutoCloses();
   void testManagedHydrogenParity();
   void testInterruptedLasso();
+  void testOverlayRenders();
   void testLockContentionAbort();
   void testOverlayPaint();
 };
@@ -341,6 +347,59 @@ void EraseToolTest::testClickEmptySpace()
   QVERIFY(cmd == nullptr);
   QCOMPARE(mol->numAtoms(), before);
   QCOMPARE(stack.count(), 0);
+
+  delete widget;
+  delete mol;
+}
+
+void EraseToolTest::testClickPicksClosestAtom()
+{
+  // Regression (D10): nearestAtomAt must return the CLOSEST atom within the
+  // pick radius, not the LAST one inside it. Two atoms projecting close
+  // together, clicked on the nearer: the nearer is deleted, not the farther.
+  // The original code compared each atom's distance to a *constant*
+  // (kAtomPickRadius^2) instead of the running minimum, so it kept the last
+  // atom inside the radius. On a packed molecule that deleted a bonded
+  // hydrogen (later in the atom list) in place of the inner carbon clicked.
+  Molecule *mol = makeClusterMolecule();
+  GLWidget *widget = makeWidget(mol);
+  EraseTool tool;
+  tool.setAddHydrogens(Qt::Unchecked);
+
+  // Atom 0 is the nearer target; a second carbon is placed ~5 device pixels
+  // from it along +X in screen space (the farther candidate, later in the list).
+  Atom *nearAtom = mol->atom(0);
+  const QPointF pn = projPoint(widget, nearAtom);
+
+  // Measure the local projection scale (device px per world unit) at atom 0 by
+  // projecting a unit step along +X, so the second atom lands at a known screen
+  // offset regardless of the camera's focal length.
+  const Vector3d pUnit = widget->camera()->project(Vector3d(1.0, 0.0, 0.0));
+  const double scale = std::sqrt(
+    (pUnit.x() - pn.x()) * (pUnit.x() - pn.x()) +
+    (pUnit.y() - pn.y()) * (pUnit.y() - pn.y()));
+  QVERIFY(scale > 0.0);
+  const double targetPx = 5.0;
+  const double worldStep = targetPx / scale;
+
+  Atom *farAtom = mol->addAtom(6, Vector3d(worldStep, 0.0, 0.0));
+  const QPointF pf = projPoint(widget, farAtom);
+
+  // Sanity: the two atoms project close enough to share the 12 px pick radius.
+  const double sep = std::sqrt((pf.x() - pn.x()) * (pf.x() - pn.x()) +
+                               (pf.y() - pn.y()) * (pf.y() - pn.y()));
+  QVERIFY(sep < 12.0);
+
+  // Click exactly on the nearer atom. The closest atom (atom 0) must be
+  // deleted; the original bug deleted the farther atom (last inside radius).
+  const int before = mol->numAtoms();
+  UndoStack stack(mol);
+  QUndoCommand *cmd = driveClick(tool, widget, pn);
+  QVERIFY(cmd != nullptr);
+  stack.push(cmd);                         // applying the command deletes an atom
+  QCOMPARE(mol->numAtoms(), before - 1);
+  QVERIFY(mol->atomById(nearAtom->id()) == nullptr);   // nearer atom is gone
+  QVERIFY(mol->atomById(farAtom->id()) != nullptr);    // farther atom survives
 
   delete widget;
   delete mol;
@@ -673,6 +732,77 @@ void EraseToolTest::testOverlayPaint()
   QVERIFY(tool.paint(widget));
   QCOMPARE(mol->numAtoms(), 5); // molecule untouched by the overlay pass
 
+  delete widget;
+  delete mol;
+}
+
+void EraseToolTest::testOverlayRenders()
+{
+  // Regression for "lasso invisible": the in-progress loop SHALL render through
+  // Tool::paint() during a drag on the modern/compat/legacy tiers. This drives a
+  // real lasso through the widget's full render flow (setTool -> renderNow ->
+  // paintOverlaysAfterFrame -> Tool::paint) and reads the framebuffer back to
+  // confirm the loop's red line actually draws. The overlay is drawn with the
+  // fixed-function painter (GLPainter::drawLineLoop), so it renders on a
+  // Compatibility-profile context; a Core-profile context skips fixed-function
+  // draws (documented, affects every tool overlay, not just this one).
+  Molecule *mol = makeClusterMolecule();
+  GLWidget *widget = makeWidget(mol);
+  widget->resize(800, 600);
+  EraseTool tool;
+  tool.setAddHydrogens(Qt::Unchecked);
+  widget->setMolecule(mol);
+  BSDYEngine *engine = new BSDYEngine;
+  engine->setMolecule(mol);
+  engine->setEnabled(true);
+  widget->addEngine(engine);
+  widget->setTool(&tool);
+  widget->show();
+  QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+  // The offscreen platform gives a QOpenGLWidget no usable GL context; renderNow
+  // would segfault. Match energyhudtest: bail out cleanly if the context is bad.
+  if (!widget->context() || !widget->context()->isValid())
+    QSKIP("QOpenGLWidget has no usable GL context on this platform "
+          "(offscreen; real hardware is the acceptance gate)",
+          SkipAll);
+
+  // Drive a visible lasso loop (a square) and render several frames so the
+  // overlay is painted each frame.
+  const QList<QPointF> loop = {
+    QPointF(200, 200), QPointF(600, 200), QPointF(600, 400), QPointF(200, 400)};
+  QMouseEvent press(QEvent::MouseButtonPress, loop.first(), loop.first(),
+                    Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+  tool.mousePressEvent(widget, &press);
+  for (int i = 1; i < loop.size(); ++i) {
+    QMouseEvent move(QEvent::MouseMove, loop[i], loop[i], Qt::NoButton,
+                     Qt::LeftButton, Qt::NoModifier);
+    tool.mouseMoveEvent(widget, &move);
+  }
+  for (int i = 0; i < 6; ++i) {
+    widget->renderNow();
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+  }
+
+  // Read the framebuffer directly (not grab(), which returns black headlessly).
+  widget->makeCurrent();
+  const int w = widget->width(), h = widget->height();
+  QImage img(w, h, QImage::Format_ARGB32);
+  glPixelStorei(GL_PACK_ALIGNMENT, 1);
+  glReadPixels(0, 0, w, h, GL_BGRA, GL_UNSIGNED_BYTE, img.bits());
+  widget->doneCurrent();
+  img = img.mirrored(false, true); // GL origin is bottom-left
+
+  // The overlay is (0.9, 0.2, 0.2): strong red, weak green/blue.
+  int red = 0;
+  for (int y = 0; y < h; y += 2)
+    for (int x = 0; x < w; x += 2) {
+      QColor c = img.pixel(x, y);
+      if (c.red() > 90 && c.green() < 90 && c.blue() < 90)
+        ++red;
+    }
+  // The loop spans device pixels x in [200,600], y in [200,400]; the sampled
+  // red pixels must fall inside it, proving the loop (not stray artefacts) draws.
+  QVERIFY(red > 0);
   delete widget;
   delete mol;
 }

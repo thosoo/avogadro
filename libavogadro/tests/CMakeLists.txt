@@ -149,6 +149,11 @@ foreach (test ${tests})
     # loader); the guard is in erasetool.h under AVOGADRO_TEST_NOPLUGIN.
     list(APPEND test_SRCS ../src/tools/erasetool.cpp)
     list(APPEND test_SRCS ../src/tools/drawcommand.cpp)
+    # testOverlayRenders drives a real lasso through the widget's render flow and
+    # reads the framebuffer back, so compile the real ball-and-stick engine (as
+    # the autooptrepro/energyhud tests do) to give the scene instanced content
+    # and trigger the AUTOUIC generation of bsdyengine's ui_*.h header.
+    list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)
   endif()
   if (${test} STREQUAL "insertfragmentextension")
     list(APPEND test_SRCS
