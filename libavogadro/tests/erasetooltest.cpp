@@ -218,6 +218,7 @@ private Q_SLOTS:
   void testClickEmptySpace();
   void testClickResolvesNearestAtom();
   void testClickPicksClosestAtom();
+  void testClickPickScalesWithScaleFactor();
   void testClickManagedHydrogenParity();
   void testSingleUndo();
   void testUnclosedLoopAutoCloses();
@@ -439,6 +440,51 @@ void EraseToolTest::testClickResolvesNearestAtom()
   QCOMPARE(mol->numAtoms(), before - 1);
   QVERIFY(mol->atomById(nearAtom->id()) == nullptr);   // the nearer atom is gone
   QVERIFY(mol->atomById(farAtom->id()) != nullptr);    // the farther atom survives
+
+  delete widget;
+  delete mol;
+}
+
+void EraseToolTest::testClickPickScalesWithScaleFactor()
+{
+  // Regression (HiDPI): the single-click pick radius must scale with the
+  // device-pixel ratio so the click hitbox keeps a constant logical size. At
+  // QT_SCALE_FACTOR=2 the pick radius is 2x the no-HiDPI radius, so a click
+  // that lands between the two radii (18 device px for dpr=2) deletes the atom
+  // with the fix but misses without it.
+  Molecule *mol = new Molecule;
+  mol->addAtom(6, Vector3d(0.0, 0.0, 0.0));
+  GLWidget *widget = makeWidget(mol);
+  widget->resize(800, 600);
+  widget->setMolecule(mol);
+  EraseTool tool;
+  tool.setAddHydrogens(Qt::Unchecked);
+  widget->setTool(&tool);
+  QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+
+  const double dpr = widget->devicePixelRatioF();
+  if (dpr < 2.0)
+    QSKIP("devicePixelRatioF() is < 2 on this runner (QT_SCALE_FACTOR not "
+          "honoured); HiDPI scaling not exercised",
+          SkipAll);
+
+  Atom *atom = mol->atom(0);
+  const QPointF pn = projPoint(widget, atom);
+  // The tool's pick-radius budget is a file-local constant in erasetool.cpp
+  // (kAtomPickRadius = 12 logical px) not exposed in the header; mirror it here.
+  const double kNoHiDpiPickRadius = 12.0;
+  // A click distance strictly between the no-HiDPI radius (12) and the HiDPI
+  // radius (12 * dpr): 18 px at dpr=2, 21 at dpr=2.5. Without the fix it lands
+  // outside the 12 px radius (miss); with the fix it is inside (hit).
+  const double clickDist = kNoHiDpiPickRadius * (1.0 + dpr) / 2.0;
+  const QPointF click(pn.x() + clickDist, pn.y());
+
+  UndoStack stack(mol);
+  QUndoCommand *cmd = driveClick(tool, widget, click);
+  QVERIFY(cmd != nullptr);
+  stack.push(cmd);                       // applying the command deletes the atom
+  QCOMPARE(mol->numAtoms(), 0);
+  QVERIFY(mol->atomById(atom->id()) == nullptr);
 
   delete widget;
   delete mol;
@@ -784,8 +830,12 @@ void EraseToolTest::testOverlayRenders()
   }
 
   // Read the framebuffer directly (not grab(), which returns black headlessly).
+  // Read the full device-pixel framebuffer (not the logical size) so the test
+  // is correct on HiDPI displays, where the framebuffer is devicePixelRatioF()
+  // times larger than widget->width() x widget->height().
   widget->makeCurrent();
-  const int w = widget->width(), h = widget->height();
+  const int w = int(widget->width() * widget->devicePixelRatioF());
+  const int h = int(widget->height() * widget->devicePixelRatioF());
   QImage img(w, h, QImage::Format_ARGB32);
   glPixelStorei(GL_PACK_ALIGNMENT, 1);
   glReadPixels(0, 0, w, h, GL_BGRA, GL_UNSIGNED_BYTE, img.bits());
@@ -806,6 +856,20 @@ void EraseToolTest::testOverlayRenders()
   delete widget;
   delete mol;
 }
+
+//! Force QT_SCALE_FACTOR=2 before QGuiApplication exists (QTEST_MAIN creates it)
+//! so devicePixelRatioF() reports 2 and the HiDPI pick-scaling path is exercised
+//! for the whole binary. Mirrors hidpiviewporttest. Skipped per-test when the
+//! runner's platform does not honour QT_SCALE_FACTOR.
+struct HiDpiEnvSetter
+{
+  HiDpiEnvSetter()
+  {
+    if (!qEnvironmentVariableIsSet("QT_SCALE_FACTOR"))
+      qputenv("QT_SCALE_FACTOR", "2");
+  }
+};
+HiDpiEnvSetter g_hiDpiEnvSetter;
 
 QTEST_MAIN(EraseToolTest)
 #include "erasetooltest.moc"

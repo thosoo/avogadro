@@ -396,9 +396,16 @@ namespace Avogadro {
     if (!molecule)
       return -1;
 
+    // Pick radius in device pixels. kAtomPickRadius is a logical-pixel budget
+    // (~12 logical px); multiply by the device-pixel ratio so the click hitbox
+    // keeps the same on-screen (logical) size at any scale (logical size =
+    // pickRadius / dpr = kAtomPickRadius, constant). Without this a 250% display
+    // shrinks the hitbox to ~5 logical px and feels too small.
+    const double pickRadius = kAtomPickRadius * widget->devicePixelRatioF();
+
     // Bbox around the click for a cheap pre-filter before the distance test.
-    const QRectF box(pt.x() - kAtomPickRadius, pt.y() - kAtomPickRadius,
-                     2.0 * kAtomPickRadius, 2.0 * kAtomPickRadius);
+    const QRectF box(pt.x() - pickRadius, pt.y() - pickRadius,
+                     2.0 * pickRadius, 2.0 * pickRadius);
 
     int best = -1;
     // bestDist2 seeds at the radius squared so only atoms inside the pick
@@ -409,7 +416,7 @@ namespace Avogadro {
     // On a densely packed molecule an inner heavy atom (carbon) often shares
     // the pick radius with a bonded hydrogen that sorts later in the atom
     // list; that hydrogen was deleted instead of the carbon the user clicked.
-    double bestDist2 = kAtomPickRadius * kAtomPickRadius;
+    double bestDist2 = pickRadius * pickRadius;
     const QList<Atom *> atoms = molecule->atoms();
     for (int i = 0; i < atoms.size(); ++i) {
       Atom *atom = atoms.at(i);
