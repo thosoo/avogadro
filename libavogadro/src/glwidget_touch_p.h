@@ -133,15 +133,19 @@ public:
 
 private:
   const QEventPoint *find(const QList<QEventPoint> &points, int id) const;
-  //! Widget-local logical position of a point. We read scenePosition(): Qt
-  //! maps QEventPoint::position() to the receiving widget (widget-local) while
-  //! scenePosition() stays window-local; on the embedded GLWidget the canvas
-  //! sits below toolbar/dock chrome, so the window-local offset is corrected at
-  //! the GLWidget::touchEvent boundary (design D9) rather than here, keeping the
-  //! machine unit-testable with constructed events whose scenePosition is set.
-  //! The machine's internal math (slop, zoom delta, centroid delta) is
-  //! translation-invariant, so window-local is fine internally; only the
-  //! absolute synthesized position needs the widget-local correction.
+  //! Widget-local logical position of a point. We read scenePosition(): in Qt
+  //! 6 widget delivery scenePosition() equals globalPosition() (global logical
+  //! screen coords — qguiapplication.cpp sets setScenePosition(ep,
+  //! tempPt.globalPosition())), while position() = mapFromGlobal(globalPosition())
+  //! (qapplication.cpp updateTouchPointsForWidget rewrites only position()). On
+  //! the embedded GLWidget the canvas sits below toolbar/dock chrome and the
+  //! window sits somewhere on screen, so the GLOBAL offset is corrected at the
+  //! GLWidget::touchEvent boundary (subtracting mapToGlobal(0,0), design D9)
+  //! rather than here, keeping the machine unit-testable with constructed
+  //! events whose scenePosition is set. The machine's internal math (slop, zoom
+  //! delta, centroid delta) is translation-invariant, so global is fine
+  //! internally; only the absolute synthesized position needs the widget-local
+  //! correction.
   QPointF posOf(const QEventPoint &p) const { return p.scenePosition(); }
   bool isTracked(int id) const;
   bool isLive(const QEventPoint &p) const
