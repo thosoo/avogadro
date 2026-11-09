@@ -107,7 +107,7 @@ struct TouchResult {
 //!   ignored until it lifts, never promoted (also palm rejection). The
 //!   blacklist survives stroke end, so a resting finger never wakes as a new
 //!   touch, and a third finger never substitutes into a broken pinch pair.
-class TouchState {
+class A_EXPORT TouchState {
 public:
   enum State { Idle, Pending, Stroke, Gesture };
 
