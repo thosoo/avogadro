@@ -3218,6 +3218,23 @@ namespace Avogadro {
         GLWidget::setCurrent(this);
       }
 
+    // Route the raw touch stream to the touch state machine. Without this the
+    // pipeline is production-dead: QWidget (Qt 6) declares no touchEvent
+    // virtual, so the touchEvent() override is NOT part of the virtual dispatch
+    // table Qt walks, and QWidget::event() never calls it. Because
+    // WA_AcceptTouchEvents also suppresses Qt's touch-to-mouse synthesis, no
+    // touch would reach any tool or the camera. Handle the stream here and
+    // return touchEvent()'s result so Qt stops processing the touch.
+    switch ( event->type() ) {
+      case QEvent::TouchBegin:
+      case QEvent::TouchUpdate:
+      case QEvent::TouchEnd:
+      case QEvent::TouchCancel:
+        return touchEvent( static_cast<QTouchEvent *>( event ) );
+      default:
+        break;
+    }
+
     return QOpenGLWidget::event(event);
   }
 

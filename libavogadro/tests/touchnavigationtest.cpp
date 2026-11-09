@@ -259,6 +259,7 @@ private Q_SLOTS:
 
   // --- Widget integration (touchEvent -> real tool) ------------------------
   void testTapErasesAtom();
+  void testTouchEventsRouteThroughEvent();
   void testLassoThroughSynthesis();
   void testMouseRegressionGuard();
   void testSynthesizedPositionScalesWithDpr();
@@ -736,6 +737,47 @@ void TouchNavigationTest::testTapErasesAtom()
   end << makePoint(0, QEventPoint::Released, logical);
   QTouchEvent endEvent(QEvent::TouchEnd, nullptr, Qt::NoModifier, end);
   widget->touchEvent(&endEvent);
+
+  QVERIFY(mol->atomById(target->id()) == nullptr); // the tapped atom is gone
+  QVERIFY(mol->atomById(distant->id()) != nullptr); // the distant one stays
+
+  delete widget;
+  delete mol;
+}
+
+void TouchNavigationTest::testTouchEventsRouteThroughEvent()
+{
+  // P0 regression guard: GLWidget::event() MUST route the raw touch stream to
+  // touchEvent(). Without that routing the pipeline is production-dead: QWidget
+  // (Qt 6) declares no touchEvent virtual, so the touchEvent() override is not
+  // part of the virtual dispatch table Qt walks and QWidget::event() never calls
+  // it; WA_AcceptTouchEvents then also suppresses Qt's touch-to-mouse synthesis,
+  // so no touch reaches any tool or the camera. This drives the tap through
+  // event() (the real delivery path) rather than calling touchEvent() directly,
+  // and asserts the observable effect (the tapped atom is erased).
+  Molecule *mol = makeClusterMolecule();
+  GLWidget *widget = makeWidget(mol);
+  EraseTool tool;
+  tool.setAddHydrogens(Qt::Unchecked);
+  widget->setMolecule(mol);
+  widget->setTool(&tool);
+  Avogadro::UndoStack undoStack(mol);
+  widget->setUndoStack(&undoStack);
+
+  Atom *target = mol->atom(0);
+  Atom *distant = mol->atom(4); // captured before the deletion compacts indices
+  const qreal dpr = widget->devicePixelRatioF();
+  const QPointF logical = projPoint(widget, target) / dpr;
+
+  QList<QEventPoint> begin;
+  begin << makePoint(0, QEventPoint::Pressed, logical);
+  QTouchEvent beginEvent(QEvent::TouchBegin, nullptr, Qt::NoModifier, begin);
+  widget->event(&beginEvent); // routed through GLWidget::event()
+
+  QList<QEventPoint> end;
+  end << makePoint(0, QEventPoint::Released, logical);
+  QTouchEvent endEvent(QEvent::TouchEnd, nullptr, Qt::NoModifier, end);
+  widget->event(&endEvent);
 
   QVERIFY(mol->atomById(target->id()) == nullptr); // the tapped atom is gone
   QVERIFY(mol->atomById(distant->id()) != nullptr); // the distant one stays
