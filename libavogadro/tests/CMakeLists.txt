@@ -166,9 +166,14 @@ foreach (test ${tests})
     # directly, never via Qt's plugin loader); the guard is in erasetool.h /
     # navigatetool.h under AVOGADRO_TEST_NOPLUGIN. The navigate-tool rotate test
     # drives real GL_SELECT picking, so compile the real ball-and-stick engine.
+    # DrawTool is also compiled directly (the pinch-draws-no-atom integration
+    # test), with drawcommand.cpp already present and placement.cpp for the
+    # click-to-extend helpers, exactly as autooptrepro/energyhud do.
     list(APPEND test_SRCS ../src/tools/erasetool.cpp)
     list(APPEND test_SRCS ../src/tools/drawcommand.cpp)
     list(APPEND test_SRCS ../src/tools/navigatetool.cpp)
+    list(APPEND test_SRCS ../src/tools/drawtool.cpp)
+    list(APPEND test_SRCS ../src/tools/placement.cpp)
     # NavigateTool's overlay painting uses Eyecandy (draws the rotate/zoom/pan
     # eye-candy), which is not exported from libavogadro.so, so compile it too.
     list(APPEND test_SRCS ../src/tools/eyecandy.cpp)

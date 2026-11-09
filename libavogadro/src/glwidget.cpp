@@ -469,6 +469,29 @@ namespace detail {
     // interaction is already in flight must never clobber the tracked state.
     switch (m_state) {
       case Stroke: {
+        if (m_strokeArming) {
+          // Delivery-independence (design D2, task 5.5): a second finger
+          // arriving as its own touch-begin during the arming window forms a
+          // pinch, like the PENDING begin case. A begin re-delivering only the
+          // primary is a no-op while arming.
+          for (const QEventPoint &p : points) {
+            if (p.id() == m_primaryId || m_blacklist.contains(p.id()) ||
+                !isLive(p))
+              continue;
+            m_state = Gesture;
+            m_strokeArming = false;
+            m_gestureId1 = m_primaryId;
+            m_gestureId2 = p.id();
+            const QPointF a = m_primaryLastPos;
+            const QPointF b = posOf(*find(points, m_gestureId2));
+            m_lastDistance = distance(a, b);
+            m_lastCentroid = centroid(a, b);
+            m_centroidValid = true;
+            result.cameraActive = true;
+            return;
+          }
+          return;
+        }
         // Second-class: a point beginning mid-stroke is blacklisted; the
         // stroke is unaffected.
         QSet<int> keep;
@@ -538,7 +561,7 @@ namespace detail {
   }
 
   void TouchState::onUpdate(const QList<QEventPoint> &points,
-                            qint64 /* timestamp */,
+                            qint64 timestamp,
                             TouchResult &result)
   {
     switch (m_state) {
@@ -579,18 +602,72 @@ namespace detail {
         const QPointF pos = posOf(*primary);
         m_primaryLastPos = pos;
         // PENDING -> STROKE: travel at or above the slop synthesizes a press at
-        // the traveled-to position, then moves follow.
+        // the traveled-to position, then moves follow. The press is HELD for a
+        // short arming window (kTouchStrokeArmMs) so a second finger arriving
+        // in that window forms a two-finger GESTURE (a pinch) instead of the
+        // stroke drawing an atom (design D2, task 5.5).
         if (distance(m_primaryStart, pos) >= m_slop) {
           m_state = Stroke;
-          result.emitPress(pos);
+          m_strokeArming = true;
+          m_strokePressPos = pos;
+          m_armStart = timestamp;
         }
         // Below the slop: stay PENDING and emit nothing (jitter swallow).
         break;
       }
 
       case Stroke: {
-        // Second-class rule: any new live point (palm / extra finger) is
-        // blacklisted; the stroke itself is unaffected.
+        // During the arming window a second live point forms a pinch (a real
+        // second finger, not a palm: palms land after the window). Otherwise
+        // the second-class rule applies (any new live point is blacklisted).
+        if (m_strokeArming) {
+          int second = -1;
+          for (const QEventPoint &p : points) {
+            if (p.id() == m_primaryId || m_blacklist.contains(p.id()) ||
+                p.state() == QEventPoint::Released)
+              continue;
+            second = p.id();
+            break;
+          }
+          if (second != -1) {
+            // A second finger arrived during the arming window: promote to a
+            // two-finger GESTURE (pinch). The held press is never emitted, so
+            // no editing tool draws an atom from it. Use the primary's live
+            // position in this update (not the stale slop-crossing position)
+            // so the first zoom/pan delta is not under-reported by the
+            // primary's travel since slop-crossing.
+            m_state = Gesture;
+            m_strokeArming = false;
+            m_gestureId1 = m_primaryId;
+            m_gestureId2 = second;
+            const QEventPoint *primaryPt = find(points, m_primaryId);
+            const QPointF a = primaryPt ? posOf(*primaryPt) : m_primaryLastPos;
+            const QPointF b = posOf(*find(points, m_gestureId2));
+            m_lastDistance = distance(a, b);
+            m_lastCentroid = centroid(a, b);
+            m_centroidValid = true;
+            result.cameraActive = true;
+            return;
+          }
+          const QEventPoint *primary = find(points, m_primaryId);
+          if (primary && primary->state() != QEventPoint::Released) {
+            const QPointF pos = posOf(*primary);
+            m_primaryLastPos = pos;
+            // The arming window has elapsed: emit the held press at the
+            // slop-crossing position, then the current move, and proceed as a
+            // normal stroke.
+            if (timestamp - m_armStart >= kTouchStrokeArmMs) {
+              m_strokeArming = false;
+              result.emitPress(m_strokePressPos);
+              if (pos != m_strokePressPos)
+                result.emitMove(pos);
+            }
+          }
+          // else primary lifted during arming: handled by onEnd.
+          break;
+        }
+        // Non-arming stroke (window elapsed, press already emitted): the
+        // second-class rule applies (any new live point is blacklisted).
         QSet<int> keep;
         keep.insert(m_primaryId);
         blacklistNew(points, keep);
@@ -655,6 +732,18 @@ namespace detail {
       }
 
       case Stroke: {
+        if (m_strokeArming) {
+          // The press was held for the arming window and the finger lifted
+          // before it elapsed: no press was ever emitted. The travel was
+          // >= slop, so this is a short stroke, not a tap; emit press+release
+          // at the stroke's positions so the tool sees a complete gesture.
+          m_strokeArming = false;
+          result.emitPress(m_strokePressPos);
+          result.emitRelease(m_primaryLastPos);
+          m_state = Idle;
+          m_primaryId = -1;
+          break;
+        }
         // Synthesize the release at the primary's last known position. The
         // blacklist survives: a resting finger that lifts after the stroke is
         // still ignored (it is removed from the blacklist only when it lifts).
@@ -691,6 +780,15 @@ namespace detail {
         m_primaryId = -1;
         break;
       case Stroke:
+        if (m_strokeArming) {
+          // The press was never emitted (still arming), so no tool event has
+          // reached the tool and there is no stroke to clean up: go Idle with
+          // no events.
+          m_strokeArming = false;
+          m_state = Idle;
+          m_primaryId = -1;
+          break;
+        }
         // Emit the synthesized release so the tool's stroke ends cleanly (the
         // tool-side release semantics — hydrogen churn, undo push — run), then
         // Idle.

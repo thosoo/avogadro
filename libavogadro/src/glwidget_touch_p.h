@@ -20,6 +20,15 @@ namespace detail {
 //! a tap. A named constant so it is tuned in one place (device smoke, task 5).
 constexpr double kTouchSlopLogicalPx = 10.0;
 
+//! Stroke-arming grace window (design D2, task 5.5): once a single finger has
+//! crossed the slop it enters an ARMED STROKE in which the press is HELD for
+//! this many milliseconds before it is emitted to the tool. The hold lets a
+//! second finger that arrives during the window form a two-finger GESTURE
+//! (pinch) instead of the stroke drawing an atom (the edit tool sees the held
+//! press). A genuine one-finger stroke proceeds once the window elapses. Tuned
+//! from device evidence (task 5); a named constant so it changes in one place.
+constexpr qint64 kTouchStrokeArmMs = 50;
+
 //! Result of feeding one touch event through the touch state machine.
 //!
 //! The state machine is GL-independent: it emits synthesized mouse events
@@ -98,9 +107,12 @@ struct TouchResult {
 //!
 //! State diagram (keyed by touch-point id):
 //!   touch (1 pt) ──► PENDING (nothing sent to tools)
-//!                    ├─ move >= slop ─────► STROKE (mouse synthesis)
+//!                    ├─ move >= slop ─────► STROKE (ARMED: press held)
 //!                    ├─ quick release < slop ─► synthesized click
 //!                    └─ 2nd point observed ─► GESTURE
+//!   STROKE (armed) ─► GESTURE if a 2nd finger arrives during the arming
+//!   window (a pinch, no atom drawn); otherwise the held press is emitted and
+//!   the stroke proceeds.
 //!   GESTURE (pinch zoom / centroid pan), tracked by the two original ids;
 //!   ends when either original lifts, leaving the camera where it was.
 //!   Any point that arrives while an interaction is in flight is second-class:
@@ -183,6 +195,14 @@ private:
   QPointF m_primaryStart;
   qint64 m_primaryTimestamp = 0;
   QPointF m_primaryLastPos;
+
+  // STROKE arming (design D2, task 5.5): while arming the press is held so a
+  // second finger arriving in the window can still form a pinch. m_strokePressPos
+  // is the slop-crossing position the held press is emitted at; m_armStart
+  // is the timestamp the arming window started.
+  bool m_strokeArming = false;
+  QPointF m_strokePressPos;
+  qint64 m_armStart = 0;
 
   // GESTURE: the two original point ids and the last distance/centroid.
   int m_gestureId1 = -1;

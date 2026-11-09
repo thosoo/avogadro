@@ -83,6 +83,21 @@ id.** From the exploration session:
 - **STROKE**: subsequent points synthesize mouse moves; the release
   synthesizes the mouse release (tool-side release semantics — hydrogen
   churn, undo push — run unchanged).
+- **Stroke arming (task 5.5, P52 pinch-draws-atom fix)**: when a single
+  finger crosses the slop it enters an ARMED STROKE — the press is HELD for
+  `kTouchStrokeArmMs` (~50ms, a named constant) rather than emitted
+  immediately. A second finger arriving during the window forms a two-finger
+  GESTURE with the held press never emitted, so an editing tool (draw/erase)
+  draws no atom; a genuine one-finger stroke proceeds once the window elapses
+  (the press is then emitted at the slop-crossing position). This is the
+  policy decision selected by the P52 evidence (task 5.3, cause 2): with the
+  draw tool active a pinch drew an atom because finger 1 crossed the slop and
+  the immediate press reached the draw tool before finger 2 arrived.
+  Delivery-independence holds inside the window (second finger as its own
+  touch-begin, an update carrying both points, or both-fingers-begin);
+  outside the window the second-class rule is unchanged (a palm landing after
+  the stroke commits is still blacklisted); a release or cancel during arming
+  cleans up without emitting a phantom or orphaned stroke.
 - **GESTURE** (entered when a second point is observed while PENDING,
   however the platform groups the two fingers into events — a touch event
   already carrying two points, an update carrying both, or a single-point
@@ -196,15 +211,26 @@ required for this change.
   the state machine design, but real-device smoke is the only honest check of
   stream timing and slop feel. The slop constant may need tuning from device
   evidence; it is a single named constant. **P52 device pass**: pinch zoom
-  fails on the Windows touchscreen (task 5.2). The per-finger-grouping
-  hypothesis was refuted against Qt 6.6 primary sources (WM_POINTER
-  aggregation; TouchBegin only when all points Pressed); the open diagnosis
-  is a ranked-hypothesis set discriminated by a zero-rebuild on-device trace
-  protocol (task 5.3). The analysis surfaced two evidence-backed defects
-  independent of that outcome — scenePosition (global, = globalPosition()) vs
-  position
+  failed on the Windows touchscreen (task 5.2) — with the draw tool active a
+  pinch drew an atom immediately. The per-finger-grouping hypothesis was
+  refuted against Qt 6.6 primary sources (WM_POINTER aggregation; TouchBegin
+  only when all points Pressed); the device evidence discriminated ranked
+  cause (2) — finger 1 crossed the slop and the immediate press reached the
+  draw tool before finger 2 arrived — and the stroke-arming grace window
+  (task 5.5, `kTouchStrokeArmMs`) fixes it (the press is held so a second
+  finger forms a pinch). On-device re-record of the fixed pinch remains on
+  the author's hardware. The analysis also surfaced two evidence-backed
+  defects independent of that outcome — scenePosition (global, =
+  globalPosition()) vs position
   (widget-local) coordinate space on a child widget, and unhandled
   QEvent::TouchCancel — filed as task 5.4.
+- **Stroke-arming adds a short ink delay (~50ms) before a stroke's press is
+  emitted.** This is the deliberate price of the pinch-draws-atom fix: the
+  press is held so a second finger arriving in the window can form a pinch
+  instead of drawing. It is imperceptible for a drawing stroke and only
+  affects the single-finger stroke path; the tap/click path is unchanged (a
+  quick release below slop is still a click, never held). The constant is
+  named and tunable from further device evidence.
 - **Cancel-mid-stroke completes the tool gesture (open design conflict, P1).**
   Task 5.4(b) and D9 direct that a QEvent::TouchCancel during STROKE emit the
   synthesized release "so the tool's stroke ends cleanly". But for the erase

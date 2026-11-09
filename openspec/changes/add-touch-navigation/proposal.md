@@ -28,14 +28,18 @@ change builds on is the same one established by `fix-hidpi-viewport-coordinates`
 - **One finger** → deferred mouse synthesis: a touch stays PENDING until it
   either moves past a slop radius (→ synthesized mouse press + moves = stroke)
   or releases quickly (→ synthesized press+release = click). Finger jitter
-  below the slop never reaches any tool.
+  below the slop never reaches any tool. A stroke's press is held for a short
+  arming window so a second finger arriving there forms a pinch instead of
+  drawing (the confirmed P52 fix).
 - **Two fingers** → camera navigation at the widget level: pinch distance
   change zooms, centroid movement pans. Consumed before tool dispatch; tools
   see nothing. One-finger rotate (tool ignores → navigate fallback) is
   preserved through synthesis.
 - **Extra fingers are second-class**: any touch point that arrives while an
   interaction is in flight is ignored until it lifts, never promoted — this is
-  also palm rejection.
+  also palm rejection. The one exception is the second finger arriving while a
+  touch is still pending (or within the brief stroke-arming window): it forms
+  a two-finger gesture with the first, rather than being second-class.
 - No tool is modified: synthesized events carry ordinary mouse semantics, so
   the draw, erase, select, and navigate behavior contracts are preserved
   unchanged.

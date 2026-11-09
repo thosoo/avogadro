@@ -94,7 +94,12 @@ arrival delivered as its own touch-begin carrying only that point — and the
 gesture SHALL form in every grouping. While a two-finger gesture is in
 flight, the touch points that compose it SHALL be tracked by identity — the
 gesture ends when either of the two original points lifts, and the camera
-stays where the gesture left it.
+stays where the gesture left it. A single finger that has just crossed the
+slop radius (so a stroke would otherwise begin) SHALL hold its synthesized
+press for a short arming window: a second finger arriving within that window
+SHALL still form the two-finger gesture, and no tool event SHALL have been
+delivered for the abandoned stroke — so a pinch never draws an atom or
+creates a bond through an editing tool.
 
 #### Scenario: Pinch to zoom
 - **WHEN** the user spreads two fingers apart on the canvas
@@ -114,6 +119,15 @@ stays where the gesture left it.
 - **THEN** the interaction is a two-finger gesture: the camera responds to
   the spread/pan, no tool event is synthesized, and the originally pending
   finger is not dropped or treated as a fresh touch
+
+#### Scenario: Early stroke replaced by a pinch (editing tool active)
+- **WHEN** the user places one finger on the canvas and it crosses the small
+  slop radius (so a stroke would begin), and a second finger arrives within a
+  short arming window, and the user then spreads or pans the two fingers
+  while an editing tool (for example the draw tool) is active
+- **THEN** the interaction is a two-finger gesture: the camera responds to
+  the spread/pan, no tool event is synthesized for the abandoned stroke (no
+  atom is drawn, no bond is created), and the molecule is unchanged
 
 #### Scenario: Two-finger pan
 - **WHEN** the user moves two fingers together across the canvas without
