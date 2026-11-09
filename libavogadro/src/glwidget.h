@@ -46,8 +46,17 @@
 class QOpenGLContext;
 class QShowEvent;
 class QMouseEvent;
+class QWheelEvent;
+class QTouchEvent;
 class QSettings;
 class QUndoStack;
+class QUndoCommand;
+
+// Defined in touchnavigationtest.cpp; granted access to GLWidget's protected
+// touchEvent() so the touch pipeline can be driven with constructed
+// QTouchEvent sequences (no real touch stack needed). Forward-declared here so
+// the friend declaration inside Avogadro::GLWidget can resolve it.
+class TouchNavigationTest;
 
 // Defined in hidpiviewporttest.cpp; granted access to GLWidget's private
 // deviceViewportRect() helper. Forward-declared here (global scope) so the
@@ -662,6 +671,18 @@ namespace Avogadro {
       virtual void mouseMoveEvent(QMouseEvent * event);
 
       /**
+       * Virtual function reaction to touch input in the GL rendering area.
+       *
+       * The single touch entry point (add-touch-navigation): Qt delivers
+       * QTouchEvents here only after WA_AcceptTouchEvents is set, and this is
+       * where the per-widget touch state machine is fed. It synthesizes mouse
+       * events for single-finger gestures and drives camera zoom/pan for
+       * two-finger gestures; tools never see a QTouchEvent.
+       * @return true if the event was handled.
+       */
+      virtual bool touchEvent(QTouchEvent * event);
+
+      /**
        * Virtual function reaction to mouse while in the GL rendering area.
        */
       virtual void wheelEvent(QWheelEvent * event);
@@ -833,6 +854,15 @@ namespace Avogadro {
       void constructor(const GLWidget *shareWidget =0);
 
       /**
+       * Scale a mouse event's coordinates by the device-pixel ratio and
+       * dispatch it to the active tool (navigate fallback when ignored),
+       * returning any resulting command. The single HiDPI coordinate +
+       * dispatch path shared by the real mouse handlers and the touch
+       * synthesizer (add-touch-navigation task 1.3).
+       */
+      QUndoCommand* dispatchMouse( QMouseEvent* event );
+
+      /**
        * Compute the average frames per second over the last 200+ ms.
        */
       inline double computeFramesPerSecond();
@@ -918,6 +948,11 @@ namespace Avogadro {
       // composeModelViewProjection() equals the standard projection * modelview
       // (see modernrendertest); the helper is intentionally protected.
       friend class ::ModernRenderTest;
+
+      // TouchNavigationTest drives GLWidget::touchEvent() with constructed
+      // QTouchEvent sequences (see touchnavigationtest) and reads the camera
+      // afterwards to verify pinch/pan; touchEvent is intentionally protected.
+      friend class ::TouchNavigationTest;
 
       bool              m_glslEnabled;
       Tool*             m_navigateTool; /// NavigateTool is a super tool

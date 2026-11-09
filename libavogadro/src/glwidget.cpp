@@ -31,9 +31,13 @@
 
 #include "camera.h"
 #include "glwidget.h"
+#include "glwidget_touch_p.h"
 #include "undostack.h"
 #include "glpainter_p.h"
 #include "glhit.h"
+#include "navigate.h"
+
+#include <QTouchEvent>
 
 #include "rendering/modernbackend.h"
 #include "rendering/compatbackend.h"
@@ -224,7 +228,8 @@ void GLWidget::updateViewport()
                         renderDebug(false),
                         renderModelViewDebug(false),
                         dlistQuick(0), dlistOpaque(0), dlistTransparent(0),
-                        pd(0), backend(0)
+                        pd(0), backend(0),
+                        m_touch( detail::kTouchSlopLogicalPx )
     {
     }
 
@@ -372,6 +377,12 @@ void GLWidget::updateViewport()
     //! the most recent modern frame).
     unsigned int backendDrawCalls = 0;
     unsigned int backendFrames = 0;
+
+    //! Per-widget touch input state machine (add-touch-navigation). Owns the
+    //! PENDING/STROKE/GESTURE state, touch-point identity tracking and the
+    //! second-class blacklist; fed from GLWidget::touchEvent(). No static state
+    //! (design D6): two widgets track their touch interactions independently.
+    detail::TouchState m_touch;
   };
 
   void GLWidgetPrivate::updateListQuick()
@@ -400,6 +411,262 @@ void GLWidget::updateViewport()
     updateCache = false;
     painter->setDynamicScaling(true);
   }
+
+
+// ---------------------------------------------------------------------------
+// TouchState (add-touch-navigation) — see glwidget_touch_p.h for the contract.
+// ---------------------------------------------------------------------------
+
+namespace detail {
+
+  const QEventPoint *TouchState::find(const QList<QEventPoint> &points,
+                                      int id) const
+  {
+    for (const QEventPoint &p : points)
+      if (p.id() == id)
+        return &p;
+    return nullptr;
+  }
+
+  bool TouchState::isTracked(int id) const
+  {
+    switch (m_state) {
+      case Pending:
+      case Stroke:
+        return id == m_primaryId;
+      case Gesture:
+        return id == m_gestureId1 || id == m_gestureId2;
+      case Idle:
+      default:
+        return false;
+    }
+  }
+
+  // Second-class rule: blacklist every new live point that is not one of the
+  // currently tracked ids (a palm / extra finger). Lifted points and points
+  // already on the blacklist are left alone.
+  void TouchState::blacklistNew(const QList<QEventPoint> &points,
+                                const QSet<int> &keep)
+  {
+    for (const QEventPoint &p : points) {
+      if (keep.contains(p.id()) || m_blacklist.contains(p.id()))
+        continue;
+      if (p.state() == QEventPoint::Released)
+        continue;
+      m_blacklist.insert(p.id());
+    }
+  }
+
+  void TouchState::onBegin(const QList<QEventPoint> &points,
+                           TouchResult &result)
+  {
+    QList<int> live;
+    for (const QEventPoint &p : points)
+      if (isLive(p))
+        live.append(p.id());
+
+    if (live.size() >= 2) {
+      // Both fingers landed together: straight to GESTURE, no PENDING state and
+      // no synthesized tool events (spec: both-fingers-begin).
+      m_state = Gesture;
+      m_gestureId1 = live.first();
+      m_gestureId2 = live.at(1);
+      const QPointF a = posOf(*find(points, m_gestureId1));
+      const QPointF b = posOf(*find(points, m_gestureId2));
+      m_lastDistance = distance(a, b);
+      m_lastCentroid = centroid(a, b);
+      m_centroidValid = true;
+      result.cameraActive = true;
+      return;
+    }
+
+    if (live.size() == 1) {
+      // PENDING: nothing is sent to any tool yet.
+      m_state = Pending;
+      m_primaryId = live.first();
+      const QPointF pos = posOf(*find(points, m_primaryId));
+      m_primaryStart = pos;
+      m_primaryLastPos = pos;
+      m_primaryTimestamp = 0;
+      return;
+    }
+
+    m_state = Idle;
+  }
+
+  void TouchState::onUpdate(const QList<QEventPoint> &points,
+                            qint64 /* timestamp */,
+                            TouchResult &result)
+  {
+    switch (m_state) {
+      case Pending: {
+        // A second live point observed while pending promotes straight to a
+        // two-finger gesture (no tap, no stroke).
+        int second = -1;
+        for (const QEventPoint &p : points) {
+          if (p.id() == m_primaryId || m_blacklist.contains(p.id()) ||
+              p.state() == QEventPoint::Released)
+            continue;
+          second = p.id();
+          break;
+        }
+        if (second != -1) {
+          m_state = Gesture;
+          m_gestureId1 = m_primaryId;
+          m_gestureId2 = second;
+          const QPointF a = posOf(*find(points, m_gestureId1));
+          const QPointF b = posOf(*find(points, m_gestureId2));
+          m_lastDistance = distance(a, b);
+          m_lastCentroid = centroid(a, b);
+          m_centroidValid = true;
+          result.cameraActive = true;
+          return;
+        }
+
+        const QEventPoint *primary = find(points, m_primaryId);
+        if (!primary || primary->state() == QEventPoint::Released) {
+          // Primary lifted while still pending: a sub-slop release is a tap.
+          if (distance(m_primaryStart, m_primaryLastPos) < m_slop)
+            result.emitClick(m_primaryStart);
+          m_state = Idle;
+          m_primaryId = -1;
+          return;
+        }
+
+        const QPointF pos = posOf(*primary);
+        m_primaryLastPos = pos;
+        // PENDING -> STROKE: travel at or above the slop synthesizes a press at
+        // the traveled-to position, then moves follow.
+        if (distance(m_primaryStart, pos) >= m_slop) {
+          m_state = Stroke;
+          result.emitPress(pos);
+        }
+        // Below the slop: stay PENDING and emit nothing (jitter swallow).
+        break;
+      }
+
+      case Stroke: {
+        // Second-class rule: any new live point (palm / extra finger) is
+        // blacklisted; the stroke itself is unaffected.
+        QSet<int> keep;
+        keep.insert(m_primaryId);
+        blacklistNew(points, keep);
+
+        const QEventPoint *primary = find(points, m_primaryId);
+        if (primary && primary->state() != QEventPoint::Released) {
+          const QPointF pos = posOf(*primary);
+          m_primaryLastPos = pos;
+          result.emitMove(pos);
+        }
+        break;
+      }
+
+      case Gesture: {
+        QSet<int> keep;
+        keep.insert(m_gestureId1);
+        keep.insert(m_gestureId2);
+        blacklistNew(points, keep);
+
+        const QEventPoint *p1 = find(points, m_gestureId1);
+        const QEventPoint *p2 = find(points, m_gestureId2);
+        if (!p1 || !p2 || p1->state() == QEventPoint::Released ||
+            p2->state() == QEventPoint::Released) {
+          // Either original point lifted: the gesture ends and the camera
+          // stays where the gesture left it.
+          m_state = Idle;
+          m_gestureId1 = m_gestureId2 = -1;
+          m_centroidValid = false;
+          return;
+        }
+        const QPointF a = posOf(*p1);
+        const QPointF b = posOf(*p2);
+        const double newDist = distance(a, b);
+        result.zoomDistanceDelta = newDist - m_lastDistance;
+        result.centroidFrom = m_lastCentroid.toPoint();
+        result.centroidTo = centroid(a, b).toPoint();
+        result.cameraActive = true;
+        m_lastDistance = newDist;
+        m_lastCentroid = centroid(a, b);
+        break;
+      }
+
+      case Idle:
+      default:
+        break;
+    }
+  }
+
+  void TouchState::onEnd(const QList<QEventPoint> &points,
+                         qint64 /* timestamp */,
+                         TouchResult &result)
+  {
+    switch (m_state) {
+      case Pending: {
+        // Quick release below the slop radius is a synthesized click (a
+        // press+release pair at the touch position).
+        if (distance(m_primaryStart, m_primaryLastPos) < m_slop)
+          result.emitClick(m_primaryStart);
+        m_state = Idle;
+        m_primaryId = -1;
+        break;
+      }
+
+      case Stroke: {
+        // Synthesize the release at the primary's last known position. The
+        // blacklist survives: a resting finger that lifts after the stroke is
+        // still ignored (it is removed from the blacklist only when it lifts).
+        const QEventPoint *primary = find(points, m_primaryId);
+        const QPointF pos = primary ? posOf(*primary) : m_primaryLastPos;
+        result.emitRelease(pos);
+        m_state = Idle;
+        m_primaryId = -1;
+        break;
+      }
+
+      case Gesture: {
+        // Either (or both) original points lifted: the gesture ends and the
+        // camera holds its final pose.
+        m_state = Idle;
+        m_gestureId1 = m_gestureId2 = -1;
+        m_centroidValid = false;
+        break;
+      }
+
+      case Idle:
+      default:
+        break;
+    }
+  }
+
+  TouchResult TouchState::process(const QList<QEventPoint> &points,
+                                  Phase phase, qint64 timestamp)
+  {
+    TouchResult result;
+
+    // A point that lifted in this event leaves the blacklist, so a resting
+    // finger that lifts (after a stroke or a gesture) never stays second-class
+    // and never wakes up as a fresh touch.
+    for (const QEventPoint &p : points)
+      if (p.state() == QEventPoint::Released)
+        m_blacklist.remove(p.id());
+
+    switch (phase) {
+      case Begin:
+        onBegin(points, result);
+        break;
+      case Update:
+        onUpdate(points, timestamp, result);
+        break;
+      case End:
+        onEnd(points, timestamp, result);
+        break;
+      default:
+        break;
+    }
+    return result;
+  }
+
+}  // namespace detail
 
 
 #ifdef ENABLE_THREADED_GL
@@ -547,6 +814,12 @@ GLWidget::GLWidget( Molecule *molecule,
   {
     // Make sure we get keyboard events
     setFocusPolicy(Qt::StrongFocus);
+
+    // Accept touch input so Qt delivers QTouchEvents to touchEvent() instead of
+    // synthesizing primary-point-only mouse events (add-touch-navigation task
+    // 1.1). Without this, the second finger is discarded by Qt's touch-to-mouse
+    // synthesis and two-finger gestures are unreachable.
+    setAttribute(Qt::WA_AcceptTouchEvents, true);
 
     // Worker pool (gpu-rendering-pipeline task 6.1, design A7): rebuilds the
     // scene off the GUI thread. CPU-only, so it needs no GL context. Created
@@ -1449,6 +1722,11 @@ GLWidget::GLWidget( Molecule *molecule,
         break;
       }
     }
+    // The worker indexes captured atoms by the snapshot's atom count. When no
+    // engine is snapshot-covered (params stays default, empty atoms) the worker
+    // would dereference out of bounds in emitOpaqueAtoms. Default-construct the
+    // captured atoms so params.atoms always matches snapshot.atoms.
+    params.atoms.resize(snapshot.atoms.size());
 
     d->submittedRevision = revision;
     d->builderPool->submit(snapshot, params, revision);
@@ -2865,12 +3143,21 @@ namespace Avogadro {
     return QOpenGLWidget::event(event);
   }
 
-  void GLWidget::mousePressEvent( QMouseEvent * event )
+  // Scale a mouse event's coordinates by the device-pixel ratio and dispatch it
+  // to the active tool, falling back to the navigate tool when the tool ignores
+  // it, and returning any resulting command. This is the single HiDPI
+  // coordinate + dispatch path shared by the real mouse handlers and the touch
+  // synthesizer (add-touch-navigation task 1.3), so touch and mouse events can
+  // never diverge in scaling or tool routing.
+  //
+  // Two details are load-bearing and preserved verbatim (oracle refactor
+  // review): the fallback is nested inside `if (d->tool)`, so a widget with no
+  // active tool routes the event to NOBODY (not even the navigate tool); and
+  // scaledEvent.ignore() precedes dispatch, because a fresh QEvent defaults to
+  // accepted and ignore() is what lets !isAccepted() detect a tool that
+  // declines by leaving the event untouched (the one-finger-rotate path).
+  QUndoCommand* GLWidget::dispatchMouse(QMouseEvent* event)
   {
-    // Set the event to ignored, check whether any tools accept it
-    event->ignore();
-
-    // Scale mouse event coordinates for HiDPI
     QMouseEvent scaledEvent(
       event->type(),
       event->position() * devicePixelRatioF(),
@@ -2879,19 +3166,46 @@ namespace Avogadro {
       event->button(), event->buttons(), event->modifiers()
     );
     scaledEvent.ignore();
-    if ( d->tool ) {
-      QUndoCommand *command = 0;
-      command = d->tool->mousePressEvent( this, &scaledEvent );
-      // If the mouse event is not accepted, pass it to the navigate tool
-      if (!scaledEvent.isAccepted() && m_navigateTool) {
-        command = m_navigateTool->mousePressEvent(this, &scaledEvent);
-      }
 
-      if ( command && d->undoStack ) {
-        d->undoStack->push( command );
-      } else if ( command ) {
-        delete command;
+    QUndoCommand* command = 0;
+
+    if ( d->tool ) {
+      switch ( event->type() ) {
+        case QEvent::MouseButtonPress:
+          command = d->tool->mousePressEvent( this, &scaledEvent );
+          if (!scaledEvent.isAccepted() && m_navigateTool) {
+            command = m_navigateTool->mousePressEvent(this, &scaledEvent);
+          }
+          break;
+        case QEvent::MouseMove:
+          command = d->tool->mouseMoveEvent( this, &scaledEvent );
+          if (!scaledEvent.isAccepted() && m_navigateTool) {
+            command = m_navigateTool->mouseMoveEvent(this, &scaledEvent);
+          }
+          break;
+        case QEvent::MouseButtonRelease:
+          command = d->tool->mouseReleaseEvent( this, &scaledEvent );
+          if (!scaledEvent.isAccepted() && m_navigateTool) {
+            command = m_navigateTool->mouseReleaseEvent(this, &scaledEvent);
+          }
+          break;
+        default:
+          break;
       }
+    }
+    return command;
+  }
+
+  void GLWidget::mousePressEvent( QMouseEvent * event )
+  {
+    // Set the event to ignored, check whether any tools accept it
+    event->ignore();
+
+    QUndoCommand *command = dispatchMouse(event);
+    if ( command && d->undoStack ) {
+      d->undoStack->push( command );
+    } else if ( command ) {
+      delete command;
     }
     emit activated(this);
     emit mousePress(event);
@@ -2902,25 +3216,9 @@ namespace Avogadro {
     // Set the event to ignored, check whether any tools accept it
     event->ignore();
 
-    QMouseEvent scaledEvent(
-      event->type(),
-      event->position() * devicePixelRatioF(),
-      event->scenePosition() * devicePixelRatioF(),
-      event->globalPosition() * devicePixelRatioF(),
-      event->button(), event->buttons(), event->modifiers()
-    );
-    scaledEvent.ignore();
-    if ( d->tool ) {
-      QUndoCommand *command;
-      command = d->tool->mouseReleaseEvent( this, &scaledEvent );
-      // If the mouse event is not accepted, pass it to the navigate tool
-      if (!scaledEvent.isAccepted() && m_navigateTool) {
-        command = m_navigateTool->mouseReleaseEvent(this, &scaledEvent);
-      }
-
-      if ( command && d->undoStack ) {
-        d->undoStack->push( command );
-      }
+    QUndoCommand *command = dispatchMouse(event);
+    if ( command && d->undoStack ) {
+      d->undoStack->push( command );
     }
 #ifdef ENABLE_THREADED_GL
     d->renderMutex.lock();
@@ -2962,26 +3260,84 @@ namespace Avogadro {
 #ifdef ENABLE_THREADED_GL
     d->renderMutex.unlock();
 #endif
-    QMouseEvent scaledEvent(
-      event->type(),
-      event->position() * devicePixelRatioF(),
-      event->scenePosition() * devicePixelRatioF(),
-      event->globalPosition() * devicePixelRatioF(),
-      event->button(), event->buttons(), event->modifiers()
-    );
-    scaledEvent.ignore();
-    if ( d->tool ) {
-      QUndoCommand *command;
-      command = d->tool->mouseMoveEvent( this, &scaledEvent );
-      // If the mouse event is not accepted, pass it to the navigate tool
-      if (!scaledEvent.isAccepted() && m_navigateTool) {
-        command = m_navigateTool->mouseMoveEvent(this, &scaledEvent);
-      }
-      if ( command && d->undoStack ) {
-        d->undoStack->push( command );
-      }
+    QUndoCommand *command = dispatchMouse(event);
+    if ( command && d->undoStack ) {
+      d->undoStack->push( command );
     }
     emit mouseMove(event);
+  }
+
+  bool GLWidget::touchEvent( QTouchEvent * event )
+  {
+    // Feed the per-widget touch state machine (add-touch-navigation). It returns
+    // synthesized mouse events (widget-local logical positions) plus camera
+    // deltas; tools never see this QTouchEvent (design D2/D3).
+    const QList<QEventPoint> points = event->points();
+    // Derive the phase from the raw event type: this Qt build's
+    // QTouchEvent::isBeginEvent()/isEndEvent() are stubs that always return
+    // true, so event->type() (QEvent::TouchBegin/TouchUpdate/TouchEnd) is the
+    // only reliable discriminator.
+    detail::TouchState::Phase phase = detail::TouchState::Update;
+    switch ( event->type() ) {
+      case QEvent::TouchBegin:
+        phase = detail::TouchState::Begin;
+        break;
+      case QEvent::TouchUpdate:
+        phase = detail::TouchState::Update;
+        break;
+      case QEvent::TouchEnd:
+        phase = detail::TouchState::End;
+        break;
+      default:
+        break;
+    }
+    detail::TouchResult result = d->m_touch.process(
+      points, phase, static_cast<qint64>(event->timestamp()));
+
+    // Two-finger gesture: drive the camera BEFORE any tool sees input. The
+    // distance change between the two tracked points zooms, using the wheel
+    // sign convention (fingers apart = zoom in); the centroid movement pans.
+    // Neither reaches a tool (design D4). The zoom reuses the wheel formula
+    // exactly; the pan matches the middle-drag translate path.
+    if ( result.cameraActive ) {
+      if ( result.zoomDistanceDelta != 0.0 ) {
+        const double distanceDeltaDevice =
+          result.zoomDistanceDelta * devicePixelRatioF();
+        Navigate::zoom( this, center(),
+                        -MOUSE_WHEEL_SPEED * distanceDeltaDevice );
+      }
+      if ( result.centroidFrom != result.centroidTo ) {
+        Navigate::translate( this, center(),
+                             result.centroidFrom * devicePixelRatioF(),
+                             result.centroidTo * devicePixelRatioF() );
+      }
+      update();
+    }
+
+    // Single-finger gesture: route the synthesized mouse events to the tool
+    // exactly like a real mouse event (shared dispatchMouse => same HiDPI
+    // scaling and tool -> navigate-fallback dispatch). A press the active tool
+    // declines falls through to the navigate tool, preserving one-finger
+    // rotate (design D5, task 2.4). Press-like push/erase semantics. The
+    // SyntheticMouseEvent is reconstructed as a QMouseEvent here (Qt events are
+    // non-copyable, so they live only as long as this loop iteration).
+    for ( const detail::SyntheticMouseEvent& sm : result.mouseEvents ) {
+      QMouseEvent me( sm.type, sm.position, sm.position, sm.button,
+                      sm.buttons, sm.modifiers );
+      // Route the synthesized mouse event through the same dispatch the real
+      // mouse handlers use (tool -> navigate-fallback), and push the returned
+      // command to the undo stack exactly like mousePressEvent/ReleaseEvent do
+      // below, so a synthesized click/lasso actually mutates the molecule.
+      QUndoCommand *command = dispatchMouse( &me );
+      if ( command && d->undoStack )
+        d->undoStack->push( command );
+    }
+    if ( !result.mouseEvents.isEmpty() )
+      update();
+
+    // We handle the whole touch stream; Qt must not also synthesize mouse
+    // events from it (that is the point of WA_AcceptTouchEvents).
+    return true;
   }
 
   void GLWidget::wheelEvent( QWheelEvent * event )
@@ -3284,6 +3640,15 @@ namespace Avogadro {
     d->engines.append(engine);
     std::sort(d->engines.begin(), d->engines.end(), engineLessThan);
     engine->setPainterDevice(d->pd);
+    // If a molecule is already active, propagate it to the newly added engine.
+    // The moleculeChanged() signal fired in the widget constructor (setMolecule)
+    // before this engine connected, so the engine's own molecule() would stay
+    // null. The snapshot/worker path (buildSnapshotAndSubmit) indexes the
+    // engine's captured atoms by the snapshot's atom count, so a null molecule
+    // there yields fewer captured atoms than snapshot atoms and the worker
+    // dereferences out of bounds (snapshotTessellateBSDY/emitOpaqueAtoms).
+    if (d->molecule)
+      engine->setMolecule(d->molecule);
     emit engineAdded(engine);
     update();
   }

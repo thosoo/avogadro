@@ -413,13 +413,13 @@ namespace Avogadro {
   {
     setText(QObject::tr("Delete Atom"));
     d->molecule = molecule;
-    Atom *atom = molecule->atom(index);
-    d->id = atom->id();
+    Atom *atom = molecule ? molecule->atom(index) : nullptr;
+    d->id = atom ? atom->id() : 0;
 #ifdef DEBUG_COMMANDS
     qDebug() << "DeleteAtomDrawCommand(id = " << d->id << ", adj = " << adjustHydrogens << ")";
 #endif
-    d->element = atom->atomicNumber();
-    d->pos = *(atom->pos());
+    d->element = atom ? atom->atomicNumber() : 0;
+    d->pos = atom ? *(atom->pos()) : Eigen::Vector3d::Zero();
     d->adjustHydrogens = adjustHydrogens;
   }
 

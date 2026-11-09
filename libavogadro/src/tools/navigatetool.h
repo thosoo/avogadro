@@ -140,7 +140,14 @@ namespace Avogadro {
   {
     Q_OBJECT
     Q_INTERFACES(Avogadro::PluginFactory)
+    // The touch-navigation test compiles navigatetool.cpp directly into the
+    // test executable; it instantiates the factory directly (never via Qt's
+    // plugin loader), so its plugin metadata is unnecessary there. Skip it for
+    // that build only via the AVOGADRO_TEST_NOPLUGIN compile definition, which
+    // is set on the test target and never defined for the plugin build.
+#ifndef AVOGADRO_TEST_NOPLUGIN
     Q_PLUGIN_METADATA(IID "net.sourceforge.avogadro.pluginfactory/1.5")
+#endif
     AVOGADRO_TOOL_FACTORY(NavigateTool)
   };
 

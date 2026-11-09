@@ -64,6 +64,7 @@ set(tests
   renderertier
   placement
   erasetool
+  touchnavigation
   renderbench
   visualparity
   hidpiviewport
@@ -153,6 +154,24 @@ foreach (test ${tests})
     # reads the framebuffer back, so compile the real ball-and-stick engine (as
     # the autooptrepro/energyhud tests do) to give the scene instanced content
     # and trigger the AUTOUIC generation of bsdyengine's ui_*.h header.
+    list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)
+  endif()
+  if (${test} STREQUAL "touchnavigation")
+    # The touch pipeline is exercised through the real EraseTool and NavigateTool
+    # (both standalone MODULE plugins, not exported from libavogadro.so), so
+    # their sources are compiled directly into the test. The lasso delete
+    # reuses DeleteAtomDrawCommand from drawcommand.cpp (no plugin factory, safe
+    # to compile directly). The AVOGADRO_TOOL_FACTORY Q_PLUGIN_METADATA of both
+    # tools is skipped for this build only (the test instantiates the factories
+    # directly, never via Qt's plugin loader); the guard is in erasetool.h /
+    # navigatetool.h under AVOGADRO_TEST_NOPLUGIN. The navigate-tool rotate test
+    # drives real GL_SELECT picking, so compile the real ball-and-stick engine.
+    list(APPEND test_SRCS ../src/tools/erasetool.cpp)
+    list(APPEND test_SRCS ../src/tools/drawcommand.cpp)
+    list(APPEND test_SRCS ../src/tools/navigatetool.cpp)
+    # NavigateTool's overlay painting uses Eyecandy (draws the rotate/zoom/pan
+    # eye-candy), which is not exported from libavogadro.so, so compile it too.
+    list(APPEND test_SRCS ../src/tools/eyecandy.cpp)
     list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)
   endif()
   if (${test} STREQUAL "insertfragmentextension")
@@ -315,6 +334,12 @@ foreach (test ${tests})
     # test_SRCS block above); the guard is in erasetool.h.
     target_compile_definitions(${test}test PRIVATE AVOGADRO_TEST_NOPLUGIN)
   endif()
+  if(${test} STREQUAL "touchnavigation")
+    # Skip EraseToolFactory's / NavigateToolFactory's Q_PLUGIN_METADATA for this
+    # build only (see the test_SRCS block above); the guards are in erasetool.h
+    # and navigatetool.h.
+    target_compile_definitions(${test}test PRIVATE AVOGADRO_TEST_NOPLUGIN)
+  endif()
   if(${test} STREQUAL "consumerparity")
     # consumerparitytest reads the mesh-flush upload counter hook
     # (g_glpainterMeshUploadCount) that lives behind this macro in
@@ -326,7 +351,7 @@ foreach (test ${tests})
   # The parity binaries drive a real GLWidget for the legacy tier, which
   # QOpenGLWidget does not support on the offscreen platform: they need a
   # real X display (run ctest under xvfb-run) with the default xcb platform.
-  if(${test} MATCHES "^(parity|compatibility|glselectoverflow|meshstream|consumerparity|threadedparity|renderbench|visualparity|hidpiviewport|energyhud|erasetool)")
+  if(${test} MATCHES "^(parity|compatibility|glselectoverflow|meshstream|consumerparity|threadedparity|renderbench|visualparity|hidpiviewport|energyhud|erasetool|touchnavigation)")
     set(_test_env "LIBGL_ALWAYS_SOFTWARE=1")
   endif()
   if(${test} STREQUAL "forcefield")
