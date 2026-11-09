@@ -18,7 +18,9 @@ event; pointer jitter below the slop radius SHALL NOT reach any tool. A quick
 release below the slop radius SHALL be delivered to tools as a synthesized
 press-and-release pair (a click) at the touch position. Travel at or above the
 slop radius SHALL be delivered as a synthesized press at the traveled-to
-position followed by move events and a final release.
+position followed by move events and a final release. Synthesized event
+positions SHALL be expressed in the canvas widget's local coordinates, so
+the pipeline is correct wherever the canvas is embedded in a window.
 
 #### Scenario: Tap on an atom behaves like a mouse click
 - **WHEN** the user taps (touch and quick release without significant travel)
@@ -43,12 +45,25 @@ position followed by move events and a final release.
   and the contact point wobbles by less than the slop radius
 - **THEN** no tool receives any event and the molecule is unchanged
 
+#### Scenario: Touch session cancelled while pending
+- **WHEN** the platform cancels the touch session (a TouchCancel event)
+  while a single touch is pending
+- **THEN** no tool event is synthesized (no phantom click) and the molecule
+  is unchanged
+
 #### Scenario: Touch coordinates are consistent with the rendered frame
 - **WHEN** any single-finger gesture is performed on a display with
   `devicePixelRatio != 1`
 - **THEN** the synthesized events land on the rendered geometry the finger is
   over (picking, stroke placement, and lasso containment agree with what is
   visually under the finger), per the hidpi-render-coordinates invariant
+
+#### Scenario: Canvas embedded in a window with chrome
+- **WHEN** the canvas is a child widget offset from the window origin
+  (toolbars or docks above it) and the user taps or drags on the canvas
+- **THEN** the synthesized events use the canvas widget's local coordinates:
+  picking, stroke placement, and lasso containment agree with what is
+  visually under the finger, not shifted by the window chrome
 
 ### Requirement: One-finger rotate is preserved when no tool claims the gesture
 When the active tool does not claim a single-finger gesture, the fallback
@@ -71,7 +86,12 @@ A two-finger gesture SHALL zoom and pan the camera at the widget level,
 before any tool receives events: changing the distance between the two
 touch points SHALL zoom (matching the wheel zoom direction and magnitude
 convention), and moving the two-point centroid SHALL pan. Neither the zoom
-nor the pan SHALL reach any tool as input. While a two-finger gesture is in
+nor the pan SHALL reach any tool as input, and the gesture SHALL work
+regardless of which tool is active. The two fingers may arrive grouped into
+touch events in any way the platform chooses — a touch event already
+carrying both points, updates carrying both points, or the second finger's
+arrival delivered as its own touch-begin carrying only that point — and the
+gesture SHALL form in every grouping. While a two-finger gesture is in
 flight, the touch points that compose it SHALL be tracked by identity — the
 gesture ends when either of the two original points lifts, and the camera
 stays where the gesture left it.
@@ -80,6 +100,20 @@ stays where the gesture left it.
 - **WHEN** the user spreads two fingers apart on the canvas
 - **THEN** the camera zooms in proportionally to the spread, in the same
   direction as mouse-wheel zoom-out-to-in, and no tool receives events
+
+#### Scenario: Pinch with an editing tool active
+- **WHEN** the user pinch-zooms or two-finger-pans while a molecule-editing
+  tool (for example the draw tool) is active
+- **THEN** the camera zooms/pans and the molecule is unchanged: the gesture
+  reaches no tool regardless of the active tool
+
+#### Scenario: Second finger arrives in its own touch-begin
+- **WHEN** one finger is pending on the canvas and the platform delivers the
+  second finger's arrival as a separate touch-begin carrying only that new
+  point, and the user then spreads or pans the two fingers
+- **THEN** the interaction is a two-finger gesture: the camera responds to
+  the spread/pan, no tool event is synthesized, and the originally pending
+  finger is not dropped or treated as a fresh touch
 
 #### Scenario: Two-finger pan
 - **WHEN** the user moves two fingers together across the canvas without
@@ -97,6 +131,12 @@ stays where the gesture left it.
 - **THEN** the gesture ends, the camera stays at the pose the gesture left,
   and lifting does not produce any tool event
 
+#### Scenario: Touch session cancelled mid-gesture
+- **WHEN** the platform cancels the touch session (a TouchCancel event)
+  while a two-finger gesture is in flight
+- **THEN** the gesture ends, the camera stays where the gesture left it, and
+  no tool receives any event
+
 #### Scenario: Camera navigation during an auto-optimization session
 - **WHEN** a two-finger gesture drives the camera while an auto-optimization
   session ticks
@@ -104,14 +144,19 @@ stays where the gesture left it.
   the existing no-blank-frame requirement
 
 ### Requirement: Extra fingers are second-class
-Only a fresh touch may start an interaction. Any touch point that arrives
-while an interaction is already in flight — a stroke, a pending single touch,
-or a two-finger gesture — SHALL be ignored until it lifts, and SHALL NEVER be
-promoted to a new interaction, including after the in-flight interaction ends.
-A touch event that begins with more than one point SHALL go directly to the
-two-finger gesture. A broken pinch pair SHALL NOT be replenished: a third
-finger present when one of the pair lifts SHALL NOT substitute into the
-gesture or start a new one.
+Only a fresh touch may start a single-finger interaction. Any touch point
+that arrives while a stroke or a two-finger gesture is already in flight
+SHALL be ignored until it lifts, and SHALL NEVER be promoted to a new
+interaction, including after the in-flight interaction ends. The one
+exception is the second touch point arriving while a single touch is merely
+pending (no tool event sent yet): that point SHALL form a two-finger gesture
+with the pending point — however the platform groups the two points into
+touch events — rather than be treated as second-class; every further point
+beyond the gesture pair SHALL be ignored until it lifts. A touch event that
+begins with more than one point SHALL go directly to the two-finger gesture.
+A broken pinch pair SHALL NOT be replenished: a third finger present when
+one of the pair lifts SHALL NOT substitute into the gesture or start a new
+one.
 
 #### Scenario: Palm lands mid-stroke
 - **WHEN** the user's palm (or any extra finger) touches the canvas while a

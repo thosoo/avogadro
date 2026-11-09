@@ -50,7 +50,9 @@ fix-hidpi-viewport-coordinates change used for its interaction scenarios.
 - Twist-to-rotate gesture (two-finger rotation) — deferred; pinch zoom and
   pan are the v1 camera gestures.
 - Trackpad support via `QNativeGestureEvent` (Windows precision touchpads /
-  macOS trackpads) — future change; unverifiable locally.
+  macOS trackpads) — future change; unverifiable locally. Re-confirmed by the
+  P52 device pass: the reported failing pinch was on the touchscreen (task
+  5.2), so trackpad pinch stays out of scope for this change.
 - Stylus pressure, mobile/touch toolbars or UI, multi-window touch policies.
 - Tool-side changes: no pick-radius tuning, no threshold changes. Fat-finger
   accuracy is an accepted v1 limitation; the erase tool's lasso already
@@ -82,15 +84,24 @@ id.** From the exploration session:
   synthesizes the mouse release (tool-side release semantics — hydrogen
   churn, undo push — run unchanged).
 - **GESTURE** (entered when a second point is observed while PENDING,
-  including a `TouchBegin` that already carries two points): tracks the two
-  original point ids; distance delta between the pair drives zoom; centroid
-  delta drives pan; ends when either of the two original ids lifts; camera
-  stays where the gesture left it.
-- **Second-class rule (palm rejection)**: any point arriving while PENDING /
-  STROKE / GESTURE is in flight is blacklisted until it lifts; the blacklist
-  survives stroke end, so a finger resting nearby when a stroke finishes never
-  wakes up as a fresh touch; a third finger never substitutes into a broken
-  pinch pair.
+  however the platform groups the two fingers into events — a touch event
+  already carrying two points, an update carrying both, or a single-point
+  touch-begin arriving while the first finger is still pending): tracks the
+  two original point ids; distance delta between the pair drives zoom;
+  centroid delta drives pan; ends when either of the two original ids lifts;
+  camera stays where the gesture left it. Delivery-independence is kept as
+  hardening only: no known Qt Windows delivery sends the second finger as
+  its own single-point touch-begin (Qt 6.6 WM_POINTER aggregates all live
+  fingers into every delivery and derives TouchBegin only when all points
+  are Pressed), but the machine must not depend on grouping. The P52 pinch
+  failure has a separate, undiscriminated cause — see task 5.3.
+- **Second-class rule (palm rejection)**: any point arriving while STROKE /
+  GESTURE is in flight is blacklisted until it lifts; the one exception is
+  the second point arriving while PENDING, which forms a gesture with the
+  pending point (delivery-independent, per the GESTURE bullet above) rather
+  than being blacklisted; the blacklist survives stroke end, so a finger
+  resting nearby when a stroke finishes never wakes up as a fresh touch; a
+  third finger never substitutes into a broken pinch pair.
 
 **D3 — Synthesized events reuse the existing scaled-event dispatch exactly.**
 Synthesized `QMouseEvent`s are constructed with widget-local logical
@@ -145,13 +156,32 @@ user-special-member classes), Qt 6.4 `QEventPoint`/`QTouchEvent` APIs only,
 no new threading primitives. The Windows installer workflow is triggered
 after the Linux CI passes, per repo policy.
 
+**D9 — Widget-local coordinates and explicit cancel handling.** The state
+machine consumes QEventPoint::position(), which Qt maps to the receiving
+widget (QApplicationPrivate::updateTouchPointsForWidget maps each point
+with widget->mapFromGlobal); scenePosition() is window-local, so using it
+on the embedded GLWidget offsets every synthesized event by the window
+chrome (the unit tests' top-level fixture masked this). QEvent::TouchCancel
+ends the touch session: PENDING → Idle with no events (never a phantom
+click); STROKE → the synthesized release is emitted so the tool's stroke
+ends cleanly, then Idle; GESTURE → Idle with the camera holding; the
+blacklist is cleared.
+
 ## Risks / Trade-offs
 
 - **Platform variance in touch delivery** (libinput/X11 vs Windows digitizers):
   edge cases like both-fingers-in-one-event and pair breaks are covered by
   the state machine design, but real-device smoke is the only honest check of
   stream timing and slop feel. The slop constant may need tuning from device
-  evidence; it is a single named constant.
+  evidence; it is a single named constant. **P52 device pass**: pinch zoom
+  fails on the Windows touchscreen (task 5.2). The per-finger-grouping
+  hypothesis was refuted against Qt 6.6 primary sources (WM_POINTER
+  aggregation; TouchBegin only when all points Pressed); the open diagnosis
+  is a ranked-hypothesis set discriminated by a zero-rebuild on-device trace
+  protocol (task 5.3). The analysis surfaced two evidence-backed defects
+  independent of that outcome — scenePosition (window-local) vs position
+  (widget-local) coordinate space on a child widget, and unhandled
+  QEvent::TouchCancel — filed as task 5.4.
 - **Zoom-about-center vs zoom-about-fingers**: v1 trades precision for
   simplicity and wheel parity; noted as a refinement path, not a spec
   requirement.
