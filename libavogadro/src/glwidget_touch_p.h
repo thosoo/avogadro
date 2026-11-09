@@ -116,7 +116,7 @@ public:
   //! EventType enum and its isBeginEvent()/isEndEvent() helpers are stubs that
   //! always return true), so GLWidget::touchEvent() derives the phase from
   //! event->type() and the unit test drives the machine directly here.
-  enum Phase { Begin, Update, End };
+  enum Phase { Begin, Update, End, Cancel };
 
   //! @param slopLogicalPx jitter threshold in logical pixels (design D2: ~10).
   explicit TouchState(double slopLogicalPx) : m_slop(slopLogicalPx) {}
@@ -133,10 +133,15 @@ public:
 
 private:
   const QEventPoint *find(const QList<QEventPoint> &points, int id) const;
-  //! Widget-local logical position of a point. We read scenePosition(): for
-  //! this top-level widget (no scroll area) it equals position(), and it is
-  //! the field QEventPoint's constructor populates, which keeps the machine
-  //! unit-testable with constructed events.
+  //! Widget-local logical position of a point. We read scenePosition(): Qt
+  //! maps QEventPoint::position() to the receiving widget (widget-local) while
+  //! scenePosition() stays window-local; on the embedded GLWidget the canvas
+  //! sits below toolbar/dock chrome, so the window-local offset is corrected at
+  //! the GLWidget::touchEvent boundary (design D9) rather than here, keeping the
+  //! machine unit-testable with constructed events whose scenePosition is set.
+  //! The machine's internal math (slop, zoom delta, centroid delta) is
+  //! translation-invariant, so window-local is fine internally; only the
+  //! absolute synthesized position needs the widget-local correction.
   QPointF posOf(const QEventPoint &p) const { return p.scenePosition(); }
   bool isTracked(int id) const;
   bool isLive(const QEventPoint &p) const
@@ -156,6 +161,11 @@ private:
                 TouchResult &result);
   void onEnd(const QList<QEventPoint> &points, qint64 timestamp,
              TouchResult &result);
+  //! QEvent::TouchCancel: end the session per design D9 — PENDING → Idle with
+  //! no events (never a phantom click); STROKE → emit the synthesized release
+  //! so the tool's stroke ends cleanly, then Idle; GESTURE → Idle holding the
+  //! camera; the blacklist is cleared.
+  void onCancel(TouchResult &result);
   //! Blacklist every new live point that is not one of `keep` (the tracked
   //! ids for the current state). Implements the second-class rule.
   void blacklistNew(const QList<QEventPoint> &points,

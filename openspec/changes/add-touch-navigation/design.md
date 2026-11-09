@@ -157,15 +157,37 @@ no new threading primitives. The Windows installer workflow is triggered
 after the Linux CI passes, per repo policy.
 
 **D9 — Widget-local coordinates and explicit cancel handling.** The state
-machine consumes QEventPoint::position(), which Qt maps to the receiving
-widget (QApplicationPrivate::updateTouchPointsForWidget maps each point
-with widget->mapFromGlobal); scenePosition() is window-local, so using it
-on the embedded GLWidget offsets every synthesized event by the window
-chrome (the unit tests' top-level fixture masked this). QEvent::TouchCancel
-ends the touch session: PENDING → Idle with no events (never a phantom
-click); STROKE → the synthesized release is emitted so the tool's stroke
-ends cleanly, then Idle; GESTURE → Idle with the camera holding; the
-blacklist is cleared.
+machine reads scenePosition() in posOf(). In Qt 6 widget delivery
+scenePosition() equals globalPosition() (global logical screen coords):
+qguiapplication.cpp sets `setScenePosition(ep, tempPt.globalPosition())`,
+and the widget path (QApplicationPrivate::updateTouchPointsForWidget,
+qapplication.cpp) rewrites ONLY position() =
+widget->mapFromGlobal(globalPosition()), never scenePosition() — so
+using scenePosition() naively on the embedded GLWidget would offset every
+synthesized event by the widget's GLOBAL origin (toolbar/dock chrome plus
+the window's on-screen position), not just the window chrome (the unit
+tests' top-level fixture masked this, and a (0,0)-positioned parent makes
+mapTo(window) and mapToGlobal coincide). The widget-local correction is
+therefore applied at the GLWidget::touchEvent dispatch boundary, NOT in
+posOf(): each synthesized mouse event position has
+this->mapToGlobal(QPoint(0,0)) subtracted before the QMouseEvent is
+constructed. This keeps posOf() unit-testable with constructed events —
+QEventPoint::position() cannot be set on constructed points
+(QMutableEventPoint is private-header-only in qeventpoint_p.h, absent on
+the Linux CI build), so reading position() in posOf() would break every
+state-machine test. The machine's internal math (slop, pinch zoom delta,
+pan centroid delta) is translation-invariant, so global is safe internally;
+only the absolute synthesized position needs the boundary correction.
+QEvent::TouchCancel ends the touch session:
+PENDING → Idle with no events (never a phantom click); STROKE → the
+synthesized release is emitted so the tool's stroke ends cleanly, then
+Idle; GESTURE → Idle with the camera holding; the blacklist is cleared.
+
+A cleaner end-state — a coordinate-agnostic machine that converts each
+delivered QEventPoint into a plain {id, state, QPointF} before TouchState
+so the machine never touches QEventPoint — was identified as a follow-up
+refactor (it changes the A_EXPORT-exported class signature) but is not
+required for this change.
 
 ## Risks / Trade-offs
 
@@ -179,9 +201,28 @@ blacklist is cleared.
   aggregation; TouchBegin only when all points Pressed); the open diagnosis
   is a ranked-hypothesis set discriminated by a zero-rebuild on-device trace
   protocol (task 5.3). The analysis surfaced two evidence-backed defects
-  independent of that outcome — scenePosition (window-local) vs position
+  independent of that outcome — scenePosition (global, = globalPosition()) vs
+  position
   (widget-local) coordinate space on a child widget, and unhandled
   QEvent::TouchCancel — filed as task 5.4.
+- **Cancel-mid-stroke completes the tool gesture (open design conflict, P1).**
+  Task 5.4(b) and D9 direct that a QEvent::TouchCancel during STROKE emit the
+  synthesized release "so the tool's stroke ends cleanly". But for the erase
+  tool a release mid-lasso applies the deletion (erasetool.cpp:134–190), and
+  for the draw tool it finishes the bond — which conflicts with the canonical
+  erase-tool-interaction / draw-tool-interaction "interrupted gesture leaves
+  no residue" contracts ("the pointer interaction is otherwise cut short —
+  SHALL leave the molecule unchanged"). The alternative — suppressing the
+  release so the tools' abandonment contracts clean up — was assessed and
+  rejected for task 16: resetStrokeState() does not release the draw tool's
+  force-field markers, and a lingering m_beginAtomId makes the next press
+  *continue* the cancelled stroke rather than start fresh (drawtool.cpp:196,
+  press handler early-returns on a live stroke id), so suppressing introduces
+  a dangling-stroke and marker-lingering regression. Resolution is a design
+  decision with real trade-offs on both sides and is deferred to the 5.3
+  on-device discrimination (which confirms whether cancels actually occur
+  mid-stroke on real hardware) before the change is archived; it is NOT a
+  mechanics defect in the diff (reviewer: "OK with notes").
 - **Zoom-about-center vs zoom-about-fingers**: v1 trades precision for
   simplicity and wheel parity; noted as a refinement path, not a spec
   requirement.

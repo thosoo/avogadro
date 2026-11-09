@@ -252,6 +252,10 @@ private Q_SLOTS:
   void testRestingFingerNeverWakes();
   void testThirdFingerDoesNotSubstituteIntoPinch();
   void testSecondPointDuringPendingBecomesGesture();
+  void testSecondPointBeginDuringPendingBecomesGesture();
+  void testCancelWhilePendingEmitsNothing();
+  void testCancelMidStrokeEmitsRelease();
+  void testCancelMidGestureHoldsCamera();
 
   // --- Widget integration (touchEvent -> real tool) ------------------------
   void testTapErasesAtom();
@@ -259,6 +263,7 @@ private Q_SLOTS:
   void testMouseRegressionGuard();
   void testSynthesizedPositionScalesWithDpr();
   void testOneFingerRotateWithNavigateTool();
+  void testEmbeddedCanvasUsesWidgetLocalPosition();
 
   //! Drive a one-finger lasso through GLWidget::touchEvent() over a logical
   //! (scene-space) loop; the widget scales each point by devicePixelRatioF().
@@ -604,6 +609,99 @@ void TouchNavigationTest::testSecondPointDuringPendingBecomesGesture()
   QVERIFY(r.mouseEvents.isEmpty());
 }
 
+void TouchNavigationTest::testSecondPointBeginDuringPendingBecomesGesture()
+{
+  // Delivery-independence hardening (design D2, task 5.4c): when the platform
+  // delivers the second finger's arrival as its OWN single-point touch-begin
+  // while the first is still pending, the machine must pair it with the
+  // tracked primary (forming a gesture) instead of orphaning the primary.
+  detail::TouchState ts(detail::kTouchSlopLogicalPx);
+  QList<QEventPoint> first;
+  first << makePoint(0, QEventPoint::Pressed, QPointF(100.0, 100.0));
+  ts.process(first, detail::TouchState::Begin, 0);
+  QCOMPARE(ts.state(), detail::TouchState::Pending);
+
+  // Finger 2 arrives as its own TouchBegin carrying only that new point.
+  QList<QEventPoint> secondBegin;
+  secondBegin << makePoint(1, QEventPoint::Pressed, QPointF(200.0, 100.0));
+  const detail::TouchResult r =
+    ts.process(secondBegin, detail::TouchState::Begin, 20);
+  QCOMPARE(ts.state(), detail::TouchState::Gesture);
+  QVERIFY(r.cameraActive);
+  QVERIFY(r.mouseEvents.isEmpty()); // no tool event from the begin
+
+  // The gesture is live: spreading the pair produces a zoom delta.
+  QList<QEventPoint> spread;
+  spread << makePoint(0, QEventPoint::Updated, QPointF(110.0, 100.0));
+  spread << makePoint(1, QEventPoint::Updated, QPointF(220.0, 100.0));
+  const detail::TouchResult z =
+    ts.process(spread, detail::TouchState::Update, 40);
+  QVERIFY(z.cameraActive);
+  QVERIFY(z.zoomDistanceDelta > 0.0);
+}
+
+void TouchNavigationTest::testCancelWhilePendingEmitsNothing()
+{
+  // A TouchCancel while a single touch is pending ends the session with no
+  // synthesized events (never a phantom click) — spec: cancel while pending.
+  detail::TouchState ts(detail::kTouchSlopLogicalPx);
+  QList<QEventPoint> begin;
+  begin << makePoint(0, QEventPoint::Pressed, QPointF(100.0, 100.0));
+  ts.process(begin, detail::TouchState::Begin, 0);
+  QCOMPARE(ts.state(), detail::TouchState::Pending);
+
+  QList<QEventPoint> cancel;
+  cancel << makePoint(0, QEventPoint::Stationary, QPointF(101.0, 100.0));
+  const detail::TouchResult r =
+    ts.process(cancel, detail::TouchState::Cancel, 20);
+  QVERIFY(r.mouseEvents.isEmpty()); // no click, no press, no release
+  QCOMPARE(ts.state(), detail::TouchState::Idle);
+}
+
+void TouchNavigationTest::testCancelMidStrokeEmitsRelease()
+{
+  // A TouchCancel mid-stroke emits the synthesized release so the tool's stroke
+  // ends cleanly, then Idle — design D9.
+  detail::TouchState ts(detail::kTouchSlopLogicalPx);
+  QList<QEventPoint> begin;
+  begin << makePoint(0, QEventPoint::Pressed, QPointF(100.0, 100.0));
+  ts.process(begin, detail::TouchState::Begin, 0);
+  QList<QEventPoint> stroke;
+  stroke << makePoint(0, QEventPoint::Updated, QPointF(120.0, 100.0));
+  detail::TouchResult r =
+    ts.process(stroke, detail::TouchState::Update, 20); // >= slop -> stroke
+  QCOMPARE(ts.state(), detail::TouchState::Stroke);
+  QCOMPARE(static_cast<int>(r.mouseEvents.size()), 1); // the press
+
+  QList<QEventPoint> cancel;
+  cancel << makePoint(0, QEventPoint::Stationary, QPointF(125.0, 100.0));
+  r = ts.process(cancel, detail::TouchState::Cancel, 40);
+  QCOMPARE(ts.state(), detail::TouchState::Idle);
+  // Exactly one event on cancel: the release at the stroke's last position.
+  QCOMPARE(static_cast<int>(r.mouseEvents.size()), 1);
+  QCOMPARE(r.mouseEvents.first().type, QEvent::MouseButtonRelease);
+}
+
+void TouchNavigationTest::testCancelMidGestureHoldsCamera()
+{
+  // A TouchCancel mid-gesture ends the gesture with no tool events; the camera
+  // holds where the gesture left it — spec: cancel mid-gesture.
+  detail::TouchState ts(detail::kTouchSlopLogicalPx);
+  QList<QEventPoint> begin;
+  begin << makePoint(0, QEventPoint::Pressed, QPointF(100.0, 100.0));
+  begin << makePoint(1, QEventPoint::Pressed, QPointF(200.0, 100.0));
+  ts.process(begin, detail::TouchState::Begin, 0);
+  QCOMPARE(ts.state(), detail::TouchState::Gesture);
+
+  QList<QEventPoint> cancel;
+  cancel << makePoint(0, QEventPoint::Stationary, QPointF(105.0, 100.0));
+  cancel << makePoint(1, QEventPoint::Stationary, QPointF(205.0, 100.0));
+  const detail::TouchResult r =
+    ts.process(cancel, detail::TouchState::Cancel, 20);
+  QVERIFY(r.mouseEvents.isEmpty());
+  QCOMPARE(ts.state(), detail::TouchState::Idle);
+}
+
 // ---------------------------------------------------------------------------
 // Widget integration (touchEvent -> real tool)
 // ---------------------------------------------------------------------------
@@ -743,6 +841,76 @@ void TouchNavigationTest::testSynthesizedPositionScalesWithDpr()
   widget->touchEvent(&endEvent);
 
   // The tool sees the logical position scaled up to device pixels.
+  QVERIFY(!tool.positions.isEmpty());
+  QCOMPARE(tool.positions.first(), device);
+
+  delete widget;
+  delete mol;
+}
+
+void TouchNavigationTest::testEmbeddedCanvasUsesWidgetLocalPosition()
+{
+  // On the real app layout GLWidget is a child widget offset below the
+  // toolbar/dock chrome. In Qt 6 widget delivery scenePosition() equals
+  // globalPosition() (global logical screen coords): qguiapplication.cpp sets
+  //   setScenePosition(ep, tempPt.globalPosition())
+  // and the widget path (qapplication.cpp updateTouchPointsForWidget) rewrites
+  // only position() = widget->mapFromGlobal(globalPosition()), never
+  // scenePosition(). So the machine's synthesized positions are GLOBAL and must
+  // be corrected to widget-local at the touchEvent boundary by subtracting the
+  // widget's global origin mapToGlobal(0,0) (design D9).
+  //
+  // The fixture embeds GLWidget as a child at a chrome offset AND moves the
+  // top-level parent to a non-zero global position, so the widget's global
+  // origin differs from its window-relative chrome offset: this makes the test
+  // discriminate mapToGlobal (correct) from mapTo(window) (the window-relative
+  // offset the pre-fix code used). With the parent at (0,0) the two offsets
+  // coincide and the test would pass for the wrong code too — the same masking
+  // failure mode that hid the original bug.
+  Molecule *mol = new Molecule;
+  mol->addAtom(6, Vector3d(0.0, 0.0, 0.0));
+  GLWidget *widget = makeWidget(mol);
+  widget->resize(800, 600);
+  widget->setMolecule(mol);
+
+  // Embed as a child at a chrome offset (e.g. toolbar/dock above the canvas),
+  // and move the top-level parent so the window is not at global (0,0).
+  QWidget parent;
+  parent.resize(1000, 800);
+  parent.move(300, 200);
+  widget->setParent(&parent);
+  const QPoint chromeOffset(120, 64);
+  widget->setGeometry(QRect(chromeOffset, QSize(800, 600)));
+
+  MockTool tool;
+  widget->setTool(&tool);
+
+  // Where the finger must land to touch the atom: the widget-local logical px.
+  const qreal dpr = widget->devicePixelRatioF();
+  const QPointF device = projPoint(widget, mol->atom(0));
+  const QPointF widgetLocal = device / dpr;
+
+  // The widget's global origin (the coordinate a real touch's scenePosition()
+  // is offset by). It differs from the window-relative chrome offset here, so
+  // the test discriminates the correct mapToGlobal correction.
+  const QPointF globalOrigin = QPointF(widget->mapToGlobal(QPoint(0, 0)));
+  QVERIFY(globalOrigin != QPointF(chromeOffset));
+
+  // A real touch on the embedded canvas carries the GLOBAL scene position =
+  // widget-local + the widget's global origin.
+  const QPointF sceneGlobal = widgetLocal + globalOrigin;
+
+  QList<QEventPoint> begin;
+  begin << makePoint(0, QEventPoint::Pressed, sceneGlobal);
+  QTouchEvent beginEvent(QEvent::TouchBegin, nullptr, Qt::NoModifier, begin);
+  widget->touchEvent(&beginEvent);
+  QList<QEventPoint> end;
+  end << makePoint(0, QEventPoint::Released, sceneGlobal);
+  QTouchEvent endEvent(QEvent::TouchEnd, nullptr, Qt::NoModifier, end);
+  widget->touchEvent(&endEvent);
+
+  // The tool sees the widget-local position scaled to device pixels, not the
+  // global scene position offset by the widget's global origin.
   QVERIFY(!tool.positions.isEmpty());
   QCOMPARE(tool.positions.first(), device);
 

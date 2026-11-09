@@ -465,6 +465,49 @@ namespace detail {
       if (isLive(p))
         live.append(p.id());
 
+    // Delivery-independence hardening (design D2, task 5.4c): a begin while an
+    // interaction is already in flight must never clobber the tracked state.
+    switch (m_state) {
+      case Stroke: {
+        // Second-class: a point beginning mid-stroke is blacklisted; the
+        // stroke is unaffected.
+        QSet<int> keep;
+        keep.insert(m_primaryId);
+        blacklistNew(points, keep);
+        return;
+      }
+      case Gesture: {
+        QSet<int> keep;
+        keep.insert(m_gestureId1);
+        keep.insert(m_gestureId2);
+        blacklistNew(points, keep);
+        return;
+      }
+      case Pending:
+        // A second finger may arrive as its own single-point touch-begin while
+        // the first is still pending. Pair it with the tracked primary (its
+        // last known position) to form a gesture, instead of orphaning the
+        // primary. A begin that re-delivers only the primary is a no-op.
+        if (live.size() == 1) {
+          if (live.first() == m_primaryId)
+            return;
+          m_state = Gesture;
+          m_gestureId1 = m_primaryId;
+          m_gestureId2 = live.first();
+          const QPointF a = m_primaryLastPos;
+          const QPointF b = posOf(*find(points, m_gestureId2));
+          m_lastDistance = distance(a, b);
+          m_lastCentroid = centroid(a, b);
+          m_centroidValid = true;
+          result.cameraActive = true;
+          return;
+        }
+        break;
+      case Idle:
+      default:
+        break;
+    }
+
     if (live.size() >= 2) {
       // Both fingers landed together: straight to GESTURE, no PENDING state and
       // no synthesized tool events (spec: both-fingers-begin).
@@ -638,6 +681,38 @@ namespace detail {
     }
   }
 
+  void TouchState::onCancel(TouchResult &result)
+  {
+    switch (m_state) {
+      case Pending:
+        // No synthesized events: a cancel while pending never produces a
+        // phantom click (spec: touch session cancelled while pending).
+        m_state = Idle;
+        m_primaryId = -1;
+        break;
+      case Stroke:
+        // Emit the synthesized release so the tool's stroke ends cleanly (the
+        // tool-side release semantics — hydrogen churn, undo push — run), then
+        // Idle.
+        result.emitRelease(m_primaryLastPos);
+        m_state = Idle;
+        m_primaryId = -1;
+        break;
+      case Gesture:
+        // Idle holding the camera at its final pose (spec: touch session
+        // cancelled mid-gesture).
+        m_state = Idle;
+        m_gestureId1 = m_gestureId2 = -1;
+        m_centroidValid = false;
+        break;
+      case Idle:
+      default:
+        break;
+    }
+    // The session is over: clear the second-class blacklist (design D9).
+    m_blacklist.clear();
+  }
+
   TouchResult TouchState::process(const QList<QEventPoint> &points,
                                   Phase phase, qint64 timestamp)
   {
@@ -659,6 +734,9 @@ namespace detail {
         break;
       case End:
         onEnd(points, timestamp, result);
+        break;
+      case Cancel:
+        onCancel(result);
         break;
       default:
         break;
@@ -3288,6 +3366,12 @@ namespace Avogadro {
       case QEvent::TouchEnd:
         phase = detail::TouchState::End;
         break;
+      case QEvent::TouchCancel:
+        // Design D9: a cancelled session must never synthesize a phantom click
+        // (PENDING) or orphan an in-flight stroke/gesture. onCancel ends the
+        // session cleanly (stroke still emits its release; camera holds).
+        phase = detail::TouchState::Cancel;
+        break;
       default:
         break;
     }
@@ -3321,8 +3405,24 @@ namespace Avogadro {
     // rotate (design D5, task 2.4). Press-like push/erase semantics. The
     // SyntheticMouseEvent is reconstructed as a QMouseEvent here (Qt events are
     // non-copyable, so they live only as long as this loop iteration).
+    //
+    // Coordinate space (design D9): the state machine reads scenePosition(),
+    // which in Qt 6 widget delivery equals globalPosition() (global logical
+    // screen coords): qguiapplication.cpp sets
+    //   setScenePosition(ep, tempPt.globalPosition())
+    // and the widget path (qapplication.cpp updateTouchPointsForWidget) rewrites
+    // only position() = widget->mapFromGlobal(globalPosition()), never
+    // scenePosition(). On the real app layout the canvas sits below
+    // toolbar/dock chrome and the window sits somewhere on screen, so the
+    // emitted positions are offset by the widget's global origin. Convert them
+    // to widget-local by subtracting that origin (mapToGlobal(0,0)), so
+    // picking/stroke/lasso agree with what is under the finger. (The gesture's
+    // zoom and pan use translation-invariant deltas, so they need no
+    // correction.)
+    const QPoint widgetOrigin = this->mapToGlobal(QPoint(0, 0));
     for ( const detail::SyntheticMouseEvent& sm : result.mouseEvents ) {
-      QMouseEvent me( sm.type, sm.position, sm.position, sm.button,
+      const QPointF local = sm.position - QPointF(widgetOrigin);
+      QMouseEvent me( sm.type, local, local, sm.button,
                       sm.buttons, sm.modifiers );
       // Route the synthesized mouse event through the same dispatch the real
       // mouse handlers use (tool -> navigate-fallback), and push the returned
