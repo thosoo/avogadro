@@ -122,7 +122,14 @@ id.** From the exploration session:
   (drawtool.cpp:291–296 addAtom) and its AddAtomDrawCommand exists only at
   release (drawtool.cpp:607–615), so recovery is a release-synthesis + undo
   design that must first resolve the cancel-mid-stroke residue conflict (see
-  Risks: Cancel-mid-stroke).
+  Risks: Cancel-mid-stroke). Delivery note (2026-11-10): the recovery is
+  implemented in the UPDATE path only — `TouchState::onBegin` during a
+  COMMITTED (non-arming) stroke blacklists the second point without recovery,
+  so a platform delivering the second finger as its own single-point
+  TouchBegin during a committed stroke would leave the stroke in flight (a
+  latent delivery-independence hole against the claim above; not produced by
+  Qt 6.6.3's aggregated delivery — see Risks). If discrimination lands on the
+  machine path, harden onBegin with the same recovery + a unit slot.
 - **Three-finger orbit (task 5.7)**: a third live point arriving while the
   two-finger GESTURE is in flight promotes the gesture to a THREE-FINGER
   ORBIT — the centroid delta of all three points drives `Navigate::rotate`
@@ -371,7 +378,34 @@ the application.
   surfaced two evidence-backed defects independent of that outcome —
   scenePosition (global, = globalPosition()) vs position (widget-local)
   coordinate space on a child widget, and unhandled QEvent::TouchCancel —
-  filed as task 5.4.
+  filed as task 5.4. **Deeper platform verification and re-ranking
+  (2026-11-10, after the 6.3 artifact still drew atoms on pinch)**: the
+  Windows artifact pins Qt 6.6.3 (windows-installer.yml:244); verified
+  against v6.6.3 primary sources — (1) the WM_POINTER handler re-appends
+  non-delivered live points as Stationary and TouchBegin derives only when
+  ALL points are Pressed, so finger 2 arrives as TouchUpdate [f2 Pressed,
+  f1 Stationary], the shape the arming promotion AND the committed-stroke
+  recovery both handle (recovery unit-proven end-to-end with a real undo
+  stack); (2) touch timestamps come from eventTime.elapsed() (monotonic
+  advancing ms), so the arming clock is sound — the timestamp candidate is
+  refuted at platform level; (3) Qt synthesizes mouse from touch only when
+  the delivered QTouchEvent is NOT accepted, and GLWidget::touchEvent
+  returns true — so if it runs, Qt's synthesis is suppressed. Consequence:
+  the recorded "pipeline demonstrably engages on device" inference is
+  UNSOUND — every P52 symptom to date (one-finger rotate works; pinch draws
+  a persistent atom; two-finger horizontal = atom drag) is indistinguishable
+  from the PRE-change Qt primary-point synthesis, i.e. from
+  `GLWidget::touchEvent` never running in the packaged app. The leading
+  hypothesis is now (d) touch-engagement failure in the packaged app
+  (attribute ineffective or touch routed to another widget), ranked above
+  the demoted recovery-gate candidate (c). Discrimination: Probe 0 (no
+  rebuild) — set slop = 40 px in the General-tab panel, stroke ~15–20 px:
+  nothing draws ⇒ engaged (machine path: env-gated in-touchEvent trace for
+  (c)); atom appears immediately ⇒ NOT engaged (fix path: engagement/routing
+  investigation, new task). Probe 1 cross-check: arming = 1000 ms ⇒ ~1 s ink
+  delay iff engaged. Probe 2: the QT_LOGGING_RULES trace, decoded per Probe
+  0's outcome. No machine-side code change before discrimination (oracle
+  ruling, sharpened first step recorded in tasks 5.2/5.3).
 - **Windows 11 shell gate on three-finger touch (D11, user decision
   2026-11-10).** With the OS 'Three- and four-finger touch gestures' setting
   On (default), three-finger touches never reach the application — the orbit
