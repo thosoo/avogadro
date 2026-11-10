@@ -20,14 +20,18 @@ namespace detail {
 //! a tap. A named constant so it is tuned in one place (device smoke, task 5).
 constexpr double kTouchSlopLogicalPx = 10.0;
 
-//! Stroke-arming grace window (design D2, task 5.5): once a single finger has
-//! crossed the slop it enters an ARMED STROKE in which the press is HELD for
-//! this many milliseconds before it is emitted to the tool. The hold lets a
-//! second finger that arrives during the window form a two-finger GESTURE
-//! (pinch) instead of the stroke drawing an atom (the edit tool sees the held
-//! press). A genuine one-finger stroke proceeds once the window elapses. Tuned
-//! from device evidence (task 5); a named constant so it changes in one place.
-constexpr qint64 kTouchStrokeArmMs = 50;
+//! Stroke-arming grace window (design D2, task 5.5, widened by task 5.6): once
+//! a single finger has crossed the slop it enters an ARMED STROKE in which the
+//! press is HELD for this many milliseconds before it is emitted to the tool.
+//! The hold lets a second finger that arrives during the window form a
+//! two-finger GESTURE (pinch) instead of the stroke drawing an atom (the edit
+//! tool sees the held press). A genuine one-finger stroke proceeds once the
+//! window elapses. Tuned from device evidence (task 5); a named constant so it
+//! changes in one place. Raised 50ms -> 250ms by task 5.6: on the P52 the 50ms
+//! window elapsed while finger 1 was still moving toward the pinch (human
+//! finger-planting commonly takes 150-400ms), so the press reached the draw
+//! tool and finger 2 was blacklisted; ~250ms covers typical pinch planting.
+constexpr qint64 kTouchStrokeArmMs = 250;
 
 //! Result of feeding one touch event through the touch state machine.
 //!
@@ -61,6 +65,14 @@ struct TouchResult {
   QPoint centroidTo;
   //! True when this event should drive the camera (a two-finger gesture).
   bool cameraActive = false;
+  //! Three-finger orbit (task 5.7): centroid of the three points at the
+  //! previous and current event (logical pixels). Valid only while the gesture
+  //! is an orbit; when orbitFrom != orbitTo the delta drives
+  //! `Navigate::rotate` with the navigate tool's drag mapping. The zoom and
+  //! pan fields are left at their defaults during an orbit so the pinch deltas
+  //! stop at promotion (design D2, task 5.7).
+  QPoint orbitFrom;
+  QPoint orbitTo;
 
   //! Append a synthesized press+release pair (a click) at `pos`.
   void emitClick(const QPointF &pos)
@@ -115,10 +127,15 @@ struct TouchResult {
 //!   the stroke proceeds.
 //!   GESTURE (pinch zoom / centroid pan), tracked by the two original ids;
 //!   ends when either original lifts, leaving the camera where it was.
+//!   A third point arriving during a two-finger GESTURE promotes it to a
+//!   THREE-FINGER ORBIT (task 5.7): the three-point centroid delta drives
+//!   Navigate::rotate; the zoom/pan deltas stop at promotion. A touch event
+//!   beginning with >= 3 points goes straight to the orbit.
 //!   Any point that arrives while an interaction is in flight is second-class:
 //!   ignored until it lifts, never promoted (also palm rejection). The
 //!   blacklist survives stroke end, so a resting finger never wakes as a new
-//!   touch, and a third finger never substitutes into a broken pinch pair.
+//!   touch, and a third finger never substitutes into a broken pinch pair
+//!   (a third finger arriving during a live pinch promotes it to an orbit).
 class A_EXPORT TouchState {
 public:
   enum State { Idle, Pending, Stroke, Gesture };
@@ -172,6 +189,12 @@ private:
   {
     return QPointF((a.x() + b.x()) * 0.5, (a.y() + b.y()) * 0.5);
   }
+  //! Centroid of three points (task 5.7 three-finger orbit).
+  static QPointF centroid3(const QPointF &a, const QPointF &b, const QPointF &c)
+  {
+    return QPointF((a.x() + b.x() + c.x()) / 3.0,
+                   (a.y() + b.y() + c.y()) / 3.0);
+  }
   void onBegin(const QList<QEventPoint> &points, TouchResult &result);
   void onUpdate(const QList<QEventPoint> &points, qint64 timestamp,
                 TouchResult &result);
@@ -210,6 +233,14 @@ private:
   double m_lastDistance = 0.0;
   QPointF m_lastCentroid;
   bool m_centroidValid = false;
+
+  // GESTURE (three-finger orbit, task 5.7): the third point id, whether the
+  // gesture is an orbit (vs. a two-finger pinch/pan), and the last three-point
+  // centroid. When promoted from a pinch, the zoom/pan bookkeeping above is
+  // left stale and unused; the orbit takes over.
+  int m_gestureId3 = -1;
+  bool m_orbit = false;
+  QPointF m_lastOrbitCentroid;
 
   // Second-class blacklist (palm rejection): ids ignored until they lift.
   QSet<int> m_blacklist;

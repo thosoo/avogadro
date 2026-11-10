@@ -500,9 +500,33 @@ namespace detail {
         return;
       }
       case Gesture: {
+        // A third live point arriving while the two-finger gesture is in flight
+        // promotes it to a three-finger ORBIT (design D2, task 5.7). Otherwise
+        // new points are second-class.
+        int third = -1;
+        for (const QEventPoint &p : points) {
+          if (p.id() == m_gestureId1 || p.id() == m_gestureId2 ||
+              p.id() == m_gestureId3 || m_blacklist.contains(p.id()) ||
+              !isLive(p))
+            continue;
+          third = p.id();
+          break;
+        }
+        if (third != -1) {
+          m_orbit = true;
+          m_gestureId3 = third;
+          const QPointF a = posOf(*find(points, m_gestureId1));
+          const QPointF b = posOf(*find(points, m_gestureId2));
+          const QPointF c = posOf(*find(points, m_gestureId3));
+          m_lastOrbitCentroid = centroid3(a, b, c);
+          result.orbitFrom = result.orbitTo = m_lastOrbitCentroid.toPoint();
+          result.cameraActive = true;
+          return;
+        }
         QSet<int> keep;
         keep.insert(m_gestureId1);
         keep.insert(m_gestureId2);
+        keep.insert(m_gestureId3); // the orbit third point, if any
         blacklistNew(points, keep);
         return;
       }
@@ -531,10 +555,28 @@ namespace detail {
         break;
     }
 
+    if (live.size() >= 3) {
+      // Three fingers landed together: straight to a three-finger ORBIT (design
+      // D2, task 5.7), no PENDING state and no synthesized tool events.
+      m_state = Gesture;
+      m_orbit = true;
+      m_gestureId1 = live.at(0);
+      m_gestureId2 = live.at(1);
+      m_gestureId3 = live.at(2);
+      const QPointF a = posOf(*find(points, m_gestureId1));
+      const QPointF b = posOf(*find(points, m_gestureId2));
+      const QPointF c = posOf(*find(points, m_gestureId3));
+      m_lastOrbitCentroid = centroid3(a, b, c);
+      result.orbitFrom = result.orbitTo = m_lastOrbitCentroid.toPoint();
+      result.cameraActive = true;
+      return;
+    }
+
     if (live.size() >= 2) {
       // Both fingers landed together: straight to GESTURE, no PENDING state and
       // no synthesized tool events (spec: both-fingers-begin).
       m_state = Gesture;
+      m_orbit = false;
       m_gestureId1 = live.first();
       m_gestureId2 = live.at(1);
       const QPointF a = posOf(*find(points, m_gestureId1));
@@ -682,6 +724,67 @@ namespace detail {
       }
 
       case Gesture: {
+        if (m_orbit) {
+          // Orbit: the three original points drive Navigate::rotate with the
+          // three-point centroid delta (task 5.7). The zoom/pan deltas stopped
+          // at promotion (design D2).
+          QSet<int> keep;
+          keep.insert(m_gestureId1);
+          keep.insert(m_gestureId2);
+          keep.insert(m_gestureId3);
+          blacklistNew(points, keep);
+
+          const QEventPoint *p1 = find(points, m_gestureId1);
+          const QEventPoint *p2 = find(points, m_gestureId2);
+          const QEventPoint *p3 = find(points, m_gestureId3);
+          if (!p1 || !p2 || !p3 || p1->state() == QEventPoint::Released ||
+              p2->state() == QEventPoint::Released ||
+              p3->state() == QEventPoint::Released) {
+            // Any of the three original points lifted: the orbit ends and the
+            // camera stays where the gesture left it.
+            m_state = Idle;
+            m_gestureId1 = m_gestureId2 = m_gestureId3 = -1;
+            m_orbit = false;
+            m_centroidValid = false;
+            return;
+          }
+          const QPointF a = posOf(*p1);
+          const QPointF b = posOf(*p2);
+          const QPointF c = posOf(*p3);
+          const QPointF newCentroid = centroid3(a, b, c);
+          result.orbitFrom = m_lastOrbitCentroid.toPoint();
+          result.orbitTo = newCentroid.toPoint();
+          result.cameraActive = true;
+          m_lastOrbitCentroid = newCentroid;
+          break;
+        }
+
+        // Two-finger pinch/pan: a third live point arriving while the gesture
+        // is in flight promotes it to a three-finger ORBIT (task 5.7).
+        int third = -1;
+        for (const QEventPoint &p : points) {
+          if (p.id() == m_gestureId1 || p.id() == m_gestureId2 ||
+              m_blacklist.contains(p.id()) ||
+              p.state() == QEventPoint::Released)
+            continue;
+          third = p.id();
+          break;
+        }
+        if (third != -1) {
+          m_orbit = true;
+          m_gestureId3 = third;
+          const QEventPoint *p1 = find(points, m_gestureId1);
+          const QEventPoint *p2 = find(points, m_gestureId2);
+          const QEventPoint *p3 = find(points, m_gestureId3);
+          const QPointF a = posOf(*p1);
+          const QPointF b = posOf(*p2);
+          const QPointF c = posOf(*p3);
+          m_lastOrbitCentroid = centroid3(a, b, c);
+          result.orbitFrom = result.orbitTo = m_lastOrbitCentroid.toPoint();
+          result.cameraActive = true;
+          return;
+        }
+
         QSet<int> keep;
         keep.insert(m_gestureId1);
         keep.insert(m_gestureId2);
@@ -756,10 +859,11 @@ namespace detail {
       }
 
       case Gesture: {
-        // Either (or both) original points lifted: the gesture ends and the
+        // Either (or any) original point lifted: the gesture ends and the
         // camera holds its final pose.
         m_state = Idle;
-        m_gestureId1 = m_gestureId2 = -1;
+        m_gestureId1 = m_gestureId2 = m_gestureId3 = -1;
+        m_orbit = false;
         m_centroidValid = false;
         break;
       }
@@ -800,7 +904,8 @@ namespace detail {
         // Idle holding the camera at its final pose (spec: touch session
         // cancelled mid-gesture).
         m_state = Idle;
-        m_gestureId1 = m_gestureId2 = -1;
+        m_gestureId1 = m_gestureId2 = m_gestureId3 = -1;
+        m_orbit = false;
         m_centroidValid = false;
         break;
       case Idle:
@@ -3497,8 +3602,17 @@ namespace Avogadro {
     // distance change between the two tracked points zooms, using the wheel
     // sign convention (fingers apart = zoom in); the centroid movement pans.
     // Neither reaches a tool (design D4). The zoom reuses the wheel formula
-    // exactly; the pan matches the middle-drag translate path.
+    // exactly; the pan matches the middle-drag translate path. A three-finger
+    // orbit (task 5.7) drives Navigate::rotate with the three-point centroid
+    // delta, the navigate tool's left-drag mapping, and replaces the pinch
+    // (zoom/pan deltas stop at promotion).
     if ( result.cameraActive ) {
+      if ( result.orbitFrom != result.orbitTo ) {
+        const QPoint orbitDelta = result.orbitTo - result.orbitFrom;
+        Navigate::rotate( this, center(),
+                          orbitDelta.x() * devicePixelRatioF(),
+                          orbitDelta.y() * devicePixelRatioF() );
+      }
       if ( result.zoomDistanceDelta != 0.0 ) {
         const double distanceDeltaDevice =
           result.zoomDistanceDelta * devicePixelRatioF();

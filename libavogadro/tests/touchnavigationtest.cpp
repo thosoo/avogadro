@@ -263,6 +263,12 @@ private Q_SLOTS:
   void testEndDuringStrokeArmingEmitsPressRelease();
   void testBeginDuringStrokeArmingFormsGesture();
 
+  // --- Three-finger orbit (task 5.7) --------------------------------------
+  void testThreePointBeginGoesToOrbit();
+  void testThirdFingerPromotesPinchToOrbit();
+  void testOrbitEndHoldsCamera();
+  void testThirdFingerDuringStrokeStillBlacklisted();
+
   // --- Widget integration (touchEvent -> real tool) ------------------------
   void testTapErasesAtom();
   void testTouchEventsRouteThroughEvent();
@@ -272,6 +278,7 @@ private Q_SLOTS:
   void testOneFingerRotateWithNavigateTool();
   void testEmbeddedCanvasUsesWidgetLocalPosition();
   void testPinchDuringStrokeArmingDrawsNoAtom();
+  void testOrbitWithDrawToolActiveDrawsNoAtom();
 
   //! Drive a one-finger lasso through GLWidget::touchEvent() over a logical
   //! (scene-space) loop; the widget scales each point by devicePixelRatioF().
@@ -914,6 +921,167 @@ void TouchNavigationTest::testBeginDuringStrokeArmingFormsGesture()
 }
 
 // ---------------------------------------------------------------------------
+// Three-finger orbit (task 5.7)
+// ---------------------------------------------------------------------------
+
+void TouchNavigationTest::testThreePointBeginGoesToOrbit()
+{
+  // A touch that begins with three contact points goes straight to a
+  // THREE-FINGER ORBIT (no pending state, no synthesized tool events); moving
+  // the three-point centroid drives Navigate::rotate (task 5.7, spec: three
+  // fingers land together).
+  detail::TouchState ts(detail::kTouchSlopLogicalPx);
+  QList<QEventPoint> begin;
+  begin << makePoint(0, QEventPoint::Pressed, QPointF(100.0, 100.0));
+  begin << makePoint(1, QEventPoint::Pressed, QPointF(200.0, 100.0));
+  begin << makePoint(2, QEventPoint::Pressed, QPointF(150.0, 200.0));
+  ts.process(begin, detail::TouchState::Begin, 0);
+  QCOMPARE(ts.state(), detail::TouchState::Gesture);
+
+  // Move all three together: the centroid shifts -> an orbit rotate delta.
+  QList<QEventPoint> move;
+  move << makePoint(0, QEventPoint::Updated, QPointF(110.0, 110.0));
+  move << makePoint(1, QEventPoint::Updated, QPointF(210.0, 110.0));
+  move << makePoint(2, QEventPoint::Updated, QPointF(160.0, 210.0));
+  const detail::TouchResult r =
+    ts.process(move, detail::TouchState::Update, 20);
+  QVERIFY(r.cameraActive);
+  QVERIFY(r.orbitFrom != r.orbitTo); // orbit delta present
+  QVERIFY(r.mouseEvents.isEmpty()); // orbit reaches no tool
+  // The pinch deltas stop at promotion: no zoom, no pan.
+  QCOMPARE(r.zoomDistanceDelta, 0.0);
+  QCOMPARE(r.centroidFrom, r.centroidTo);
+}
+
+void TouchNavigationTest::testThirdFingerPromotesPinchToOrbit()
+{
+  // A third finger arriving while a two-finger pinch is in flight promotes the
+  // gesture to a three-finger orbit (task 5.7, spec: third finger promotes a
+  // pinch to an orbit). The zoom/pan deltas stop at promotion.
+  detail::TouchState ts(detail::kTouchSlopLogicalPx);
+  QList<QEventPoint> begin;
+  begin << makePoint(0, QEventPoint::Pressed, QPointF(100.0, 100.0));
+  begin << makePoint(1, QEventPoint::Pressed, QPointF(200.0, 100.0));
+  ts.process(begin, detail::TouchState::Begin, 0); // pinch, dist 100
+
+  // A live pinch: spreading zooms.
+  QList<QEventPoint> spread;
+  spread << makePoint(0, QEventPoint::Updated, QPointF(110.0, 100.0));
+  spread << makePoint(1, QEventPoint::Updated, QPointF(220.0, 100.0));
+  const detail::TouchResult zoomIn =
+    ts.process(spread, detail::TouchState::Update, 20);
+  QVERIFY(zoomIn.cameraActive);
+  QVERIFY(zoomIn.zoomDistanceDelta > 0.0); // pinch zoom works before promotion
+
+  // A third finger lands mid-pinch -> promoted to an orbit.
+  QList<QEventPoint> withThird;
+  withThird << makePoint(0, QEventPoint::Updated, QPointF(115.0, 105.0));
+  withThird << makePoint(1, QEventPoint::Updated, QPointF(225.0, 105.0));
+  withThird << makePoint(2, QEventPoint::Updated, QPointF(170.0, 180.0));
+  const detail::TouchResult promo =
+    ts.process(withThird, detail::TouchState::Update, 40);
+  QVERIFY(promo.cameraActive);
+  QCOMPARE(promo.zoomDistanceDelta, 0.0); // pinch delta stopped at promotion
+  QCOMPARE(promo.centroidFrom, promo.centroidTo); // pan delta stopped
+  QVERIFY(promo.mouseEvents.isEmpty());
+
+  // The orbit is live: moving the three-point centroid rotates.
+  QList<QEventPoint> orbitMove;
+  orbitMove << makePoint(0, QEventPoint::Updated, QPointF(120.0, 115.0));
+  orbitMove << makePoint(1, QEventPoint::Updated, QPointF(230.0, 115.0));
+  orbitMove << makePoint(2, QEventPoint::Updated, QPointF(175.0, 190.0));
+  const detail::TouchResult orbit =
+    ts.process(orbitMove, detail::TouchState::Update, 60);
+  QVERIFY(orbit.cameraActive);
+  QVERIFY(orbit.orbitFrom != orbit.orbitTo);
+  QVERIFY(orbit.mouseEvents.isEmpty());
+}
+
+void TouchNavigationTest::testOrbitEndHoldsCamera()
+{
+  // Lifting any one of the three original points ends the orbit and the camera
+  // holds; the remaining fingers' subsequent movement does nothing
+  // (task 5.7, spec: one finger of an orbit lifts).
+  detail::TouchState ts(detail::kTouchSlopLogicalPx);
+  QList<QEventPoint> begin;
+  begin << makePoint(0, QEventPoint::Pressed, QPointF(100.0, 100.0));
+  begin << makePoint(1, QEventPoint::Pressed, QPointF(200.0, 100.0));
+  begin << makePoint(2, QEventPoint::Pressed, QPointF(150.0, 200.0));
+  ts.process(begin, detail::TouchState::Begin, 0);
+
+  QList<QEventPoint> move;
+  move << makePoint(0, QEventPoint::Updated, QPointF(110.0, 110.0));
+  move << makePoint(1, QEventPoint::Updated, QPointF(210.0, 110.0));
+  move << makePoint(2, QEventPoint::Updated, QPointF(160.0, 210.0));
+  ts.process(move, detail::TouchState::Update, 20);
+
+  // Lift finger 2; fingers 0 and 1 still present.
+  QList<QEventPoint> lift2;
+  lift2 << makePoint(0, QEventPoint::Updated, QPointF(115.0, 115.0));
+  lift2 << makePoint(1, QEventPoint::Updated, QPointF(215.0, 115.0));
+  lift2 << makePoint(2, QEventPoint::Released, QPointF(160.0, 210.0));
+  ts.process(lift2, detail::TouchState::End, 40);
+  QCOMPARE(ts.state(), detail::TouchState::Idle);
+
+  // The remaining fingers keep moving: nothing happens (camera holds).
+  QList<QEventPoint> rest;
+  rest << makePoint(0, QEventPoint::Updated, QPointF(130.0, 130.0));
+  rest << makePoint(1, QEventPoint::Updated, QPointF(230.0, 130.0));
+  const detail::TouchResult r =
+    ts.process(rest, detail::TouchState::Update, 60);
+  QVERIFY(r.mouseEvents.isEmpty());
+  QCOMPARE(ts.state(), detail::TouchState::Idle);
+}
+
+void TouchNavigationTest::testThirdFingerDuringStrokeStillBlacklisted()
+{
+  // A third point arriving during a single-finger STROKE remains second-class
+  // (palm rejection on the destructive path is unchanged; task 5.7, spec:
+  // extra finger during a stroke neither orbits nor draws). The stroke is
+  // committed (arming window elapsed) before the extra finger lands.
+  detail::TouchState ts(detail::kTouchSlopLogicalPx);
+  QList<TouchStep> seq = {
+    {{ makePoint(0, QEventPoint::Pressed, QPointF(100.0, 100.0)) },
+     detail::TouchState::Begin, 0},
+    {{ makePoint(0, QEventPoint::Updated, QPointF(120.0, 100.0)) },
+     detail::TouchState::Update, 20}, // slop crossing -> arming
+    {{ makePoint(0, QEventPoint::Updated, QPointF(130.0, 110.0)) },
+     detail::TouchState::Update, 20 + detail::kTouchStrokeArmMs}, // press emitted
+  };
+  const auto out = driveMachine(ts, seq);
+  const size_t afterStroke = out.size(); // press + move
+
+  // A second AND a third finger land mid-stroke (committed): both blacklisted.
+  QList<QEventPoint> extras;
+  extras << makePoint(0, QEventPoint::Updated, QPointF(140.0, 120.0));
+  extras << makePoint(1, QEventPoint::Updated, QPointF(400.0, 400.0));
+  extras << makePoint(2, QEventPoint::Updated, QPointF(500.0, 500.0));
+  const detail::TouchResult r =
+    ts.process(extras, detail::TouchState::Update, 40 + detail::kTouchStrokeArmMs);
+  QCOMPARE(r.mouseEvents.size(), size_t(1)); // only the stroke's move
+  QCOMPARE(ts.state(), detail::TouchState::Stroke);
+
+  // The stroke release: the extras contributed nothing.
+  QList<QEventPoint> release0;
+  release0 << makePoint(0, QEventPoint::Released, QPointF(140.0, 120.0));
+  release0 << makePoint(1, QEventPoint::Updated, QPointF(400.0, 400.0));
+  release0 << makePoint(2, QEventPoint::Updated, QPointF(500.0, 500.0));
+  ts.process(release0, detail::TouchState::End, 60 + detail::kTouchStrokeArmMs);
+  QCOMPARE(ts.state(), detail::TouchState::Idle);
+
+  // The extras lift: still nothing.
+  QList<QEventPoint> liftAll;
+  liftAll << makePoint(1, QEventPoint::Released, QPointF(400.0, 400.0));
+  liftAll << makePoint(2, QEventPoint::Released, QPointF(500.0, 500.0));
+  const detail::TouchResult r2 =
+    ts.process(liftAll, detail::TouchState::End, 80 + detail::kTouchStrokeArmMs);
+  QVERIFY(r2.mouseEvents.isEmpty());
+
+  // No events were produced after the stroke's release.
+  QCOMPARE(static_cast<int>(out.size()), static_cast<int>(afterStroke));
+}
+
+// ---------------------------------------------------------------------------
 // Widget integration (touchEvent -> real tool)
 // ---------------------------------------------------------------------------
 
@@ -1293,6 +1461,59 @@ void TouchNavigationTest::testPinchDuringStrokeArmingDrawsNoAtom()
 
   QCOMPARE(mol->numAtoms(), before); // no atom was drawn
   QVERIFY(!camBefore.isApprox(widget->camera()->modelview())); // camera zoomed
+
+  delete widget;
+  delete mol;
+}
+
+void TouchNavigationTest::testOrbitWithDrawToolActiveDrawsNoAtom()
+{
+  // A three-finger orbit with the draw tool active rotates the camera and
+  // leaves the molecule unchanged: no atom is drawn and no tool event is
+  // synthesized (task 5.7, spec: orbit with an editing tool active).
+  Molecule *mol = new Molecule; // empty: any press on empty space would add an atom
+  GLWidget *widget = makeWidget(mol);
+  widget->resize(800, 600);
+  widget->setMolecule(mol);
+  DrawTool tool;
+  tool.setElement(6); // carbon
+  tool.setAddHydrogens(Qt::Unchecked);
+  widget->setTool(&tool);
+  Avogadro::UndoStack undoStack(mol);
+  widget->setUndoStack(&undoStack);
+
+  const int before = mol->numAtoms(); // 0
+  const Projective3d camBefore = widget->camera()->modelview();
+
+  // Three fingers land together -> straight to an orbit.
+  QList<QEventPoint> begin;
+  begin << makePoint(0, QEventPoint::Pressed, QPointF(200.0, 300.0));
+  begin << makePoint(1, QEventPoint::Pressed, QPointF(400.0, 300.0));
+  begin << makePoint(2, QEventPoint::Pressed, QPointF(300.0, 200.0));
+  QTouchEvent beginEvent(QEvent::TouchBegin, nullptr, Qt::NoModifier, begin);
+  beginEvent.setTimestamp(0);
+  widget->touchEvent(&beginEvent);
+
+  // Move the three-point centroid: the camera orbits.
+  QList<QEventPoint> move;
+  move << makePoint(0, QEventPoint::Updated, QPointF(220.0, 320.0));
+  move << makePoint(1, QEventPoint::Updated, QPointF(420.0, 320.0));
+  move << makePoint(2, QEventPoint::Updated, QPointF(320.0, 220.0));
+  QTouchEvent moveEvent(QEvent::TouchUpdate, nullptr, Qt::NoModifier, move);
+  moveEvent.setTimestamp(20);
+  widget->touchEvent(&moveEvent);
+
+  // Lift one finger: the orbit ends and the camera holds.
+  QList<QEventPoint> end;
+  end << makePoint(0, QEventPoint::Released, QPointF(220.0, 320.0));
+  end << makePoint(1, QEventPoint::Updated, QPointF(420.0, 320.0));
+  end << makePoint(2, QEventPoint::Updated, QPointF(320.0, 220.0));
+  QTouchEvent endEvent(QEvent::TouchEnd, nullptr, Qt::NoModifier, end);
+  endEvent.setTimestamp(40);
+  widget->touchEvent(&endEvent);
+
+  QCOMPARE(mol->numAtoms(), before); // no atom was drawn
+  QVERIFY(!camBefore.isApprox(widget->camera()->modelview())); // camera orbited
 
   delete widget;
   delete mol;
