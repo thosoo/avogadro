@@ -24,6 +24,7 @@
 #include <QDialog>
 
 class QCheckBox;
+class QLabel;
 class QPushButton;
 class QSettings;
 class QSpinBox;
@@ -75,6 +76,13 @@ public slots:
   //! Apply the current controls and close the dialog.
   void accept() override;
 
+private slots:
+  //! Windows only: open the OS touch settings page (ms-settings:devices-touch)
+  //! where the system 'Three- and four-finger touch gestures' toggle lives
+  //! (design D11, task 5.8). The guidance row itself is created only on
+  //! Windows builds.
+  void openWindowsTouchSettings();
+
 private:
   void setupUi();
   //! Persist the current controls and live-apply them to every active
@@ -91,6 +99,10 @@ private:
   QPushButton *m_resetButton;
   QPushButton *m_okButton;
   QPushButton *m_cancelButton;
+  //! Windows-only guidance row (design D11, task 5.8): null on other
+  //! platforms, where the OS cannot preempt multi-finger touch.
+  QLabel *m_windowsHint = nullptr;
+  QPushButton *m_windowsSettingsButton = nullptr;
 };
 
 } // namespace Avogadro

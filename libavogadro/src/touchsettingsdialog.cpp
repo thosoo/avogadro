@@ -20,11 +20,14 @@
 
 #include <QApplication>
 #include <QCheckBox>
+#include <QDesktopServices>
 #include <QDialogButtonBox>
 #include <QFormLayout>
+#include <QLabel>
 #include <QPushButton>
 #include <QSettings>
 #include <QSpinBox>
+#include <QUrl>
 #include <QVBoxLayout>
 
 #include "glwidget.h"
@@ -104,6 +107,31 @@ void TouchSettingsDialog::setupUi()
   QVBoxLayout *layout = new QVBoxLayout(this);
   layout->addLayout(form);
   layout->addWidget(m_resetButton);
+#ifdef Q_OS_WIN
+  // Windows 11 routes three-/four-finger touches to the shell while the OS
+  // setting 'Three- and four-finger touch gestures' (Settings > Bluetooth &
+  // devices > Touch, default On) is enabled: applications cannot receive
+  // them, so the three-finger orbit is inert on stock Windows (design D11).
+  // Surface guidance naming that setting plus a direct deep link to the OS
+  // page (task 5.8). Plain widgets only (D8); absent on other platforms.
+  m_windowsHint = new QLabel(
+    tr("Tip: on Windows 11, the system setting 'Three- and four-finger touch "
+       "gestures' (Settings > Bluetooth & devices > Touch) sends three-finger "
+       "and four-finger touches to the operating system instead of this "
+       "application. Set it to Off to use the three-finger orbit."), this);
+  m_windowsHint->setObjectName(QStringLiteral("touchWindowsGuidanceLabel"));
+  m_windowsHint->setWordWrap(true);
+
+  m_windowsSettingsButton =
+    new QPushButton(tr("Open Windows touch settings..."), this);
+  m_windowsSettingsButton->setObjectName(
+    QStringLiteral("touchWindowsSettingsButton"));
+  connect(m_windowsSettingsButton, &QPushButton::clicked, this,
+          &TouchSettingsDialog::openWindowsTouchSettings);
+
+  layout->addWidget(m_windowsHint);
+  layout->addWidget(m_windowsSettingsButton);
+#endif
   layout->addWidget(buttons);
 
   // Live application: every edit persists and applies immediately (no restart).
@@ -178,6 +206,14 @@ void TouchSettingsDialog::accept()
 {
   applySettings();
   QDialog::accept();
+}
+
+void TouchSettingsDialog::openWindowsTouchSettings()
+{
+  // Deep link to the OS page hosting 'Three- and four-finger touch gestures'
+  // (design D11, task 5.8). ms-settings URIs are opened by the shell; no
+  // elevation and no modal dialog are involved.
+  QDesktopServices::openUrl(QUrl(QStringLiteral("ms-settings:devices-touch")));
 }
 
 } // namespace Avogadro

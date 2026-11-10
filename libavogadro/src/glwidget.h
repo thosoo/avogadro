@@ -1101,6 +1101,17 @@ namespace Avogadro {
 
     Q_SIGNALS:
       /**
+       * Emitted at most once per widget instance when a touch session that
+       * has observed three or more contacts ends with QEvent::TouchCancel —
+       * the Windows 11 shell-claim signature (design D11, task 5.8): the OS
+       * 'Three- and four-finger touch gestures' setting routes three-/four-
+       * finger touches to the shell, which cancels the application's touch
+       * session. Observers may surface non-modal guidance; strokes and the
+       * camera are unaffected.
+       */
+      void touchGesturePreempted();
+
+      /**
        * Signal for the mouse press event which is passed to the tools.
        */
       void mousePress(QMouseEvent * event);

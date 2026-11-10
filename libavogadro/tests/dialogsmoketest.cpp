@@ -11,6 +11,8 @@
 #include <QCoreApplication>
 #include <QDialog>
 #include <QEventLoop>
+#include <QLabel>
+#include <QPushButton>
 #include <QWidget>
 
 #include <Eigen/Core>
@@ -128,6 +130,7 @@ private Q_SLOTS:
   void constraintsDialogOpens();
   void insertFragmentDialogOpens();
   void touchSettingsDialogLoadsClampsSavesResets();
+  void touchSettingsDialogWindowsGuidance();
 };
 
 void DialogSmokeTest::inventory()
@@ -302,6 +305,31 @@ void DialogSmokeTest::constraintsDialogOpens()
 void DialogSmokeTest::insertFragmentDialogOpens()
 {
   smokeShowDialog(QStringLiteral("InsertFragmentDialog"), []() { return new InsertFragmentDialog; });
+}
+
+void DialogSmokeTest::touchSettingsDialogWindowsGuidance()
+{
+  // Windows 11 routes three-/four-finger touches to the shell while the OS
+  // 'Three- and four-finger touch gestures' setting is On (design D11); the
+  // dialog surfaces guidance naming that setting plus a deep link to the OS
+  // page (task 5.8). Windows-only: the row is absent on other platforms.
+#ifdef Q_OS_WIN
+  QTemporaryDir dir;
+  QVERIFY(dir.isValid());
+  QSettings settings(dir.filePath(QStringLiteral("touch.ini")), QSettings::IniFormat);
+  TouchSettingsDialog dialog(nullptr, &settings);
+  dialog.loadSettings();
+
+  QLabel *hint =
+    dialog.findChild<QLabel *>(QStringLiteral("touchWindowsGuidanceLabel"));
+  QPushButton *button = dialog.findChild<QPushButton *>(
+    QStringLiteral("touchWindowsSettingsButton"));
+  QVERIFY(hint != nullptr);
+  QVERIFY(button != nullptr);
+  QVERIFY(hint->text().contains(QStringLiteral("Three- and four-finger")));
+#else
+  QSKIP("Windows-only guidance row (design D11)");
+#endif
 }
 
 void DialogSmokeTest::touchSettingsDialogLoadsClampsSavesResets()

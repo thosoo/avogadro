@@ -295,6 +295,8 @@ private Q_SLOTS:
   void testPinchDuringStrokeArmingDrawsNoAtom();
   void testOrbitWithDrawToolActiveDrawsNoAtom();
   void testDialogLiveAppliesOrbitDisabled();
+  void testTouchGesturePreemptedFiresOnceForShellClaim();
+  void testOrdinaryCancelDoesNotNotifyPreemption();
 
   //! Drive a one-finger lasso through GLWidget::touchEvent() over a logical
   //! (scene-space) loop; the widget scales each point by devicePixelRatioF().
@@ -1861,6 +1863,93 @@ void TouchNavigationTest::testDialogLiveAppliesOrbitDisabled()
 
   // No orbit, no zoom, no pan: the camera holds at the gesture-start pose.
   QVERIFY(camBefore.isApprox(widget->camera()->modelview()));
+
+  delete widget;
+  delete mol;
+}
+
+void TouchNavigationTest::testTouchGesturePreemptedFiresOnceForShellClaim()
+{
+  // Windows 11 shell gate (design D11, task 5.8): a touch session that has
+  // observed >= 3 contacts and then ends in QEvent::TouchCancel matches the
+  // shell-claim signature (the OS consumes three-/four-finger touches for
+  // task switching). GLWidget notifies observers exactly once per run via
+  // touchGesturePreempted(); a normal session end and later preemptions
+  // never re-fire it.
+  Molecule *mol = new Molecule;
+  GLWidget *widget = makeWidget(mol);
+  widget->setMolecule(mol);
+  QSignalSpy spy(widget, &GLWidget::touchGesturePreempted);
+  QVERIFY(spy.isValid());
+
+  QList<QEventPoint> begin;
+  begin << makePoint(0, QEventPoint::Pressed, QPointF(200.0, 300.0));
+  begin << makePoint(1, QEventPoint::Pressed, QPointF(400.0, 300.0));
+  begin << makePoint(2, QEventPoint::Pressed, QPointF(300.0, 200.0));
+
+  // A >= 3-contact session that ends NORMALLY must not notify.
+  QTouchEvent beginEvent(QEvent::TouchBegin, nullptr, Qt::NoModifier, begin);
+  beginEvent.setTimestamp(0);
+  widget->touchEvent(&beginEvent);
+  QList<QEventPoint> end;
+  end << makePoint(0, QEventPoint::Released, QPointF(200.0, 300.0));
+  end << makePoint(1, QEventPoint::Stationary, QPointF(400.0, 300.0));
+  end << makePoint(2, QEventPoint::Stationary, QPointF(300.0, 200.0));
+  QTouchEvent endEvent(QEvent::TouchEnd, nullptr, Qt::NoModifier, end);
+  endEvent.setTimestamp(20);
+  widget->touchEvent(&endEvent);
+  QCOMPARE(spy.count(), 0);
+
+  // A >= 3-contact session cancelled by the platform notifies exactly once.
+  QList<QEventPoint> cancel;
+  cancel << makePoint(0, QEventPoint::Stationary, QPointF(200.0, 300.0));
+  cancel << makePoint(1, QEventPoint::Stationary, QPointF(400.0, 300.0));
+  cancel << makePoint(2, QEventPoint::Stationary, QPointF(300.0, 200.0));
+  QTouchEvent begin2(QEvent::TouchBegin, nullptr, Qt::NoModifier, begin);
+  begin2.setTimestamp(40);
+  widget->touchEvent(&begin2);
+  QTouchEvent cancelEvent(QEvent::TouchCancel, nullptr, Qt::NoModifier, cancel);
+  cancelEvent.setTimestamp(60);
+  widget->touchEvent(&cancelEvent);
+  QCOMPARE(spy.count(), 1);
+
+  // The latch holds: a later preemption does not re-notify.
+  QTouchEvent begin3(QEvent::TouchBegin, nullptr, Qt::NoModifier, begin);
+  begin3.setTimestamp(80);
+  widget->touchEvent(&begin3);
+  QTouchEvent cancelEvent2(QEvent::TouchCancel, nullptr, Qt::NoModifier, cancel);
+  cancelEvent2.setTimestamp(100);
+  widget->touchEvent(&cancelEvent2);
+  QCOMPARE(spy.count(), 1);
+
+  delete widget;
+  delete mol;
+}
+
+void TouchNavigationTest::testOrdinaryCancelDoesNotNotifyPreemption()
+{
+  // An ordinary cancel (at most two contacts observed) never matches the
+  // shell-claim signature and must not notify (task 5.8).
+  Molecule *mol = new Molecule;
+  GLWidget *widget = makeWidget(mol);
+  widget->setMolecule(mol);
+  QSignalSpy spy(widget, &GLWidget::touchGesturePreempted);
+  QVERIFY(spy.isValid());
+
+  QList<QEventPoint> begin;
+  begin << makePoint(0, QEventPoint::Pressed, QPointF(200.0, 300.0));
+  begin << makePoint(1, QEventPoint::Pressed, QPointF(400.0, 300.0));
+  QTouchEvent beginEvent(QEvent::TouchBegin, nullptr, Qt::NoModifier, begin);
+  beginEvent.setTimestamp(0);
+  widget->touchEvent(&beginEvent);
+
+  QList<QEventPoint> cancel;
+  cancel << makePoint(0, QEventPoint::Stationary, QPointF(200.0, 300.0));
+  cancel << makePoint(1, QEventPoint::Stationary, QPointF(400.0, 300.0));
+  QTouchEvent cancelEvent(QEvent::TouchCancel, nullptr, Qt::NoModifier, cancel);
+  cancelEvent.setTimestamp(20);
+  widget->touchEvent(&cancelEvent);
+  QCOMPARE(spy.count(), 0);
 
   delete widget;
   delete mol;

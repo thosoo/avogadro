@@ -397,6 +397,15 @@ void GLWidget::updateViewport()
     //! (design D6): two widgets track their touch interactions independently.
     detail::TouchState m_touch;
 
+    //! Windows 11 shell-preemption detection (task 5.8, design D11): the
+    //! maximum contact count observed in the current touch session, and a
+    //! once-per-run latch for touchGesturePreempted(). A session that saw
+    //! >= 3 contacts and ends in QEvent::TouchCancel matches the shell-claim
+    //! signature (the OS consumes three-/four-finger touches). Per-widget,
+    //! never static (design D6).
+    int m_touchSessionMaxContacts = 0;
+    bool m_touchPreemptedNotified = false;
+
     //! Apply the cached touch settings to the state machine (design D10). The
     //! settings panel live-applies by writing QSettings, updating the cached
     //! values, then calling this. Resets any in-flight gesture so a new gesture
@@ -3682,6 +3691,34 @@ namespace Avogadro {
         // (PENDING) or orphan an in-flight stroke/gesture. onCancel ends the
         // session cleanly (stroke still emits its release; camera holds).
         phase = detail::TouchState::Cancel;
+        break;
+      default:
+        break;
+    }
+    // Windows 11 shell-preemption detection (task 5.8, design D11): track the
+    // maximum contact count delivered in this touch session. A session that
+    // observed >= 3 contacts and then ends in QEvent::TouchCancel matches the
+    // shell-claim signature (the OS 'Three- and four-finger touch gestures'
+    // setting routes those touches to the shell, which cancels the
+    // application's session). Notify observers once per run via
+    // touchGesturePreempted(); no modal dialogs, no tool or camera changes.
+    switch ( event->type() ) {
+      case QEvent::TouchBegin:
+        d->m_touchSessionMaxContacts = points.size();
+        break;
+      case QEvent::TouchUpdate:
+        d->m_touchSessionMaxContacts =
+          qMax( d->m_touchSessionMaxContacts, points.size() );
+        break;
+      case QEvent::TouchEnd:
+      case QEvent::TouchCancel:
+        if ( event->type() == QEvent::TouchCancel &&
+             d->m_touchSessionMaxContacts >= 3 &&
+             !d->m_touchPreemptedNotified ) {
+          d->m_touchPreemptedNotified = true;
+          emit touchGesturePreempted();
+        }
+        d->m_touchSessionMaxContacts = 0;
         break;
       default:
         break;
