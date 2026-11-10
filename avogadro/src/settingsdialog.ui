@@ -166,6 +166,17 @@
          </layout>
         </widget>
        </item>
+       <item row="1" column="0">
+        <widget class="QGroupBox" name="touchGroupBox">
+         <property name="title">
+          <string>Touch</string>
+         </property>
+         <layout class="QVBoxLayout" name="touchGroupBoxLayout">
+          <!-- The embeddable TouchSettingsDialog panel is inserted here in
+               code (task 6.3); it is a plain QWidget, not a dialog. -->
+         </layout>
+        </widget>
+       </item>
       </layout>
      </widget>
      <widget class="QWidget" name="plugins"/>

@@ -46,9 +46,6 @@ avogadro_plugin_nogl(invertchiralextension invertchiralextension.cpp)
 ### Selections
 avogadro_plugin_nogl(selectextension selectextension.cpp)
 
-### Touch interaction settings
-avogadro_plugin_nogl(touchsettingsextension touchsettingsextension.cpp)
-
 ### insert fragment
 avogadro_plugin_nogl(insertfragmentextension
   "insertfragmentextension.cpp;insertfragmentdialog.cpp;insertcommand.cpp;sortfiltertreeproxymodel.cpp"

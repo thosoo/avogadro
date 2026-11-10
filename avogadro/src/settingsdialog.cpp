@@ -28,9 +28,12 @@
 
 #include "mainwindow.h"
 
+#include <avogadro/touchsettingsdialog.h>
+
 #include <QAbstractButton>
 #include <QDialogButtonBox>
 #include <QDebug>
+#include <QVBoxLayout>
 
 namespace Avogadro {
 
@@ -38,6 +41,14 @@ namespace Avogadro {
   {
     m_mainWindow = mainWindow;
     ui.setupUi(this);
+
+    // Host the embeddable touch-settings panel in the General tab's "Touch"
+    // group box (task 6.3). The panel is the sole writer of the app-global
+    // touch keys and live-applies them to every active view (design D10); it
+    // is not a dialog, so the hosting dialog's OK/Cancel buttons govern.
+    m_touchPanel = new TouchSettingsDialog(this);
+    ui.touchGroupBoxLayout->addWidget(m_touchPanel);
+    m_touchPanel->loadSettings();
 
     loadValues();
 
@@ -80,6 +91,10 @@ namespace Avogadro {
       ProjectTreeEditor *editor = qobject_cast<ProjectTreeEditor*>(ui.stackedWidget->widget(2));
       if (editor)
         editor->loadValues();
+      // touch settings (task 6.3): the panel live-applies on every edit, but a
+      // Reject should still reflect the persisted (last-accepted) state.
+      if (m_touchPanel)
+        m_touchPanel->loadSettings();
     }
   }
 

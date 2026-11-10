@@ -21,7 +21,7 @@
 
 #include <avogadro/global.h>
 
-#include <QDialog>
+#include <QWidget>
 
 class QCheckBox;
 class QLabel;
@@ -33,24 +33,26 @@ namespace Avogadro {
 
 /**
  * @class TouchSettingsDialog touchsettingsdialog.h <avogadro/touchsettingsdialog.h>
- * @brief Modeless dialog adjusting touch interaction settings (design D10).
+ * @brief Embeddable panel adjusting touch interaction settings (design D10).
  *
  * Exposes exactly three controls: the stroke-arming window duration in
  * milliseconds, the slop (jitter) radius in logical pixels, and whether the
  * three-finger orbit gesture is enabled, plus a reset-to-defaults button. The
- * values are persisted at the root of QSettings (the dialog is the sole writer
- * of the `touchStrokeArmMs` / `touchSlopPx` / `touchOrbitEnabled` keys) and
- * live-applied to every active GLWidget view without a restart. The dialog is
- * built from plain Qt widgets only (no .ui file) so it is MSVC-safe under
- * -std=c++17 -permissive- (design D8).
+ * values are persisted at the root of QSettings (this widget is the sole
+ * writer of the `touchStrokeArmMs` / `touchSlopPx` / `touchOrbitEnabled` keys)
+ * and live-applied to every active GLWidget view without a restart. Built from
+ * plain Qt widgets only (no .ui file) so it is MSVC-safe under
+ * -std=c++17 -permissive- (design D8). It is an embeddable QWidget panel, not
+ * a dialog: it is hosted in Settings > Configure Avogadro > General tab
+ * (task 6.3), and relies on the hosting dialog's own OK/Cancel buttons.
  */
-class A_EXPORT TouchSettingsDialog : public QDialog
+class A_EXPORT TouchSettingsDialog : public QWidget
 {
   Q_OBJECT
 
 public:
   //! Constructor. @p settings is the QSettings to read/write; a null pointer
-  //! makes the dialog use the application-default QSettings.
+  //! makes the widget use the application-default QSettings.
   explicit TouchSettingsDialog(QWidget *parent = nullptr,
                                QSettings *settings = nullptr);
   //! Destructor.
@@ -73,8 +75,6 @@ public:
 public slots:
   //! Restore the shipped defaults (the named constants) and apply them.
   void resetToDefaults();
-  //! Apply the current controls and close the dialog.
-  void accept() override;
 
 private slots:
   //! Windows only: open the OS touch settings page (ms-settings:devices-touch)
@@ -97,8 +97,6 @@ private:
   QSpinBox *m_slopSpin;
   QCheckBox *m_orbitCheck;
   QPushButton *m_resetButton;
-  QPushButton *m_okButton;
-  QPushButton *m_cancelButton;
   //! Windows-only guidance row (design D11, task 5.8): null on other
   //! platforms, where the OS cannot preempt multi-finger touch.
   QLabel *m_windowsHint = nullptr;

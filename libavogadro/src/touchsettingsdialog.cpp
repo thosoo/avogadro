@@ -21,7 +21,6 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QDesktopServices>
-#include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QLabel>
 #include <QPushButton>
@@ -36,7 +35,7 @@
 namespace Avogadro {
 
 TouchSettingsDialog::TouchSettingsDialog(QWidget *parent, QSettings *settings)
-  : QDialog(parent), m_settings(settings)
+  : QWidget(parent), m_settings(settings)
 {
   if (!m_settings)
     m_settings = new QSettings(this); // owned as a QObject child
@@ -62,9 +61,6 @@ bool TouchSettingsDialog::orbitEnabled() const
 
 void TouchSettingsDialog::setupUi()
 {
-  setWindowTitle(tr("Touch Interaction"));
-  setModal(false);
-
   m_armMsSpin = new QSpinBox(this);
   m_armMsSpin->setRange(static_cast<int>(detail::kTouchStrokeArmMsMin),
                         static_cast<int>(detail::kTouchStrokeArmMsMax));
@@ -96,15 +92,8 @@ void TouchSettingsDialog::setupUi()
   form->addRow(tr("Slop radius:"), m_slopSpin);
   form->addRow(QString(), m_orbitCheck);
 
-  QDialogButtonBox *buttons = new QDialogButtonBox(
-    QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
-  m_okButton = buttons->button(QDialogButtonBox::Ok);
-  m_cancelButton = buttons->button(QDialogButtonBox::Cancel);
-  connect(buttons, &QDialogButtonBox::accepted, this,
-          &TouchSettingsDialog::accept);
-  connect(buttons, &QDialogButtonBox::rejected, this, &TouchSettingsDialog::reject);
-
   QVBoxLayout *layout = new QVBoxLayout(this);
+  layout->setContentsMargins(0, 0, 0, 0);
   layout->addLayout(form);
   layout->addWidget(m_resetButton);
 #ifdef Q_OS_WIN
@@ -132,7 +121,6 @@ void TouchSettingsDialog::setupUi()
   layout->addWidget(m_windowsHint);
   layout->addWidget(m_windowsSettingsButton);
 #endif
-  layout->addWidget(buttons);
 
   // Live application: every edit persists and applies immediately (no restart).
   connect(m_armMsSpin, qOverload<int>(&QSpinBox::valueChanged), this,
@@ -200,12 +188,6 @@ void TouchSettingsDialog::resetToDefaults()
   // controls that actually changed. Persist explicitly so a reset that lands on
   // already-default values still writes the shipped constants.
   applyAndPersist();
-}
-
-void TouchSettingsDialog::accept()
-{
-  applySettings();
-  QDialog::accept();
 }
 
 void TouchSettingsDialog::openWindowsTouchSettings()

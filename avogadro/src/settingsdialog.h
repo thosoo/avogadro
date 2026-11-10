@@ -28,9 +28,11 @@
 #include "ui_settingsdialog.h"
 
 class QAbstractButton;
+class QDialogButtonBox;
 namespace Avogadro {
 
   class MainWindow;
+  class TouchSettingsDialog;
   class SettingsDialog : public QDialog
   {
     Q_OBJECT
@@ -44,6 +46,8 @@ namespace Avogadro {
       Ui::SettingsDialog ui;
 
       MainWindow *m_mainWindow;
+      //! Embeddable touch-settings panel hosted in the General tab (task 6.3).
+      TouchSettingsDialog *m_touchPanel = nullptr;
 
     private Q_SLOTS:
       void buttonClicked(QAbstractButton *button);

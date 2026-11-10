@@ -13,6 +13,9 @@
 #include <QEventLoop>
 #include <QLabel>
 #include <QPushButton>
+#include <QCheckBox>
+#include <QSpinBox>
+#include <QVBoxLayout>
 #include <QWidget>
 
 #include <Eigen/Core>
@@ -131,6 +134,7 @@ private Q_SLOTS:
   void insertFragmentDialogOpens();
   void touchSettingsDialogLoadsClampsSavesResets();
   void touchSettingsDialogWindowsGuidance();
+  void touchSettingsDialogEmbedsAsWidget();
 };
 
 void DialogSmokeTest::inventory()
@@ -305,6 +309,27 @@ void DialogSmokeTest::constraintsDialogOpens()
 void DialogSmokeTest::insertFragmentDialogOpens()
 {
   smokeShowDialog(QStringLiteral("InsertFragmentDialog"), []() { return new InsertFragmentDialog; });
+}
+
+void DialogSmokeTest::touchSettingsDialogEmbedsAsWidget()
+{
+  // Task 6.3: the touch settings control is an embeddable QWidget panel (not
+  // a modeless dialog) hosted in Settings > Configure Avogadro > General tab.
+  // Verify it is a plain QWidget that can be added to a parent layout — the
+  // SettingsDialog::buttonClicked wiring uses only the panel's public
+  // loadSettings()/applySettings() surface.
+  QWidget host;
+  QVBoxLayout *layout = new QVBoxLayout(&host);
+  TouchSettingsDialog panel(&host);
+  layout->addWidget(&panel);
+  // Task 6.3: an embeddable QWidget panel, not a modeless dialog.
+  QVERIFY(qobject_cast<QWidget *>(&panel) != nullptr);
+  QVERIFY(qobject_cast<QDialog *>(&panel) == nullptr);
+  // The panel is a QWidget child of the host, placed by the host's layout.
+  QVERIFY(panel.parentWidget() == &host);
+  // It exposes the three behavior controls (two spin boxes + a checkbox).
+  QCOMPARE(panel.findChildren<QSpinBox *>().size(), 2);
+  QCOMPARE(panel.findChildren<QCheckBox *>().size(), 1);
 }
 
 void DialogSmokeTest::touchSettingsDialogWindowsGuidance()

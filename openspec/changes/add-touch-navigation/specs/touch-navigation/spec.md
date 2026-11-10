@@ -227,7 +227,12 @@ the three original points lifts, the camera stays where the gesture left
 it, and no lifting point produces any tool event. A third point arriving
 while a single-finger stroke is in flight remains second-class (palm
 rejection on the destructive path is unchanged), and neither the orbit nor
-any camera gesture reaches any tool as input.
+any camera gesture reaches any tool as input. This requirement applies
+wherever the platform delivers three-finger touch to the application; on
+Windows 11 with the OS 'Three- and four-finger touch gestures' setting
+enabled (its default), the operating system delivers three- and four-finger
+touches to the shell instead and no orbit is possible until the user sets it
+Off (see the settings requirement's platform guidance).
 
 #### Scenario: Three fingers land together
 - **WHEN** a touch event begins with three contact points already present
@@ -260,14 +265,21 @@ any camera gesture reaches any tool as input.
 
 ### Requirement: Touch interaction is adjustable in settings
 The application SHALL provide a settings panel that adjusts touch interaction
-without modifying any tool. It SHALL expose exactly three controls: the
+without modifying any tool. It SHALL expose exactly three controls that
+change touch behavior: the
 stroke-arming window duration in milliseconds (default `kTouchStrokeArmMs`,
 range 50–1000), the slop radius in logical pixels (default
 `kTouchSlopLogicalPx`, range 4–40), and whether the three-finger orbit is
 enabled (default enabled). Every setting SHALL persist across restarts, SHALL
 apply to the touch pipeline without restarting the application, and SHALL be
 clamped to a documented in-range value when an out-of-range value is entered;
-a reset control SHALL restore the shipped defaults. With the orbit disabled,
+a reset control SHALL restore the shipped defaults. On platforms whose
+operating system can preempt multi-finger touch (Windows 11 routes three- and
+four-finger touches to the shell unless its 'Three- and four-finger touch
+gestures' setting is Off), the panel SHALL additionally present guidance for
+that platform setting, including a direct way to open the platform's touch
+settings page; such guidance does not change the application's touch behavior
+and is not counted among the three behavior controls. With the orbit disabled,
 a third touch point SHALL follow the second-class rule instead of promoting a
 gesture to an orbit. The single-finger synthesis, two-finger, three-finger,
 second-class, and mouse-regression requirements SHALL hold for every in-range
@@ -304,6 +316,14 @@ configured window.
 - **WHEN** the user changes the settings, closes the application, and starts
   it again
 - **THEN** the changed values are still in effect
+
+#### Scenario: Platform gesture guidance on Windows
+- **WHEN** the user opens the touch settings panel on a platform whose OS can
+  preempt multi-finger touch (Windows)
+- **THEN** the panel shows guidance naming the OS 'Three- and four-finger
+  touch gestures' setting and offers a direct way to open the platform's
+  touch settings page (ms-settings:devices-touch), without changing any
+  application touch behavior
 
 ### Requirement: Touch interaction does not depend on hover
 No touch gesture SHALL require a prior hover state: every tool gesture and

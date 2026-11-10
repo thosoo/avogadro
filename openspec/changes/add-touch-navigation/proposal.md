@@ -80,9 +80,11 @@ the synthesis layer must satisfy them as-is)
 - **Code:** `libavogadro/src/glwidget.{h,cpp}` (touch event entry, state
   machine, synthesized-event dispatch, camera navigation, settings plumbing
   in the existing `readSettings`/`writeSettings`),
-  `libavogadro/src/touchsettingsdialog.{h,cpp}` plus a small menu extension
-  for the "Settings → Touch Interaction…" entry (the constraints/symmetry
-  dialog pattern), and a new focused test binary (`touchnavigationtest`) in
+  `libavogadro/src/touchsettingsdialog.{h,cpp}` reworked into an embeddable
+  settings panel hosted in the application's Settings > Configure Avogadro
+  dialog (General tab; the initial extension-menu mounting was retired after
+  a plugin-loader factory-metadata defect was identified), and a new focused
+  test binary (`touchnavigationtest`) in
   `libavogadro/tests/`.
 - **No changes** to any tool (`drawtool`, `erasetool`, `selectrotatetool`,
   …), to the camera/matrix pipeline, or to the rendering tiers.

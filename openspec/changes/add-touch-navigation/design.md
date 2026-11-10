@@ -284,12 +284,31 @@ conventions:
   `QSettings` and updating the active views' members — no restart.
   Orbit-disabled behavior: a third point during a gesture stays second-class
   and a ≥3-point begin forms a pinch from the first two points.
-- **UI:** a small modeless `QDialog` (`libavogadro/src/touchsettingsdialog.{h,cpp}`):
+- **UI:** the touch controls are hosted in the application's existing
+  Configure dialog — Settings > Configure Avogadro > General tab
+  (`avogadro/src/settingsdialog.{h,cpp,ui}`, opened by
+  `MainWindow::showSettingsDialog()`), per user decision 2026-11-10. The
+  controls live in an embeddable QWidget-based panel reworked from the
+  initial `TouchSettingsDialog` (`libavogadro/src/touchsettingsdialog.{h,cpp}`):
   spin boxes for the two quantities with the documented bounds, a checkbox
-  for the orbit, and a reset-to-defaults button; mounted as
-  "Settings → Touch Interaction…" through the standard extension menu
-  machinery (the same pattern the constraints/symmetry extensions use to
-  open dialogs from menus) so the main window needs no new code.
+  for the orbit, and a reset-to-defaults button. The original mounting — a
+  "Settings → Touch Interaction…" action through the extension-menu
+  machinery — was RETIRED after the plugin-loader defect below was
+  identified; the extension plugin `touchsettingsextension` is removed
+  rather than repaired.
+- **Plugin registration convention (learned 2026-11-10):** every extension
+  plugin DLL MUST ship a factory class — `XxxExtensionFactory : public
+  QObject, public PluginFactory` with `Q_OBJECT`,
+  `Q_INTERFACES(Avogadro::PluginFactory)`, `Q_PLUGIN_METADATA(IID
+  "net.sourceforge.avogadro.pluginfactory/1.5")`, and
+  `AVOGADRO_EXTENSION_FACTORY(Xxx)` (pattern: symmetryextension.h:104-111).
+  The `avogadro_plugin_nogl` CMake macro creates only the MODULE target and
+  generates no metadata, and `PluginManager` (pluginmanager.cpp:784-791)
+  instantiates plugins via `QPluginLoader::instance()` followed by
+  `qobject_cast<PluginFactory *>` — a factory-less DLL is silently skipped,
+  so its extension never loads and its menu actions never mount. The
+  initial touch-settings extension lacked the factory, which is why the
+  menu never appeared on any build.
 - **Interaction with the pinch contract:** shortening the arming window below
   the shipped 250ms makes slow finger-planting more likely to reach the
   committed-stroke path; the timing-robust two-finger contract
@@ -297,6 +316,32 @@ conventions:
   so recovery is an explicit task (2.5) rather than a conditional escalation.
 - **MSVC (D8):** plain `QDialog`/`QSpinBox`/`QCheckBox` widgets and value
   members — no new language constructs.
+
+**D11 — Windows 11 three-finger shell gate: documented OS preemption, no
+app-level suppression (user decision 2026-11-10).** On Windows 11, the OS
+setting 'Bluetooth & devices > Touch > Three- and four-finger touch gestures'
+(default **On**) routes three- and four-finger touches to the shell (task
+switcher / virtual desktops) and applications cannot receive them; set **Off**,
+applications receive them and the system does not. Sources: 'Three-finger and
+four-finger touch interactions don't work in Windows apps'
+(learn.microsoft.com/en-us/troubleshoot/windows/win32/finger3or4-touch-interaction-no-longer-works)
+and the 'Touch interactions developer guide'. The P52 report of a three-finger
+gesture switching applications is this documented preemption — it occurs on
+every build, is not a defect in the touch pipeline, and the resulting
+`TouchCancel` is already handled (D9: camera holds, blacklist cleared).
+App-level suppression was investigated and rejected: (a) DirectManipulation
+`SetContact` can claim contacts, but claimed contacts stop reaching the
+application's WM_POINTER stream (`WM_POINTERCAPTURECHANGED` semantics), which
+would starve the widget's own one/two-finger pipeline; (b) the registry value
+`HKCU\Control Panel\Desktop\TouchGestureSetting` plus
+`SystemParametersInfo(SPI_SETGESTURE, ...)` appears only in community Q&A
+answers (not the official API reference) and silently flips a GLOBAL per-user
+setting for every application. The supported mitigation is user guidance: the
+orbit toggle (D10) remains the in-app switch, and the settings panel gains
+Windows-only guidance naming the OS setting plus a deep link to
+`ms-settings:devices-touch` (task 5.8). Spec consequence: the three-finger
+orbit requirement is scoped to platforms that deliver three-finger touch to
+the application.
 
 ## Risks / Trade-offs
 
@@ -327,6 +372,17 @@ conventions:
   scenePosition (global, = globalPosition()) vs position (widget-local)
   coordinate space on a child widget, and unhandled QEvent::TouchCancel —
   filed as task 5.4.
+- **Windows 11 shell gate on three-finger touch (D11, user decision
+  2026-11-10).** With the OS 'Three- and four-finger touch gestures' setting
+  On (default), three-finger touches never reach the application — the orbit
+  is inert on stock Windows 11 and a three-finger attempt switches
+  applications instead (documented OS preemption, Microsoft Learn).
+  App-side suppression is not viable (DirectManipulation claim starves the
+  WM_POINTER stream; the registry/SPI_SETGESTURE flip is community-documented
+  and global). Mitigation: guidance + `ms-settings:devices-touch` deep link
+  in the settings panel (task 5.8); the orbit toggle (D10) remains the
+  in-app switch. Two-finger pinch/pan and one-finger synthesis are
+  unaffected (at most two fingers are always delivered to applications).
 - **Stroke-arming adds a short ink delay (~250ms after task 5.6) before a
   stroke's press is emitted.** This is the deliberate price of the
   pinch-draws-atom fix: the press is held so a second finger arriving in the
