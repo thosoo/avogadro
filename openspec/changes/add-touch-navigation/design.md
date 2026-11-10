@@ -47,8 +47,13 @@ fix-hidpi-viewport-coordinates change used for its interaction scenarios.
 **Non-Goals:**
 - Long-press → right-click mapping (superseded by the erase tool; explicit
   user decision in the exploration session).
-- Twist-to-rotate gesture (two-finger rotation) — deferred; pinch zoom and
-  pan are the v1 camera gestures.
+- Twist-to-rotate as a TWO-finger gesture — out; two-finger horizontal
+  movement pans (the P52 re-test's perceived "twist" was gesture
+  non-formation degrading to the one-finger rotate fallback, not a desired
+  behavior). ROTATION itself is in scope as the THREE-finger orbit gesture
+  (D2, task 5.7) — an explicit user decision pulling it into this change
+  (2026-11-10): pinch zoom and pan stay two-finger, orbit moves to three
+  fingers.
 - Trackpad support via `QNativeGestureEvent` (Windows precision touchpads /
   macOS trackpads) — future change; unverifiable locally. Re-confirmed by the
   P52 device pass: the reported failing pinch was on the touchscreen (task
@@ -83,21 +88,55 @@ id.** From the exploration session:
 - **STROKE**: subsequent points synthesize mouse moves; the release
   synthesizes the mouse release (tool-side release semantics — hydrogen
   churn, undo push — run unchanged).
-- **Stroke arming (task 5.5, P52 pinch-draws-atom fix)**: when a single
-  finger crosses the slop it enters an ARMED STROKE — the press is HELD for
-  `kTouchStrokeArmMs` (~50ms, a named constant) rather than emitted
-  immediately. A second finger arriving during the window forms a two-finger
-  GESTURE with the held press never emitted, so an editing tool (draw/erase)
-  draws no atom; a genuine one-finger stroke proceeds once the window elapses
-  (the press is then emitted at the slop-crossing position). This is the
-  policy decision selected by the P52 evidence (task 5.3, cause 2): with the
-  draw tool active a pinch drew an atom because finger 1 crossed the slop and
-  the immediate press reached the draw tool before finger 2 arrived.
-  Delivery-independence holds inside the window (second finger as its own
-  touch-begin, an update carrying both points, or both-fingers-begin);
-  outside the window the second-class rule is unchanged (a palm landing after
-  the stroke commits is still blacklisted); a release or cancel during arming
-  cleans up without emitting a phantom or orphaned stroke.
+- **Stroke arming (task 5.5, P52 pinch-draws-atom fix; widened by task 5.6)**:
+  when a single finger crosses the slop it enters an ARMED STROKE — the press
+  is HELD for `kTouchStrokeArmMs` (a named constant, ~250ms after task 5.6)
+  rather than emitted immediately. A second finger arriving during the window
+  forms a two-finger GESTURE with the held press never emitted, so an editing
+  tool (draw/erase) draws no atom; a genuine one-finger stroke proceeds once
+  the window elapses (the press is then emitted at the slop-crossing
+  position). This is the policy decision selected by the P52 evidence (task
+  5.3, cause 2): with the draw tool active a pinch drew an atom because
+  finger 1 crossed the slop and the immediate press reached the draw tool
+  before finger 2 arrived. Delivery-independence holds inside the window
+  (second finger as its own touch-begin, an update carrying both points, or
+  both-fingers-begin); a release or cancel during arming cleans up without
+  emitting a phantom or orphaned stroke.
+  **Task 5.6 widening (device evidence, fresh installer run 42656894181 =
+  c5e33bf39)**: with the 50ms window the P52 still drew atoms on pinch — the
+  window elapsed while finger 1 was still moving toward the pinch (human
+  finger-planting commonly takes 150–400ms, so the press was emitted before
+  finger 2 landed, and finger 2 was then blacklisted). The window is raised
+  to ~250ms: it covers typical pinch planting, and the cost is a touch-only
+  stroke-start ink delay (the mouse path is unaffected; a bond-draw stroke
+  tolerates a 250ms press delay; taps are unchanged — a release below slop is
+  still a click regardless of the window). If the on-device re-record still
+  shows atoms drawn, the fallback is a recovery policy — on a second finger
+  arriving during a committed stroke, synthesize the release so the tool
+  finalizes and pushes its command, then undo that command so the molecule is
+  unchanged, and form the gesture. Verified mechanics the recovery design
+  must respect: the DrawTool press mutates the live molecule directly
+  (drawtool.cpp:291–296 addAtom) and its AddAtomDrawCommand exists only at
+  release (drawtool.cpp:607–615), so recovery is a release-synthesis + undo
+  design that must first resolve the cancel-mid-stroke residue conflict (see
+  Risks: Cancel-mid-stroke).
+- **Three-finger orbit (task 5.7)**: a third live point arriving while the
+  two-finger GESTURE is in flight promotes the gesture to a THREE-FINGER
+  ORBIT — the centroid delta of all three points drives `Navigate::rotate`
+  with the same mapping the navigate tool's left-drag uses
+  (navigatetool.cpp:241), so three fingers rotate the molecule regardless of
+  the active tool. A touch event that begins with three or more points goes
+  straight to the orbit gesture (no pending state, no synthesized tool
+  events). The gesture ends when any of the three original point ids lifts,
+  leaving the camera where the gesture left it; after promotion the two
+  fingers' zoom/pan deltas stop (the orbit replaces the pinch, it does not
+  compose with it). This follows the common touch-3D convention (one finger
+  = tool gesture / rotate fallback, two fingers = zoom + pan, three fingers
+  = orbit); convention research may refine the mapping later. A third point
+  arriving during a single-finger STROKE remains second-class (palm
+  rejection is unchanged on the destructive path); promotion applies only to
+  the camera path, where an accidental palm-induced rotation is recoverable
+  and never mutates the molecule.
 - **GESTURE** (entered when a second point is observed while PENDING,
   however the platform groups the two fingers into events — a touch event
   already carrying two points, an update carrying both, or a single-point
@@ -132,9 +171,14 @@ the same timestamp as its release.
 `Navigate::zoom(widget, ref, k * distanceDelta)` with the sign chosen to match
 the wheel convention (fingers apart = zoom in, like wheel-up). Pan:
 `Navigate::translate` with the centroid delta, matching the middle-drag pan
-path. v1 zooms about the view-center reference point (the wheel behavior when
-no atom is under the cursor); zoom-toward-fingers is a possible refinement
-after device testing, not v1 scope.
+path — two-finger horizontal movement pans, it never rotates (the P52
+"twist" was gesture non-formation degrading to the rotate fallback, not a
+desired behavior). Orbit (task 5.7): `Navigate::rotate(widget, center,
+dx, dy)` with the three-point centroid delta, the same mapping the navigate
+tool's left-drag uses (navigatetool.cpp:241). v1 zooms about the view-center
+reference point (the wheel behavior when no atom is under the cursor);
+zoom-toward-fingers is a possible refinement after device testing, not v1
+scope.
 
 **D5 — No tool modifications.** Synthesis preserves every tool's existing
 mouse contract, so draw/erase/select behavior specs hold verbatim. Zoom while
@@ -218,15 +262,25 @@ required for this change.
   cause (2) — finger 1 crossed the slop and the immediate press reached the
   draw tool before finger 2 arrived — and the stroke-arming grace window
   (task 5.5, `kTouchStrokeArmMs`) fixes it (the press is held so a second
-  finger forms a pinch). On-device re-record of the fixed pinch remains on
-  the author's hardware. The analysis also surfaced two evidence-backed
-  defects independent of that outcome — scenePosition (global, =
-  globalPosition()) vs position
-  (widget-local) coordinate space on a child widget, and unhandled
-  QEvent::TouchCancel — filed as task 5.4.
-- **Stroke-arming adds a short ink delay (~50ms) before a stroke's press is
-  emitted.** This is the deliberate price of the pinch-draws-atom fix: the
-  press is held so a second finger arriving in the window can form a pinch
+  finger forms a pinch). **P52 re-test with the widened-scope fix pending**
+  (fresh installer run 42656894181 = c5e33bf39, author-confirmed): atoms
+  were STILL drawn on pinch with the draw tool active, and two-finger
+  horizontal movement appeared to twist the molecule — both are the
+  gesture-non-formation signature (the pan wiring is verified correct:
+  glwidget.cpp:3509 maps the centroid delta to `Navigate::translate`), so
+  the 50ms arming window elapsed while finger 1 was still moving before
+  finger 2 landed; task 5.6 widens the window. The twist's exact path (a
+  declined press falling through to the navigate-rotate fallback vs. the
+  committed stroke's atom-drag perceived as rotation — the draw tool was
+  active) is recorded for the re-record to discriminate. The analysis also
+  surfaced two evidence-backed defects independent of that outcome —
+  scenePosition (global, = globalPosition()) vs position (widget-local)
+  coordinate space on a child widget, and unhandled QEvent::TouchCancel —
+  filed as task 5.4.
+- **Stroke-arming adds a short ink delay (~250ms after task 5.6) before a
+  stroke's press is emitted.** This is the deliberate price of the
+  pinch-draws-atom fix: the press is held so a second finger arriving in the
+  window can form a pinch
   instead of drawing. It is imperceptible for a drawing stroke and only
   affects the single-finger stroke path; the tap/click path is unchanged (a
   quick release below slop is still a click, never held). The constant is

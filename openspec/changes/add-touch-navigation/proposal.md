@@ -30,16 +30,28 @@ change builds on is the same one established by `fix-hidpi-viewport-coordinates`
   or releases quickly (→ synthesized press+release = click). Finger jitter
   below the slop never reaches any tool. A stroke's press is held for a short
   arming window so a second finger arriving there forms a pinch instead of
-  drawing (the confirmed P52 fix).
+  drawing (the confirmed P52 fix; widened to ~250ms after the fresh-installer
+  re-test still drew atoms at 50ms).
 - **Two fingers** → camera navigation at the widget level: pinch distance
-  change zooms, centroid movement pans. Consumed before tool dispatch; tools
-  see nothing. One-finger rotate (tool ignores → navigate fallback) is
-  preserved through synthesis.
-- **Extra fingers are second-class**: any touch point that arrives while an
-  interaction is in flight is ignored until it lifts, never promoted — this is
-  also palm rejection. The one exception is the second finger arriving while a
-  touch is still pending (or within the brief stroke-arming window): it forms
-  a two-finger gesture with the first, rather than being second-class.
+  change zooms, centroid movement pans — never rotates, so two-finger
+  horizontal movement pans rather than twisting. Consumed before tool
+  dispatch; tools see nothing. One-finger rotate (tool ignores → navigate
+  fallback) is preserved through synthesis.
+- **Three fingers** → camera orbit at the widget level: the three-point
+  centroid movement rotates the view with the navigate tool's drag mapping,
+  regardless of the active tool (user decision pulling rotation into this
+  change, 2026-11-10 — the common touch-3D convention: 1 finger = tool
+  gesture / rotate fallback, 2 fingers = zoom + pan, 3 fingers = orbit). A
+  third finger arriving during a two-finger gesture promotes the pinch to an
+  orbit.
+- **Extra fingers are second-class**: any touch point that arrives while a
+  stroke is in flight is ignored until it lifts, never promoted — this is
+  also palm rejection. The exceptions preserve camera gestures: the second
+  finger arriving while a touch is still pending (or within the stroke-arming
+  window) forms a two-finger gesture with the first, and a committed stroke
+  whose partial effect is recovered when the second finger lands late still
+  yields the pinch; a third finger during a two-finger gesture promotes it to
+  the three-finger orbit.
 - No tool is modified: synthesized events carry ordinary mouse semantics, so
   the draw, erase, select, and navigate behavior contracts are preserved
   unchanged.
