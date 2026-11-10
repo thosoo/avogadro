@@ -65,6 +65,9 @@ fix-hidpi-viewport-coordinates change used for its interaction scenarios.
   after the device smoke test (possible follow-up change).
 - Re-litigating tap-deletes-with-erase-tool (undo is the accepted mitigation;
   decided in add-erase-tool D1).
+- Touch settings beyond the three v1 controls (D10): no gesture remapping, no
+  per-tool touch settings, no pinch-disable, no zoom-about-fingers option —
+  possible follow-up changes after device evidence shows demand.
 
 ## Decisions
 
@@ -248,6 +251,46 @@ so the machine never touches QEventPoint — was identified as a follow-up
 refactor (it changes the A_EXPORT-exported class signature) but is not
 required for this change.
 
+**D10 — Touch settings panel (scope added by user decision, 2026-11-10).**
+A small settings panel adjusts the tunables the device evidence identified,
+without modifying any tool (D5 holds). Grounded in the repo's existing
+conventions:
+
+- **Settings (exactly three, v1):** stroke-arming window in milliseconds
+  (`kTouchStrokeArmMs`, default 250, range 50–1000); slop radius in logical
+  pixels (`kTouchSlopLogicalPx`, default 10, range 4–40); three-finger orbit
+  enabled (default on). The floor of the arming range is the original shipped
+  constant, never zero, so the arming window never disappears entirely.
+- **Storage:** `QSettings` keys `touchStrokeArmMs`, `touchSlopPx`,
+  `touchOrbitEnabled` in the GLWidget settings group, read by the existing
+  `GLWidget::readSettings(QSettings&)` (glwidget.cpp:4638) with defaults from
+  the named constants and clamped on read — the same defensive pattern
+  `readSettings` already applies to `projection` ("set a default if this is
+  screwed up"). The panel writes the same keys.
+- **Plumbing:** `TouchState` is already parameterized by slop (constructor
+  parameter); it gains `armMs` and `orbitEnabled` constructor parameters that
+  default to the named constants, so every existing unit test (which
+  exercises the defaults) is untouched and settings tests construct states
+  with non-default values. `GLWidget` caches the three values as members with
+  defaults from the constants, loads them in `readSettings()`, and consumes
+  them at `touchEvent` dispatch; the panel live-applies by writing
+  `QSettings` and updating the active views' members — no restart.
+  Orbit-disabled behavior: a third point during a gesture stays second-class
+  and a ≥3-point begin forms a pinch from the first two points.
+- **UI:** a small modeless `QDialog` (`libavogadro/src/touchsettingsdialog.{h,cpp}`):
+  spin boxes for the two quantities with the documented bounds, a checkbox
+  for the orbit, and a reset-to-defaults button; mounted as
+  "Settings → Touch Interaction…" through the standard extension menu
+  machinery (the same pattern the constraints/symmetry extensions use to
+  open dialogs from menus) so the main window needs no new code.
+- **Interaction with the pinch contract:** shortening the arming window below
+  the shipped 250ms makes slow finger-planting more likely to reach the
+  committed-stroke path; the timing-robust two-finger contract
+  (committed-stroke recovery) governs regardless of the configured window,
+  so recovery is an explicit task (2.5) rather than a conditional escalation.
+- **MSVC (D8):** plain `QDialog`/`QSpinBox`/`QCheckBox` widgets and value
+  members — no new language constructs.
+
 ## Risks / Trade-offs
 
 - **Platform variance in touch delivery** (libinput/X11 vs Windows digitizers):
@@ -315,3 +358,9 @@ required for this change.
 - **No hover synthesis**: hover-dependent feedback (if any tool adds it later)
   will not exist on touch; the spec pins hover-independence of primary
   gestures so tools cannot regress into hover dependence silently.
+- **Settings-shortened arming windows trade pinch robustness for ink delay.**
+  The panel's floor (50ms) is the original shipped constant, never zero, but
+  a window below the shipped 250ms makes slow finger-planting reach the
+  committed-stroke path more often; the committed-stroke recovery contract
+  (task 2.5) governs regardless of the configured window, so the
+  pinch-never-draws guarantee does not depend on the user's setting.

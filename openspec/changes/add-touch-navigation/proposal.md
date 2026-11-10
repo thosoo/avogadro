@@ -44,6 +44,12 @@ change builds on is the same one established by `fix-hidpi-viewport-coordinates`
   gesture / rotate fallback, 2 fingers = zoom + pan, 3 fingers = orbit). A
   third finger arriving during a two-finger gesture promotes the pinch to an
   orbit.
+- **Touch settings panel** (user decision, 2026-11-10): a small settings
+  panel adjusts the touch interaction without modifying any tool — the
+  stroke-arming window duration, the slop (jitter) radius, and a
+  three-finger orbit on/off — persisted via `QSettings`, applied live (no
+  restart), clamped to documented ranges, with defaults equal to the shipped
+  constants (design D10).
 - **Extra fingers are second-class**: any touch point that arrives while a
   stroke is in flight is ignored until it lifts, never promoted — this is
   also palm rejection. The exceptions preserve camera gestures: the second
@@ -72,8 +78,12 @@ the synthesis layer must satisfy them as-is)
 ## Impact
 
 - **Code:** `libavogadro/src/glwidget.{h,cpp}` (touch event entry, state
-  machine, synthesized-event dispatch, camera navigation), plus a new focused
-  test binary (`touchnavigationtest`) in `libavogadro/tests/`.
+  machine, synthesized-event dispatch, camera navigation, settings plumbing
+  in the existing `readSettings`/`writeSettings`),
+  `libavogadro/src/touchsettingsdialog.{h,cpp}` plus a small menu extension
+  for the "Settings → Touch Interaction…" entry (the constraints/symmetry
+  dialog pattern), and a new focused test binary (`touchnavigationtest`) in
+  `libavogadro/tests/`.
 - **No changes** to any tool (`drawtool`, `erasetool`, `selectrotatetool`,
   …), to the camera/matrix pipeline, or to the rendering tiers.
 - **Verification constraint:** CI runners (xvfb Linux, Windows MSVC) have no

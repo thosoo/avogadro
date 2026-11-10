@@ -175,7 +175,9 @@ points into touch events — rather than be treated as second-class (and the
 committed-stroke recovery of the two-finger requirement applies when the
 second point arrives after the press has committed); and a third touch point
 arriving while a two-finger gesture is in flight SHALL promote that gesture
-to the three-finger orbit rather than be ignored. Beyond those exceptions,
+to the three-finger orbit rather than be ignored — unless the three-finger
+orbit has been disabled in settings (see the settings requirement), in which
+case the promotion exception does not apply. Beyond those exceptions,
 every further point SHALL be ignored until it lifts, a touch event that
 begins with more than one point SHALL go directly to a camera gesture (two
 points to the pinch/pan gesture, three or more to the three-finger orbit),
@@ -213,7 +215,9 @@ before any tool receives events: moving the centroid of the three touch
 points SHALL rotate the view with the same mapping as the navigate tool's
 one-finger drag (horizontal centroid movement yaws, vertical movement
 pitches), and the rotation SHALL work regardless of which tool is active.
-The gesture SHALL form when a touch event begins with three or more points,
+Unless the user has disabled the three-finger orbit in settings (see the
+settings requirement), the gesture SHALL form when a touch event begins with
+three or more points,
 and when a third point arrives while a two-finger gesture is in flight (the
 pinch/pan gesture then becomes an orbit; its zoom/pan deltas stop). The
 three points SHALL be tracked by identity — the gesture ends when any of
@@ -251,6 +255,53 @@ any camera gesture reaches any tool as input.
   single-finger drawing stroke is in flight
 - **THEN** no camera gesture forms, the stroke continues unaffected, and
   the extra contact produces no event in any tool
+
+### Requirement: Touch interaction is adjustable in settings
+The application SHALL provide a settings panel that adjusts touch interaction
+without modifying any tool. It SHALL expose exactly three controls: the
+stroke-arming window duration in milliseconds (default `kTouchStrokeArmMs`,
+range 50–1000), the slop radius in logical pixels (default
+`kTouchSlopLogicalPx`, range 4–40), and whether the three-finger orbit is
+enabled (default enabled). Every setting SHALL persist across restarts, SHALL
+apply to the touch pipeline without restarting the application, and SHALL be
+clamped to a documented in-range value when an out-of-range value is entered;
+a reset control SHALL restore the shipped defaults. With the orbit disabled,
+a third touch point SHALL follow the second-class rule instead of promoting a
+gesture to an orbit. The single-finger synthesis, two-finger, three-finger,
+second-class, and mouse-regression requirements SHALL hold for every in-range
+setting value; shortening the arming window below the shipped default trades
+pinch robustness for less stroke-start delay and relies on the
+committed-stroke recovery contract, which SHALL hold regardless of the
+configured window.
+
+#### Scenario: Arming window change takes effect immediately
+- **WHEN** the user changes the stroke-arming window in the settings panel
+  and then performs a pinch with an editing tool active
+- **THEN** the gesture follows the newly configured window without restarting
+  the application
+
+#### Scenario: Out-of-range value is clamped
+- **WHEN** the user enters an arming window or slop radius outside the
+  documented range
+- **THEN** the value is clamped into the range and the touch pipeline
+  receives a valid value
+
+#### Scenario: Orbit disabled
+- **WHEN** the three-finger orbit is disabled in settings and a third finger
+  touches during a two-finger gesture (or a touch begins with three points)
+- **THEN** no orbit rotation occurs, the two-finger pinch/pan continues from
+  the first two points, and the third point is second-class (ignored until it
+  lifts)
+
+#### Scenario: Defaults restore shipped behavior
+- **WHEN** the user activates the panel's reset control
+- **THEN** the arming window, slop radius, and orbit setting return to the
+  shipped constants and the pipeline behaves as shipped
+
+#### Scenario: Settings persist across restart
+- **WHEN** the user changes the settings, closes the application, and starts
+  it again
+- **THEN** the changed values are still in effect
 
 ### Requirement: Touch interaction does not depend on hover
 No touch gesture SHALL require a prior hover state: every tool gesture and
