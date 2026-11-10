@@ -4729,9 +4729,12 @@ namespace Avogadro {
     settings.setValue("allowQuickRender", d->allowQuickRender);
     settings.setValue("renderUnitCellAxes", d->renderUnitCellAxes);
     settings.setValue("projection", d->projection);
-    settings.setValue("touchStrokeArmMs", d->m_touchStrokeArmMs);
-    settings.setValue("touchSlopPx", d->m_touchSlopPx);
-    settings.setValue("touchOrbitEnabled", d->m_touchOrbitEnabled);
+
+    // Touch interaction settings (design D10) are app-global preferences, not
+    // per-view. They are written ONLY by the TouchSettingsDialog at the root of
+    // QSettings; the GLWidget reads them in readSettings() (below) and applies
+    // them live via setTouchSettings(). The dialog is the sole writer, so this
+    // per-view writeSettings() must not write them here.
 
     int count = d->engines.size();
     settings.beginWriteArray("engines");
@@ -4762,20 +4765,27 @@ namespace Avogadro {
       pr = 1; // set a default if this is screwed up
     d->projection = GLWidget::ProjectionType(pr);
 
-    // Touch interaction settings (design D10). Clamp out-of-range values into
-    // the documented ranges (the same defensive pattern as `projection` above)
-    // and live-apply them to the state machine.
-    d->m_touchStrokeArmMs = qBound<qint64>(
-      detail::kTouchStrokeArmMsMin,
-      settings.value("touchStrokeArmMs", detail::kTouchStrokeArmMs).toLongLong(),
-      detail::kTouchStrokeArmMsMax);
-    d->m_touchSlopPx = qBound<double>(
-      detail::kTouchSlopLogicalPxMin,
-      settings.value("touchSlopPx", detail::kTouchSlopLogicalPx).toDouble(),
-      detail::kTouchSlopLogicalPxMax);
-    d->m_touchOrbitEnabled =
-      settings.value("touchOrbitEnabled", true).toBool();
-    d->applyTouchSettings();
+    // Touch interaction settings (design D10) are app-global preferences stored
+    // at the root of QSettings (written by the TouchSettingsDialog, the sole
+    // writer). This readSettings() is positioned inside the per-view
+    // `view/<i>` array, so the three touch keys must be read from a fresh
+    // default-constructed QSettings rather than the positioned one. Clamp
+    // out-of-range values into the documented ranges (the same defensive
+    // pattern as `projection` above) and live-apply them to the state machine.
+    {
+      QSettings global;
+      d->m_touchStrokeArmMs = qBound<qint64>(
+        detail::kTouchStrokeArmMsMin,
+        global.value("touchStrokeArmMs", detail::kTouchStrokeArmMs).toLongLong(),
+        detail::kTouchStrokeArmMsMax);
+      d->m_touchSlopPx = qBound<double>(
+        detail::kTouchSlopLogicalPxMin,
+        global.value("touchSlopPx", detail::kTouchSlopLogicalPx).toDouble(),
+        detail::kTouchSlopLogicalPxMax);
+      d->m_touchOrbitEnabled =
+        global.value("touchOrbitEnabled", true).toBool();
+      d->applyTouchSettings();
+    }
 
     loadEngines(settings);
 

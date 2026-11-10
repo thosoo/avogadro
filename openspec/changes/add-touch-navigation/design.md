@@ -262,11 +262,18 @@ conventions:
   enabled (default on). The floor of the arming range is the original shipped
   constant, never zero, so the arming window never disappears entirely.
 - **Storage:** `QSettings` keys `touchStrokeArmMs`, `touchSlopPx`,
-  `touchOrbitEnabled` in the GLWidget settings group, read by the existing
-  `GLWidget::readSettings(QSettings&)` (glwidget.cpp:4638) with defaults from
-  the named constants and clamped on read — the same defensive pattern
-  `readSettings` already applies to `projection` ("set a default if this is
-  screwed up"). The panel writes the same keys.
+  `touchOrbitEnabled` are **app-global** preferences stored at the ROOT of
+  QSettings — not per-view. `GLWidget::readSettings(QSettings&)` is called only
+  inside `MainWindow`'s per-view `view/<i>` array block, so it reads the three
+  touch keys from a fresh default-constructed `QSettings` (root of the same
+  config file) with defaults from the named constants and clamped on read — the
+  same defensive pattern `readSettings` already applies to `projection` ("set a
+  default if this is screwed up"). The `TouchSettingsDialog` is the **sole
+  writer**: it writes the three keys at the root, and the per-view
+  `GLWidget::writeSettings` does NOT write them (those three `setValue` lines
+  were removed). Persisting at the root keeps every view on one set of global
+  touch preferences and avoids the cross-view divergence a per-view copy would
+  introduce on restart.
 - **Plumbing:** `TouchState` is already parameterized by slop (constructor
   parameter); it gains `armMs` and `orbitEnabled` constructor parameters that
   default to the named constants, so every existing unit test (which

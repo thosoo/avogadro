@@ -16,6 +16,11 @@
 #include <Eigen/Core>
 
 #include <avogadro/molecule.h>
+#include <avogadro/touchsettingsdialog.h>
+
+#include <QSettings>
+#include <QTemporaryDir>
+
 #include "../../avogadro/src/addenginedialog.h"
 #include "../../avogadro/src/updatedialog.h"
 #include "../src/extensions/constraintsdialog.h"
@@ -51,6 +56,7 @@ using Avogadro::GamessInputDialog;
 using Avogadro::GaussianInputDialog;
 using Avogadro::InputDialog;
 using Avogadro::InsertFragmentDialog;
+using Avogadro::TouchSettingsDialog;
 using Avogadro::LammpsInputDialog;
 using Avogadro::MolproInputDialog;
 using Avogadro::Molecule;
@@ -121,6 +127,7 @@ private Q_SLOTS:
   void forceFieldDialogOpens();
   void constraintsDialogOpens();
   void insertFragmentDialogOpens();
+  void touchSettingsDialogLoadsClampsSavesResets();
 };
 
 void DialogSmokeTest::inventory()
@@ -295,6 +302,42 @@ void DialogSmokeTest::constraintsDialogOpens()
 void DialogSmokeTest::insertFragmentDialogOpens()
 {
   smokeShowDialog(QStringLiteral("InsertFragmentDialog"), []() { return new InsertFragmentDialog; });
+}
+
+void DialogSmokeTest::touchSettingsDialogLoadsClampsSavesResets()
+{
+  // Touch interaction settings are app-global keys at the root of QSettings
+  // (design D10; the dialog is the sole writer). This slot drives the dialog
+  // against an isolated ini-backed QSettings so it never touches the user's
+  // real settings file, and verifies load/clamp/save/reset.
+  QTemporaryDir dir;
+  QVERIFY(dir.isValid());
+  QSettings settings(dir.filePath(QStringLiteral("touch.ini")), QSettings::IniFormat);
+
+  // Out-of-range values must be clamped on load.
+  settings.setValue("touchStrokeArmMs", 5000);
+  settings.setValue("touchSlopPx", 100);
+  settings.setValue("touchOrbitEnabled", false);
+
+  {
+    TouchSettingsDialog dialog(nullptr, &settings);
+    dialog.loadSettings();
+    QCOMPARE(dialog.armMs(), qint64(1000)); // clamped from 5000 to the max
+    QCOMPARE(dialog.slopPx(), 40.0);        // clamped from 100 to the max
+    QVERIFY(!dialog.orbitEnabled());        // persisted false is honored
+
+    // Change the controls; the live applyAndPersist slot writes through to
+    // the injected QSettings.
+    dialog.resetToDefaults();
+    QCOMPARE(dialog.armMs(), qint64(250)); // kTouchStrokeArmMs
+    QCOMPARE(dialog.slopPx(), 10.0);       // kTouchSlopLogicalPx
+    QVERIFY(dialog.orbitEnabled());        // default on
+  }
+
+  // The reset persisted the shipped defaults at the root.
+  QCOMPARE(settings.value("touchStrokeArmMs").toLongLong(), qint64(250));
+  QCOMPARE(settings.value("touchSlopPx").toDouble(), 10.0);
+  QCOMPARE(settings.value("touchOrbitEnabled").toBool(), true);
 }
 
 QTEST_MAIN(DialogSmokeTest)

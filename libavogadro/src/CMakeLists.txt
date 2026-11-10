@@ -64,6 +64,7 @@ set(libavogadro_HDRS
   protein.h
   residue.h
   textmatrixeditor.h
+  touchsettingsdialog.h
   toolgroup.h
   tool.h
   undostack.h
@@ -116,6 +117,7 @@ set(libavogadro_SRCS
   sphere_p.cpp
   textrenderer_p.cpp
   textmatrixeditor.cpp
+  touchsettingsdialog.cpp
   tool.cpp
   toolgroup.cpp
   undostack.cpp
@@ -164,6 +166,7 @@ set(libavogadro_MOC_HDRS
   readfilethread_p.h
   residue.h
   textmatrixeditor.h
+  touchsettingsdialog.h
   tool.h
   toolgroup.h
   undostack.h

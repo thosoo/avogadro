@@ -28,6 +28,8 @@
 
 #include <QtTest>
 #include <QMouseEvent>
+#include <QSettings>
+#include <QTemporaryDir>
 #include <QTouchEvent>
 #include <QWheelEvent>
 #include <QCoreApplication>
@@ -43,6 +45,7 @@
 #include <avogadro/camera.h>
 #include <avogadro/glwidget.h>
 #include <avogadro/molecule.h>
+#include <avogadro/touchsettingsdialog.h>
 #include <avogadro/undosequence.h>
 #include <avogadro/undostack.h>
 #include <QUndoStack>
@@ -291,6 +294,7 @@ private Q_SLOTS:
   void testEmbeddedCanvasUsesWidgetLocalPosition();
   void testPinchDuringStrokeArmingDrawsNoAtom();
   void testOrbitWithDrawToolActiveDrawsNoAtom();
+  void testDialogLiveAppliesOrbitDisabled();
 
   //! Drive a one-finger lasso through GLWidget::touchEvent() over a logical
   //! (scene-space) loop; the widget scales each point by devicePixelRatioF().
@@ -1804,6 +1808,62 @@ void TouchNavigationTest::driveTouchLasso(GLWidget *widget, EraseTool &tool,
   QTouchEvent end(QEvent::TouchEnd, nullptr, Qt::NoModifier, rpts);
   end.setTimestamp(ts + detail::kTouchStrokeArmMs);
   widget->touchEvent(&end);
+}
+
+void TouchNavigationTest::testDialogLiveAppliesOrbitDisabled()
+{
+  // Design D10: the TouchSettingsDialog is the sole writer of the app-global
+  // touch keys and live-applies them to every active view via
+  // GLWidget::setTouchSettings (no restart). This drives the full path: an
+  // injected QSettings with the orbit disabled is loaded by the dialog, then
+  // applied; a 3-point begin on the widget must form a PINCH from the first
+  // two points (not an orbit), so moving ONLY the third (second-class) point
+  // leaves the camera unchanged. With the orbit enabled (the shipped default)
+  // that same move would orbit the camera (see testThreePointBeginGoesToOrbit).
+  Molecule *mol = new Molecule;
+  GLWidget *widget = makeWidget(mol);
+  widget->resize(800, 600);
+  widget->setMolecule(mol);
+
+  QTemporaryDir dir;
+  QVERIFY(dir.isValid());
+  QSettings settings(dir.filePath(QStringLiteral("touch.ini")), QSettings::IniFormat);
+  settings.setValue("touchOrbitEnabled", false);
+
+  {
+    TouchSettingsDialog dialog(nullptr, &settings);
+    dialog.loadSettings();
+    dialog.applySettings(); // live-applies orbit=disabled to all GLWidget views
+  }
+
+  const Projective3d camBefore = widget->camera()->modelview();
+
+  // Three fingers land together. With orbit disabled this forms a pinch from
+  // the first two points; the third point is second-class.
+  QList<QEventPoint> begin;
+  begin << makePoint(0, QEventPoint::Pressed, QPointF(200.0, 300.0));
+  begin << makePoint(1, QEventPoint::Pressed, QPointF(400.0, 300.0));
+  begin << makePoint(2, QEventPoint::Pressed, QPointF(300.0, 200.0));
+  QTouchEvent beginEvent(QEvent::TouchBegin, nullptr, Qt::NoModifier, begin);
+  beginEvent.setTimestamp(0);
+  widget->touchEvent(&beginEvent);
+
+  // Move ONLY the third point. A live pinch (0,1) is untouched (no zoom/pan);
+  // the third point is second-class, so the camera must not move. With the
+  // orbit enabled this would orbit the camera instead.
+  QList<QEventPoint> moveThird;
+  moveThird << makePoint(0, QEventPoint::Updated, QPointF(200.0, 300.0));
+  moveThird << makePoint(1, QEventPoint::Updated, QPointF(400.0, 300.0));
+  moveThird << makePoint(2, QEventPoint::Updated, QPointF(340.0, 240.0));
+  QTouchEvent moveEvent(QEvent::TouchUpdate, nullptr, Qt::NoModifier, moveThird);
+  moveEvent.setTimestamp(20);
+  widget->touchEvent(&moveEvent);
+
+  // No orbit, no zoom, no pan: the camera holds at the gesture-start pose.
+  QVERIFY(camBefore.isApprox(widget->camera()->modelview()));
+
+  delete widget;
+  delete mol;
 }
 
 QTEST_MAIN(TouchNavigationTest)
