@@ -187,7 +187,9 @@ new one.
 
 #### Scenario: Palm lands mid-stroke
 - **WHEN** the user's palm (or any extra finger) touches the canvas while a
-  drawing stroke is in flight
+  drawing stroke is in flight, and that contact is not the second touch point
+  that forms the camera gesture (a palm landing as the second point is governed
+  by the committed-stroke recovery of the two-finger requirement)
 - **THEN** the stroke continues unaffected and the extra contact produces no
   event in any tool
 

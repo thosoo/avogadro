@@ -262,12 +262,24 @@ private Q_SLOTS:
   void testCancelDuringStrokeArmingEmitsNothing();
   void testEndDuringStrokeArmingEmitsPressRelease();
   void testBeginDuringStrokeArmingFormsGesture();
+  // Committed-stroke recovery (task 2.5): a second finger arriving after the
+  // arming window elapses (press committed to the tool) forms a two-finger
+  // gesture; the widget synthesizes the stroke's release, pushes the tool's
+  // undo command, and undoes it so the molecule is unchanged.
+  void testSecondFingerDuringCommittedStrokeRecovers();
+  void testPinchAfterCommittedStrokeLeavesMoleculeUnchanged();
 
   // --- Three-finger orbit (task 5.7) --------------------------------------
   void testThreePointBeginGoesToOrbit();
   void testThirdFingerPromotesPinchToOrbit();
   void testOrbitEndHoldsCamera();
   void testThirdFingerDuringStrokeStillBlacklisted();
+  // Design D10 settings tests (task 6.1): TouchState is parameterized by
+  // armMs / orbitEnabled, so non-default values alter behavior without touching
+  // the shipped constants used by every other slot.
+  void testNonDefaultArmMsAltersArmingTiming();
+  void testOrbitDisabledKeepsPinchAndRejectsPromotion();
+  void testThreePointBeginWithOrbitOffFormsPinchFromFirstTwo();
 
   // --- Widget integration (touchEvent -> real tool) ------------------------
   void testTapErasesAtom();
@@ -570,12 +582,14 @@ void TouchNavigationTest::testGestureEndHoldsCamera()
 
 void TouchNavigationTest::testPalmMidStrokeIsBlacklisted()
 {
-  // A palm / extra finger that lands mid-stroke is blacklisted: the stroke
-  // continues unaffected and the extra contact produces no tool event
-  // (spec: palm lands mid-stroke). The stroke is committed (arming window
-  // elapsed, press emitted) before the palm lands; a palm landing inside the
-  // arming window would instead form a pinch (see
-  // testSecondFingerDuringStrokeArmingBecomesGesture).
+  // A palm / extra finger landing as the SECOND point during a committed stroke
+  // now forms a two-finger gesture via the committed-stroke recovery
+  // (task 2.5): the stroke's release is synthesized so the tool finalizes, and
+  // the widget undoes it (molecule unchanged). The stroke is committed (arming
+  // window elapsed, press emitted) before the palm lands; a palm landing inside
+  // the arming window would instead form a pinch (see
+  // testSecondFingerDuringStrokeArmingBecomesGesture). The palm therefore
+  // contributes a recovery gesture, not a blacklist.
   detail::TouchState ts(detail::kTouchSlopLogicalPx);
   const QList<TouchStep> seq = {
     {{ makePoint(0, QEventPoint::Pressed, QPointF(100.0, 100.0)) },
@@ -597,18 +611,15 @@ void TouchNavigationTest::testPalmMidStrokeIsBlacklisted()
   const auto out = driveMachine(ts, seq);
 
   QCOMPARE(ts.state(), detail::TouchState::Idle);
-  // press, move, move, move, release -- the palm (finger 1) contributed nothing.
-  QCOMPARE(static_cast<int>(out.size()), 5);
+  // press, move, then the recovery release -- the palm (finger 1) formed a
+  // gesture, so the stroke's release was synthesized and no further stroke event
+  // (no extra move/release from the palm, which stays a camera gesture).
+  QCOMPARE(static_cast<int>(out.size()), 3);
   QCOMPARE(out[0].type, QEvent::MouseButtonPress);
   QCOMPARE(out[0].position, QPointF(120.0, 100.0));
   QCOMPARE(out[1].type, QEvent::MouseMove);
   QCOMPARE(out[1].position, QPointF(130.0, 110.0));
-  QCOMPARE(out[2].type, QEvent::MouseMove);
-  QCOMPARE(out[2].position, QPointF(140.0, 120.0));
-  QCOMPARE(out[3].type, QEvent::MouseMove);
-  QCOMPARE(out[3].position, QPointF(150.0, 130.0));
-  QCOMPARE(out[4].type, QEvent::MouseButtonRelease);
-  QCOMPARE(out[4].position, QPointF(150.0, 130.0));
+  QCOMPARE(out[2].type, QEvent::MouseButtonRelease);
 }
 
 void TouchNavigationTest::testRestingFingerNeverWakes()
@@ -920,6 +931,65 @@ void TouchNavigationTest::testBeginDuringStrokeArmingFormsGesture()
   QVERIFY(z.zoomDistanceDelta > 0.0);
 }
 
+void TouchNavigationTest::testSecondFingerDuringCommittedStrokeRecovers()
+{
+  // Task 2.5: a second finger arriving AFTER the arming window elapses (the
+  // press is committed to the tool) forms a two-finger gesture via the
+  // committed-stroke recovery. The machine synthesizes the stroke's release,
+  // flags recoverStroke, and forms the gesture with zero camera deltas on this
+  // event (the widget pushes the release command and undoes it so the molecule
+  // is unchanged).
+  detail::TouchState ts(detail::kTouchSlopLogicalPx);
+  QList<QEventPoint> begin;
+  begin << makePoint(0, QEventPoint::Pressed, QPointF(100.0, 100.0));
+  ts.process(begin, detail::TouchState::Begin, 0);
+  QCOMPARE(ts.state(), detail::TouchState::Pending);
+
+  // Slop crossing at t=20 -> arming, press held.
+  QList<QEventPoint> cross;
+  cross << makePoint(0, QEventPoint::Updated, QPointF(120.0, 100.0));
+  detail::TouchResult r =
+    ts.process(cross, detail::TouchState::Update, 20);
+  QVERIFY(r.mouseEvents.isEmpty());
+  QCOMPARE(ts.state(), detail::TouchState::Stroke);
+
+  // Window elapses at t=20+armMs: the held press is emitted -> committed stroke.
+  QList<QEventPoint> commit;
+  commit << makePoint(0, QEventPoint::Updated, QPointF(130.0, 100.0));
+  r = ts.process(commit, detail::TouchState::Update,
+                 20 + detail::kTouchStrokeArmMs + 1);
+  QCOMPARE(static_cast<int>(r.mouseEvents.size()), 2); // press + move
+  QCOMPARE(r.mouseEvents[0].type, QEvent::MouseButtonPress);
+
+  // A second finger arrives after the press committed -> recovery: exactly one
+  // release is synthesized, recoverStroke is set, and a gesture forms with zero
+  // camera deltas on this event.
+  QList<QEventPoint> second;
+  second << makePoint(0, QEventPoint::Updated, QPointF(135.0, 100.0));
+  second << makePoint(1, QEventPoint::Updated, QPointF(230.0, 100.0));
+  r = ts.process(second, detail::TouchState::Update,
+                 20 + detail::kTouchStrokeArmMs + 20);
+  QCOMPARE(ts.state(), detail::TouchState::Gesture);
+  QVERIFY(r.cameraActive);
+  QVERIFY(r.recoverStroke);
+  QCOMPARE(static_cast<int>(r.mouseEvents.size()), 1);
+  QCOMPARE(r.mouseEvents[0].type, QEvent::MouseButtonRelease);
+  QCOMPARE(r.zoomDistanceDelta, 0.0); // no pinch delta on the recovery event
+  QCOMPARE(r.centroidFrom, r.centroidTo);
+  QCOMPARE(r.orbitFrom, r.orbitTo);
+
+  // The gesture is live: a subsequent spread zooms.
+  QList<QEventPoint> spread;
+  spread << makePoint(0, QEventPoint::Updated, QPointF(145.0, 100.0));
+  spread << makePoint(1, QEventPoint::Updated, QPointF(250.0, 100.0));
+  const detail::TouchResult z =
+    ts.process(spread, detail::TouchState::Update,
+               20 + detail::kTouchStrokeArmMs + 40);
+  QVERIFY(z.cameraActive);
+  QVERIFY(z.zoomDistanceDelta > 0.0);
+  QVERIFY(!z.recoverStroke);
+}
+
 // ---------------------------------------------------------------------------
 // Three-finger orbit (task 5.7)
 // ---------------------------------------------------------------------------
@@ -1035,10 +1105,12 @@ void TouchNavigationTest::testOrbitEndHoldsCamera()
 
 void TouchNavigationTest::testThirdFingerDuringStrokeStillBlacklisted()
 {
-  // A third point arriving during a single-finger STROKE remains second-class
-  // (palm rejection on the destructive path is unchanged; task 5.7, spec:
-  // extra finger during a stroke neither orbits nor draws). The stroke is
-  // committed (arming window elapsed) before the extra finger lands.
+  // A second point arriving during a committed stroke forms a two-finger
+  // gesture via the committed-stroke recovery (task 2.5); a THIRD point (a
+  // palm) landing in the same update stays second-class and is blacklisted
+  // (task 5.7, spec: extra finger during a stroke neither orbits nor draws).
+  // The stroke is committed (arming window elapsed) before the extra fingers
+  // land.
   detail::TouchState ts(detail::kTouchSlopLogicalPx);
   QList<TouchStep> seq = {
     {{ makePoint(0, QEventPoint::Pressed, QPointF(100.0, 100.0)) },
@@ -1051,17 +1123,21 @@ void TouchNavigationTest::testThirdFingerDuringStrokeStillBlacklisted()
   const auto out = driveMachine(ts, seq);
   const size_t afterStroke = out.size(); // press + move
 
-  // A second AND a third finger land mid-stroke (committed): both blacklisted.
+  // A second AND a third finger land mid-stroke (committed): the second forms a
+  // gesture (recovery), the third is blacklisted.
   QList<QEventPoint> extras;
   extras << makePoint(0, QEventPoint::Updated, QPointF(140.0, 120.0));
   extras << makePoint(1, QEventPoint::Updated, QPointF(400.0, 400.0));
   extras << makePoint(2, QEventPoint::Updated, QPointF(500.0, 500.0));
   const detail::TouchResult r =
     ts.process(extras, detail::TouchState::Update, 40 + detail::kTouchStrokeArmMs);
-  QCOMPARE(r.mouseEvents.size(), size_t(1)); // only the stroke's move
-  QCOMPARE(ts.state(), detail::TouchState::Stroke);
+  QCOMPARE(r.mouseEvents.size(), size_t(1)); // the recovery release
+  QCOMPARE(r.mouseEvents[0].type, QEvent::MouseButtonRelease);
+  QVERIFY(r.recoverStroke);
+  QCOMPARE(ts.state(), detail::TouchState::Gesture); // second point formed a gesture
 
-  // The stroke release: the extras contributed nothing.
+  // The gesture release (finger 0 lifts): the gesture ends, the camera holds,
+  // and the third finger (point 2, blacklisted) contributes nothing.
   QList<QEventPoint> release0;
   release0 << makePoint(0, QEventPoint::Released, QPointF(140.0, 120.0));
   release0 << makePoint(1, QEventPoint::Updated, QPointF(400.0, 400.0));
@@ -1079,6 +1155,118 @@ void TouchNavigationTest::testThirdFingerDuringStrokeStillBlacklisted()
 
   // No events were produced after the stroke's release.
   QCOMPARE(static_cast<int>(out.size()), static_cast<int>(afterStroke));
+}
+
+void TouchNavigationTest::testNonDefaultArmMsAltersArmingTiming()
+{
+  // Design D10: TouchState is parameterized by the arming window. A non-default
+  // armMs alters when the held press is emitted (task 6.1). Use a short window
+  // so the test discriminates the shipped 250ms default from a custom value.
+  const qint64 customArm = 80;
+  detail::TouchState ts(detail::kTouchSlopLogicalPx, customArm);
+  QList<QEventPoint> begin;
+  begin << makePoint(0, QEventPoint::Pressed, QPointF(100.0, 100.0));
+  ts.process(begin, detail::TouchState::Begin, 0);
+
+  // Slop crossing at t=20 -> arming, press held.
+  QList<QEventPoint> cross;
+  cross << makePoint(0, QEventPoint::Updated, QPointF(120.0, 100.0));
+  detail::TouchResult r =
+    ts.process(cross, detail::TouchState::Update, 20);
+  QVERIFY(r.mouseEvents.isEmpty());
+  QCOMPARE(ts.state(), detail::TouchState::Stroke);
+
+  // 20 + customArm - 1 (t=99): still held under the custom window.
+  QList<QEventPoint> before;
+  before << makePoint(0, QEventPoint::Updated, QPointF(125.0, 100.0));
+  r = ts.process(before, detail::TouchState::Update,
+                 20 + customArm - 1);
+  QVERIFY(r.mouseEvents.isEmpty());
+
+  // At/after 20 + customArm (t=101): the held press is emitted at the
+  // slop-crossing position plus the move to the current position. This would
+  // still be held under the shipped 250ms default, so the non-default value is
+  // what made the window elapse here.
+  QList<QEventPoint> after;
+  after << makePoint(0, QEventPoint::Updated, QPointF(130.0, 100.0));
+  r = ts.process(after, detail::TouchState::Update,
+                 20 + customArm + 1);
+  QCOMPARE(static_cast<int>(r.mouseEvents.size()), 2);
+  QCOMPARE(r.mouseEvents[0].type, QEvent::MouseButtonPress);
+  QCOMPARE(r.mouseEvents[0].position, QPointF(120.0, 100.0));
+}
+
+void TouchNavigationTest::testOrbitDisabledKeepsPinchAndRejectsPromotion()
+{
+  // Design D10: with orbitEnabled=false a third finger during a two-finger
+  // pinch stays second-class (no orbit promotion); the pinch continues
+  // (task 6.1, spec: orbit disabled).
+  detail::TouchState ts(detail::kTouchSlopLogicalPx,
+                        detail::kTouchStrokeArmMs, false);
+  QList<QEventPoint> begin;
+  begin << makePoint(0, QEventPoint::Pressed, QPointF(100.0, 100.0));
+  begin << makePoint(1, QEventPoint::Pressed, QPointF(200.0, 100.0));
+  ts.process(begin, detail::TouchState::Begin, 0); // pinch, dist 100
+
+  // A live pinch: spreading zooms.
+  QList<QEventPoint> spread;
+  spread << makePoint(0, QEventPoint::Updated, QPointF(110.0, 100.0));
+  spread << makePoint(1, QEventPoint::Updated, QPointF(220.0, 100.0));
+  const detail::TouchResult zoomIn =
+    ts.process(spread, detail::TouchState::Update, 20);
+  QVERIFY(zoomIn.cameraActive);
+  QVERIFY(zoomIn.zoomDistanceDelta > 0.0);
+
+  // A third finger lands mid-pinch -> orbit DISABLED: no promotion, no orbit
+  // delta, the pinch zoom continues on the next spread.
+  QList<QEventPoint> withThird;
+  withThird << makePoint(0, QEventPoint::Updated, QPointF(115.0, 105.0));
+  withThird << makePoint(1, QEventPoint::Updated, QPointF(225.0, 105.0));
+  withThird << makePoint(2, QEventPoint::Updated, QPointF(170.0, 180.0));
+  const detail::TouchResult promo =
+    ts.process(withThird, detail::TouchState::Update, 40);
+  QVERIFY(promo.cameraActive);
+  QCOMPARE(promo.zoomDistanceDelta, 0.0); // third finger adds no pinch delta
+  QCOMPARE(promo.orbitFrom, promo.orbitTo); // no orbit promotion
+  QVERIFY(promo.mouseEvents.isEmpty());
+
+  // The pinch is still live: a further spread still zooms.
+  QList<QEventPoint> spread2;
+  spread2 << makePoint(0, QEventPoint::Updated, QPointF(125.0, 105.0));
+  spread2 << makePoint(1, QEventPoint::Updated, QPointF(245.0, 105.0));
+  const detail::TouchResult zoom2 =
+    ts.process(spread2, detail::TouchState::Update, 60);
+  QVERIFY(zoom2.cameraActive);
+  QVERIFY(zoom2.zoomDistanceDelta > 0.0);
+  QCOMPARE(zoom2.orbitFrom, zoom2.orbitTo);
+}
+
+void TouchNavigationTest::testThreePointBeginWithOrbitOffFormsPinchFromFirstTwo()
+{
+  // Design D10: with orbitEnabled=false a >=3-point begin forms a pinch from
+  // the first two points; the third point is second-class (task 6.1, spec:
+  // orbit disabled -> a touch beginning with three points forms a pinch from
+  // the first two).
+  detail::TouchState ts(detail::kTouchSlopLogicalPx,
+                        detail::kTouchStrokeArmMs, false);
+  QList<QEventPoint> begin;
+  begin << makePoint(0, QEventPoint::Pressed, QPointF(100.0, 100.0));
+  begin << makePoint(1, QEventPoint::Pressed, QPointF(200.0, 100.0));
+  begin << makePoint(2, QEventPoint::Pressed, QPointF(150.0, 200.0));
+  ts.process(begin, detail::TouchState::Begin, 0);
+  QCOMPARE(ts.state(), detail::TouchState::Gesture);
+
+  // Spreading the first two still zooms; no orbit delta appears.
+  QList<QEventPoint> spread;
+  spread << makePoint(0, QEventPoint::Updated, QPointF(110.0, 100.0));
+  spread << makePoint(1, QEventPoint::Updated, QPointF(220.0, 100.0));
+  spread << makePoint(2, QEventPoint::Updated, QPointF(155.0, 205.0));
+  const detail::TouchResult r =
+    ts.process(spread, detail::TouchState::Update, 20);
+  QVERIFY(r.cameraActive);
+  QVERIFY(r.zoomDistanceDelta > 0.0);
+  QCOMPARE(r.orbitFrom, r.orbitTo);
+  QVERIFY(r.mouseEvents.isEmpty());
 }
 
 // ---------------------------------------------------------------------------
@@ -1460,6 +1648,76 @@ void TouchNavigationTest::testPinchDuringStrokeArmingDrawsNoAtom()
   widget->touchEvent(&spreadEvent);
 
   QCOMPARE(mol->numAtoms(), before); // no atom was drawn
+  QVERIFY(!camBefore.isApprox(widget->camera()->modelview())); // camera zoomed
+
+  delete widget;
+  delete mol;
+}
+
+void TouchNavigationTest::testPinchAfterCommittedStrokeLeavesMoleculeUnchanged()
+{
+  // Task 2.5, end to end: a second finger arriving AFTER the arming window
+  // elapses (the press is committed to the draw tool, which adds an atom)
+  // forms a two-finger gesture via the committed-stroke recovery. The widget
+  // synthesizes the stroke's release, the tool pushes its undo command, and
+  // the widget undoes it under the molecule write lock — so the molecule is
+  // unchanged, while the camera zooms on the subsequent spread.
+  Molecule *mol = new Molecule; // empty
+  GLWidget *widget = makeWidget(mol);
+  widget->resize(800, 600);
+  widget->setMolecule(mol);
+  DrawTool tool;
+  tool.setElement(6); // carbon
+  tool.setAddHydrogens(Qt::Unchecked);
+  widget->setTool(&tool);
+  Avogadro::UndoStack undoStack(mol);
+  widget->setUndoStack(&undoStack);
+
+  const int before = mol->numAtoms(); // 0
+  const Projective3d camBefore = widget->camera()->modelview();
+
+  // Finger 0 lands and crosses the slop (arming: press held).
+  QList<QEventPoint> begin;
+  begin << makePoint(0, QEventPoint::Pressed, QPointF(200.0, 300.0));
+  QTouchEvent beginEvent(QEvent::TouchBegin, nullptr, Qt::NoModifier, begin);
+  beginEvent.setTimestamp(0);
+  widget->touchEvent(&beginEvent);
+
+  QList<QEventPoint> cross;
+  cross << makePoint(0, QEventPoint::Updated, QPointF(240.0, 300.0)); // > slop
+  QTouchEvent crossEvent(QEvent::TouchUpdate, nullptr, Qt::NoModifier, cross);
+  crossEvent.setTimestamp(20);
+  widget->touchEvent(&crossEvent);
+
+  // The arming window elapses: the held press is emitted -> committed stroke;
+  // the draw tool adds an atom at the slop-crossing position.
+  QList<QEventPoint> commit;
+  commit << makePoint(0, QEventPoint::Updated, QPointF(250.0, 300.0));
+  QTouchEvent commitEvent(QEvent::TouchUpdate, nullptr, Qt::NoModifier, commit);
+  commitEvent.setTimestamp(20 + detail::kTouchStrokeArmMs + 1);
+  widget->touchEvent(&commitEvent);
+  QVERIFY(mol->numAtoms() > before); // the committed press created atom(s)
+
+  // Finger 1 arrives after the press committed -> recovery: the release is
+  // synthesized, the tool pushes its undo command, and the widget undoes it so
+  // the molecule is unchanged.
+  QList<QEventPoint> second;
+  second << makePoint(0, QEventPoint::Updated, QPointF(255.0, 300.0));
+  second << makePoint(1, QEventPoint::Updated, QPointF(360.0, 300.0));
+  QTouchEvent secondEvent(QEvent::TouchUpdate, nullptr, Qt::NoModifier, second);
+  secondEvent.setTimestamp(20 + detail::kTouchStrokeArmMs + 20);
+  widget->touchEvent(&secondEvent);
+  QCOMPARE(mol->numAtoms(), before); // the abandoned stroke is undone
+
+  // Spread the pair: the camera zooms, and the molecule stays unchanged.
+  QList<QEventPoint> spread;
+  spread << makePoint(0, QEventPoint::Updated, QPointF(265.0, 300.0));
+  spread << makePoint(1, QEventPoint::Updated, QPointF(390.0, 300.0));
+  QTouchEvent spreadEvent(QEvent::TouchUpdate, nullptr, Qt::NoModifier, spread);
+  spreadEvent.setTimestamp(20 + detail::kTouchStrokeArmMs + 40);
+  widget->touchEvent(&spreadEvent);
+
+  QCOMPARE(mol->numAtoms(), before);
   QVERIFY(!camBefore.isApprox(widget->camera()->modelview())); // camera zoomed
 
   delete widget;

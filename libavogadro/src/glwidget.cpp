@@ -90,6 +90,7 @@
 #include <QPluginLoader>
 #include <QPointer>
 #include <QReadWriteLock>
+#include <QWriteLocker>
 #include <QElapsedTimer>
 #include <QMutex>
 
@@ -229,7 +230,11 @@ void GLWidget::updateViewport()
                         renderModelViewDebug(false),
                         dlistQuick(0), dlistOpaque(0), dlistTransparent(0),
                         pd(0), backend(0),
-                        m_touch( detail::kTouchSlopLogicalPx )
+                        m_touchStrokeArmMs( detail::kTouchStrokeArmMs ),
+                        m_touchSlopPx( detail::kTouchSlopLogicalPx ),
+                        m_touchOrbitEnabled( true ),
+                        m_touch( detail::kTouchSlopLogicalPx,
+                                 detail::kTouchStrokeArmMs, true )
     {
     }
 
@@ -378,11 +383,28 @@ void GLWidget::updateViewport()
     unsigned int backendDrawCalls = 0;
     unsigned int backendFrames = 0;
 
+    //! Cached touch interaction settings (design D10). Defaults to the shipped
+    //! constants; read from QSettings by GLWidget::readSettings() and updated
+    //! live by the TouchSettingsDialog. Kept in sync with m_touch via
+    //! applyTouchSettings().
+    qint64 m_touchStrokeArmMs = detail::kTouchStrokeArmMs;
+    double m_touchSlopPx = detail::kTouchSlopLogicalPx;
+    bool m_touchOrbitEnabled = true;
+
     //! Per-widget touch input state machine (add-touch-navigation). Owns the
     //! PENDING/STROKE/GESTURE state, touch-point identity tracking and the
     //! second-class blacklist; fed from GLWidget::touchEvent(). No static state
     //! (design D6): two widgets track their touch interactions independently.
     detail::TouchState m_touch;
+
+    //! Apply the cached touch settings to the state machine (design D10). The
+    //! settings panel live-applies by writing QSettings, updating the cached
+    //! values, then calling this. Resets any in-flight gesture so a new gesture
+    //! uses the new settings (a modeless panel is not used mid-gesture).
+    void applyTouchSettings()
+    {
+      m_touch.configure( m_touchSlopPx, m_touchStrokeArmMs, m_touchOrbitEnabled );
+    }
   };
 
   void GLWidgetPrivate::updateListQuick()
@@ -512,7 +534,7 @@ namespace detail {
           third = p.id();
           break;
         }
-        if (third != -1) {
+        if (third != -1 && m_orbitEnabled) {
           m_orbit = true;
           m_gestureId3 = third;
           const QPointF a = posOf(*find(points, m_gestureId1));
@@ -556,19 +578,39 @@ namespace detail {
     }
 
     if (live.size() >= 3) {
-      // Three fingers landed together: straight to a three-finger ORBIT (design
-      // D2, task 5.7), no PENDING state and no synthesized tool events.
+      // Three or more fingers landed together.
+      if (m_orbitEnabled) {
+        // Straight to a three-finger ORBIT (design D2, task 5.7), no PENDING
+        // state and no synthesized tool events.
+        m_state = Gesture;
+        m_orbit = true;
+        m_gestureId1 = live.at(0);
+        m_gestureId2 = live.at(1);
+        m_gestureId3 = live.at(2);
+        const QPointF a = posOf(*find(points, m_gestureId1));
+        const QPointF b = posOf(*find(points, m_gestureId2));
+        const QPointF c = posOf(*find(points, m_gestureId3));
+        m_lastOrbitCentroid = centroid3(a, b, c);
+        result.orbitFrom = result.orbitTo = m_lastOrbitCentroid.toPoint();
+        result.cameraActive = true;
+        return;
+      }
+      // Orbit disabled (design D10): a >=3-point begin forms a pinch from the
+      // first two points; every extra point is second-class.
       m_state = Gesture;
-      m_orbit = true;
+      m_orbit = false;
       m_gestureId1 = live.at(0);
       m_gestureId2 = live.at(1);
-      m_gestureId3 = live.at(2);
       const QPointF a = posOf(*find(points, m_gestureId1));
       const QPointF b = posOf(*find(points, m_gestureId2));
-      const QPointF c = posOf(*find(points, m_gestureId3));
-      m_lastOrbitCentroid = centroid3(a, b, c);
-      result.orbitFrom = result.orbitTo = m_lastOrbitCentroid.toPoint();
+      m_lastDistance = distance(a, b);
+      m_lastCentroid = centroid(a, b);
+      m_centroidValid = true;
       result.cameraActive = true;
+      QSet<int> keep;
+      keep.insert(m_gestureId1);
+      keep.insert(m_gestureId2);
+      blacklistNew(points, keep);
       return;
     }
 
@@ -698,7 +740,7 @@ namespace detail {
             // The arming window has elapsed: emit the held press at the
             // slop-crossing position, then the current move, and proceed as a
             // normal stroke.
-            if (timestamp - m_armStart >= kTouchStrokeArmMs) {
+            if (timestamp - m_armStart >= m_armMs) {
               m_strokeArming = false;
               result.emitPress(m_strokePressPos);
               if (pos != m_strokePressPos)
@@ -708,8 +750,57 @@ namespace detail {
           // else primary lifted during arming: handled by onEnd.
           break;
         }
-        // Non-arming stroke (window elapsed, press already emitted): the
-        // second-class rule applies (any new live point is blacklisted).
+        // Non-arming stroke (window elapsed, press already committed to the
+        // tool): a second live point now forms a two-finger gesture via the
+        // committed-stroke recovery (task 2.5) — the stroke's release is
+        // synthesized so the tool finalizes and pushes its undo command, and
+        // the widget undoes that command under the molecule write lock (the
+        // molecule is unchanged). This is the timing-robust two-finger
+        // contract: a pinch never draws an atom regardless of how long finger
+        // 1 moved before finger 2 landed. Any further live point (a third
+        // finger / palm) is second-class.
+        int second = -1;
+        for (const QEventPoint &p : points) {
+          if (p.id() == m_primaryId || m_blacklist.contains(p.id()) ||
+              p.state() == QEventPoint::Released)
+            continue;
+          second = p.id();
+          break;
+        }
+        if (second != -1) {
+          // Committed-stroke recovery: synthesize the release so the tool
+          // finalizes and pushes its undo command; the widget undoes it (the
+          // molecule is unchanged). Form the two-finger gesture using the
+          // primary's live position so the first zoom/pan delta is not
+          // under-reported by the primary's travel since slop-crossing. The
+          // camera block no-ops this event (zero deltas) — the first real
+          // camera motion arrives on the next update, after the molecule is
+          // reverted.
+          const QEventPoint *primaryPt = find(points, m_primaryId);
+          const QPointF a = primaryPt ? posOf(*primaryPt) : m_primaryLastPos;
+          if (primaryPt)
+            m_primaryLastPos = a;
+          result.emitRelease(m_primaryLastPos);
+          result.recoverStroke = true;
+          m_state = Gesture;
+          m_gestureId1 = m_primaryId;
+          m_gestureId2 = second;
+          const QPointF b = posOf(*find(points, m_gestureId2));
+          m_lastDistance = distance(a, b);
+          m_lastCentroid = centroid(a, b);
+          m_centroidValid = true;
+          result.cameraActive = true;
+          // Any further live point landing in the same update (a palm / third
+          // finger) stays second-class: it is blacklisted, never substituted
+          // into the gesture.
+          QSet<int> keep;
+          keep.insert(m_primaryId);
+          keep.insert(m_gestureId2);
+          blacklistNew(points, keep);
+          return;
+        }
+        // No second live point: continue the stroke (move). Any other new live
+        // point is second-class.
         QSet<int> keep;
         keep.insert(m_primaryId);
         blacklistNew(points, keep);
@@ -770,7 +861,7 @@ namespace detail {
           third = p.id();
           break;
         }
-        if (third != -1) {
+        if (third != -1 && m_orbitEnabled) {
           m_orbit = true;
           m_gestureId3 = third;
           const QEventPoint *p1 = find(points, m_gestureId1);
@@ -3658,8 +3749,23 @@ namespace Avogadro {
       // command to the undo stack exactly like mousePressEvent/ReleaseEvent do
       // below, so a synthesized click/lasso actually mutates the molecule.
       QUndoCommand *command = dispatchMouse( &me );
-      if ( command && d->undoStack )
+      const bool pushed = command && d->undoStack;
+      if ( pushed )
         d->undoStack->push( command );
+      // Committed-stroke recovery (task 2.5): a second finger arrived during a
+      // committed stroke. The release was synthesized so the tool finalizes and
+      // pushes its undo command; undo that command under the molecule write
+      // lock so the molecule is unchanged before the gesture drives the camera.
+      // Gate on `pushed` (a non-null release command means an editing tool
+      // actually mutated; if the press was declined / fell to the navigate
+      // fallback, no command is pushed and undoing would revert an unrelated
+      // prior command). Undo only when a live molecule is guarded.
+      if ( pushed && result.recoverStroke &&
+           sm.type == QEvent::MouseButtonRelease && molecule() ) {
+        QWriteLocker locker( molecule()->lock() );
+        Q_UNUSED( locker );
+        d->undoStack->undo();
+      }
     }
     if ( !result.mouseEvents.isEmpty() )
       update();
@@ -4623,6 +4729,9 @@ namespace Avogadro {
     settings.setValue("allowQuickRender", d->allowQuickRender);
     settings.setValue("renderUnitCellAxes", d->renderUnitCellAxes);
     settings.setValue("projection", d->projection);
+    settings.setValue("touchStrokeArmMs", d->m_touchStrokeArmMs);
+    settings.setValue("touchSlopPx", d->m_touchSlopPx);
+    settings.setValue("touchOrbitEnabled", d->m_touchOrbitEnabled);
 
     int count = d->engines.size();
     settings.beginWriteArray("engines");
@@ -4653,10 +4762,37 @@ namespace Avogadro {
       pr = 1; // set a default if this is screwed up
     d->projection = GLWidget::ProjectionType(pr);
 
+    // Touch interaction settings (design D10). Clamp out-of-range values into
+    // the documented ranges (the same defensive pattern as `projection` above)
+    // and live-apply them to the state machine.
+    d->m_touchStrokeArmMs = qBound<qint64>(
+      detail::kTouchStrokeArmMsMin,
+      settings.value("touchStrokeArmMs", detail::kTouchStrokeArmMs).toLongLong(),
+      detail::kTouchStrokeArmMsMax);
+    d->m_touchSlopPx = qBound<double>(
+      detail::kTouchSlopLogicalPxMin,
+      settings.value("touchSlopPx", detail::kTouchSlopLogicalPx).toDouble(),
+      detail::kTouchSlopLogicalPxMax);
+    d->m_touchOrbitEnabled =
+      settings.value("touchOrbitEnabled", true).toBool();
+    d->applyTouchSettings();
+
     loadEngines(settings);
 
     if(!d->engines.count())
       loadDefaultEngines();
+  }
+
+  void GLWidget::setTouchSettings(qint64 strokeArmMs, double slopPx,
+                                  bool orbitEnabled)
+  {
+    // Design D10: the settings panel live-applies. Update the cached values and
+    // configure the state machine; a new gesture uses the new settings with no
+    // restart.
+    d->m_touchStrokeArmMs = strokeArmMs;
+    d->m_touchSlopPx = slopPx;
+    d->m_touchOrbitEnabled = orbitEnabled;
+    d->applyTouchSettings();
   }
 
   void GLWidget::loadEngines(QSettings &settings)

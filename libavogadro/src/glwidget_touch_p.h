@@ -19,6 +19,8 @@ namespace detail {
 //! least this many logical pixels before it is treated as a stroke rather than
 //! a tap. A named constant so it is tuned in one place (device smoke, task 5).
 constexpr double kTouchSlopLogicalPx = 10.0;
+constexpr double kTouchSlopLogicalPxMin = 4.0;
+constexpr double kTouchSlopLogicalPxMax = 40.0;
 
 //! Stroke-arming grace window (design D2, task 5.5, widened by task 5.6): once
 //! a single finger has crossed the slop it enters an ARMED STROKE in which the
@@ -32,6 +34,8 @@ constexpr double kTouchSlopLogicalPx = 10.0;
 //! finger-planting commonly takes 150-400ms), so the press reached the draw
 //! tool and finger 2 was blacklisted; ~250ms covers typical pinch planting.
 constexpr qint64 kTouchStrokeArmMs = 250;
+constexpr qint64 kTouchStrokeArmMsMin = 50;
+constexpr qint64 kTouchStrokeArmMsMax = 1000;
 
 //! Result of feeding one touch event through the touch state machine.
 //!
@@ -73,6 +77,13 @@ struct TouchResult {
   //! stop at promotion (design D2, task 5.7).
   QPoint orbitFrom;
   QPoint orbitTo;
+  //! Committed-stroke recovery (task 2.5): true when a second finger arrived
+  //! during a committed stroke (arming window elapsed, press already emitted),
+  //! so the widget must synthesize the stroke's release, push the tool's undo
+  //! command, and undo it under the molecule write lock (the molecule is
+  //! unchanged) before the gesture drives the camera. Set together with a
+  //! release in mouseEvents and cameraActive.
+  bool recoverStroke = false;
 
   //! Append a synthesized press+release pair (a click) at `pos`.
   void emitClick(const QPointF &pos)
@@ -148,7 +159,25 @@ public:
   enum Phase { Begin, Update, End, Cancel };
 
   //! @param slopLogicalPx jitter threshold in logical pixels (design D2: ~10).
-  explicit TouchState(double slopLogicalPx) : m_slop(slopLogicalPx) {}
+  //! @param armMs stroke-arming window in milliseconds (design D2/D10;
+  //!   default kTouchStrokeArmMs).
+  //! @param orbitEnabled whether the three-finger orbit gesture is enabled
+  //!   (design D10; default true). When disabled, a third point during a
+  //!   gesture stays second-class and a >=3-point begin forms a pinch from the
+  //!   first two points.
+  explicit TouchState(double slopLogicalPx,
+                      qint64 armMs = kTouchStrokeArmMs,
+                      bool orbitEnabled = true)
+    : m_slop(slopLogicalPx), m_armMs(armMs), m_orbitEnabled(orbitEnabled) {}
+
+  //! Reconfigure the tunables without resetting the machine (design D10). The
+  //! settings panel live-applies by updating the cached values and calling this.
+  void configure(double slopLogicalPx, qint64 armMs, bool orbitEnabled)
+  {
+    m_slop = slopLogicalPx;
+    m_armMs = armMs;
+    m_orbitEnabled = orbitEnabled;
+  }
 
   //! Advance the state machine by one touch event and return what to apply.
   //! @param points active touch points (QTouchEvent::points())
@@ -211,6 +240,8 @@ private:
                     const QSet<int> &keep);
 
   double m_slop;
+  qint64 m_armMs = kTouchStrokeArmMs;
+  bool m_orbitEnabled = true;
   State m_state = Idle;
 
   // PENDING / STROKE: the single tracked point and where the stroke began.

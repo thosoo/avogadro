@@ -614,6 +614,15 @@ namespace Avogadro {
        */
       virtual void readSettings(QSettings &settings);
 
+      /**
+       * Apply touch interaction settings to this view live (design D10).
+       * Called by the settings panel after it writes the QSettings keys
+       * touchStrokeArmMs / touchSlopPx / touchOrbitEnabled; the values take
+       * effect immediately without restarting the application.
+       */
+      void setTouchSettings(qint64 strokeArmMs, double slopPx,
+                            bool orbitEnabled);
+
 
     protected:
       friend class GLGraphicsView;
