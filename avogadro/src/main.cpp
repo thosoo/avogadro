@@ -217,6 +217,48 @@ int main(int argc, char *argv[])
   #endif
   QSurfaceFormat::setDefaultFormat(defFormat);
 
+#ifdef Q_OS_WIN
+  // Windows posts the primary touch contact to the application twice: as a
+  // QTouchEvent (aggregated, via WM_POINTER — the stream GLWidget's touch
+  // pipeline consumes) and as OS-synthesized legacy WM_MOUSE* messages for the
+  // primary contact only. Qt forwards the latter as real QMouseEvents by
+  // default (QWindowsPointerHandler::translateMouseEvent,
+  // DontPassOsMouseEventsSynthesizedFromTouch unset), so every tool also
+  // receives a raw mouse stroke from the primary finger that bypasses
+  // WA_AcceptTouchEvents, the touch state machine, and every touch setting
+  // (task 5.2 root cause: a pinch drew atoms because that stream performed a
+  // real draw-tool stroke while finger 2, which generates no legacy mouse, was
+  // discarded). Request the documented opt-out so touch reaches the
+  // application only through the touch pipeline; the option also creates the
+  // touch device without MouseEmulation, which re-enables Qt's own
+  // touch-to-mouse synthesis for widgets that do NOT accept touch events
+  // (menus, buttons, dialogs keep working). Real mice are unaffected: their
+  // messages never carry the MI_WP_SIGNATURE extraInfo the filter keys on.
+  // Skipped when the user chooses a platform explicitly via -platform /
+  // --platform; an existing QT_QPA_PLATFORM "windows" value gains the option.
+  {
+    bool platformArgGiven = false;
+    for (int i = 1; i < argc; ++i) {
+      const QString arg(argv[i]);
+      if (arg == QLatin1String("-platform") || arg == QLatin1String("--platform") ||
+          arg.startsWith(QLatin1String("-platform=")) ||
+          arg.startsWith(QLatin1String("--platform="))) {
+        platformArgGiven = true;
+        break;
+      }
+    }
+    if (!platformArgGiven) {
+      const QByteArray qpa = qgetenv("QT_QPA_PLATFORM");
+      if (qpa.isEmpty() || qpa == "windows") {
+        qputenv("QT_QPA_PLATFORM", "windows:nomousefromtouch");
+      } else if (qpa.startsWith("windows:") && !qpa.contains("nomousefromtouch")) {
+        qputenv("QT_QPA_PLATFORM", qpa + ",nomousefromtouch");
+      }
+      // any other platform value is left untouched
+    }
+  }
+#endif
+
   Application app(argc, argv);
 #ifdef WIN32
   // Ensure we load DLLs from the executable directory first so
