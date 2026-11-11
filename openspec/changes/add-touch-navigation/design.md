@@ -405,7 +405,19 @@ the application.
   investigation, new task). Probe 1 cross-check: arming = 1000 ms ⇒ ~1 s ink
   delay iff engaged. Probe 2: the QT_LOGGING_RULES trace, decoded per Probe
   0's outcome. No machine-side code change before discrimination (oracle
-  ruling, sharpened first step recorded in tasks 5.2/5.3).
+  ruling, sharpened first step recorded in tasks 5.2/5.3). **Discriminated
+  (2026-11-10): the failure is DUAL-STREAM DELIVERY, not an engagement or
+  machine defect** — stock Windows passes OS-synthesized legacy mouse events
+  from the primary touch contact through to widgets as real QMouseEvents
+  (QWindowsPointerHandler::translateMouseEvent; DontPassOsMouseEventsSynthesizedFromTouch
+  unset by default), a stream that bypasses WA_AcceptTouchEvents, the touch
+  pipeline, and every touch setting. The fix is the documented platform
+  opt-out (`nomousefromtouch`) injected in main() on Windows before
+  QApplication construction, guarded to respect explicit QT_QPA_PLATFORM or
+  -platform overrides; it also stops the touch device from being created
+  with MouseEmulation, re-enabling Qt's own unhandled-touch→mouse synthesis
+  so non-touch-aware widgets (menus, buttons) keep working. See task 5.2
+  for the full evidence chain and the zero-rebuild device verification.
 - **Windows 11 shell gate on three-finger touch (D11, user decision
   2026-11-10).** With the OS 'Three- and four-finger touch gestures' setting
   On (default), three-finger touches never reach the application — the orbit
