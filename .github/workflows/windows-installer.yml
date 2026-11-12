@@ -688,7 +688,7 @@ jobs:
           # Diagnostic: list what's actually staged, then try loading each
           # direct dependency individually so a resolution failure names the DLL.
           $dlls = Get-ChildItem -Path $binDir -Filter '*.dll'
-          Write-Host "Staged $(@($dlls).Count) DLLs in $binDir:"
+          Write-Host "Staged $(@($dlls).Count) DLLs in ${binDir}:"
           foreach ($d in $dlls) { Write-Host "  $($d.Name)" }
           $deps = dumpbin /dependents $lib 2>$null | Out-String
           $impNames = $deps -split "\r?\n" | ForEach-Object {
