@@ -78,10 +78,11 @@ set(tests
   vdwradius
   autooptrepro
   energyhud
+  xtbruntime
+  xtbphysics
+  lbfgs
+  xtbengine
 )
-if(XTB_FOUND)
-  list(APPEND tests xtbopttool xtbphysics)
-endif()
 
 foreach (test ${tests})
   message(STATUS "Test:  ${test}")
@@ -777,20 +778,6 @@ add_test(qt6signalpatternsTest ${CMAKE_BINARY_DIR}/bin/qt6signalpatternstest)
 set_property(SOURCE qt6signalpatternstest.cpp PROPERTY LABELS avogadro)
 set_property(TARGET qt6signalpatternstest PROPERTY LABELS avogadro)
 set_property(TEST qt6signalpatternsTest PROPERTY LABELS avogadro)
-
-if(XTB_FOUND)
-  include_directories(${XTB_INCLUDE_DIRS})
-  link_directories(${XTB_LIBRARY_DIRS})
-  target_link_libraries(xtbopttooltest PRIVATE ${XTB_LIBRARIES})
-  target_link_libraries(xtbphysicstest PRIVATE ${XTB_LIBRARIES})
-endif()
-
-find_package(OpenMP)
-if(OpenMP_CXX_FOUND AND XTB_FOUND)
-  target_link_libraries(xtbopttooltest PRIVATE OpenMP::OpenMP_CXX)
-  target_link_libraries(xtbphysicstest PRIVATE OpenMP::OpenMP_CXX)
-endif()
-
 
 # More complicated tests (i.e., with linking)
 #message(STATUS "Test:  primitivemodeltest")

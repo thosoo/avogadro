@@ -35,6 +35,8 @@
 #include <avogadro/toolgroup.h>
 #include <avogadro/primitivelist.h>
 
+#include "xtb/xtbapi.h"
+
 #include <openbabel/obiter.h>
 #include <openbabel/mol.h>
 #include <openbabel/obconversion.h>
@@ -44,7 +46,9 @@
 #include <QtPlugin>
 #include <QLabel>
 #include <QVBoxLayout>
+#include <QWriteLocker>
 #include <thread>
+#include <vector>
 
 using namespace std;
 using namespace OpenBabel;
@@ -57,8 +61,12 @@ namespace Avogadro {
   m_leftButtonPressed(false), m_midButtonPressed(false), m_rightButtonPressed(false),
   m_running(false), m_block(false), m_setupFailed(false), m_timerId(0), m_toolGroup(0),
   m_settingsWidget(0), m_selectedPrimitivesCenter(Eigen::Vector3d::Zero()),
-  m_forceField(0), m_thread(0), m_forceFieldList(), m_comboFF(0), m_comboAlgorithm(0),
-  m_stepsSpinBox(0), m_buttonStartStop(0), m_fixedMovable(0), m_ignoredMovable(0),
+  m_forceField(0), m_thread(0),
+  m_xtbEngine(0), m_xtbTimerId(0), m_xtbEnergyHartree(0.0), m_xtbMethod(-1),
+  m_xtbSetupFailedReason(), m_xtbConverged(false),
+  m_forceFieldList(), m_comboFF(0), m_comboAlgorithm(0),
+  m_stepsSpinBox(0), m_comboEngine(0), m_comboLevel(0), m_threadsSpinBox(0),
+  m_buttonStartStop(0), m_fixedMovable(0), m_ignoredMovable(0),
   m_lastDraggingPosition(), m_lastEnergy(0.0)
   {
     QAction *action = activateAction();
@@ -85,6 +93,18 @@ namespace Avogadro {
     }
     m_thread = new AutoOptThread;
     connect(m_thread, SIGNAL(finished(bool)), this, SLOT(finished(bool)));
+
+    // xTB session engine (task 4.3). The engine resolves and owns the xTB
+    // library objects on its own worker thread; this tool only drives it
+    // (setup/tick/stop) and reads published snapshots. Created unconditionally;
+    // it stays idle until an xTB backend is selected and started.
+    m_xtbEngine = new XtbEngine(this);
+    connect(m_xtbEngine, SIGNAL(progress(int,int,double)), this,
+            SLOT(handleXtbProgress(int,int,double)));
+    connect(m_xtbEngine, SIGNAL(converged(double)), this,
+            SLOT(handleXtbConverged(double)));
+    connect(m_xtbEngine, SIGNAL(setupFailed(QString)), this,
+            SLOT(handleXtbSetupFailed(QString)));
     connect(m_thread, SIGNAL(setupDone()),    this, SLOT(setupDone()));
     connect(m_thread, SIGNAL(setupFailed()),  this, SLOT(setupFailed()));
     connect(m_thread, SIGNAL(setupSucces()),  this, SLOT(setupSucces()));
@@ -100,6 +120,18 @@ namespace Avogadro {
       m_thread->wait();
       delete m_thread;
       m_thread = 0;
+    }
+    // Quiesce the xTB engine before destroying it (task 4.3). The engine
+    // destructor also stop()+wait()s its worker, but quiescing here first
+    // guarantees no in-flight singlepoint is left running when the tool
+    // object goes away. The GUI thread never calls xtb_del* (the worker owns
+    // deletion) — see xtbengine task 3.8.
+    if (m_xtbEngine) {
+      m_xtbEngine->stop();
+      if (m_xtbEngine->isRunning())
+        m_xtbEngine->wait();
+      delete m_xtbEngine;
+      m_xtbEngine = 0;
     }
     if (m_settingsWidget)
       m_settingsWidget->deleteLater();
@@ -178,6 +210,12 @@ namespace Avogadro {
         m_thread->setPendingFixAtom(idx);
     }
 
+    // xTB drag: pin the clicked atom to the engine (0-based index). The engine
+    // masks it from optimizer write-back (task 3.5), so write-back never
+    // regresses the dragged atom. No fix markers on the xTB path (FF-only).
+    if (xtbSessionActive() && m_clickedAtom && m_leftButtonPressed)
+      m_xtbEngine->setDraggedAtom(static_cast<int>(m_clickedAtom->index()));
+
     widget->update();
     return 0;
   }
@@ -196,6 +234,11 @@ namespace Avogadro {
     // is no marker to release (design D3).
     if (m_thread)
       m_thread->setPendingFixAtom(0);
+
+    // xTB drag: release the dragged atom so the optimizer resumes covering it
+    // from where the drag left it (task 4.4). No fix-marker release on xTB.
+    if (xtbSessionActive())
+      m_xtbEngine->setDraggedAtom(-1);
 
     widget->update();
     return 0;
@@ -223,6 +266,20 @@ namespace Avogadro {
         translate(widget, *m_clickedAtom->pos(),
                   beginPos, event->position().toPoint());
       }
+    }
+
+    // xTB drag: forward the (now-translated) dragged-atom position to the
+    // engine in bohr so its masking pins that atom to the pointer. The
+    // translate() call above already wrote the molecule position (pointer
+    // authority); the engine publishes the pinned coordinate on the next tick.
+    // Convert angstrom -> bohr at this boundary (task 4.4).
+    if (xtbSessionActive() && m_clickedAtom && m_leftButtonPressed) {
+      const Eigen::Vector3d p = *m_clickedAtom->pos();
+      const double ang2bohr = 1.8897259886;
+      const std::vector<double> bohr = { p.x() * ang2bohr,
+                                         p.y() * ang2bohr,
+                                         p.z() * ang2bohr };
+      m_xtbEngine->notifyDragPosition(static_cast<int>(m_clickedAtom->index()), bohr);
     }
 
     m_lastDraggingPosition = event->position().toPoint();
@@ -259,7 +316,27 @@ namespace Avogadro {
     // through this immutable snapshot (see design decision 1).
     const AutoOptThread::ConstraintSnapshot snap = m_thread->snapshot();
     if (m_running) {
-      if (m_setupFailed) {
+      if (xtbSessionActive()) {
+        // xTB backend (task 4.5): the energy readout comes from the xTB
+        // engine's published energy (Hartree), converted to kJ/mol. The FF
+        // snapshot is not used on this backend.
+        if (m_setupFailed) {
+          // xTB setup failure: surface the engine's reason string (task 4.5).
+          widget->painter()->drawText(labelPos,
+            tr("AutoOpt: xTB setup failed: %1").arg(m_xtbSetupFailedReason));
+        }
+        else {
+          double energyKJ = m_xtbEnergyHartree * 2625.499748;
+          widget->molecule()->setEnergy(energyKJ);
+          // Show the stable final energy with a converged marker once the
+          // session has converged (or hit the evaluation cap) (task 4.5).
+          QString suffix = m_xtbConverged ? tr(" (converged)") : QString();
+          widget->painter()->drawText(labelPos,
+            tr("xTB %1: E = %2 kJ/mol%3").arg(xtbMethodName(m_xtbMethod)).
+            arg(energyKJ).arg(suffix));
+        }
+      }
+      else if (m_setupFailed) {
         widget->painter()->drawText(labelPos,
                                     tr("AutoOpt: Could not setup force field...."));
       }
@@ -333,6 +410,17 @@ namespace Avogadro {
     if(!m_settingsWidget) {
       m_settingsWidget = new QWidget;
 
+      // Backend (engine) selector sits above the force-field combo. It chooses
+      // between the OpenBabel force-field path and one of the xTB methods.
+      QLabel* labelEngine = new QLabel(tr("Engine:"));
+
+      m_comboEngine = new QComboBox(m_settingsWidget);
+      m_comboEngine->addItem(tr("Force field"));
+      m_comboEngine->addItem(tr("xTB \u2014 GFN1-xTB"));
+      m_comboEngine->addItem(tr("xTB \u2014 GFN2-xTB"));
+      m_comboEngine->addItem(tr("xTB \u2014 GFN-FF"));
+      m_comboEngine->setCurrentIndex(ForceField);
+
       QLabel* labelFF = new QLabel(tr("Force Field:"));
 
       m_comboFF = new QComboBox(m_settingsWidget);
@@ -346,9 +434,26 @@ namespace Avogadro {
       if (currentFF != -1) // couldn't find it, go for index 0
         m_comboFF->setCurrentIndex(currentFF);
 
+      // xTB convergence-level selector (Crude..Extreme). Shared widget slot
+      // below the grid holds this; it is shown only for xTB backends.
+      QLabel* labelLevel = new QLabel(tr("Convergence Level:"));
+
+      m_comboLevel = new QComboBox(m_settingsWidget);
+      m_comboLevel->addItem(tr("Crude\u2026"));
+      m_comboLevel->addItem(tr("Sloppy"));
+      m_comboLevel->addItem(tr("Loose"));
+      m_comboLevel->addItem(tr("Lax"));
+      m_comboLevel->addItem(tr("Normal"));
+      m_comboLevel->addItem(tr("Tight"));
+      m_comboLevel->addItem(tr("VTight"));
+      m_comboLevel->addItem(tr("Extreme"));
+      m_comboLevel->setCurrentIndex(4); // Normal
+
       QGridLayout* grid = new QGridLayout;
-      grid->addWidget(labelFF, 0, 0, Qt::AlignRight);
-      grid->addWidget(m_comboFF, 0, 1, Qt::AlignLeft);
+      grid->addWidget(labelEngine, 0, 0, Qt::AlignRight);
+      grid->addWidget(m_comboEngine, 0, 1, Qt::AlignLeft);
+      grid->addWidget(labelFF, 1, 0, Qt::AlignRight);
+      grid->addWidget(m_comboFF, 1, 1, Qt::AlignLeft);
 
       QLabel* labelSteps = new QLabel(tr("Steps per Update:"));
       labelSteps->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
@@ -358,8 +463,22 @@ namespace Avogadro {
       m_stepsSpinBox->setMaximum(100);
       m_stepsSpinBox->setValue(4);
 
-      grid->addWidget(labelSteps, 1, 0, Qt::AlignRight);
-      grid->addWidget(m_stepsSpinBox, 1, 1, Qt::AlignLeft);
+      grid->addWidget(labelSteps, 2, 0, Qt::AlignRight);
+      grid->addWidget(m_stepsSpinBox, 2, 1, Qt::AlignLeft);
+
+      grid->addWidget(labelLevel, 3, 0, Qt::AlignRight);
+      grid->addWidget(m_comboLevel, 3, 1, Qt::AlignLeft);
+
+      // xTB worker-thread count. 0 means "auto" (the engine derives a budget
+      // from the hardware). Shown only for an xTB backend via engineChanged().
+      QLabel* labelThreads = new QLabel(tr("xTB Threads (0 = auto):"));
+      labelThreads->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+      m_threadsSpinBox = new QSpinBox(m_settingsWidget);
+      m_threadsSpinBox->setMinimum(0);
+      m_threadsSpinBox->setMaximum(16);
+      m_threadsSpinBox->setValue(0); // auto
+      grid->addWidget(labelThreads, 4, 0, Qt::AlignRight);
+      grid->addWidget(m_threadsSpinBox, 4, 1, Qt::AlignLeft);
 
       QLabel* labelAlg = new QLabel(tr("Algorithm:"));
 
@@ -384,6 +503,11 @@ namespace Avogadro {
 
       layout->addWidget(labelAlg);
       layout->addWidget(m_comboAlgorithm);
+      // The xTB convergence-level combo and thread-count spin box are
+      // shown/hidden by engineChanged(); they live in this layout alongside the
+      // FF-only controls.
+      layout->addWidget(m_comboLevel);
+      layout->addWidget(m_threadsSpinBox);
       layout->addWidget(m_fixedMovable);
       layout->addWidget(m_ignoredMovable);
       layout->addWidget(m_buttonStartStop);
@@ -393,8 +517,15 @@ namespace Avogadro {
       // Connect the start/stop button
       connect(m_buttonStartStop, SIGNAL(clicked()), this, SLOT(toggle()));
 
+      // React to a backend selection change (show/hide FF-only vs xTB controls).
+      connect(m_comboEngine, SIGNAL(currentIndexChanged(int)),
+              this, SLOT(engineChanged()));
+
       connect(m_settingsWidget, SIGNAL(destroyed()),
               this, SLOT(settingsWidgetDestroyed()));
+
+      // Establish the initial visibility (force-field path by default).
+      engineChanged();
 
       // Check the force field is there, if not disable the start button
       if (!m_forceField)
@@ -407,6 +538,133 @@ namespace Avogadro {
   void AutoOptTool::settingsWidgetDestroyed()
   {
     m_settingsWidget = 0;
+  }
+
+  void AutoOptTool::engineChanged()
+  {
+    if (!m_comboEngine)
+      return;
+
+    // Force-field-only controls (force-field + algorithm combos) are hidden
+    // for an xTB backend; the xTB convergence-level combo is shown only for an
+    // xTB backend. Steps-per-update is shared by both paths and stays visible.
+    const bool xtb = m_comboEngine->currentIndex() != ForceField;
+
+    if (m_comboFF)
+      m_comboFF->setVisible(!xtb);
+    if (m_comboAlgorithm)
+      m_comboAlgorithm->setVisible(!xtb);
+    if (m_comboLevel)
+      m_comboLevel->setVisible(xtb);
+    if (m_threadsSpinBox)
+      m_threadsSpinBox->setVisible(xtb);
+
+    // Reflect xTB runtime availability on the Start button.
+    updateXtbAvailability();
+  }
+
+  bool AutoOptTool::updateXtbAvailability()
+  {
+    if (!m_comboEngine || !m_buttonStartStop)
+      return false;
+
+    const bool xtb = m_comboEngine->currentIndex() != ForceField;
+
+    if (xtb && !XtbApi::isAvailable()) {
+      // xTB backend selected but the library is not resolvable: gate the
+      // Start button and surface a visible, logged diagnostic. Force fields
+      // remain usable, so the message says so rather than implying a hard
+      // failure. (D1/D10: runtime discovery, graceful degradation.)
+      const QString msg = tr("xTB library not found \u2014 force fields remain available");
+      m_buttonStartStop->setEnabled(false);
+      m_buttonStartStop->setToolTip(msg);
+      emit message(msg);
+      return true;
+    }
+
+    // Force field, or xTB with the library present: restore the enabled
+    // state. (Do not touch FF availability beyond clearing the xTB gate.)
+    m_buttonStartStop->setEnabled(true);
+    m_buttonStartStop->setToolTip(QString());
+    return false;
+  }
+
+  int AutoOptTool::engineToMethod(int engine) const
+  {
+    // Map a selected AutoOptEngine index to an xTB method id used by
+    // XtbEngine::setup (0=GFN1-xTB, 1=GFN2-xTB, 2=GFN-FF). The mapping matches
+    // the AutoOptEngine enum order declared in the header.
+    switch (engine) {
+      case Gfn1: return 0;
+      case Gfn2: return 1;
+      case GfnFf: return 2;
+      default: return 1; // GFN2-xTB is the default xTB backend
+    }
+  }
+
+  bool AutoOptTool::xtbSessionActive() const
+  {
+    // An xTB session is live only while running on an xTB backend. m_xtbMethod
+    // is the active method id (0/1/2) during such a session and -1 otherwise.
+    return m_running && m_xtbMethod >= 0;
+  }
+
+  QString AutoOptTool::xtbMethodName(int method) const
+  {
+    // method id as stored in m_xtbMethod (0=GFN1-xTB, 1=GFN2-xTB, 2=GFN-FF).
+    switch (method) {
+      case 0: return tr("GFN1-xTB");
+      case 1: return tr("GFN2-xTB");
+      case 2: return tr("GFN-FF");
+      default: return tr("xTB");
+    }
+  }
+
+  void AutoOptTool::handleXtbProgress(int, int, double energyHartree)
+  {
+    // Record the last energy for the HUD (task 4.5). Stored in Hartree; the
+    // HUD converts to kJ/mol.
+    m_xtbEnergyHartree = energyHartree;
+  }
+
+  void AutoOptTool::handleXtbConverged(double finalEnergyHartree)
+  {
+    // Record the final energy once convergence (or the evaluation cap) is
+    // reached. The session stays open; the worker simply stops evaluating.
+    m_xtbEnergyHartree = finalEnergyHartree;
+    // Flag convergence so the HUD shows the stable final energy with a
+    // "(converged)" marker (task 4.5).
+    m_xtbConverged = true;
+  }
+
+  void AutoOptTool::handleXtbSetupFailed(const QString& reason)
+  {
+    // Surface an xTB setup failure in the HUD path, reusing the FF path's
+    // m_setupFailed flag. The engine's reason string is shown by paint().
+    m_setupFailed = true;
+    m_xtbSetupFailedReason = reason;
+  }
+
+  void AutoOptTool::stopEngine()
+  {
+    // Quiesce the xTB engine (task 4.3). Stop the pacing timer first so no new
+    // requestTick() is issued, then stop the worker and wait for the in-flight
+    // singlepoint to finish. The engine destructor also quiesces it, but a
+    // here quiesce guarantees no singlepoint runs while the tool tears down.
+    if (m_xtbTimerId) {
+      killTimer(m_xtbTimerId);
+      m_xtbTimerId = 0;
+    }
+    if (m_xtbEngine) {
+      m_xtbEngine->stop();
+      if (m_xtbEngine->isRunning())
+        m_xtbEngine->wait();
+    }
+    // Clear the active-backend marker so a stale session cannot be mistaken for
+    // a live xTB one by the drag-routing branches after a stop.
+    m_xtbMethod = -1;
+    m_xtbEnergyHartree = 0.0;
+    m_xtbConverged = false;
   }
 
   void AutoOptTool::toggle()
@@ -422,6 +680,12 @@ namespace Avogadro {
   {
     // If the force field is false we have nothing and so should return
     if (!m_forceField)
+      return;
+
+    // Gate xTB sessions when the runtime library is not resolvable (D1/D10):
+    // disable Start with a diagnostic and bail. Force-field availability is
+    // left to the existing logic below; this does not change it.
+    if (updateXtbAvailability())
       return;
 
     // The settings dock may not have been built yet (m_comboFF is created by
@@ -440,6 +704,52 @@ namespace Avogadro {
     }
 
     if(!m_running) {
+      const int engine = m_comboEngine ? m_comboEngine->currentIndex() : ForceField;
+      if (engine != ForceField) {
+        // xTB backend (task 4.3): build the session from the current molecule
+        // and hand it to the xTB engine. The force-field path is untouched
+        // below; this branch returns before it.
+        Molecule *mol = m_glwidget->molecule();
+        const int natoms = mol->numAtoms();
+        std::vector<int> numbers;
+        std::vector<double> positions;
+        numbers.reserve(natoms);
+        positions.reserve(static_cast<size_t>(natoms) * 3);
+        foreach (const Atom *atom, mol->atoms()) {
+          numbers.push_back(atom->atomicNumber());
+          const Eigen::Vector3d &p = *atom->pos();
+          positions.push_back(p.x());
+          positions.push_back(p.y());
+          positions.push_back(p.z());
+        }
+
+        const int method = engineToMethod(engine);
+        const int level = m_comboLevel ? m_comboLevel->currentIndex() : 4; // Normal
+        const int threads = m_threadsSpinBox ? m_threadsSpinBox->value() : 0;
+
+        // setup() returns false (and emits setupFailed) when the library is
+        // unavailable or the method cannot be loaded for this molecule. In
+        // that case the HUD flag is set by handleXtbSetupFailed; do NOT start
+        // a session or the pacing timer.
+        if (!m_xtbEngine->setup(numbers, positions, method, level, threads)) {
+          return;
+        }
+
+        // Session accepted: record the active backend for the HUD, start the
+        // worker, and drive one tick per 100 ms from the timer below. Clear any
+        // stale setup-failure flag from a prior session (the FF path clears it
+        // via the setupDone signal; xTB has no such signal, so clear here).
+        m_xtbMethod = method;
+        m_xtbEnergyHartree = 0.0;
+        m_xtbSetupFailedReason.clear();
+        m_setupFailed = false;
+        m_running = true;
+        m_xtbEngine->start(QThread::LowPriority);
+        m_xtbTimerId = startTimer(100);
+        m_buttonStartStop->setText(tr("Stop"));
+        return;
+      }
+
       // Re-find the force field by the current combo selection (same lookup as
       // timerEvent) so a user-changed force field is honoured on start.
       m_forceField = OBForceField::FindForceField(
@@ -488,6 +798,8 @@ namespace Avogadro {
     m_thread->quit();
     if (m_thread->isRunning())
       m_thread->wait();
+    // Quiesce the xTB engine too, if an xTB session is active (task 4.3).
+    stopEngine();
     // Clear transient constraint markers so no stale fix/ignore survives a
     // hard stop (e.g. molecule destroyed). Null-check: the force field may be
     // reset before teardown.
@@ -511,6 +823,8 @@ namespace Avogadro {
       m_thread->quit();
       if (m_thread->isRunning())
         m_thread->wait();
+      // Quiesce the xTB engine, if an xTB session is active (task 4.3).
+      stopEngine();
 
       m_buttonStartStop->setText(tr("Start"));
 
@@ -527,8 +841,51 @@ namespace Avogadro {
     }
   }
 
-  void AutoOptTool::timerEvent(QTimerEvent*)
+  void AutoOptTool::timerEvent(QTimerEvent* event)
   {
+    // xTB pacing timer (task 4.3): one L-BFGS iteration per 100 ms, applied via
+    // the engine's published coordinate snapshot. Dispatch on the timer id
+    // before the FF path, which runs on m_timerId.
+    if (event->timerId() == m_xtbTimerId) {
+      if (!m_xtbEngine || !m_running || m_xtbMethod < 0) {
+        // Session ended or never started; drop the tick.
+        return;
+      }
+      if (!m_glwidget || m_glwidget->molecule()->numAtoms() < 2)
+        return;
+
+      // Ask the worker to advance one L-BFGS iteration, then take the latest
+      // published coordinate snapshot (bohr). takeLatestCoords returns false
+      // when nothing new is available (e.g. the session converged and stopped),
+      // so we simply wait for the next tick.
+      m_xtbEngine->requestTick();
+      std::vector<double> coordsBohr;
+      if (!m_xtbEngine->takeLatestCoords(coordsBohr))
+        return;
+
+      // Apply the snapshot to the live molecule. The coordinates are in bohr;
+      // convert to angstrom per atom. Write under the molecule write lock so
+      // the coordinate write cannot interleave with the worker's read snapshot
+      // (the worker reads the molecule under a read lock during its tick). The
+      // lock object/match the pattern used elsewhere (molecule()->lock()).
+      QList<Atom*> atoms = m_glwidget->molecule()->atoms();
+      if (atoms.size() != static_cast<int>(coordsBohr.size() / 3))
+        return; // topology mismatch since the last snapshot; skip this tick
+      const double bohr2ang = 0.52917721092;
+      {
+        QWriteLocker locker(m_glwidget->molecule()->lock());
+        for (int i = 0; i < atoms.size(); ++i) {
+          const double *c = &coordsBohr[static_cast<size_t>(i) * 3];
+          atoms[i]->setPos(Eigen::Vector3d(c[0] * bohr2ang,
+                                           c[1] * bohr2ang,
+                                           c[2] * bohr2ang));
+        }
+      }
+      m_glwidget->molecule()->update();
+      m_glwidget->update();
+      return;
+    }
+
     // Guard against a null view: timerEvent can only run while a session is
     // active, but a view is only associated after the first canvas
     // interaction. Removing that ordering assumption costs nothing (design D2).
@@ -928,10 +1285,13 @@ namespace Avogadro {
   void AutoOptTool::writeSettings(QSettings &settings) const
   {
     Tool::writeSettings(settings);
+    settings.setValue("engine", m_comboEngine ? m_comboEngine->currentIndex() : ForceField);
     settings.setValue("forceField", m_comboFF->currentIndex());
     settings.setValue("algorithm", m_comboAlgorithm->currentIndex());
+    settings.setValue("xtbLevel", m_comboLevel ? m_comboLevel->currentIndex() : 4);
     settings.setValue("algorithmVersion", 2);
     settings.setValue("steps", m_stepsSpinBox->value());
+    settings.setValue("threads", m_threadsSpinBox ? m_threadsSpinBox->value() : 0);
     settings.setValue("fixedMovable", m_fixedMovable->checkState());
     settings.setValue("ignoredMovable", m_ignoredMovable->checkState());
   }
@@ -939,6 +1299,22 @@ namespace Avogadro {
   void AutoOptTool::readSettings(QSettings &settings)
   {
     Tool::readSettings(settings);
+    if (m_comboEngine) {
+      int currentEngine = settings.value("engine", ForceField).toInt();
+      if (currentEngine < 0 || currentEngine > GfnFf)
+        currentEngine = ForceField;
+      m_comboEngine->setCurrentIndex(currentEngine);
+      // Mirror the resulting control visibility.
+      engineChanged();
+    }
+    // Restore the xTB convergence level (task 4.6: backend + level persist
+    // across restarts). Default to Normal when unset.
+    if (m_comboLevel) {
+      int currentLevel = settings.value("xtbLevel", 4).toInt();
+      if (currentLevel < 0 || currentLevel >= m_comboLevel->count())
+        currentLevel = 4; // Normal
+      m_comboLevel->setCurrentIndex(currentLevel);
+    }
     if (m_comboFF) {
       int currentFF = settings.value("forceField", -1).toInt();
       if (currentFF == -1) {
@@ -963,6 +1339,8 @@ namespace Avogadro {
     }
     if (m_stepsSpinBox)
       m_stepsSpinBox->setValue(settings.value("steps", 4).toInt());
+    if (m_threadsSpinBox)
+      m_threadsSpinBox->setValue(settings.value("threads", 0).toInt());
     if (m_fixedMovable) {
       m_fixedMovable->setCheckState(
             static_cast<Qt::CheckState>(settings.value("fixedMovable", 2).toInt()));

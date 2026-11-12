@@ -29,6 +29,8 @@
 #include <avogadro/tool.h>
 #include <avogadro/molecule.h>
 
+#include "xtb/xtbengine.h"
+
 #include <openbabel/mol.h>
 #include <openbabel/forcefield.h>
 
@@ -52,6 +54,18 @@ namespace Avogadro {
     AutoOptMolecularDynamics300K = 4,
     AutoOptMolecularDynamics600K = 5,
     AutoOptMolecularDynamics900K = 6
+  };
+
+  // Computational backend selected for a session. Force field keeps the
+  // existing OpenBabel path; the xTB entries route to the xTB engine (task
+  // 4.3). Index order is part of the persisted/UI contract. Named
+  // AutoOptEngine to avoid colliding with the Avogadro::Engine class.
+  enum AutoOptEngine
+  {
+    ForceField = 0,
+    Gfn1 = 1,
+    Gfn2 = 2,
+    GfnFf = 3
   };
 
   class AutoOptThread : public QThread
@@ -153,7 +167,10 @@ namespace Avogadro {
   {
     Q_OBJECT
       AVOGADRO_TOOL("AutoOptimization", tr("AutoOptimization"),
-                    tr("Automatic optimization of molecular geometry"),
+                    tr("Automatic optimization of molecular geometry using "
+                       "force fields or xTB methods (GFN1-xTB, GFN2-xTB, "
+                       "GFN-FF). Drag atoms to pull them during optimization "
+                       "and choose a convergence level (Crude…Extreme)."),
                     tr("AutoOptimization Settings"))
 
     public:
@@ -214,6 +231,15 @@ namespace Avogadro {
       Eigen::Vector3d           m_selectedPrimitivesCenter;    // centroid of selected atoms
       OpenBabel::OBForceField*  m_forceField;
       AutoOptThread *           m_thread;
+      // xTB session engine (task 4.3). Created in the constructor, quiesced and
+      // deleted in the destructor; the engine owns its xTB objects on the
+      // worker thread. Null while no xTB session is active.
+      XtbEngine*                m_xtbEngine;
+      int                       m_xtbTimerId;   // 100 ms pacing timer for xTB
+      double                    m_xtbEnergyHartree;   // last reported energy (HUD)
+      int                       m_xtbMethod;    // active xTB method (HUD name)
+      QString                   m_xtbSetupFailedReason;   // failed-setup HUD text
+      bool                      m_xtbConverged;   // HUD: last xTB session converged
 
       std::vector<std::string>  m_forceFieldList;
 
@@ -221,6 +247,10 @@ namespace Avogadro {
       QComboBox*                m_comboAlgorithm;
       //QSpinBox*                 m_convergenceSpinBox;
       QSpinBox*                 m_stepsSpinBox;
+      QComboBox*                m_comboEngine;
+      QComboBox*                m_comboLevel;
+      // xTB worker-thread count (0 = auto). Shown only for an xTB backend.
+      QSpinBox*                 m_threadsSpinBox;
       QPushButton*              m_buttonStartStop;
       QCheckBox*                m_fixedMovable;
       QCheckBox*                m_ignoredMovable;
@@ -231,9 +261,41 @@ namespace Avogadro {
       void timerEvent(QTimerEvent* event);
 
       void translate(GLWidget *widget, const Eigen::Vector3d &what, const QPoint &from, const QPoint &to) const;
+      // Map a selected AutoOptEngine index to an xTB method id
+      // (0=GFN1-xTB, 1=GFN2-xTB, 2=GFN-FF). Only meaningful for xTB engines.
+      int engineToMethod(int engine) const;
+      // True while an xTB session is live (started on an xTB backend). Drives
+      // the drag-routing branches in the mouse handlers (task 4.4). m_xtbMethod
+      // is the active method id (0/1/2) during an xTB session, -1 otherwise.
+      bool xtbSessionActive() const;
+      // Human-readable xTB method name for the HUD (0=GFN1-xTB, 1=GFN2-xTB,
+      // 2=GFN-FF). Used by paint() for the xTB energy readout (task 4.5).
+      QString xtbMethodName(int method) const;
+      // Quiesce the active xTB session: stop the pacing timer, stop the engine,
+      // and wait for its worker to finish the in-flight singlepoint. Shared by
+      // abort() and disable() (task 4.3). The GUI thread never calls xtb_del*.
+      void stopEngine();
 
     private Q_SLOTS:
       void settingsWidgetDestroyed();
+      // React to a backend (engine) selection change: show/hide the FF-only
+      // controls (force-field + algorithm combos) versus the xTB controls
+      // (convergence-level combo). Steps-per-update is shared by both paths.
+      void engineChanged();
+      // Reflect xTB runtime availability on the Start button: when an xTB
+      // backend is selected but the library is not resolvable, disable Start
+      // with a diagnostic tooltip/message; otherwise restore the enabled state.
+      // Force-field availability is left to the existing FF logic. Returns
+      // true when an xTB backend is selected but the library is not
+      // resolvable (Start is gated), false otherwise.
+      bool updateXtbAvailability();
+      // xTB session callbacks (task 4.3): report the last energy for the HUD,
+      // record convergence, and surface a setup failure in the HUD path. The
+      // coordinate snapshot is pulled off-engine via takeLatestCoords() in the
+      // 100 ms timerEvent rather than through a cross-thread signal.
+      void handleXtbProgress(int evaluation, int maxEvaluations, double energyHartree);
+      void handleXtbConverged(double finalEnergyHartree);
+      void handleXtbSetupFailed(const QString& reason);
   };
 
   class AutoOptCommand : public QUndoCommand

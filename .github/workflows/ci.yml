@@ -50,15 +50,14 @@ jobs:
           sudo apt-get update
           sudo xargs -a .github/apt-packages.txt apt-get install -y
           if [ "${{ matrix.xtb }}" = "ON" ]; then
-            sudo apt-get install -y xtb libxtb-dev
+            sudo apt-get install -y xtb
           fi
       - name: Configure
         run: |
           cmake -S . -B build \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DENABLE_TESTS=ON \
-            -DENABLE_PYTHON=${{ matrix.python }} \
-            -DENABLE_XTB_OPTTOOL=${{ matrix.xtb }}
+            -DENABLE_PYTHON=${{ matrix.python }}
       - name: Build
         run: cmake --build build
       - name: Test

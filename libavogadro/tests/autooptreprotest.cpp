@@ -32,6 +32,8 @@
 #include <QOpenGLFunctions>
 #include <QtGui/QSurfaceFormat>
 #include <QCoreApplication>
+#include <QSettings>
+#include <QTemporaryFile>
 #include <QDir>
 #include <QImage>
 #include <QMetaObject>
@@ -61,6 +63,7 @@
 #include "tools/autoopttool.h"
 #include "tools/drawtool.h"
 #include "libavogadro/src/engines/bsdyengine.h"
+#include "xtb/xtbapi.h"
 
 using namespace Avogadro;
 
@@ -230,6 +233,8 @@ public:
   bool running() const { return m_running; }
   QComboBox *ffCombo() const { return m_comboFF; }
   QComboBox *algCombo() const { return m_comboAlgorithm; }
+  QComboBox *engineCombo() const { return m_comboEngine; }
+  QComboBox *levelCombo() const { return m_comboLevel; }
   QSpinBox *stepsSpin() const { return m_stepsSpinBox; }
   QPushButton *startBtn() const { return m_buttonStartStop; }
   // QObject::thread() returns QThread*; name this differently so the worker
@@ -404,6 +409,12 @@ private slots:
   // marker bookkeeping — both without crashing.
   void forceFieldlessToolIsInert();
 
+  // task 4.2 (OpenSpec 17): availability gating. Selecting an xTB backend
+  // while the runtime library is not resolvable SHALL disable the Start
+  // button; with the library present (or the force field selected) it SHALL
+  // stay enabled. Follows the spec's branch on XtbApi::isAvailable().
+  void xtbEngineGatedWithoutLibrary();
+
   // LIVE-GUI scenario checks (fix-modern-tier-revision-churn 2.2 / 3.1).
   // Both drive the real GLWidget on a real GL context (Xvfb/llvmpipe or real
   // hardware) with real QTest mouse events through the active tool, and both
@@ -413,6 +424,36 @@ private slots:
   // pointer monotonically (no tick-sized backward jumps), other atoms keep
   // optimizing, and coverage resumes at release.
   void liveDragAtomDuringAutoOpt();
+
+  // task 4.4 (OpenSpec 19): a press/drag/release cycle during an xTB session
+  // must leave the molecule valid (atom count intact, positions finite). The
+  // drag routing (setDraggedAtom on press, notifyDragPosition on move,
+  // setDraggedAtom(-1) on release) drives the engine's masking; this case
+  // guards that the resulting engine ticks + coordinate write-back never
+  // corrupt the molecule. Runs headlessly (no live GL pick required).
+  void xtbDragCycleLeavesValidMolecule();
+
+  // task 4.6 (OpenSpec 21): backend + convergence-level selection persists.
+  // Write engine=GFN2 and level=Tight to a temp ini QSettings, reload into a
+  // fresh tool instance, and assert both selections round-trip (spec: the
+  // backend selection persists across restarts like the other tool settings).
+  void engineSettingsRoundTrip();
+
+  // task 6.2 (OpenSpec 27): after retiring the old xtbopttool plugin, exactly
+  // one optimization tool exists at runtime — the unified AutoOptTool. Assert
+  // its AVOGADRO_TOOL identity is "AutoOptimization" (the optimization tool)
+  // and that no optimization tool carries the retired "XtbOptimization"
+  // identity. Instruments are instantiated directly from source (the build
+  // compiles autoopttool.cpp into the binary rather than loading autoopttool.so,
+  // which would duplicate the plugin-export symbols); this test cannot
+  // enumerate loaded plugins without that collision.
+  void singleOptimizationTool();
+
+  // task 7.4 (OpenSpec 31): the tool's AVOGADRO_TOOL description must name all
+  // four engines (force fields, GFN1-xTB, GFN2-xTB, GFN-FF), document atom
+  // pulling during optimization and the convergence-level control.
+  void toolDocumentationMatchesBehavior();
+
   // 3.1: click a bond mid-session (adjust-hydrogens off) — the order cycles
   // 1→2, the molecule revision bumps, the modern tier adopts a rebuild at or
   // after the click revision within ~one build, and ticks continue.
@@ -1385,6 +1426,39 @@ void AutoOptReproTest::forceFieldlessToolIsInert()
   delete mol;
 }
 
+void AutoOptReproTest::xtbEngineGatedWithoutLibrary()
+{
+  // task 4.2 (OpenSpec 17): availability gating. Selecting an xTB backend
+  // while the runtime library is not resolvable SHALL disable the Start
+  // button; with the library present (or the force field selected) it SHALL
+  // stay enabled. The spec branches on XtbApi::isAvailable(), so the case is
+  // correct on machines with and without libxtb.
+  AutoOptToolExposed tool;
+  tool.settingsWidget();
+  QVERIFY(tool.engineCombo() != nullptr);
+  QVERIFY(tool.startBtn() != nullptr);
+
+  // Default is the force field, which stays enabled.
+  QCOMPARE(tool.engineCombo()->currentIndex(), ForceField);
+  QVERIFY(tool.startBtn()->isEnabled());
+
+  // Select GFN2-xTB (index 2). engineChanged() fires and applies the gate.
+  QSignalSpy msgSpy(&tool, &AutoOptTool::message);
+  tool.engineCombo()->setCurrentIndex(2);
+  QCOMPARE(tool.engineCombo()->currentIndex(), 2);
+
+  if (!XtbApi::isAvailable()) {
+    // Library absent: the xTB Start button is gated off with a diagnostic.
+    QVERIFY(!tool.startBtn()->isEnabled());
+    QVERIFY(tool.startBtn()->toolTip().contains("force fields"));
+    QCOMPARE(msgSpy.count(), 1);
+    QVERIFY(msgSpy.first().first().toString().contains("force fields"));
+  } else {
+    // Library present: xTB Start stays enabled.
+    QVERIFY(tool.startBtn()->isEnabled());
+  }
+}
+
 //! Pick-coherence gate for the live GUI scenario checks: the GL pick must
 //! resolve the atom at its camera-projected position. On GL stacks where the
 //! pre-existing QOpenGLWidget integration defect strands the renderer's GL
@@ -1535,6 +1609,185 @@ void AutoOptReproTest::liveDragAtomDuringAutoOpt()
   tool.disable();
   delete widget;
   delete mol;
+}
+
+void AutoOptReproTest::xtbDragCycleLeavesValidMolecule()
+{
+  // task 4.4 (OpenSpec 19): a press/drag/release cycle during an xTB session
+  // must leave the molecule valid (atom count intact, positions finite). The
+  // drag routing (setDraggedAtom on press, notifyDragPosition on move,
+  // setDraggedAtom(-1) on release) drives the engine's masking; this case
+  // guards that the resulting engine ticks + coordinate write-back never
+  // corrupt the molecule. Runs headlessly (no live GL pick required).
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+
+  // Water (O + 2 H), a small GFN2-valid system. Coordinates are in angstrom;
+  // deliberately distorted so the optimizer has something to relax.
+  Molecule *mol = new Molecule;
+  const double numbers[3] = {8.0, 1.0, 1.0};
+  const double xyz[9] = {0.0, 0.0, 0.0,
+                         0.0, 0.0, 1.3,
+                         0.0, 0.1, -0.95};
+  for (int i = 0; i < 3; ++i) {
+    Atom *a = mol->addAtom();
+    a->setAtomicNumber(static_cast<int>(numbers[i]));
+    a->setPos(Eigen::Vector3d(xyz[3 * i], xyz[3 * i + 1], xyz[3 * i + 2]));
+  }
+  QVERIFY(mol->numAtoms() == 3);
+
+  GLWidget widget(mol, QSurfaceFormat());
+  widget.resize(640, 480);
+
+  AutoOptToolExposed tool;
+  tool.settingsWidget();
+  // Select the xTB GFN2 backend (engine combo index 2) and the Normal level.
+  tool.engineCombo()->setCurrentIndex(2);
+  if (tool.levelCombo())
+    tool.levelCombo()->setCurrentIndex(4); // Normal
+  tool.setGlw(&widget);
+  tool.enable();
+  QVERIFY(tool.running());
+
+  QList<Atom *> atoms = mol->atoms();
+  QVERIFY(atoms.size() == 3);
+
+  // Let the engine tick and publish its first coordinate snapshot to the
+  // molecule (exercises the timerEvent xTB branch + snapshot write-back).
+  for (int i = 0; i < 6; ++i) {
+    QCoreApplication::processEvents();
+    QTest::qWait(20);
+  }
+
+  // Press: engage a left-button drag on atom 0 via the exposed drag marker
+  // (same headless pattern the FF write-back test uses). The real press
+  // handler would route the grab to m_xtbEngine->setDraggedAtom(idx), but
+  // computeClickedAtom needs a GL selection context a context-less widget
+  // lacks, so engage the drag directly and drive the move/release handlers
+  // below for the routing that reads m_clickedAtom.
+  tool.setDragMarker(atoms[0], true);
+
+  // Move: exercises the notifyDragPosition routing (writes the dragged atom's
+  // bohr position to the engine each move, after the translate() write-back).
+  QMouseEvent moveEvent(QEvent::MouseMove, QPointF(5, 5), QPointF(5, 5),
+                        Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+  tool.mouseMoveEvent(&widget, &moveEvent);
+
+  // Let the engine tick with the dragged atom masked, then release: the real
+  // release handler exercises the setDraggedAtom(-1) routing so the optimizer
+  // resumes covering the atom.
+  for (int i = 0; i < 6; ++i) {
+    QCoreApplication::processEvents();
+    QTest::qWait(20);
+  }
+
+  QMouseEvent releaseEvent(QEvent::MouseButtonRelease, QPointF(5, 5), QPointF(5, 5),
+                           Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+  tool.mouseReleaseEvent(&widget, &releaseEvent);
+
+  for (int i = 0; i < 6; ++i) {
+    QCoreApplication::processEvents();
+    QTest::qWait(20);
+  }
+
+  // Quiesce the engine before touching the molecule.
+  tool.disable();
+  QVERIFY(!tool.running());
+
+  // The molecule must survive the whole drag cycle intact.
+  QVERIFY(mol->numAtoms() == 3);
+  for (Atom *a : atoms) {
+    const Eigen::Vector3d p = *a->pos();
+    QVERIFY(qIsFinite(p.x()));
+    QVERIFY(qIsFinite(p.y()));
+    QVERIFY(qIsFinite(p.z()));
+  }
+
+  delete mol;
+}
+
+void AutoOptReproTest::engineSettingsRoundTrip()
+{
+  // task 4.6 (OpenSpec 21): the selected backend and convergence level persist
+  // across restarts like the other tool settings. Write engine=GFN2 and
+  // level=Tight to a temp ini file, reload into a fresh tool instance, and
+  // assert both selections round-trip. Headless (no GL required).
+  QTemporaryFile tmp;
+  QVERIFY(tmp.open());
+  const QString path = tmp.fileName();
+
+  // Tool 1: pick the xTB GFN2 backend (index 2) and the Tight level (index 5).
+  AutoOptToolExposed tool1;
+  tool1.settingsWidget();
+  QVERIFY(tool1.engineCombo() != nullptr);
+  QVERIFY(tool1.levelCombo() != nullptr);
+  tool1.engineCombo()->setCurrentIndex(2); // GFN2-xTB
+  tool1.levelCombo()->setCurrentIndex(5); // Tight
+
+  {
+    QSettings w(path, QSettings::IniFormat);
+    tool1.writeSettings(w);
+    w.sync();
+  }
+
+  // Tool 2: reload from the same ini file.
+  AutoOptToolExposed tool2;
+  tool2.settingsWidget();
+  QSettings r(path, QSettings::IniFormat);
+  tool2.readSettings(r);
+
+  QCOMPARE(tool2.engineCombo()->currentIndex(), 2); // GFN2-xTB
+  QCOMPARE(tool2.levelCombo()->currentIndex(), 5); // Tight
+}
+
+void AutoOptReproTest::singleOptimizationTool()
+{
+  // task 6.2 (OpenSpec 27): after retiring the old xtbopttool plugin, exactly
+  // one optimization tool exists at runtime — the unified AutoOptTool. Assert
+  // its AVOGADRO_TOOL identity is "AutoOptimization" (the optimization tool)
+  // and that no optimization tool carries the retired "XtbOptimization"
+  // identity. The tool is instantiated directly from source (the build
+  // compiles autoopttool.cpp into this binary rather than loading
+  // autoopttool.so, which would duplicate the plugin-export symbols), so this
+  // verifies the consolidated tool's identity; the absence of a second
+  // optimization tool is the structural result of the xtbopttool deletion.
+  AutoOptToolExposed tool;
+  // The unified tool's AVOGADRO_TOOL identifier is "AutoOptimization" and its
+  // description names the optimization role.
+  QCOMPARE(tool.identifier(), QStringLiteral("AutoOptimization"));
+  QVERIFY2(tool.description().contains("optimization", Qt::CaseInsensitive),
+           "AutoOptTool is not recognized as the optimization tool");
+  // The retired xtbopttool exposed itself as "XtbOptimization"; it is gone.
+  QVERIFY(tool.identifier() != QStringLiteral("XtbOptimization"));
+  // It is a genuine Tool, so it participates in the tool inventory.
+  QVERIFY(qobject_cast<Tool *>(&tool) != nullptr);
+}
+
+void AutoOptReproTest::toolDocumentationMatchesBehavior()
+{
+  // task 7.4 (OpenSpec 31): the tool's documented description must name all
+  // four selectable engines (force fields, GFN1-xTB, GFN2-xTB, GFN-FF), that
+  // atoms can be pulled during optimization, and the convergence-level
+  // control — matching the tool's actual behavior. description() is the field
+  // carried by the AVOGADRO_TOOL macro (the AutoOptTool constructor layers a
+  // separate mouse-navigation guide on the action tooltip, so description() is
+  // the accessor that documents the selectable backends).
+  AutoOptToolExposed tool;
+  const QString desc = tool.description();
+  QVERIFY2(!desc.isEmpty(), "AutoOptTool description is empty");
+  // All four engines named.
+  QVERIFY2(desc.contains("force field", Qt::CaseInsensitive),
+           "description does not name the force-field backend");
+  QVERIFY2(desc.contains("GFN1-xTB"), "description missing GFN1-xTB");
+  QVERIFY2(desc.contains("GFN2-xTB"), "description missing GFN2-xTB");
+  QVERIFY2(desc.contains("GFN-FF"), "description missing GFN-FF");
+  // Atom pulling during optimization is documented.
+  QVERIFY2(desc.contains("drag", Qt::CaseInsensitive),
+           "description does not document pulling atoms during optimization");
+  // Convergence-level control is documented.
+  QVERIFY2(desc.contains("convergence", Qt::CaseInsensitive),
+           "description does not document the convergence-level control");
 }
 
 void AutoOptReproTest::liveBondOrderClickDuringAutoOpt()

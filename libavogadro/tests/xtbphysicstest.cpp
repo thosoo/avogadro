@@ -1,6 +1,9 @@
 #include "config.h"
 #include <QtTest>
-#include <xtb.h>
+
+#include "xtb/xtbapi.h"
+
+using Avogadro::XtbApi;
 
 class XtbPhysicsTest : public QObject
 {
@@ -11,6 +14,10 @@ private slots:
 
 void XtbPhysicsTest::energy()
 {
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+
   const double ang2bohr = 1.8897259886;
   int natoms = 3;
   int numbers[3] = {8, 1, 1};
@@ -22,23 +29,23 @@ void XtbPhysicsTest::energy()
   double lattice[3][3] = {{0,0,0},{0,0,0},{0,0,0}};
   bool periodic[3] = {false,false,false};
 
-  xtb_TEnvironment env = xtb_newEnvironment();
-  xtb_TMolecule mol = xtb_newMolecule(env, &natoms, numbers, coords, &charge, &uhf,
-                                      &lattice[0][0], periodic);
-  xtb_TCalculator calc = xtb_newCalculator();
-  xtb_loadGFN2xTB(env, mol, calc, NULL);
-  xtb_TResults res = xtb_newResults();
+  xtb_TEnvironment env = XtbApi::xtb_newEnvironment()();
+  xtb_TMolecule mol = XtbApi::xtb_newMolecule()(
+    env, &natoms, numbers, coords, &charge, &uhf, &lattice[0][0], periodic);
+  xtb_TCalculator calc = XtbApi::xtb_newCalculator()();
+  XtbApi::xtb_loadGFN2xTB()(env, mol, calc, NULL);
+  xtb_TResults res = XtbApi::xtb_newResults()();
 
-  xtb_singlepoint(env, mol, calc, res);
+  XtbApi::xtb_singlepoint()(env, mol, calc, res);
   double energy = 0.0;
-  xtb_getEnergy(env, res, &energy);
+  XtbApi::xtb_getEnergy()(env, res, &energy);
 
   QVERIFY(energy < 0.0);
 
-  xtb_delResults(&res);
-  xtb_delCalculator(&calc);
-  xtb_delMolecule(&mol);
-  xtb_delEnvironment(&env);
+  XtbApi::xtb_delResults()(&res);
+  XtbApi::xtb_delCalculator()(&calc);
+  XtbApi::xtb_delMolecule()(&mol);
+  XtbApi::xtb_delEnvironment()(&env);
 }
 
 QTEST_MAIN(XtbPhysicsTest)

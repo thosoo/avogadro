@@ -46,6 +46,7 @@
 
 #include "libavogadro/src/glwidget.h"
 #include "libavogadro/src/engines/bsdyengine.h"
+#include "libavogadro/src/xtb/xtbapi.h"
 #include "libavogadro/src/tools/autoopttool.h"
 
 using namespace Avogadro;
@@ -66,6 +67,10 @@ public:
   // AutoOptThread; expose it so the HUD test can wait for a valid snapshot.
   AutoOptThread *autoThread() const { return m_thread; }
   AutoOptThread::ConstraintSnapshot snapshot() const { return m_thread->snapshot(); }
+  // xTB HUD state (task 4.5): last published energy (Hartree) and convergence.
+  double xtbEnergyHartree() const { return m_xtbEnergyHartree; }
+  bool xtbConverged() const { return m_xtbConverged; }
+  QComboBox *engineCombo() const { return m_comboEngine; }
 };
 
 namespace {
@@ -101,6 +106,10 @@ class EnergyHudTest : public QObject
 
 private Q_SLOTS:
   void testEnergyTextRasterized();
+  // Task 4.5 (HUD per engine): the xTB backend draws its own energy readout
+  // ("xTB <method>: E = <kJ/mol>") at the same upper-left position. Mirror the
+  // FF rasterization check with a GFN2-xTB session.
+  void testXtbEnergyTextRasterized();
 };
 
 void EnergyHudTest::testEnergyTextRasterized()
@@ -210,6 +219,115 @@ void EnergyHudTest::testEnergyTextRasterized()
           "(documented); real hardware is the acceptance gate", SkipAll);
   QVERIFY2(bright > 0,
            "energy HUD text not rasterized in the upper-left corner");
+
+  tool.disable();
+  QVERIFY(!tool.running());
+}
+
+void EnergyHudTest::testXtbEnergyTextRasterized()
+{
+  // Task 4.5 (HUD per engine): an xTB session must rasterize its own energy
+  // readout in the upper-left corner. Skip when the xTB runtime is absent or
+  // the platform cannot present the modern tier (both documented headless
+  // limitations); real hardware is the acceptance gate.
+  if (!XtbApi::isAvailable())
+    QSKIP("xTB runtime library not available", SkipAll);
+
+  QScopedPointer<Molecule> mol(buildMolecule());
+
+  QSurfaceFormat fmt;
+  fmt.setDepthBufferSize(24);
+  QSurfaceFormat::setDefaultFormat(fmt);
+
+  GLWidget widget(mol.data(), fmt);
+  widget.resize(640, 480);
+
+  BSDYEngine *engine = new BSDYEngine;
+  engine->setMolecule(mol.data());
+  engine->setEnabled(true);
+  widget.addEngine(engine);
+
+  // Deterministic framing (same as the FF test): center and pull back so the
+  // upper-left HUD region is unoccluded.
+  Eigen::Vector3d center = Eigen::Vector3d::Zero();
+  const QList<Atom *> atoms = mol->atoms();
+  if (!atoms.isEmpty()) {
+    for (Atom *a : atoms)
+      center += *a->pos();
+    center /= static_cast<double>(atoms.size());
+  }
+  Eigen::Projective3d mv = Eigen::Projective3d::Identity();
+  mv.translate(-center);
+  mv.translate(Eigen::Vector3d(0.0, 0.0, -8.0));
+  widget.camera()->setModelview(mv);
+
+  widget.show();
+  widget.renderNow();
+
+  if (!widget.context() || !widget.context()->isValid())
+    QSKIP("QOpenGLWidget has no usable GL context on this platform "
+          "(offscreen/document; real hardware is the acceptance gate)",
+          SkipAll);
+
+  // Select the xTB GFN2-xTB backend, then start the session.
+  AutoOptToolExposed tool;
+  tool.settingsWidget();
+  QVERIFY(tool.ffCombo() != nullptr);
+  QVERIFY(tool.engineCombo() != nullptr);
+  tool.engineCombo()->setCurrentIndex(2); // GFN2-xTB
+  tool.setGlw(&widget);
+  tool.enable();
+  QVERIFY2(tool.running(), "xTB session did not start");
+
+  // Wait for the xTB engine to publish at least one energy (or converge).
+  QElapsedTimer timer;
+  timer.start();
+  while (timer.elapsed() < 20000) {
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+    if (tool.xtbConverged() || tool.xtbEnergyHartree() != 0.0)
+      break;
+  }
+  QVERIFY2(tool.xtbEnergyHartree() != 0.0 || tool.xtbConverged(),
+           "xTB engine never published an energy; the HUD text would be blank");
+
+  // Render several frames so the xTB HUD overlay is painted each frame.
+  for (int i = 0; i < 5; ++i) {
+    widget.renderNow();
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+  }
+
+  // Read the framebuffer directly and assert bright (white text) pixels appear
+  // in the upper-left HUD region (text drawn at (10,10)), same as the FF test.
+  widget.makeCurrent();
+  const int w = widget.width(), h = widget.height();
+  QImage img(w, h, QImage::Format_ARGB32);
+  glPixelStorei(GL_PACK_ALIGNMENT, 1);
+  glReadPixels(0, 0, w, h, GL_BGRA, GL_UNSIGNED_BYTE, img.bits());
+  widget.doneCurrent();
+  img = img.mirrored(false, true);
+
+  int nonblack = 0;
+  for (int y = 0; y < h; ++y)
+    for (int x = 0; x < w; ++x) {
+      QColor c = img.pixel(x, y);
+      if (c.red() > 20 || c.green() > 20 || c.blue() > 20)
+        ++nonblack;
+    }
+  if (nonblack == 0)
+    QSKIP("modern tier presents a black frame under llvmpipe headlessly "
+          "(documented); real hardware is the acceptance gate", SkipAll);
+
+  int bright = 0;
+  for (int y = 5; y < 60; ++y)
+    for (int x = 5; x < 400; ++x) {
+      QColor c = img.pixel(x, y);
+      if (c.red() > 200 && c.green() > 200 && c.blue() > 200)
+        ++bright;
+    }
+  qDebug() << "xTB non-black pixels:" << nonblack;
+  qDebug() << "xTB bright pixels in HUD text region:" << bright;
+  QVERIFY2(bright > 0,
+           "xTB energy HUD text not rasterized in the upper-left corner");
 
   tool.disable();
   QVERIFY(!tool.running());

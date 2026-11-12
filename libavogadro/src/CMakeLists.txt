@@ -135,6 +135,15 @@ set(libavogadro_SRCS
   rendering/lod.cpp              # LOD zoom bands + hysteresis (2.3)
   rendering/renderertier.cpp     # tier selection: CMake gating + probe + override (7.1)
   rendering/compatbackend.cpp    # compat tier: fixed-function flush of chunk stores (7.2)
+
+  # xTB runtime shim (add-xtb-optimization). Resolved at runtime via QLibrary;
+  # never linked at build time. The headers live in the xtb/ subdirectory and
+  # are found via the source include path (like rendering/), not the install
+  # symlink list.
+  xtb/xtbapi.cpp
+  xtb/lbfgs.cpp
+  xtb/xtbengine.cpp
+  xtb/xtbparams.cpp
 )
 
 set(libavogadro_MOC_HDRS
