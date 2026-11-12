@@ -437,7 +437,7 @@ jobs:
 
             $actual = (Get-FileHash -Path $dst -Algorithm SHA256).Hash.ToLower()
             if ($actual -ne $a.sha256.ToLower()) {
-              throw "SHA256 mismatch for $fn: expected $($a.sha256.ToLower()) got $actual"
+              throw "SHA256 mismatch for ${fn}: expected $($a.sha256.ToLower()) got $actual"
             }
             Write-Host "Verified sha256 for $fn"
 
@@ -460,12 +460,14 @@ jobs:
             foreach ($dll in $dlls) { Copy-Item -Path $dll.FullName -Destination $binDir -Force }
             Write-Host "Staged $($dlls.Count) DLL(s) from $fn"
 
-            # GFN-FF parameter data -> dist\share\xtb
+            # GFN-FF parameter data -> dist\bin\share\xtb. The relative path
+            # must be from $parSrc (not $pkgExt) so .param_gfnff.xtb lands
+            # directly in $shareXtb, where the locator probes it.
             $parSrc = Join-Path $pkgExt 'Library\share\xtb'
             if (Test-Path $parSrc) {
               Get-ChildItem -Path $parSrc -Recurse -File |
                 ForEach-Object {
-                  $rel = $_.FullName.Substring($pkgExt.Length + 1)
+                  $rel = $_.FullName.Substring($parSrc.Length + 1)
                   $dest = Join-Path $shareXtb $rel
                   New-Item -ItemType Directory -Force (Split-Path $dest) | Out-Null
                   Copy-Item -Path $_.FullName -Destination $dest -Force
@@ -530,7 +532,12 @@ jobs:
             $name = $worklist.Dequeue()
             if (-not ($visited.Add($name))) { continue }
             $deps = dumpbin /dependents (Join-Path $binDir $name) 2>$null | Out-String
-            $imported = ($deps -match 'dll Name:' | ForEach-Object { $_ -replace '.*dll Name:\s*','' -replace '\s*$','' })
+            # dumpbin /dependents lists one dependency per line with the DLL name
+            # at the start of the line (mirror of create_installer.py's parser).
+            $imported = $deps -split "\r?\n" | ForEach-Object {
+              $tok = [System.IO.Path]::GetFileName($_.Trim())
+              if ($tok -match '(?i)\.(dll|exe)$') { $tok }
+            }
             foreach ($imp in $imported) {
               if (-not $imp) { continue }
               if (Test-ImportAllowed -Name $imp) { continue }
