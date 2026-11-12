@@ -776,6 +776,51 @@ jobs:
         shell: pwsh
         run: |
           python scripts/installer/probe_openbabel_runtime.py scripts\installer\dist
+      - name: Diagnose xTB load (tests leg)
+        if: matrix.target == 'tests'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -Language CSharp -Namespace XtbDiag -Name Loader -MemberDefinition @'
+            [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError=true)]
+            public static extern IntPtr LoadLibraryW(string lpFileName);
+            [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError=true)]
+            public static extern bool FreeLibrary(IntPtr hModule);
+          '@
+          $binDir = Join-Path "$PWD\scripts\installer\xtb-stage" 'bin'
+          if (-not (Test-Path $binDir)) { throw "staged bin dir missing: $binDir" }
+          Write-Host "Staged dir: $binDir"
+          $dlls = Get-ChildItem -Path $binDir -Filter '*.dll'
+          Write-Host "$(@($dlls).Count) DLLs staged:"
+          foreach ($d in $dlls) { Write-Host "  $($d.Name)" }
+
+          # 1) Try loading every staged DLL; report any that fail (covers
+          # forwarder targets like openblas.dll that dumpbin /dependents hides).
+          Write-Host "`n--- per-DLL LoadLibraryW ---"
+          foreach ($d in $dlls) {
+            $h = [XtbDiag.Loader]::LoadLibraryW($d.FullName)
+            if ($h -eq [IntPtr]::Zero) {
+              $err = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+              Write-Host "  FAIL  $($d.Name)  (err=$err)"
+            } else {
+              [void][XtbDiag.Loader]::FreeLibrary($h)
+              Write-Host "  ok    $($d.Name)"
+            }
+          }
+
+          # 2) Load libxtb-6.dll and report the precise load error.
+          Write-Host "`n--- libxtb-6.dll ---"
+          $lib = Join-Path $binDir 'libxtb-6.dll'
+          if (-not (Test-Path $lib)) { throw "libxtb-6.dll not staged" }
+          $h = [XtbDiag.Loader]::LoadLibraryW($lib)
+          if ($h -eq [IntPtr]::Zero) {
+            $err = [System.Runtime.InteropServices.Marshal]::GetLastWin32Error()
+            Write-Host "  FAIL load libxtb-6.dll (err=$err)"
+            Write-Host "  ERROR_ENVVAR_NOT_FOUND=203  ERROR_MOD_NOT_FOUND=126"
+          } else {
+            Write-Host "  libxtb-6.dll loads OK"
+            [void][XtbDiag.Loader]::FreeLibrary($h)
+          }
       - name: Test
         if: matrix.target == 'tests'
         shell: pwsh
@@ -795,6 +840,8 @@ jobs:
           $env:QT_QPA_PLATFORM = 'offscreen'
           $env:QT_FORCE_STDERR_LOGGING = '1'
           ctest --test-dir build -C Release --output-on-failure
+          Write-Host "`n=== xtbengineTest verbose (slot-level) ==="
+          & .\build\bin\xtbenginetest.exe -v2 2>&1 | Select-Object -First 80
       - name: Upload installer
         if: matrix.target == 'installer'
         uses: actions/upload-artifact@v4
