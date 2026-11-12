@@ -105,19 +105,24 @@ jobs:
         run: |
           sudo apt-get update
           sudo xargs -a .github/apt-packages.txt apt-get install -y
+          # xTB runtime: the asan leg also runs xtbenginetest across the engine
+          # create/destroy cycle (immediateStopIsSafe does 5 setup/start/stop/
+          # wait cycles), which needs the library present to execute physics.
+          sudo apt-get install -y xtb
       - name: Configure (AddressSanitizer)
         run: |
           cmake -S . -B build \
             -DCMAKE_BUILD_TYPE=Debug \
             -DENABLE_TESTS=ON \
             -DAVOGADRO_SANITIZER=address
-      - name: Build (autooptrepro target only)
+      - name: Build (autooptrepro + xtbengine targets only)
         # Serial (-j 1): two reasons. (1) OpenBabel is a versioned-soname shared
         # library built through an ExternalProject; under parallelism its install
         # step races the link and cannot find libopenbabel.so.7.0.0. (2) ASan's
         # ~2x memory footprint must fit the 7 GB runner. Only the push-lock
-        # scenario matrix is in scope, so the whole project is not built.
-        run: cmake --build build --target autooptreprotest -j 1
+        # scenario matrix and the xTB engine lifecycle are in scope, so the whole
+        # project is not built.
+        run: cmake --build build --target autooptreprotest xtbenginetest -j 1
       - name: Test (ASan-sensitive matrix)
         run: |
           export LD_LIBRARY_PATH="$PWD/build/openbabel-install/lib:$LD_LIBRARY_PATH"
@@ -138,6 +143,24 @@ jobs:
           if grep -q "No tests were found" /tmp/asan_ctest.log; then
             echo "ERROR: autooptreproTest matched no tests; gate is a no-op" >&2
             cat /tmp/asan_ctest.log >&2
+            exit 2
+          fi
+          exit $rc
+      - name: Test (xTB engine lifecycle under ASan)
+        # The engine's create/destroy cycle (immediateStopIsSafe: 5x setup/start/
+        # stop/wait, plus water singlepoint and L-BFGS convergence) must run under
+        # ASan with no heap corruption or use-after-free. xTB physics slots are
+        # exercised because the 'xtb' package is installed in this job.
+        run: |
+          export LD_LIBRARY_PATH="$PWD/build/openbabel-install/lib:$LD_LIBRARY_PATH"
+          export PATH="$PWD/build/openbabel-install/bin:$PATH"
+          export QT_QPA_PLATFORM=offscreen
+          export ASAN_OPTIONS="detect_odr_violation=0:detect_leaks=0:abort_on_error=1"
+          ctest --test-dir build --output-on-failure -R xtbengineTest > /tmp/asan_xtbengine.log 2>&1
+          rc=$?
+          if grep -q "No tests were found" /tmp/asan_xtbengine.log; then
+            echo "ERROR: xtbengineTest matched no tests; gate is a no-op" >&2
+            cat /tmp/asan_xtbengine.log >&2
             exit 2
           fi
           exit $rc
