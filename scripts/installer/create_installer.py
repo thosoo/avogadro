@@ -558,6 +558,42 @@ def main():
     if license_src.exists():
         copy(license_src, license_dest)
 
+    # Stage the bundled xTB runtime (add-xtb-optimization / D2). The workflow
+    # downloads and digest-verifies the pinned conda-forge artifacts into
+    # XTB_STAGING_DIR (bin/share/licenses), then we copy them into dist/bin
+    # here, AFTER dist is rebuilt, so the packaged installer contains them.
+    xtb_stage = os.environ.get('XTB_STAGING_DIR')
+    if xtb_stage:
+        xtb_stage = Path(xtb_stage)
+        stage_bin = xtb_stage / 'bin'
+        if stage_bin.exists():
+            for dll in stage_bin.glob('*.dll'):
+                copy(dll, dist / 'bin' / dll.name)
+        stage_share = xtb_stage / 'share' / 'xtb'
+        if stage_share.exists():
+            dest_share = dist / 'bin' / 'share' / 'xtb'
+            dest_share.mkdir(parents=True, exist_ok=True)
+            for f in stage_share.rglob('*'):
+                if f.is_file():
+                    rel = f.relative_to(stage_share)
+                    dest = dest_share / rel
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    copy(f, dest)
+        stage_lic = xtb_stage / 'licenses' / 'xtb'
+        if stage_lic.exists():
+            dest_lic = dist / 'bin' / 'licenses' / 'xtb'
+            for pkg in stage_lic.iterdir():
+                if not pkg.is_dir():
+                    continue
+                pkg_dest = dest_lic / pkg.name
+                for f in pkg.rglob('*'):
+                    if f.is_file():
+                        rel = f.relative_to(pkg)
+                        dest = pkg_dest / rel
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        copy(f, dest)
+        log(f"Staged xTB runtime from {xtb_stage}")
+
     version = os.environ.get("AVOGADRO_VERSION")
     vi_version = None
     if not version:

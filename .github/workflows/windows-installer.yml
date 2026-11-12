@@ -399,12 +399,13 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
+          # Stage into a dedicated dir (NOT dist/bin): create_installer.py wipes
+          # and rebuilds dist, then copies the xTB runtime into dist/bin from
+          # XTB_STAGING_DIR before makensis (design D2). The tests leg points
+          # PATH at this staging dir too.
           $dist = "$PWD\scripts\installer\dist"
-          # avogadro.exe lives in dist\bin, so the xTB parameter locator
-          # (XtbParams::ensureGfnffParameters) probes applicationDirPath +
-          # "/share/xtb" == dist\bin\share\xtb. Stage the runtime, param data
-          # and licenses next to avogadro.exe (design D2).
-          $binDir = Join-Path $dist 'bin'
+          $stageRoot = "$PWD\scripts\installer\xtb-stage"
+          $binDir = Join-Path $stageRoot 'bin'
           $shareXtb = Join-Path $binDir 'share\xtb'
           $licDir = Join-Path $binDir 'licenses\xtb'
           New-Item -ItemType Directory -Force $binDir, $shareXtb, $licDir | Out-Null
@@ -503,7 +504,10 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $binDir = Join-Path "$PWD\scripts\installer\dist" 'bin'
+          # The xTB runtime is staged into xtb-stage\bin and copied into the
+          # packaged dist\bin by create_installer.py; verify the closure on the
+          # staged set (same DLLs that end up in the installer).
+          $binDir = Join-Path "$PWD\scripts\installer\xtb-stage" 'bin'
           if (-not (Get-Command dumpbin -ErrorAction SilentlyContinue)) {
             throw "dumpbin not found on PATH; cannot inspect DLL imports"
           }
@@ -583,6 +587,9 @@ jobs:
         shell: pwsh
         run: |
           $env:OPENBABEL_INSTALL_DIR = "$PWD\build\openbabel-install"
+          # create_installer.py rebuilds dist from scratch and copies the xTB
+          # runtime into dist/bin from XTB_STAGING_DIR before makensis.
+          $env:XTB_STAGING_DIR = "$PWD\scripts\installer\xtb-stage"
           python scripts/installer/create_installer.py
       - name: Capture live renderer log (OpenSpec 3.1)
         # Runs AFTER the packaged tree is assembled (create_installer.py) so the
@@ -748,10 +755,11 @@ jobs:
         if: matrix.target == 'tests'
         shell: pwsh
         run: |
-          # Prepend the staged application dir (dist\bin, which now contains the
-          # bundled xTB runtime) and the OpenBabel runtime so QLibrary resolves
-          # libxtb-6.dll exactly like an installed user machine (OpenSpec 5.4).
-          $stagedBin = "$PWD\scripts\installer\dist\bin"
+          # Prepend the staged xTB runtime dir (xtb-stage\bin) and the OpenBabel
+          # runtime so QLibrary resolves libxtb-6.dll exactly like an installed
+          # user machine (OpenSpec 5.4). The tests leg does not run
+          # create_installer.py, so the xTB DLLs live in xtb-stage here.
+          $stagedBin = "$PWD\scripts\installer\xtb-stage\bin"
           $env:PATH = "$stagedBin;$PWD\build\openbabel-install\bin;$env:PATH"
           # Headless runner: QOpenGLContext::create() succeeds but yields a
           # GDI Generic OpenGL 1.1 context (no real rendering). Force the
