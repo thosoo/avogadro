@@ -26,7 +26,7 @@ env:
       {"pkg":"libgcc","fn":"libgcc-16.2.0-h110b43a_7.conda","sha256":"59feb6d16cba13a70f22dae70a44670eb2cc45e652e9a34a014814c2ca871132"},
       {"pkg":"libgfortran-5","fn":"libgfortran5-16.2.0-h7c9de5e_7.conda","sha256":"e9b86fe14cb9938abd08f0b1685b04457339f71d9f00783fe9258a1eb0229963"},
       {"pkg":"libgomp-1","fn":"libgomp-16.2.0-h8ee18e1_7.conda","sha256":"4b8a747f047d069ccd2a6cf2f4fdbc6b0c0e4dcd840998d1fe607b8c234e707b"},
-      {"pkg":"libwinpthread-1","fn":"libwinpthread-12.0.0-r688.g6b2176247.1-h57928b3_0.conda","sha256":"bab5558663cb0e964988b859abd69d0f2380b6ea9f140495ab543e51af13635d"},
+      {"pkg":"libwinpthread-1","fn":"libwinpthread-12.0.0.r4.gg4f2fc60ca-h57928b3_10.conda","sha256":"0fccf2d17026255b6e10ace1f191d0a2a18f2d65088fd02430be17c701f8ffe0"},
       {"pkg":"libs-dftd3-1","fn":"simple-dftd3-1.4.0-gfortran_hee28707_1.conda","sha256":"af232186e15e31c405f860955eaf7f752f9bff24df6a507a7ba8a391419507f1"},
       {"pkg":"libtoml-f-0","fn":"toml-f-0.5.2-gfortran_hee28707_0.conda","sha256":"3516b3ec07c7ec1d41e020c6451b7c42f474f439547892b12872c2b6632ff2e6"},
       {"pkg":"libnumsa-0","fn":"numsa-0.2.0-gfortran_hee28707_2.conda","sha256":"e8ccd69b93b0d73d87983813cd158273e8cdd5f72918590fa7cebf0f860a5534"}
