@@ -236,6 +236,11 @@ public:
   QComboBox *engineCombo() const { return m_comboEngine; }
   QComboBox *levelCombo() const { return m_comboLevel; }
   QSpinBox *stepsSpin() const { return m_stepsSpinBox; }
+  QLabel *ffLabel() const { return m_labelFF; }
+  QLabel *algLabel() const { return m_labelAlg; }
+  QLabel *levelLabel() const { return m_labelLevel; }
+  QLabel *threadsLabel() const { return m_labelThreads; }
+  QSpinBox *threadsSpin() const { return m_threadsSpinBox; }
   QPushButton *startBtn() const { return m_buttonStartStop; }
   // QObject::thread() returns QThread*; name this differently so the worker
   // AutoOptThread* is reachable for spying on its setupFailed() signal.
@@ -438,6 +443,7 @@ private slots:
   // fresh tool instance, and assert both selections round-trip (spec: the
   // backend selection persists across restarts like the other tool settings).
   void engineSettingsRoundTrip();
+  void engineSwitchHidesControlsAndCaptions();
 
   // task 6.2 (OpenSpec 27): after retiring the old xtbopttool plugin, exactly
   // one optimization tool exists at runtime — the unified AutoOptTool. Assert
@@ -1744,6 +1750,62 @@ void AutoOptReproTest::engineSettingsRoundTrip()
 
   QCOMPARE(tool2.engineCombo()->currentIndex(), 2); // GFN2-xTB
   QCOMPARE(tool2.levelCombo()->currentIndex(), 5); // Tight
+}
+
+void AutoOptReproTest::engineSwitchHidesControlsAndCaptions()
+{
+  // Field regression: switching between force field and an xTB backend left
+  // orphan captions ("Force Field:"/"Algorithm:" on the xTB path,
+  // "Convergence Level:"/"xTB Threads" on the FF path) and put the xTB
+  // controls under two layouts, corrupting the panel geometry. Switching the
+  // engine combo must toggle each backend's controls AND its captions
+  // together, and keep the shared steps row visible.
+  AutoOptToolExposed tool;
+  tool.settingsWidget();
+  QVERIFY(tool.engineCombo() != nullptr);
+  QVERIFY(tool.ffCombo() != nullptr);
+  QVERIFY(tool.algCombo() != nullptr);
+  QVERIFY(tool.levelCombo() != nullptr);
+  QVERIFY(tool.threadsSpin() != nullptr);
+  QVERIFY(tool.ffLabel() != nullptr);
+  QVERIFY(tool.algLabel() != nullptr);
+  QVERIFY(tool.levelLabel() != nullptr);
+  QVERIFY(tool.threadsLabel() != nullptr);
+  QVERIFY(tool.stepsSpin() != nullptr);
+
+  // isVisibleTo(parent) reports the would-be visibility independent of the
+  // (offscreen, hidden) settings widget itself.
+  const QWidget *panel = tool.engineCombo()->parentWidget();
+
+  tool.engineCombo()->setCurrentIndex(0); // Force field
+  QCOMPARE(tool.ffCombo()->isVisibleTo(panel), true);
+  QCOMPARE(tool.ffLabel()->isVisibleTo(panel), true);
+  QCOMPARE(tool.algCombo()->isVisibleTo(panel), true);
+  QCOMPARE(tool.algLabel()->isVisibleTo(panel), true);
+  QCOMPARE(tool.levelCombo()->isVisibleTo(panel), false);
+  QCOMPARE(tool.levelLabel()->isVisibleTo(panel), false);
+  QCOMPARE(tool.threadsSpin()->isVisibleTo(panel), false);
+  QCOMPARE(tool.threadsLabel()->isVisibleTo(panel), false);
+  QCOMPARE(tool.stepsSpin()->isVisibleTo(panel), true);
+
+  tool.engineCombo()->setCurrentIndex(2); // xTB - GFN2-xTB
+  QCOMPARE(tool.ffCombo()->isVisibleTo(panel), false);
+  QCOMPARE(tool.ffLabel()->isVisibleTo(panel), false);
+  QCOMPARE(tool.algCombo()->isVisibleTo(panel), false);
+  QCOMPARE(tool.algLabel()->isVisibleTo(panel), false);
+  QCOMPARE(tool.levelCombo()->isVisibleTo(panel), true);
+  QCOMPARE(tool.levelLabel()->isVisibleTo(panel), true);
+  QCOMPARE(tool.threadsSpin()->isVisibleTo(panel), true);
+  QCOMPARE(tool.threadsLabel()->isVisibleTo(panel), true);
+  QCOMPARE(tool.stepsSpin()->isVisibleTo(panel), true);
+
+  tool.engineCombo()->setCurrentIndex(3); // xTB - GFN-FF: same xTB rows
+  QCOMPARE(tool.levelCombo()->isVisibleTo(panel), true);
+  QCOMPARE(tool.ffLabel()->isVisibleTo(panel), false);
+
+  tool.engineCombo()->setCurrentIndex(0); // back to force field
+  QCOMPARE(tool.ffCombo()->isVisibleTo(panel), true);
+  QCOMPARE(tool.levelLabel()->isVisibleTo(panel), false);
 }
 
 void AutoOptReproTest::singleOptimizationTool()

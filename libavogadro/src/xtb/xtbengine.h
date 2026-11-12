@@ -103,6 +103,10 @@ private:
   void applyOmpEnv(int threadsSetting);
   double evaluateOnce(const std::vector<double>& coords, std::vector<double>& grad);
   void applyDragToWorkingCoords();
+  // Clears the converged/capped idle latch and re-arms the optimizer so a user
+  // drag after convergence (or after the evaluation cap) resumes evaluation
+  // from the dragged geometry. Caller must hold m_stateMutex.
+  void resumeOptimizationLocked();
   bool shouldStop(int evals) const;
   void publishCoords(const std::vector<double>& coordsBohr);
   void deleteObjectsOnWorker();

@@ -66,6 +66,7 @@ namespace Avogadro {
   m_xtbSetupFailedReason(), m_xtbConverged(false),
   m_forceFieldList(), m_comboFF(0), m_comboAlgorithm(0),
   m_stepsSpinBox(0), m_comboEngine(0), m_comboLevel(0), m_threadsSpinBox(0),
+  m_labelFF(0), m_labelAlg(0), m_labelLevel(0), m_labelThreads(0),
   m_buttonStartStop(0), m_fixedMovable(0), m_ignoredMovable(0),
   m_lastDraggingPosition(), m_lastEnergy(0.0)
   {
@@ -422,6 +423,7 @@ namespace Avogadro {
       m_comboEngine->setCurrentIndex(ForceField);
 
       QLabel* labelFF = new QLabel(tr("Force Field:"));
+      m_labelFF = labelFF;
 
       m_comboFF = new QComboBox(m_settingsWidget);
       for (unsigned int i = 0; i < m_forceFieldList.size(); ++i)
@@ -434,9 +436,10 @@ namespace Avogadro {
       if (currentFF != -1) // couldn't find it, go for index 0
         m_comboFF->setCurrentIndex(currentFF);
 
-      // xTB convergence-level selector (Crude..Extreme). Shared widget slot
-      // below the grid holds this; it is shown only for xTB backends.
+      // xTB convergence-level selector (Crude..Extreme). Lives in the grid
+      // below; shown only for xTB backends via engineChanged().
       QLabel* labelLevel = new QLabel(tr("Convergence Level:"));
+      m_labelLevel = labelLevel;
 
       m_comboLevel = new QComboBox(m_settingsWidget);
       m_comboLevel->addItem(tr("Crude\u2026"));
@@ -473,6 +476,7 @@ namespace Avogadro {
       // from the hardware). Shown only for an xTB backend via engineChanged().
       QLabel* labelThreads = new QLabel(tr("xTB Threads (0 = auto):"));
       labelThreads->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+      m_labelThreads = labelThreads;
       m_threadsSpinBox = new QSpinBox(m_settingsWidget);
       m_threadsSpinBox->setMinimum(0);
       m_threadsSpinBox->setMaximum(16);
@@ -481,6 +485,7 @@ namespace Avogadro {
       grid->addWidget(m_threadsSpinBox, 4, 1, Qt::AlignLeft);
 
       QLabel* labelAlg = new QLabel(tr("Algorithm:"));
+      m_labelAlg = labelAlg;
 
       m_comboAlgorithm = new QComboBox(m_settingsWidget);
       m_comboAlgorithm->addItem(tr("Steepest Descent"));
@@ -499,15 +504,13 @@ namespace Avogadro {
                                        m_settingsWidget);
 
       QVBoxLayout* layout = new QVBoxLayout();
-      layout->addLayout(grid); // force field, steps and labels
+      layout->addLayout(grid); // engine, force field, steps, level, threads
 
       layout->addWidget(labelAlg);
       layout->addWidget(m_comboAlgorithm);
-      // The xTB convergence-level combo and thread-count spin box are
-      // shown/hidden by engineChanged(); they live in this layout alongside the
-      // FF-only controls.
-      layout->addWidget(m_comboLevel);
-      layout->addWidget(m_threadsSpinBox);
+      // m_comboLevel and m_threadsSpinBox are grid rows (3/4): adding them
+      // here as well would put each widget under two layouts, which corrupts
+      // the geometry on every engine switch.
       layout->addWidget(m_fixedMovable);
       layout->addWidget(m_ignoredMovable);
       layout->addWidget(m_buttonStartStop);
@@ -545,19 +548,29 @@ namespace Avogadro {
     if (!m_comboEngine)
       return;
 
-    // Force-field-only controls (force-field + algorithm combos) are hidden
-    // for an xTB backend; the xTB convergence-level combo is shown only for an
-    // xTB backend. Steps-per-update is shared by both paths and stays visible.
+    // Force-field-only controls (force-field + algorithm combos and their
+    // captions) are hidden for an xTB backend; the xTB convergence-level and
+    // thread-count rows are shown only for an xTB backend. Labels toggle with
+    // their controls so no orphan captions remain after a switch. Steps-per-
+    // update is shared by both paths and stays visible.
     const bool xtb = m_comboEngine->currentIndex() != ForceField;
 
     if (m_comboFF)
       m_comboFF->setVisible(!xtb);
+    if (m_labelFF)
+      m_labelFF->setVisible(!xtb);
     if (m_comboAlgorithm)
       m_comboAlgorithm->setVisible(!xtb);
+    if (m_labelAlg)
+      m_labelAlg->setVisible(!xtb);
     if (m_comboLevel)
       m_comboLevel->setVisible(xtb);
+    if (m_labelLevel)
+      m_labelLevel->setVisible(xtb);
     if (m_threadsSpinBox)
       m_threadsSpinBox->setVisible(xtb);
+    if (m_labelThreads)
+      m_labelThreads->setVisible(xtb);
 
     // Reflect xTB runtime availability on the Start button.
     updateXtbAvailability();
@@ -623,8 +636,11 @@ namespace Avogadro {
   void AutoOptTool::handleXtbProgress(int, int, double energyHartree)
   {
     // Record the last energy for the HUD (task 4.5). Stored in Hartree; the
-    // HUD converts to kJ/mol.
+    // HUD converts to kJ/mol. Progress after the converged latch means a user
+    // drag resumed the session: clear the suffix so the HUD reflects that the
+    // optimizer is running again.
     m_xtbEnergyHartree = energyHartree;
+    m_xtbConverged = false;
   }
 
   void AutoOptTool::handleXtbConverged(double finalEnergyHartree)
@@ -872,9 +888,21 @@ namespace Avogadro {
       if (atoms.size() != static_cast<int>(coordsBohr.size() / 3))
         return; // topology mismatch since the last snapshot; skip this tick
       const double bohr2ang = 0.52917721092;
+      // The drag path is the authority for the grabbed atom while the drag
+      // lasts (spec coordinate write-back): snapshots published for an SCF
+      // that started before the latest pointer move carry an older position
+      // for that atom, so writing them back would regress the pull by one
+      // tick. Skip the dragged atom; the engine's pin makes the next publish
+      // match the pointer, and the release resumes write-back for it.
+      const bool dragging = xtbSessionActive() && m_clickedAtom != 0 &&
+                            m_leftButtonPressed;
+      const int dragIndex =
+        dragging ? static_cast<int>(m_clickedAtom->index()) : -1;
       {
         QWriteLocker locker(m_glwidget->molecule()->lock());
         for (int i = 0; i < atoms.size(); ++i) {
+          if (i == dragIndex)
+            continue;
           const double *c = &coordsBohr[static_cast<size_t>(i) * 3];
           atoms[i]->setPos(Eigen::Vector3d(c[0] * bohr2ang,
                                            c[1] * bohr2ang,

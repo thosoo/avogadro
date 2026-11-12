@@ -41,6 +41,7 @@
 #include <QPushButton>
 #include <QComboBox>
 #include <QCheckBox>
+#include <QLabel>
 #include <QSpinBox>
 #include <QUndoStack>
 
@@ -249,6 +250,12 @@ namespace Avogadro {
       QSpinBox*                 m_stepsSpinBox;
       QComboBox*                m_comboEngine;
       QComboBox*                m_comboLevel;
+      // Backend-specific labels: hidden together with their controls so the
+      // panel does not show orphan captions after an engine switch.
+      QLabel*                   m_labelFF;
+      QLabel*                   m_labelAlg;
+      QLabel*                   m_labelLevel;
+      QLabel*                   m_labelThreads;
       // xTB worker-thread count (0 = auto). Shown only for an xTB backend.
       QSpinBox*                 m_threadsSpinBox;
       QPushButton*              m_buttonStartStop;

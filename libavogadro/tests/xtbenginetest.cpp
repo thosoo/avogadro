@@ -25,6 +25,7 @@ private slots:
   void coordsReadyRoundTrips();
   void waterConvergesToReferenceGeometry();
   void convergedStopsEvaluations();
+  void dragAfterConvergenceResumesEvaluation();
   void draggedAtomPinnedDuringOptimization();
   void dragReleaseResumesCoverage();
   void interactiveTogglesAccuracy();
@@ -267,6 +268,71 @@ void XtbEngineTest::convergedStopsEvaluations()
   }
   QCOMPARE(progressSpy.last().at(0).toInt(), lastEval);
 
+  engine.stop();
+  engine.wait(10000);
+}
+
+void XtbEngineTest::dragAfterConvergenceResumesEvaluation()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  const double bohr2ang = 0.52917721092;
+
+  XtbEngine engine;
+  QVERIFY(engine.setup(waterNumbers(), waterPositionsDistortedAng(),
+                       /*method=*/1, /*level=*/4, /*threads=*/0));
+
+  std::vector<double> lastCoords;
+  bool converged = false;
+  int progressCount = 0;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>& c) { lastCoords = c; });
+  QObject::connect(&engine, &XtbEngine::progress,
+                   [&](int, int, double) { ++progressCount; });
+  QObject::connect(&engine, &XtbEngine::converged,
+                   [&](double) { converged = true; });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  QObject::connect(&tickTimer, &QTimer::timeout,
+                   [&]() { engine.requestTick(); });
+  tickTimer.start(30);
+
+  QTRY_VERIFY_WITH_TIMEOUT(converged, 60000);
+  const int progressAtConvergence = progressCount;
+  QVERIFY(progressAtConvergence >= 1);
+
+  // Idle ticks must not evaluate (the session stays open, CPU idle).
+  QTest::qWait(200);
+  QCOMPARE(progressCount, progressAtConvergence);
+
+  // Pull a hydrogen after convergence: the session must resume evaluating
+  // (pre-fix behavior: the worker had exited and the pull was unregistered,
+  // forcing the user to restart the optimization).
+  const double pullZAng = 2.5;
+  const std::vector<double> pullBohr = { 0.0, 0.0, pullZAng / bohr2ang };
+  engine.setDraggedAtom(1);
+  engine.notifyDragPosition(1, pullBohr);
+
+  QTRY_VERIFY_WITH_TIMEOUT(progressCount > progressAtConvergence, 15000);
+
+  // The published snapshot must register the pull: H1 pinned at the pointer
+  // position (drag authority / coordinate write-back).
+  QTRY_VERIFY_WITH_TIMEOUT(lastCoords.size() == 9, 5000);
+  const double h1z = lastCoords[5] * bohr2ang;
+  QVERIFY(std::abs(h1z - pullZAng) < 1e-4);
+
+  // Release: the optimizer resumes covering the atom and evaluations keep
+  // advancing; the published H1 position leaves the pinned drag position as
+  // relaxation begins.
+  engine.setDraggedAtom(-1);
+  const int progressAtRelease = progressCount;
+  QTRY_VERIFY_WITH_TIMEOUT(progressCount > progressAtRelease, 15000);
+  QTRY_VERIFY_WITH_TIMEOUT(std::abs(lastCoords[5] * bohr2ang - pullZAng) > 1e-3,
+                           15000);
+
+  tickTimer.stop();
   engine.stop();
   engine.wait(10000);
 }

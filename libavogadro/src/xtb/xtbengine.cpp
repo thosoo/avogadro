@@ -191,10 +191,21 @@ void XtbEngine::setDraggedAtom(int index)
     if (index >= 0) {
       m_interactive = true;
       m_currentAccuracy = kXtbInteractiveAccuracy;
+      // The drag path is the authority for the grabbed atom while the drag
+      // lasts (spec coordinate write-back): drop any snapshot published
+      // before the drag so a stale in-flight publish cannot regress the
+      // pulled atom.
+      m_coordsValid = false;
+      // A drag resumes an idle (converged/capped) session: the pulled
+      // geometry must be re-evaluated, not left unregistered.
+      resumeOptimizationLocked();
     }
     else {
       m_interactive = false;
       m_currentAccuracy = kXtbDefaultAccuracy;
+      // Release: see notifyDragPosition — a converged drag phase must not
+      // leave the session permanently idle after the atom is let go.
+      resumeOptimizationLocked();
     }
   }
 }
@@ -209,13 +220,47 @@ void XtbEngine::notifyDragPosition(int index,
     if (index >= 0) {
       m_interactive = true;
       m_currentAccuracy = kXtbInteractiveAccuracy;
+      m_coordsValid = false;
+      resumeOptimizationLocked();
     }
     else {
       m_interactive = false;
       m_currentAccuracy = kXtbDefaultAccuracy;
+      // The release resumes covering the released atom from where the drag
+      // left it (spec "Drag ends"): if the masked drag phase converged, the
+      // latch must clear so optimization restarts from the released geometry.
+      resumeOptimizationLocked();
     }
   }
+  else if (index >= 0) {
+    // Repeated moves of an already-dragged atom: still resume an idle
+    // session (a drag continuing past convergence must keep registering
+    // pointer positions).
+    resumeOptimizationLocked();
+  }
   m_dragPositionBohr = positionBohr;
+}
+
+void XtbEngine::resumeOptimizationLocked()
+{
+  if (!m_converged)
+    return;
+  // Start a fresh optimization phase from the dragged geometry: re-baseline
+  // the energy/gradient, reset the evaluation counter (the cap bounds each
+  // phase, not the session's lifetime) and invalidate the published snapshot.
+  // The history reset also zeroes LBfgs' internal iteration counter, so a
+  // resumed phase gets a full step budget even when the drag index did not
+  // change (e.g. pointer moves continuing past a mid-drag convergence).
+  m_converged = false;
+  m_initialEvalDone = false;
+  m_evals = 0;
+  m_coordsValid = false;
+  m_resetHistoryRequested = true;
+  // Service the resume on the next loop pass even if no requestTick() is
+  // pending (the session timer normally ticks, but an immediate wake makes
+  // the pull register without waiting a timer period).
+  m_tickPending = true;
+  m_tickCond.wakeAll();
 }
 
 void XtbEngine::setInteractive(bool interactive)
@@ -493,6 +538,17 @@ void XtbEngine::run()
       }
     }
 
+    // A converged (or capped) session idles: ticks are consumed without
+    // evaluating, so CPU use stays at idle while the session stays open.
+    // A user drag clears the latch (resumeOptimizationLocked), which both
+    // re-arms the optimizer and makes the next tick re-baseline from the
+    // dragged geometry.
+    {
+      QMutexLocker locker(&m_stateMutex);
+      if (m_converged)
+        continue;
+    }
+
     if (!m_initialEvalDone) {
       // First singlepoint: establish the energy/gradient baseline.
       m_energy = evaluateOnce(m_coordsBohr, m_grad);
@@ -507,13 +563,24 @@ void XtbEngine::run()
       publishCoords(m_coordsBohr);
 
       if (m_gnorm < m_threshold || shouldStop(m_evals)) {
+        // Converged (or immediately capped) on the baseline: latch the idle
+        // state but keep the session (worker + xTB objects) alive so a later
+        // drag resumes optimization instead of requiring a restart.
+        {
+          QMutexLocker locker(&m_stateMutex);
+          m_converged = true;
+        }
         emit converged(m_energy);
-        break;
       }
       continue;
     }
 
     // One L-BFGS iteration (its line search calls evaluateOnce per trial).
+    // Note: the optimizer state (m_coordsBohr/m_energy/m_grad/m_evals/m_gnorm
+    // and m_initialEvalDone below) is worker-owned; the m_stateMutex acquire
+    // in the converged-skip block above is the happens-before edge that makes
+    // resumeOptimizationLocked()'s GUI-thread writes (m_initialEvalDone,
+    // m_evals) visible here — keep that block ahead of these reads.
     bool cont = m_lbfgs.step(
       m_coordsBohr, m_energy, m_grad, m_evals, m_gnorm,
       [this](const std::vector<double>& c, std::vector<double>& g) -> double {
@@ -521,27 +588,34 @@ void XtbEngine::run()
       },
       [this](int evals) -> bool { return shouldStop(evals); });
 
+    bool reportConverged = false;
     {
       QMutexLocker locker(&m_stateMutex);
       m_lastEvalCount = m_evals;
-      if (m_gnorm < m_threshold) {
+      if (m_gnorm < m_threshold && !m_converged) {
         m_converged = true;
+        reportConverged = true;
       }
     }
     emit progress(m_evals, m_maxEvaluations, m_energy);
     publishCoords(m_coordsBohr);
 
-    if (m_converged) {
-      emit converged(m_energy);
-      break;
-    }
-    if (!cont) {
-      // step() stopped on the eval cap or a caller stop.
-      if (m_gnorm < m_threshold) {
-        emit converged(m_energy);
+    if (!cont && m_gnorm >= m_threshold && !m_stop.loadRelaxed()) {
+      // step() exhausted a stop condition before reaching the threshold:
+      // either the evaluation cap or LBfgs' internal step cap. The spec says
+      // a capped session reports its last energy and stops evaluating (cap
+      // != error), so the converged signal carries "session idle, last
+      // energy shown" for both. Latch the idle state; a later drag resumes
+      // with a fresh phase.
+      QMutexLocker locker(&m_stateMutex);
+      if (!m_converged) {
+        m_converged = true;
+        reportConverged = true;
       }
-      break;
     }
+    if (reportConverged)
+      emit converged(m_energy);
+    // Keep looping: idle ticks are skipped above; stop() breaks the loop.
   }
 
   // The worker owns deletion: only here, after the loop observed stop or
