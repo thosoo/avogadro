@@ -33,7 +33,7 @@
 #include <QtGui/QSurfaceFormat>
 #include <QCoreApplication>
 #include <QSettings>
-#include <QTemporaryFile>
+#include <QTemporaryDir>
 #include <QDir>
 #include <QImage>
 #include <QMetaObject>
@@ -1713,9 +1713,14 @@ void AutoOptReproTest::engineSettingsRoundTrip()
   // across restarts like the other tool settings. Write engine=GFN2 and
   // level=Tight to a temp ini file, reload into a fresh tool instance, and
   // assert both selections round-trip. Headless (no GL required).
-  QTemporaryFile tmp;
-  QVERIFY(tmp.open());
-  const QString path = tmp.fileName();
+  //
+  // Use QTemporaryDir + a named ini file (the dialogsmoketest pattern), not a
+  // QTemporaryFile left open: on Windows an open QTemporaryFile holds a lock
+  // on the path, and QSettings writes through a separate handle that the lock
+  // can defeat, silently discarding the persisted value.
+  QTemporaryDir dir;
+  QVERIFY(dir.isValid());
+  const QString path = dir.filePath(QStringLiteral("autoottool.ini"));
 
   // Tool 1: pick the xTB GFN2 backend (index 2) and the Tight level (index 5).
   AutoOptToolExposed tool1;
