@@ -677,16 +677,25 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           Add-Type -Language CSharp -Namespace XtbSmoke -Name Loader -MemberDefinition @'
-            [System.Runtime.InteropServices.DllImport("kernel32.dll")]
+            [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
             public static extern IntPtr LoadLibraryW(string lpFileName);
             [System.Runtime.InteropServices.DllImport("kernel32.dll")]
             public static extern IntPtr GetProcAddress(IntPtr hModule, string lpProcName);
+            [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError = true)]
+            [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+            public static extern bool SetDllDirectory(string lpPathName);
           '@
           $binDir = Join-Path "$PWD\scripts\installer\dist" 'bin'
           $lib = Join-Path $binDir 'libxtb-6.dll'
           if (-not (Test-Path $lib)) { throw "libxtb-6.dll not staged at $lib" }
-          # Diagnostic: list what's actually staged, then try loading each
-          # direct dependency individually so a resolution failure names the DLL.
+          # Put the staged bin dir on the DLL search path so libxtb-6.dll's own
+          # dependencies (libgfortran-5.dll, libgomp-1.dll, openblas.dll, ...)
+          # resolve exactly like an installed user machine where the app and the
+          # xTB runtime share one directory.
+          $null = [XtbSmoke.Loader]::SetDllDirectory($binDir)
+          $env:PATH = "$binDir;$env:PATH"
+          # Diagnostic: list what's actually staged, then load each direct
+          # dependency individually so a resolution failure names the DLL.
           $dlls = Get-ChildItem -Path $binDir -Filter '*.dll'
           Write-Host "Staged $(@($dlls).Count) DLLs in ${binDir}:"
           foreach ($d in $dlls) { Write-Host "  $($d.Name)" }
@@ -782,13 +791,21 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           Add-Type -Language CSharp -Namespace XtbDiag -Name Loader -MemberDefinition @'
-            [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError=true)]
+            [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError=true)]
             public static extern IntPtr LoadLibraryW(string lpFileName);
             [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError=true)]
             public static extern bool FreeLibrary(IntPtr hModule);
+            [System.Runtime.InteropServices.DllImport("kernel32.dll", SetLastError=true)]
+            [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+            public static extern bool SetDllDirectory(string lpPathName);
           '@
           $binDir = Join-Path "$PWD\scripts\installer\xtb-stage" 'bin'
           if (-not (Test-Path $binDir)) { throw "staged bin dir missing: $binDir" }
+          # Put the staged bin dir on the DLL search path so forwarder targets
+          # (openblas.dll) and other same-dir dependencies resolve, exactly like
+          # an installed user machine where the xTB runtime shares the app dir.
+          $null = [XtbDiag.Loader]::SetDllDirectory($binDir)
+          $env:PATH = "$binDir;$env:PATH"
           Write-Host "Staged dir: $binDir"
           $dlls = Get-ChildItem -Path $binDir -Filter '*.dll'
           Write-Host "$(@($dlls).Count) DLLs staged:"
