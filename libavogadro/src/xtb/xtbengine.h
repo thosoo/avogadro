@@ -19,6 +19,8 @@
 #include "xtbapi.h"
 #include "lbfgs.h"
 
+#include <avogadro/global.h>
+
 #include <QThread>
 #include <QMutex>
 #include <QWaitCondition>
@@ -38,7 +40,7 @@ namespace Avogadro {
  * (paced by requestTick()) until convergence, the evaluation cap, or stop().
  * The worker thread owns the xTB objects and deletes them at exit.
  */
-class XtbEngine : public QThread
+class A_EXPORT XtbEngine : public QThread
 {
   Q_OBJECT
 

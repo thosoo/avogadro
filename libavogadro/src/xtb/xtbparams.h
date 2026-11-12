@@ -18,6 +18,8 @@
 #ifndef XTBPARAMS_H
 #define XTBPARAMS_H
 
+#include <avogadro/global.h>
+
 #include <QString>
 
 namespace Avogadro {
@@ -31,7 +33,7 @@ namespace XtbParams {
  * @return true when GFN-FF parameters can be located (or a user-set
  *   XTBHOME/XTBPATH already exists); false otherwise.
  */
-bool ensureGfnffParameters(QString* diagnostic = nullptr);
+A_EXPORT bool ensureGfnffParameters(QString* diagnostic = nullptr);
 
 } // namespace XtbParams
 } // namespace Avogadro

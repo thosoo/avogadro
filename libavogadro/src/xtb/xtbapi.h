@@ -19,6 +19,8 @@
 
 #include "xtb.h"
 
+#include <avogadro/global.h>
+
 #include <QString>
 
 namespace Avogadro {
@@ -32,7 +34,7 @@ namespace Avogadro {
  * function pointer to the corresponding xTB entry point, or nullptr when
  * the library is unavailable.
  */
-class XtbApi
+class A_EXPORT XtbApi
 {
 public:
   // Function-pointer typedefs (mirror the declarations in xtb.h).

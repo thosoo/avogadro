@@ -17,6 +17,8 @@
 #ifndef LBFGS_H
 #define LBFGS_H
 
+#include <avogadro/global.h>
+
 #include <vector>
 #include <cmath>
 
@@ -36,7 +38,7 @@ namespace Xtb {
  *  - step(): runs a single L-BFGS iteration, letting a caller (e.g. the xTB
  *    engine) drive pacing and publish accepted coordinates between iterations.
  */
-class LBfgs
+class A_EXPORT LBfgs
 {
 public:
   /// Default L-BFGS history length (number of stored (s, y) pairs).
