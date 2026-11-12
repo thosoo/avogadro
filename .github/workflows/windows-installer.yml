@@ -685,6 +685,30 @@ jobs:
           $binDir = Join-Path "$PWD\scripts\installer\dist" 'bin'
           $lib = Join-Path $binDir 'libxtb-6.dll'
           if (-not (Test-Path $lib)) { throw "libxtb-6.dll not staged at $lib" }
+          # Diagnostic: list what's actually staged, then try loading each
+          # direct dependency individually so a resolution failure names the DLL.
+          $dlls = Get-ChildItem -Path $binDir -Filter '*.dll'
+          Write-Host "Staged $(@($dlls).Count) DLLs in $binDir:"
+          foreach ($d in $dlls) { Write-Host "  $($d.Name)" }
+          $deps = dumpbin /dependents $lib 2>$null | Out-String
+          $impNames = $deps -split "\r?\n" | ForEach-Object {
+            $tok = [System.IO.Path]::GetFileName($_.Trim())
+            if ($tok -match '(?i)\.(dll|exe)$') { $tok }
+          }
+          foreach ($dep in $impNames) {
+            if ($dep -match '(?i)^(kernel32|api-ms-|user32|ntdll|ucrtbase|vcruntime|msvcp)') { continue }
+            $depPath = Join-Path $binDir $dep
+            if (-not (Test-Path $depPath)) {
+              Write-Host "MISSING dependency: $dep (not in $binDir)"
+              continue
+            }
+            $h = [XtbSmoke.Loader]::LoadLibraryW($depPath)
+            if ([System.IntPtr]::Equals($h, [System.IntPtr]::Zero)) {
+              Write-Host "FAILED to load dependency: $dep, GetLastError=$([System.Runtime.InteropServices.Marshal]::GetLastWin32Error())"
+            } else {
+              Write-Host "Loaded dependency: $dep"
+            }
+          }
           $hmod = [XtbSmoke.Loader]::LoadLibraryW($lib)
           if ([System.IntPtr]::Equals($hmod, [System.IntPtr]::Zero)) {
             throw "LoadLibraryW($lib) failed, GetLastError=$([System.Runtime.InteropServices.Marshal]::GetLastWin32Error())"
