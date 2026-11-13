@@ -164,6 +164,12 @@ private:
   // drag after convergence (or after the evaluation cap) resumes evaluation
   // from the dragged geometry. Caller must hold m_stateMutex.
   void resumeOptimizationLocked();
+  // Starts a fresh optimization phase from the current working geometry
+  // (re-baseline, eval-counter reset, history drop, wake). The unconditional
+  // body of resumeOptimizationLocked(); used directly on drag release where
+  // the unmask changes the released atom's gradient so the old baseline is
+  // stale. Caller must hold m_stateMutex.
+  void resetPhaseLocked();
   bool shouldStop(int evals) const;
   void publishCoords(const std::vector<double>& coordsBohr);
   // Writes the optimizer's working coordinates (bohr->A) back to the live
@@ -231,6 +237,12 @@ private:
   bool m_converged;
   bool m_resetHistoryRequested;
   double m_currentAccuracy;
+  // Design D3: when true, the next singlepoint after a drag release uses an
+  // elevated SCF iteration budget (one bounded attempt) so a strained but
+  // recoverable released geometry converges into the session instead of
+  // latching an evaluation failure. Consumed exactly once by evaluateOnce.
+  // Guarded by m_stateMutex.
+  bool m_releaseElevatedIter;
   double m_lastEnergy;
   int m_lastEvalCount;
   std::vector<double> m_latestCoords;

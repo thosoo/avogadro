@@ -295,6 +295,14 @@ public:
   // Stop/Start and on topology re-establishment.
   QString evalFailedReason() const { return m_xtbEvalFailedReason; }
   QString setupFailedReason() const { return m_xtbSetupFailedReason; }
+  // Design D5: the HUD bond-strain line for the current drag, computed from
+  // the live molecule and the dragged atom. Empty when no drag is active or no
+  // bond is strained.
+  QString bondStrain() const
+  {
+    return bondStrainText(m_glwidget ? m_glwidget->molecule() : nullptr,
+                          m_clickedAtom);
+  }
 };
 
 } // namespace
@@ -453,6 +461,12 @@ private slots:
   // coordinate write-back never corrupt the molecule. Runs headlessly (no
   // live GL pick required).
   void xtbDragCycleLeavesValidMolecule();
+
+  // design D5/D6 (task 3.2): a held pull during an xTB session must keep the
+  // write-back publishing (the free atoms keep moving; no mid-drag freeze),
+  // the HUD bond-strain line appears while a bond is pulled beyond bonding
+  // range, and it clears at release.
+  void xtbHoldPullKeepsPublishingAndStrainHud();
 
   // task 4.2 (OpenSpec 14): tool-level scenarios that edit the live molecule
   // while an xTB session runs. The worker re-baselines per tick (design D2), so
@@ -1741,6 +1755,102 @@ void AutoOptReproTest::xtbDragCycleLeavesValidMolecule()
     QVERIFY(qIsFinite(p.z()));
   }
 
+  delete mol;
+}
+
+// design D5/D6 (task 3.2): a held pull during an xTB session must keep the
+// write-back publishing (the free atoms keep relaxing; no mid-drag freeze),
+// the HUD bond-strain line appears while a bond is pulled beyond bonding
+// range, and it clears at release. Runs headlessly (no live GL pick required):
+// the drag is engaged through the exposed drag marker and the engine's
+// setDraggedAtom, and the dragged atom is pushed to a stretched position under
+// the write lock, exactly as the drag path's translate() would.
+void AutoOptReproTest::xtbHoldPullKeepsPublishingAndStrainHud()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+
+  // Water (O + 2 H), distorted so the optimizer has something to relax.
+  Molecule *mol = new Molecule;
+  const double numbers[3] = {8.0, 1.0, 1.0};
+  const double xyz[9] = {0.0, 0.0, 0.0,
+                         0.0, 0.0, 1.3,
+                         0.0, 0.1, -0.95};
+  for (int i = 0; i < 3; ++i) {
+    Atom *a = mol->addAtom();
+    a->setAtomicNumber(static_cast<int>(numbers[i]));
+    a->setPos(Eigen::Vector3d(xyz[3 * i], xyz[3 * i + 1], xyz[3 * i + 2]));
+  }
+  mol->addBond(0, 1, 1); // O-H1
+  mol->addBond(0, 2, 1); // O-H2
+  QVERIFY(mol->numAtoms() == 3);
+
+  GLWidget widget(mol, QSurfaceFormat());
+  widget.resize(640, 480);
+
+  AutoOptToolExposed tool;
+  tool.settingsWidget();
+  tool.engineCombo()->setCurrentIndex(2); // GFN2-xTB
+  if (tool.levelCombo())
+    tool.levelCombo()->setCurrentIndex(4); // Normal
+  tool.setGlw(&widget);
+  tool.enable();
+  QVERIFY(tool.running());
+
+  QList<Atom *> atoms = mol->atoms();
+  QVERIFY(atoms.size() == 3);
+
+  // Let the engine tick and publish its first coordinate snapshot.
+  for (int i = 0; i < 6; ++i) {
+    QCoreApplication::processEvents();
+    QTest::qWait(20);
+  }
+
+  // Engage the drag on H1 (atom 1) and pin it at a stretched position (2.5 A
+  // from the O, well beyond the ~1.26 A bonding-range threshold for O-H). The
+  // engine masks the dragged atom (drag authority), so write-back keeps
+  // publishing the free atoms while the pull is held.
+  tool.setDragMarker(atoms[1], true);
+  tool.xtbEngine()->setDraggedAtom(1);
+  const Eigen::Vector3d stretched(0.0, 0.0, 2.5);
+  {
+    QWriteLocker locker(mol->lock());
+    atoms[1]->setPos(stretched);
+  }
+
+  // The HUD bond-strain line appears while the O-H1 bond is beyond range.
+  QString strain = tool.bondStrain();
+  QVERIFY2(strain.contains(QLatin1String("Strained bond")),
+           qPrintable(QString("expected a strained-bond HUD line, got: %1")
+                        .arg(strain)));
+
+  // Hold the pull: the session must keep evaluating (no mid-drag freeze). The
+  // D1 behavior defers the converged/cap latch while the drag is in flight, so
+  // the engine's evaluation counter keeps advancing across the held pull even
+  // after the free atoms reach their masked-gradient equilibrium. Count engine
+  // evaluations directly (the free atoms' positions are at equilibrium by the
+  // time the drag holds, so a position delta would be a flaky proxy).
+  QSignalSpy progressSpy(tool.xtbEngine(), &XtbEngine::progress);
+  const int progressBefore = progressSpy.count();
+  for (int i = 0; i < 20; ++i) {
+    QCoreApplication::processEvents();
+    QTest::qWait(20);
+  }
+  QVERIFY2(progressSpy.count() > progressBefore,
+           "the xTB session froze during the held pull (no evaluations)");
+
+  // The dragged atom stayed pinned at the stretch (write-back skipped it).
+  QVERIFY((*atoms[1]->pos() - stretched).norm() < 1e-6);
+
+  // Release: the strain report clears with the drag.
+  tool.setDragMarker(nullptr, false);
+  tool.xtbEngine()->setDraggedAtom(-1);
+  QVERIFY(tool.bondStrain().isEmpty());
+
+  // Quiesce the engine before touching the molecule.
+  tool.disable();
+  QVERIFY(!tool.running());
   delete mol;
 }
 

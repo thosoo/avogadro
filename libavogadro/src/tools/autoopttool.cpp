@@ -41,6 +41,7 @@
 #include <openbabel/mol.h>
 #include <openbabel/obconversion.h>
 #include <openbabel/generic.h>
+#include <openbabel/elements.h>
 
 #include <QDebug>
 #include <QtPlugin>
@@ -351,6 +352,16 @@ namespace Avogadro {
           widget->painter()->drawText(labelPos,
             tr("xTB %1: E = %2 kJ/mol%3").arg(xtbMethodName(m_xtbMethod)).
             arg(energyKJ).arg(suffix));
+          // Design D5: while an atom is dragged, report a bond whose length
+          // exceeds bonding range, so the GUI/internals divergence (static
+          // bond record vs. distance-based geometry) is visible as it
+          // develops. Clears automatically at release or when the distance
+          // returns within range (bondStrainText returns empty).
+          if (m_clickedAtom && m_leftButtonPressed) {
+            QString strain = bondStrainText(widget->molecule(), m_clickedAtom);
+            if (!strain.isEmpty())
+              widget->painter()->drawText(labelPos + QPoint(0, 20), strain);
+          }
         }
       }
       else if (m_setupFailed) {
@@ -647,6 +658,52 @@ namespace Avogadro {
       case 2: return tr("GFN-FF");
       default: return tr("xTB");
     }
+  }
+
+  QString AutoOptTool::bondStrainText(Molecule* mol, Atom* dragged) const
+  {
+    // Design D5: report when the dragged atom's distance to a bonded partner
+    // exceeds 1.3x the sum of the covalent radii (the standard perception
+    // convention used elsewhere in Avogadro), so the divergence between the
+    // molecule's persistent bond record and the optimizer's distance-based
+    // geometry is visible while it develops. Returns an empty string when no
+    // bond is strained (or when there is no atom to inspect).
+    if (!mol || !dragged || dragged->atomicNumber() <= 0)
+      return QString();
+
+    const Eigen::Vector3d* draggedPos = dragged->pos();
+    if (!draggedPos)
+      return QString();
+
+    const double draggedRad =
+      OpenBabel::OBElements::GetCovalentRad(dragged->atomicNumber());
+    const QString draggedName =
+      QString(OpenBabel::OBElements::GetSymbol(dragged->atomicNumber()));
+
+    QStringList partnerNames;
+    QList<unsigned long> neighbors = dragged->neighbors();
+    for (unsigned long n : neighbors) {
+      Atom* partner = mol->atom(static_cast<int>(n));
+      if (!partner || partner->atomicNumber() <= 0)
+        continue;
+      const Eigen::Vector3d* ppos = partner->pos();
+      if (!ppos)
+        continue;
+      const double partnerRad =
+        OpenBabel::OBElements::GetCovalentRad(partner->atomicNumber());
+      const double threshold = 1.3 * (draggedRad + partnerRad);
+      const double dist = (*draggedPos - *ppos).norm();
+      if (dist > threshold)
+        partnerNames << QString(OpenBabel::OBElements::GetSymbol(
+          partner->atomicNumber()));
+    }
+
+    if (partnerNames.isEmpty())
+      return QString();
+
+    // Name the dragged atom and the strained partner(s).
+    return tr("Strained bond: %1 to %2").arg(draggedName)
+      .arg(partnerNames.join(", "));
   }
 
   void AutoOptTool::handleXtbProgress(int, int, double energyHartree)

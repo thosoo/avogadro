@@ -283,6 +283,11 @@ namespace Avogadro {
       // and wait for its worker to finish the in-flight singlepoint. Shared by
       // abort() and disable() (task 4.3). The GUI thread never calls xtb_del*.
       void stopEngine();
+      // Design D5: while an atom is dragged during an xTB session, compute
+      // whether the dragged atom's distance to any bonded partner exceeds
+      // 1.3x the sum of their covalent radii and return a HUD line naming the
+      // strain (empty when no bond is strained or no drag is active).
+      QString bondStrainText(Molecule* mol, Atom* dragged) const;
 
     private Q_SLOTS:
       void settingsWidgetDestroyed();

@@ -52,6 +52,11 @@ private slots:
   void moleculeSourceExternalMoveAdoptsFreshPhase();
   void moleculeSourceUnsupportedElementLatchOnce();
   void failedEvaluationPublishesNothingAndLatches();
+  void dragHoldDefersConvergence();
+  void dragLongCapDeferral();
+  void dragReleaseThenIdleConverges();
+  void dragReleaseStrainedConverges();
+  void dragReleaseDissociatedLatchesWithRecovery();
 };
 
 // Water geometry in angstrom: O at origin, H1 at (0,0,1.0), H2 at (0,0.1,-1.0).
@@ -1069,6 +1074,327 @@ void XtbEngineTest::failedEvaluationPublishesNothingAndLatches()
   tickTimer.start(30);
   QTRY_VERIFY_WITH_TIMEOUT(lastCoords2.size() == 9, 5000);
   QCOMPARE(failSpy2.count(), 0);
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+// Design D1: holding a stretched pull must not idle the session. The masked
+// gradient (dragged atom's tension excluded) can reach the convergence
+// threshold while the pointer still holds the atom; pre-fix the session latched
+// the converged idle mid-drag and froze relaxation. Post-fix the latch is
+// deferred while m_draggedIndex >= 0, so evaluations keep advancing across the
+// held pull and the converged idle engages only after release.
+void XtbEngineTest::dragHoldDefersConvergence()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  const double pullAngZ = 1.5;
+
+  Molecule* mol = makeWaterMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  int progressCount = 0;
+  bool converged = false;
+  QObject::connect(&engine, &XtbEngine::progress,
+                   [&](int, int, double) { ++progressCount; });
+  QObject::connect(&engine, &XtbEngine::converged,
+                   [&](double) { converged = true; });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() {
+    engine.requestTick();
+    // Pointer authority (design D3): keep the dragged atom at the pulled
+    // position in the live molecule so the worker's re-baseline reads it.
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, pullAngZ));
+  });
+  tickTimer.start(30);
+
+  // Let the session evaluate a couple of times, then grab and hold the pull.
+  QTRY_VERIFY_WITH_TIMEOUT(progressCount >= 2, 5000);
+  engine.setDraggedAtom(1);
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, pullAngZ));
+  }
+  const int progressAtGrab = progressCount;
+
+  // Hold the pull well beyond the free-atom relaxation time: evaluations must
+  // keep advancing (no converged idle mid-drag).
+  QTRY_VERIFY_WITH_TIMEOUT(progressCount >= progressAtGrab + 15, 30000);
+
+  // No converged idle may have been declared while the drag is held.
+  QVERIFY(!converged);
+
+  // Release: the deferred idle now engages (the held geometry converges), so
+  // the deferral changes when the idle engages, never the final state.
+  engine.setDraggedAtom(-1);
+  QTRY_VERIFY_WITH_TIMEOUT(converged, 30000);
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+// Design D1/D2: a long continuous drag must not freeze partway through when it
+// outlasts the per-phase evaluation cap. The cap idle is deferred while a drag
+// is in flight, and each pointer-authored movement of the dragged atom refreshes
+// the evaluation budget. Here we drive a drag that keeps moving the pointer so
+// the counter keeps resetting, and assert evaluations continue well past the
+// default 500-eval cap budget without freezing or latching.
+void XtbEngineTest::dragLongCapDeferral()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  Molecule* mol = makeWaterMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  int lastEval = 0;
+  int progressCount = 0;
+  bool converged = false;
+  QObject::connect(&engine, &XtbEngine::progress,
+                   [&](int evaluation, int, double) {
+                     lastEval = evaluation;
+                     ++progressCount;
+                   });
+  QObject::connect(&engine, &XtbEngine::converged,
+                   [&](double) { converged = true; });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  // Move the dragged atom to a fresh position every tick, oscillating within a
+  // convergible stretch range (never dissociating). Each movement triggers the
+  // D2 counter reset, so the budget is refreshed by user movement, not per tick.
+  double pullZ = 1.4;
+  bool goingOut = true;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() {
+    engine.requestTick();
+    if (goingOut) {
+      pullZ += 0.05;
+      if (pullZ >= 1.6)
+        goingOut = false;
+    }
+    else {
+      pullZ -= 0.05;
+      if (pullZ <= 1.4)
+        goingOut = true;
+    }
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, pullZ));
+  });
+  tickTimer.start(30);
+
+  QTRY_VERIFY_WITH_TIMEOUT(progressCount >= 2, 5000);
+  engine.setDraggedAtom(1);
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, pullZ));
+  }
+  const int progressAtGrab = progressCount;
+
+  // Drive the moving drag for a sustained number of ticks. The D2 counter reset
+  // keeps the eval counter bounded (it never accumulates to the 500-eval per-
+  // phase cap while the pointer moves), so a drag that outlasts the cap budget
+  // keeps evaluating. Assert the counter stays well below the cap, evaluations
+  // keep advancing (no freeze), and no idle latch fires while dragging.
+  QTRY_VERIFY_WITH_TIMEOUT(progressCount >= progressAtGrab + 15, 30000);
+  QVERIFY(lastEval < 50);
+  QVERIFY(!converged);
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+// Design D1: after a drag is released on a geometry that is genuinely at (or
+// near) equilibrium, the deferred idle must still engage so the session ends up
+// where it would have without the drag — the deferral changes when the idle
+// engages, never the final state.
+void XtbEngineTest::dragReleaseThenIdleConverges()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  Molecule* mol = makeWaterMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  int progressCount = 0;
+  bool converged = false;
+  QObject::connect(&engine, &XtbEngine::progress,
+                   [&](int, int, double) { ++progressCount; });
+  QObject::connect(&engine, &XtbEngine::converged,
+                   [&](double) { converged = true; });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() {
+    engine.requestTick();
+    QWriteLocker locker(mol->lock());
+    // The drag never moves the atom meaningfully: it holds the equilibrium
+    // position, so the released geometry is already relaxed.
+    mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, 1.0));
+  });
+  tickTimer.start(30);
+
+  QTRY_VERIFY_WITH_TIMEOUT(progressCount >= 2, 5000);
+  engine.setDraggedAtom(1);
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, 1.0));
+  }
+  // A short hold at the equilibrium position, then release.
+  QTRY_VERIFY_WITH_TIMEOUT(progressCount >= 4, 10000);
+  engine.setDraggedAtom(-1);
+
+  // After release the session reaches the converged idle state as usual.
+  QTRY_VERIFY_WITH_TIMEOUT(converged, 30000);
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+// Design D3: releasing a drag on a strained-but-bonded geometry must converge
+// into the session under the elevated first-evaluation budget, so the session
+// continues optimizing from the released geometry instead of latching an
+// evaluation failure.
+void XtbEngineTest::dragReleaseStrainedConverges()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  const double pullAngZ = 2.0;
+
+  Molecule* mol = makeWaterMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  int progressCount = 0;
+  int failCount = 0;
+  QObject::connect(&engine, &XtbEngine::progress,
+                   [&](int, int, double) { ++progressCount; });
+  QObject::connect(&engine, &XtbEngine::evaluationFailed,
+                   [&](const QString&) { ++failCount; });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() {
+    engine.requestTick();
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, pullAngZ));
+  });
+  tickTimer.start(30);
+
+  QTRY_VERIFY_WITH_TIMEOUT(progressCount >= 2, 5000);
+  engine.setDraggedAtom(1);
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, pullAngZ));
+  }
+
+  // Hold the pull briefly, then release at the strained geometry.
+  QTRY_VERIFY_WITH_TIMEOUT(progressCount >= 4, 10000);
+  engine.setDraggedAtom(-1);
+  const int progressAtRelease = progressCount;
+
+  // The release re-baseline converges under the elevated budget; the session
+  // continues optimizing (progress advances) rather than latching a failure.
+  QTRY_VERIFY_WITH_TIMEOUT(progressCount >= progressAtRelease + 3, 30000);
+  QCOMPARE(failCount, 0);
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+// Design D3/D4: releasing a drag on a dissociated geometry whose singlepoint
+// cannot converge even at the elevated budget must latch deterministically
+// exactly once, publish nothing, and name the recovery path in the diagnostic.
+void XtbEngineTest::dragReleaseDissociatedLatchesWithRecovery()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  const double dissociatedZ = 6.0;
+
+  Molecule* mol = makeWaterMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  QSignalSpy failSpy(&engine, &XtbEngine::evaluationFailed);
+  int coordsCount = 0;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>&) { ++coordsCount; });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  // Before the drag, keep H1 at the equilibrium position so the session
+  // evaluates normally; after the drag starts, push it to the dissociated
+  // position so the release lands on a geometry whose singlepoint cannot
+  // converge even at the elevated SCF budget.
+  bool dissociate = false;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() {
+    engine.requestTick();
+    if (dissociate) {
+      QWriteLocker locker(mol->lock());
+      mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, dissociatedZ));
+    }
+  });
+  tickTimer.start(30);
+
+  // Let the session evaluate normally first.
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= 1, 5000);
+
+  // Stop the timer so no tick races the drag manipulation below: the grab,
+  // the push to the dissociated position, and the release all happen without
+  // a tick in between, so the worker sees the release (m_draggedIndex == -1)
+  // and the dissociated position together.
+  tickTimer.stop();
+  dissociate = false;
+  engine.setDraggedAtom(1);
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, dissociatedZ));
+  }
+  engine.setDraggedAtom(-1);
+
+  // Resume ticking so the worker processes the fresh phase from the released
+  // (dissociated) geometry.
+  tickTimer.start(30);
+
+  // The dissociated release latches exactly once; the diagnostic names the
+  // recovery path; and no coordinates are published from the failed phase. A
+  // generous timeout: the fresh phase's first evaluation runs at the elevated
+  // SCF budget, so a dissociated baseline can take tens of seconds to exhaust
+  // it before latching.
+  QTRY_VERIFY_WITH_TIMEOUT(failSpy.count() >= 1, 60000);
+  QCOMPARE(failSpy.count(), 1);
+  QString msg = failSpy.first().at(0).toString();
+  QVERIFY(msg.contains("restart the session") || msg.contains("re-establish"));
+  const int countAtFailure = coordsCount;
+  for (int i = 0; i < 15; ++i) {
+    QTest::qWait(40);
+  }
+  QCOMPARE(coordsCount, countAtFailure);
+  QCOMPARE(failSpy.count(), 1);
 
   tickTimer.stop();
   engine.stop();

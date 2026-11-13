@@ -44,6 +44,11 @@ constexpr double kXtbInteractiveAccuracy = 0.2;
 constexpr int kXtbInteractiveMaxIter = 30;
 constexpr double kXtbDefaultAccuracy = 1.0;
 constexpr int kXtbDefaultMaxIter = 100;
+// Design D3: the fresh phase's first evaluation after a drag release is
+// attempted once at this elevated SCF iteration budget (2x the steady-state
+// budget) so a strained-but-recoverable released geometry converges into the
+// session instead of latching an evaluation failure. Bounded, deterministic.
+constexpr int kXtbReleaseMaxIter = 2 * kXtbDefaultMaxIter;
 
 constexpr int kErrorBufferSize = 1024;
 
@@ -73,6 +78,7 @@ XtbEngine::XtbEngine(QObject* parent)
   , m_converged(false)
   , m_resetHistoryRequested(false)
   , m_currentAccuracy(kXtbDefaultAccuracy)
+  , m_releaseElevatedIter(false)
   , m_lastEnergy(0.0)
   , m_lastEvalCount(0)
   , m_coordsValid(false)
@@ -139,8 +145,10 @@ bool XtbEngine::setup(const std::vector<int>& atomicNumbers,
   // exiting run() because the prior stop() left the flag set).
   m_stop.storeRelaxed(0);
   m_lbfgs.resetHistory();
-  // A fresh setup must not carry a stale drag index from a previous session.
+  // A fresh setup must not carry a stale drag index or release-elevation flag
+  // from a previous session.
   m_draggedIndex = -1;
+  m_releaseElevatedIter = false;
 
   // Neutral closed-shell, non-periodic molecule.
   m_charge = 0.0;
@@ -248,28 +256,35 @@ void XtbEngine::setDraggedAtom(int index)
     m_interactive = true;
     m_currentAccuracy = kXtbInteractiveAccuracy;
     m_coordsValid = false;
+    // A new press starts a fresh drag; it must not consume the release-elevated
+    // SCF budget left by a prior release (design D3 is scoped to the release's
+    // first evaluation only).
+    m_releaseElevatedIter = false;
     resumeOptimizationLocked();
   }
   else {
     // Release: clear the mask, restore full accuracy, and resume covering the
-    // released atom from where the drag left it (spec "Drag ends").
+    // released atom from where the drag left it (spec "Drag ends"). Start a
+    // fresh phase from the released geometry (the unmask changes the released
+    // atom's gradient, so the old masked baseline is stale) and flag the first
+    // evaluation for the elevated SCF budget (design D3).
     m_interactive = false;
     m_currentAccuracy = kXtbDefaultAccuracy;
     m_resetHistoryRequested = true;
-    resumeOptimizationLocked();
+    m_releaseElevatedIter = true;
+    resetPhaseLocked();
   }
 }
 
-void XtbEngine::resumeOptimizationLocked()
+void XtbEngine::resetPhaseLocked()
 {
-  if (!m_converged)
-    return;
-  // Start a fresh optimization phase from the dragged geometry: re-baseline
-  // the energy/gradient, reset the evaluation counter (the cap bounds each
-  // phase, not the session's lifetime) and invalidate the published snapshot.
-  // The history reset also zeroes LBfgs' internal iteration counter, so a
-  // resumed phase gets a full step budget even when the drag index did not
-  // change (e.g. pointer moves continuing past a mid-drag convergence).
+  // Start a fresh optimization phase from the current working geometry:
+  // re-baseline the energy/gradient, reset the evaluation counter (the cap
+  // bounds each phase, not the session's lifetime) and invalidate the
+  // published snapshot. The history reset also zeroes LBfgs' internal
+  // iteration counter, so a resumed phase gets a full step budget even when
+  // the drag index did not change (e.g. pointer moves continuing past a
+  // mid-drag convergence).
   m_converged = false;
   m_initialEvalDone = false;
   m_evals = 0;
@@ -280,6 +295,15 @@ void XtbEngine::resumeOptimizationLocked()
   // the pull register without waiting a timer period).
   m_tickPending = true;
   m_tickCond.wakeAll();
+}
+
+void XtbEngine::resumeOptimizationLocked()
+{
+  if (!m_converged)
+    return;
+  // A genuinely converged (or capped) idle session resumes from the dragged
+  // geometry; resetPhaseLocked() re-baselines and re-arms the optimizer.
+  resetPhaseLocked();
 }
 
 void XtbEngine::setInteractive(bool interactive)
@@ -437,6 +461,15 @@ double XtbEngine::evaluateOnce(const std::vector<double>& coords,
     di = m_draggedIndex;
     accuracy = m_currentAccuracy;
     maxIter = m_interactive ? kXtbInteractiveMaxIter : kXtbDefaultMaxIter;
+    // Design D3: the fresh phase's first evaluation after a drag release is
+    // attempted once at an elevated SCF iteration budget (2x the steady-state
+    // budget), so a strained-but-recoverable released geometry converges into
+    // the session instead of latching an evaluation failure. Consumed exactly
+    // once; on failure the D4 containment latch applies unchanged.
+    if (m_releaseElevatedIter) {
+      maxIter = kXtbReleaseMaxIter;
+      m_releaseElevatedIter = false;
+    }
   }
 
   // The dragged atom's working coordinate already equals the pointer position:
@@ -637,13 +670,18 @@ void XtbEngine::latchEvaluationFailure(const QString& reason)
   // further evaluations for this phase, no publish, and the reason is surfaced
   // via the evaluationFailed signal. The latch is cleared on Stop/Start (a
   // fresh setup) or a topology re-establishment (resetPhaseForReBaseline).
+  // Design D4: name the recovery path so a contained failure is not a silent
+  // frozen session — the clause is appended to every surfaced message.
+  const QString withRecovery =
+    reason + QStringLiteral("; restart the session (Stop/Start) or edit the "
+                            "molecule to re-establish it");
   {
     QMutexLocker locker(&m_stateMutex);
     m_evalFailed = true;
-    m_evalFailureReason = reason;
+    m_evalFailureReason = withRecovery;
     m_coordsValid = false;
   }
-  emit evaluationFailed(reason);
+  emit evaluationFailed(withRecovery);
 }
 
 bool XtbEngine::readLiveMolecule(std::vector<int>& numbers,
@@ -887,6 +925,26 @@ void XtbEngine::run()
             const int di = m_draggedIndex;
             if (di >= 0 && di * 3 + 2 < static_cast<int>(m_coordsBohr.size()) &&
                 di * 3 + 2 < static_cast<int>(livePositionsBohr.size())) {
+              // Design D2: pointer-authored movement of the dragged atom
+              // refreshes the phase's evaluation budget. A long continuous drag
+              // would otherwise exhaust the per-phase cap mid-drag; the pull is
+              // the phase's purpose, so a movement resets the counter (bounded
+              // by user movement, not per tick). Compare against the working
+              // coords (which still hold the previous drag position) before
+              // overwriting.
+              constexpr double kDragMoveEpsilonBohr = 1e-6;
+              bool pointerMoved = false;
+              for (int k = 0; k < 3; ++k) {
+                if (std::abs(m_coordsBohr[di * 3 + k] -
+                             livePositionsBohr[di * 3 + k]) >
+                    kDragMoveEpsilonBohr) {
+                  pointerMoved = true;
+                  break;
+                }
+              }
+              if (pointerMoved) {
+                m_evals = 0;
+              }
               for (int k = 0; k < 3; ++k) {
                 m_coordsBohr[di * 3 + k] = livePositionsBohr[di * 3 + k];
                 // Mask the dragged atom's working gradient (worker-only state).
@@ -914,7 +972,11 @@ void XtbEngine::run()
     // objects are destroyed and the phase cannot evaluate without crashing.
     {
       QMutexLocker locker(&m_stateMutex);
-      if (m_converged || m_evalFailed || m_setupBroken)
+      // Design D1: the converged/capped idle is deferred while a drag is in
+      // flight (a drag may be in flight across a latch set just before the
+      // press cleared it). The failed-evaluation and setup-broken latches still
+      // skip — a failed or broken phase is contained regardless of drag.
+      if ((m_converged && m_draggedIndex < 0) || m_evalFailed || m_setupBroken)
         continue;
     }
 
@@ -945,12 +1007,20 @@ void XtbEngine::run()
       if (m_gnorm < m_threshold || shouldStop(m_evals)) {
         // Converged (or immediately capped) on the baseline: latch the idle
         // state but keep the session (worker + xTB objects) alive so a later
-        // drag resumes optimization instead of requiring a restart.
+        // drag resumes optimization instead of requiring a restart. Design D1:
+        // while a drag is in flight the masked gradient (dragged atom's
+        // tension excluded) can reach threshold under a held pull; deferring
+        // the latch keeps the free atoms relaxing until release.
+        bool latch = false;
         {
           QMutexLocker locker(&m_stateMutex);
-          m_converged = true;
+          if (m_draggedIndex < 0 && !m_converged) {
+            m_converged = true;
+            latch = true;
+          }
         }
-        emit converged(m_energy);
+        if (latch)
+          emit converged(m_energy);
       }
       continue;
     }
@@ -982,7 +1052,10 @@ void XtbEngine::run()
     {
       QMutexLocker locker(&m_stateMutex);
       m_lastEvalCount = m_evals;
-      if (m_gnorm < m_threshold && !m_converged) {
+      // Design D1: do not latch the converged idle while a drag is in flight;
+      // the masked gradient reaching threshold under a held pull must not
+      // freeze relaxation. The latch engages on release.
+      if (m_draggedIndex < 0 && m_gnorm < m_threshold && !m_converged) {
         m_converged = true;
         reportConverged = true;
       }
@@ -1000,9 +1073,10 @@ void XtbEngine::run()
       // a capped session reports its last energy and stops evaluating (cap
       // != error), so the converged signal carries "session idle, last
       // energy shown" for both. Latch the idle state; a later drag resumes
-      // with a fresh phase.
+      // with a fresh phase. Design D1: the cap idle is deferred while a drag
+      // is in flight so a long pull never freezes partway through.
       QMutexLocker locker(&m_stateMutex);
-      if (!m_converged) {
+      if (m_draggedIndex < 0 && !m_converged) {
         m_converged = true;
         reportConverged = true;
       }
