@@ -287,6 +287,14 @@ public:
   // observe its re-establishment / evaluation signals directly. Null while no
   // xTB session is active.
   XtbEngine *xtbEngine() const { return m_xtbEngine; }
+
+  // xTB failure-reason HUD text (task 3.2): the tool latches the engine's
+  // evaluation-failure reason (and the setup-failure reason) here so paint()
+  // can surface it. The test reads these directly to verify the tool-side
+  // wiring of the engine's evaluationFailed() signal and its clearing on
+  // Stop/Start and on topology re-establishment.
+  QString evalFailedReason() const { return m_xtbEvalFailedReason; }
+  QString setupFailedReason() const { return m_xtbSetupFailedReason; }
 };
 
 } // namespace
@@ -456,6 +464,7 @@ private slots:
   void xtbDrawAtomDuringRunKeepsWriteBack();
   void xtbEraseDuringRunSurvivorsMove();
   void xtbUndoRedoDuringRunNoSnapBack();
+  void xtbEvaluationFailedSurfacedAndCleared();
 
   // task 4.6 (OpenSpec 21): backend + convergence-level selection persists.
   // Write engine=GFN2 and level=Tight to a temp ini QSettings, reload into a
@@ -1955,6 +1964,128 @@ void AutoOptReproTest::xtbUndoRedoDuringRunNoSnapBack()
     }
   }
   QVERIFY(adopted);
+
+  tool.disable();
+  QVERIFY(!tool.running());
+  delete mol;
+}
+
+// task 3.2 (OpenSpec 11): an xTB evaluation failure must be surfaced in the
+// tool's HUD and latched, must not publish garbage coordinates, and must be
+// cleared by both Stop/Start and by a topology re-establishment. This is the
+// tool-level counterpart of the engine-level failedEvaluationPublishesNothing
+// AndLatches test: it drives a real session through AutoOptTool and reads the
+// tool's latched failure-reason text (m_xtbEvalFailedReason) that paint()
+// renders, rather than only the engine's signal.
+void AutoOptReproTest::xtbEvaluationFailedSurfacedAndCleared()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+
+  // Water geometry (O at origin, H1 +z, H2 -z/0.1). A dissociated H2 (6 A
+  // from O) makes the next singlepoint fail SCF convergence — the same
+  // trigger as the engine-level failedEvaluationPublishesNothingAndLatches.
+  Molecule *mol = new Molecule;
+  const double numbers[3] = { 8.0, 1.0, 1.0 };
+  const double xyz[9] = { 0.0, 0.0, 0.0,
+                          0.0, 0.0, 1.3,
+                          0.0, 0.1, -0.95 };
+  for (int i = 0; i < 3; ++i) {
+    Atom *a = mol->addAtom();
+    a->setAtomicNumber(static_cast<int>(numbers[i]));
+    a->setPos(Eigen::Vector3d(xyz[3 * i], xyz[3 * i + 1], xyz[3 * i + 2]));
+  }
+  mol->addBond(0, 1, 1);
+  mol->addBond(0, 2, 1);
+
+  GLWidget widget(mol, QSurfaceFormat());
+  widget.resize(640, 480);
+
+  AutoOptToolExposed tool;
+  tool.settingsWidget();
+  tool.engineCombo()->setCurrentIndex(2); // GFN2-xTB
+  if (tool.levelCombo())
+    tool.levelCombo()->setCurrentIndex(4); // Normal
+  tool.setGlw(&widget);
+  tool.enable();
+  QVERIFY(tool.running());
+
+  XtbEngine *engine = tool.xtbEngine();
+  QVERIFY(engine != nullptr);
+  QSignalSpy failSpy(engine, &XtbEngine::evaluationFailed);
+  QSignalSpy coordsSpy(engine, &XtbEngine::coordsReady);
+
+  // Let the initial session evaluate normally first.
+  QTRY_VERIFY_WITH_TIMEOUT(coordsSpy.count() >= 1, 10000);
+
+  // Drive a failing evaluation: push H2 (atom 2) to a dissociated position
+  // (6 A from O). The worker adopts it as an external position change and
+  // then fails to converge on the next singlepoint.
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(2)->setPos(Eigen::Vector3d(0.0, 0.0, 6.0));
+  }
+
+  // The engine surfaces the failure with a non-empty reason; the tool must
+  // latch that reason text so paint() can render it.
+  QVERIFY(failSpy.wait(20000));
+  QVERIFY(!failSpy.first().at(0).toString().isEmpty());
+  QVERIFY(!tool.evalFailedReason().isEmpty());
+
+  // Let any in-flight publish settle, then confirm the latched phase
+  // publishes nothing further (no garbage coordinates reach the molecule).
+  for (int i = 0; i < 10; ++i) {
+    QTest::qWait(20);
+  }
+  const int coordsAtFailure = coordsSpy.count();
+  for (int i = 0; i < 15; ++i) {
+    QTest::qWait(40);
+  }
+  QCOMPARE(coordsSpy.count(), coordsAtFailure);
+
+  // Recovery path 1 (spec: Stop/Start clears it): the reason is already
+  // latched from the injection above, so stop directly. stopEngine() must
+  // clear the latched reason.
+  tool.disable();
+  QVERIFY(!tool.running());
+  QVERIFY(tool.evalFailedReason().isEmpty()); // stopEngine() clears it
+
+  // Start a fresh session on a convergible geometry: the reason stays clear
+  // and the session resumes evaluating (proving setup() recovered the latch).
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(2)->setPos(Eigen::Vector3d(0.0, 0.1, -1.0));
+  }
+  tool.enable();
+  QVERIFY(tool.running());
+  QVERIFY(tool.evalFailedReason().isEmpty());
+  const int coordsAfterRestart = coordsSpy.count();
+  const int restartResumeTarget = coordsAfterRestart + 2;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsSpy.count() >= restartResumeTarget, 10000);
+
+  // Recovery path 2 (spec: topology re-establishment clears it): re-latch the
+  // failure on the 3-atom water again, then add an atom mid-session. The
+  // session re-establishes exactly once and clears the latched
+  // evaluation-failure reason.
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(2)->setPos(Eigen::Vector3d(0.0, 0.0, 6.0));
+  }
+  QVERIFY(failSpy.wait(15000));
+  QVERIFY(!tool.evalFailedReason().isEmpty());
+
+  QSignalSpy reestablSpy(engine, &XtbEngine::sessionReestablished);
+  {
+    QWriteLocker locker(mol->lock());
+    Atom *h = mol->addAtom();
+    h->setAtomicNumber(1);
+    h->setPos(Eigen::Vector3d(0.0, -1.2, 0.0));
+  }
+  QTRY_VERIFY_WITH_TIMEOUT(reestablSpy.count() >= 1, 5000);
+  QCOMPARE(reestablSpy.count(), 1);
+  QTRY_VERIFY_WITH_TIMEOUT(tool.evalFailedReason().isEmpty(), 3000);
+  QVERIFY(tool.evalFailedReason().isEmpty());
 
   tool.disable();
   QVERIFY(!tool.running());

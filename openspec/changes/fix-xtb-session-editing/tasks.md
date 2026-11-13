@@ -16,7 +16,7 @@
 ## 3. Failed-evaluation containment (D4)
 
 - [x] 3.1 Add the post-singlepoint environment check and finiteness check (energy, gradient, coordinates) in `evaluateOnce`; failed ticks publish nothing and latch the phase idle-with-failure via a new `evaluationFailed(reason)` signal; verify build
-- [x] 3.2 Surface the failure in the AutoOpt HUD via the existing setup-failure plumbing pattern (reason text in the on-screen status); Stop/Start and topology re-establishment clear it; verify by tool-level test
+- [x] 3.2 Surface the failure in the AutoOpt HUD via the existing setup-failure plumbing pattern (reason text in the on-screen status); Stop/Start and topology re-establishment clear it; verify by tool-level test (autooptreprotest::xtbEvaluationFailedSurfacedAndCleared: drives a real xTB session through AutoOptTool, dissociates H2 to trigger an SCF failure, asserts the tool latches the reason (m_xtbEvalFailedReason) and the failed tick publishes no coords, then asserts both Stop/Start and a mid-session add-atom re-establishment clear it; ctest green)
 - [x] 3.3 Add the containment test: drive a failing/non-finite evaluation, assert no publish (`takeLatestCoords` returns false), latch engaged, and recovery after Stop/Start; verify with `ctest -R xtbenginetest`
 
 ## 4. Write-back + tool hardening (D5)
@@ -26,6 +26,6 @@
 
 ## 5. Full verification
 
-- [x] 5.1 Run the full affected test suite locally: `cmake --build build --parallel && ctest --test-dir build -R "xtbenginetest|xtbphysicstest|xtbruntimetest|autooptreprotest" --output-on-failure`; all green
+- [x] 5.1 Run the full affected test suite locally: `cmake --build build --parallel && ctest --test-dir build -R "xtbengineTest|xtbphysicsTest|xtbruntimeTest|autooptreproTest" --output-on-failure`; all green
 - [x] 5.2 Run the full ctest suite; no regressions in previously passing tests
 - [x] 5.3 Push the branch and trigger the Windows installer workflow (`gh workflow run 168745168 --ref <branch> --repo thosoo/avogadro`); verify the MSVC build compiles the new code and the offscreen ctest leg (including the new tests) is green. (Committed 57d5175e4 to master, pushed to origin/master; the Windows Installer workflow run 43432287293 auto-triggered on push and both `build-installer` jobs passed — MSVC Build + Test green, including the new xTB engine/tool tests.)
