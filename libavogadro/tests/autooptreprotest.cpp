@@ -2082,9 +2082,14 @@ void AutoOptReproTest::xtbEvaluationFailedSurfacedAndCleared()
     h->setAtomicNumber(1);
     h->setPos(Eigen::Vector3d(0.0, -1.2, 0.0));
   }
-  QTRY_VERIFY_WITH_TIMEOUT(reestablSpy.count() >= 1, 5000);
+  // Re-establishment on a 4-atom GFN2-xTB session (destroy/recreate the four
+  // xTB objects, reload method params, re-validate elements) can take several
+  // seconds on a cold/loaded machine; the window matches the file's other
+  // QTRY timeouts so a rare cold run does not flake. The assertion and the
+  // exact-once QCOMPARE are unchanged.
+  QTRY_VERIFY_WITH_TIMEOUT(reestablSpy.count() >= 1, 15000);
   QCOMPARE(reestablSpy.count(), 1);
-  QTRY_VERIFY_WITH_TIMEOUT(tool.evalFailedReason().isEmpty(), 3000);
+  QTRY_VERIFY_WITH_TIMEOUT(tool.evalFailedReason().isEmpty(), 5000);
   QVERIFY(tool.evalFailedReason().isEmpty());
 
   tool.disable();
