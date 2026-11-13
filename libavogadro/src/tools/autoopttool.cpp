@@ -106,6 +106,10 @@ namespace Avogadro {
             SLOT(handleXtbConverged(double)));
     connect(m_xtbEngine, SIGNAL(setupFailed(QString)), this,
             SLOT(handleXtbSetupFailed(QString)));
+    connect(m_xtbEngine, SIGNAL(evaluationFailed(QString)), this,
+            SLOT(handleXtbEvaluationFailed(QString)));
+    connect(m_xtbEngine, SIGNAL(sessionReestablished(int)), this,
+            SLOT(handleXtbSessionReestablished(int)));
     connect(m_thread, SIGNAL(setupDone()),    this, SLOT(setupDone()));
     connect(m_thread, SIGNAL(setupFailed()),  this, SLOT(setupFailed()));
     connect(m_thread, SIGNAL(setupSucces()),  this, SLOT(setupSucces()));
@@ -152,6 +156,18 @@ namespace Avogadro {
     Vector3d toPos = widget->camera()->unProject(to, what);
 
     Vector3d atomTranslation = toPos - fromPos;
+
+    // The xTB worker reads the live molecule under the molecule read lock each
+    // tick (design D2). These setPos writes must be serialized with that read
+    // or a torn (mixed old/new component) position can be observed, feeding
+    // adoptExternalPositions a spurious external-edit signal mid-drag. Take the
+    // molecule write lock for the duration of the drag writes. Guard the null
+    // molecule (a view can be torn down while a drag is in flight).
+    Molecule* mol = widget->molecule();
+    if (mol == nullptr) {
+      return;
+    }
+    QWriteLocker locker(mol->lock());
 
     if (widget->selectedPrimitives().size())
     {
@@ -269,19 +285,12 @@ namespace Avogadro {
       }
     }
 
-    // xTB drag: forward the (now-translated) dragged-atom position to the
-    // engine in bohr so its masking pins that atom to the pointer. The
-    // translate() call above already wrote the molecule position (pointer
-    // authority); the engine publishes the pinned coordinate on the next tick.
-    // Convert angstrom -> bohr at this boundary (task 4.4).
-    if (xtbSessionActive() && m_clickedAtom && m_leftButtonPressed) {
-      const Eigen::Vector3d p = *m_clickedAtom->pos();
-      const double ang2bohr = 1.8897259886;
-      const std::vector<double> bohr = { p.x() * ang2bohr,
-                                         p.y() * ang2bohr,
-                                         p.z() * ang2bohr };
-      m_xtbEngine->notifyDragPosition(static_cast<int>(m_clickedAtom->index()), bohr);
-    }
+    // xTB drag: the translate() call above already wrote the dragged atom's
+    // position into the live molecule (pointer authority, design D3). The
+    // worker reads the live molecule on its per-tick re-baseline, so no
+    // separate position side channel is forwarded to the engine; the atom is
+    // masked by index (setDraggedAtom) and its coordinate is adopted from the
+    // molecule. Angstrom -> bohr conversion is handled inside the engine.
 
     m_lastDraggingPosition = event->position().toPoint();
     widget->update();
@@ -325,6 +334,13 @@ namespace Avogadro {
           // xTB setup failure: surface the engine's reason string (task 4.5).
           widget->painter()->drawText(labelPos,
             tr("AutoOpt: xTB setup failed: %1").arg(m_xtbSetupFailedReason));
+        }
+        else if (!m_xtbEvalFailedReason.isEmpty()) {
+          // xTB singlepoint evaluation failure (design D4): the session is
+          // alive but the phase is idle-with-failure; the engine's diagnostic
+          // is surfaced instead of feeding garbage into the renderer.
+          widget->painter()->drawText(labelPos,
+            tr("AutoOpt: xTB evaluation failed: %1").arg(m_xtbEvalFailedReason));
         }
         else {
           double energyKJ = m_xtbEnergyHartree * 2625.499748;
@@ -661,6 +677,30 @@ namespace Avogadro {
     m_xtbSetupFailedReason = reason;
   }
 
+  void AutoOptTool::handleXtbEvaluationFailed(const QString& reason)
+  {
+    // Surface an xTB singlepoint evaluation failure (design D4) in the HUD.
+    // Distinct from setup failure: the session is alive but the current phase
+    // is idle-with-failure. The reason text is shown by paint(); Stop/Start or
+    // a topology edit (which re-establishes the session) clears it via
+    // stopEngine() / the session-start reset in enable().
+    m_xtbEvalFailedReason = reason;
+  }
+
+  void AutoOptTool::handleXtbSessionReestablished(int /*atomCount*/)
+  {
+    // A topology change re-established the xTB session (design D2): the new
+    // phase evaluates normally, so a latched evaluation failure (design D4) no
+    // longer applies and its HUD text is cleared. A previous setup failure is
+    // also resolved by a successful re-establishment (e.g. the user edited an
+    // unsupported element back to a supported one): clear the setup-failure
+    // HUD text too, or paint() would keep reporting a stale failure while the
+    // session optimizes.
+    m_xtbEvalFailedReason.clear();
+    m_setupFailed = false;
+    m_xtbSetupFailedReason.clear();
+  }
+
   void AutoOptTool::stopEngine()
   {
     // Quiesce the xTB engine (task 4.3). Stop the pacing timer first so no new
@@ -681,6 +721,8 @@ namespace Avogadro {
     m_xtbMethod = -1;
     m_xtbEnergyHartree = 0.0;
     m_xtbConverged = false;
+    // Stop/Start clears a latched evaluation failure (design D4 recovery path).
+    m_xtbEvalFailedReason.clear();
   }
 
   void AutoOptTool::toggle()
@@ -726,28 +768,25 @@ namespace Avogadro {
         // and hand it to the xTB engine. The force-field path is untouched
         // below; this branch returns before it.
         Molecule *mol = m_glwidget->molecule();
-        const int natoms = mol->numAtoms();
-        std::vector<int> numbers;
-        std::vector<double> positions;
-        numbers.reserve(natoms);
-        positions.reserve(static_cast<size_t>(natoms) * 3);
-        foreach (const Atom *atom, mol->atoms()) {
-          numbers.push_back(atom->atomicNumber());
-          const Eigen::Vector3d &p = *atom->pos();
-          positions.push_back(p.x());
-          positions.push_back(p.y());
-          positions.push_back(p.z());
-        }
 
         const int method = engineToMethod(engine);
         const int level = m_comboLevel ? m_comboLevel->currentIndex() : 4; // Normal
         const int threads = m_threadsSpinBox ? m_threadsSpinBox->value() : 0;
 
-        // setup() returns false (and emits setupFailed) when the library is
-        // unavailable or the method cannot be loaded for this molecule. In
-        // that case the HUD flag is set by handleXtbSetupFailed; do NOT start
-        // a session or the pacing timer.
-        if (!m_xtbEngine->setup(numbers, positions, method, level, threads)) {
+        // setupFromMolecule() records the live molecule as the engine's source
+        // (design D2): the worker re-reads it each tick for live-molecule
+        // re-baselining (topology change -> re-establish, external edit ->
+        // fresh phase), and the engine's snapshot-aware writeBackToMolecule
+        // becomes the SOLE molecule writer for the session. Using headless
+        // setup() here would leave m_molecule null and disable that re-baseline
+        // entirely, forcing the tool's timer write-back to be the only (and
+        // unprotected) writer.
+        //
+        // setupFromMolecule() returns false (and emits setupFailed) when the
+        // library is unavailable or the method cannot be loaded for this
+        // molecule. In that case the HUD flag is set by handleXtbSetupFailed;
+        // do NOT start a session or the pacing timer.
+        if (!m_xtbEngine->setupFromMolecule(mol, method, level, threads)) {
           return;
         }
 
@@ -758,6 +797,7 @@ namespace Avogadro {
         m_xtbMethod = method;
         m_xtbEnergyHartree = 0.0;
         m_xtbSetupFailedReason.clear();
+        m_xtbEvalFailedReason.clear();
         m_setupFailed = false;
         m_running = true;
         m_xtbEngine->start(QThread::LowPriority);
@@ -870,45 +910,25 @@ namespace Avogadro {
       if (!m_glwidget || m_glwidget->molecule()->numAtoms() < 2)
         return;
 
-      // Ask the worker to advance one L-BFGS iteration, then take the latest
-      // published coordinate snapshot (bohr). takeLatestCoords returns false
-      // when nothing new is available (e.g. the session converged and stopped),
-      // so we simply wait for the next tick.
+      // Ask the worker to advance one L-BFGS iteration. takeLatestCoords
+      // returns false when nothing new is published (e.g. the session converged
+      // and stopped), so we simply wait for the next tick.
+      //
+      // The engine is the SOLE molecule writer for an xTB session (single-writer
+      // architecture, task 4.1): its snapshot-aware writeBackToMolecule writes
+      // the optimizer's working coords back to the live molecule on the worker
+      // thread, preserving any atom changed externally since the read. The tool
+      // must NOT write the published snapshot here — that write happens ~100 ms
+      // after the worker read, lands in a window where an external edit (undo,
+      // another tool) can be clobbered before the next tick adopts it, and is
+      // the dominant clobber path in the GUI. Keep this tick as a repaint pump
+      // only: advance the engine, consume the snapshot for freshness, and
+      // request a repaint; the engine's write-back already moved the molecule.
       m_xtbEngine->requestTick();
       std::vector<double> coordsBohr;
       if (!m_xtbEngine->takeLatestCoords(coordsBohr))
         return;
 
-      // Apply the snapshot to the live molecule. The coordinates are in bohr;
-      // convert to angstrom per atom. Write under the molecule write lock so
-      // the coordinate write cannot interleave with the worker's read snapshot
-      // (the worker reads the molecule under a read lock during its tick). The
-      // lock object/match the pattern used elsewhere (molecule()->lock()).
-      QList<Atom*> atoms = m_glwidget->molecule()->atoms();
-      if (atoms.size() != static_cast<int>(coordsBohr.size() / 3))
-        return; // topology mismatch since the last snapshot; skip this tick
-      const double bohr2ang = 0.52917721092;
-      // The drag path is the authority for the grabbed atom while the drag
-      // lasts (spec coordinate write-back): snapshots published for an SCF
-      // that started before the latest pointer move carry an older position
-      // for that atom, so writing them back would regress the pull by one
-      // tick. Skip the dragged atom; the engine's pin makes the next publish
-      // match the pointer, and the release resumes write-back for it.
-      const bool dragging = xtbSessionActive() && m_clickedAtom != 0 &&
-                            m_leftButtonPressed;
-      const int dragIndex =
-        dragging ? static_cast<int>(m_clickedAtom->index()) : -1;
-      {
-        QWriteLocker locker(m_glwidget->molecule()->lock());
-        for (int i = 0; i < atoms.size(); ++i) {
-          if (i == dragIndex)
-            continue;
-          const double *c = &coordsBohr[static_cast<size_t>(i) * 3];
-          atoms[i]->setPos(Eigen::Vector3d(c[0] * bohr2ang,
-                                           c[1] * bohr2ang,
-                                           c[2] * bohr2ang));
-        }
-      }
       m_glwidget->molecule()->update();
       m_glwidget->update();
       return;

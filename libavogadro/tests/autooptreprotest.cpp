@@ -42,6 +42,7 @@
 #include <cstdlib>   // getenv, putenv
 #include <string>    // std::string
 #include <functional> // std::function (pumpUntil)
+#include <cmath>     // std::abs
 
 #include <avogadro/glwidget.h>
 #include <avogadro/glhit.h>
@@ -64,6 +65,7 @@
 #include "tools/drawtool.h"
 #include "libavogadro/src/engines/bsdyengine.h"
 #include "xtb/xtbapi.h"
+#include "xtb/xtbengine.h"
 
 using namespace Avogadro;
 
@@ -281,6 +283,10 @@ public:
   }
   // Live-drag observability (task 2.2): which atom the press grabbed.
   Atom *clickedAtom() const { return m_clickedAtom; }
+  // The live xTB session engine (task 4.3), so the tool-level scenarios can
+  // observe its re-establishment / evaluation signals directly. Null while no
+  // xTB session is active.
+  XtbEngine *xtbEngine() const { return m_xtbEngine; }
 };
 
 } // namespace
@@ -432,11 +438,24 @@ private slots:
 
   // task 4.4 (OpenSpec 19): a press/drag/release cycle during an xTB session
   // must leave the molecule valid (atom count intact, positions finite). The
-  // drag routing (setDraggedAtom on press, notifyDragPosition on move,
-  // setDraggedAtom(-1) on release) drives the engine's masking; this case
-  // guards that the resulting engine ticks + coordinate write-back never
-  // corrupt the molecule. Runs headlessly (no live GL pick required).
+  // drag routing (setDraggedAtom on press, setDraggedAtom(-1) on release)
+  // drives the engine's masking; the dragged atom's position is the live
+  // molecule (pointer authority, design D3), read by the worker on its
+  // per-tick re-baseline. This case guards that the resulting engine ticks +
+  // coordinate write-back never corrupt the molecule. Runs headlessly (no
+  // live GL pick required).
   void xtbDragCycleLeavesValidMolecule();
+
+  // task 4.2 (OpenSpec 14): tool-level scenarios that edit the live molecule
+  // while an xTB session runs. The worker re-baselines per tick (design D2), so
+  // a topology change (draw/erase) must re-establish the session exactly once
+  // and the write-back must keep updating the molecule (no frozen atoms); an
+  // undo/redo external position change must be adopted as a fresh phase with no
+  // snap-back. All three run headlessly (no live GL pick required) by mutating
+  // the molecule under the write lock, exactly as a draw/erase stroke would.
+  void xtbDrawAtomDuringRunKeepsWriteBack();
+  void xtbEraseDuringRunSurvivorsMove();
+  void xtbUndoRedoDuringRunNoSnapBack();
 
   // task 4.6 (OpenSpec 21): backend + convergence-level selection persists.
   // Write engine=GFN2 and level=Tight to a temp ini QSettings, reload into a
@@ -1621,10 +1640,12 @@ void AutoOptReproTest::xtbDragCycleLeavesValidMolecule()
 {
   // task 4.4 (OpenSpec 19): a press/drag/release cycle during an xTB session
   // must leave the molecule valid (atom count intact, positions finite). The
-  // drag routing (setDraggedAtom on press, notifyDragPosition on move,
-  // setDraggedAtom(-1) on release) drives the engine's masking; this case
-  // guards that the resulting engine ticks + coordinate write-back never
-  // corrupt the molecule. Runs headlessly (no live GL pick required).
+  // drag routing (setDraggedAtom on press, setDraggedAtom(-1) on release)
+  // drives the engine's masking; the dragged atom's position is the live
+  // molecule (pointer authority, design D3), read by the worker on its
+  // per-tick re-baseline. This case guards that the resulting engine ticks +
+  // coordinate write-back never corrupt the molecule. Runs headlessly (no
+  // live GL pick required).
   if (!XtbApi::isAvailable()) {
     QSKIP("xTB runtime library not available");
   }
@@ -1674,8 +1695,9 @@ void AutoOptReproTest::xtbDragCycleLeavesValidMolecule()
   // below for the routing that reads m_clickedAtom.
   tool.setDragMarker(atoms[0], true);
 
-  // Move: exercises the notifyDragPosition routing (writes the dragged atom's
-  // bohr position to the engine each move, after the translate() write-back).
+  // Move: exercises the drag path (translate() writes the dragged atom's
+  // position into the live molecule; the worker adopts it on its per-tick
+  // re-baseline, design D3).
   QMouseEvent moveEvent(QEvent::MouseMove, QPointF(5, 5), QPointF(5, 5),
                         Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
   tool.mouseMoveEvent(&widget, &moveEvent);
@@ -1710,6 +1732,232 @@ void AutoOptReproTest::xtbDragCycleLeavesValidMolecule()
     QVERIFY(qIsFinite(p.z()));
   }
 
+  delete mol;
+}
+
+// task 4.2 (OpenSpec 14): a draw-atom edit during a running xTB session. The
+// worker re-baselines per tick (design D2), so adding an atom mid-session must
+// re-establish the session exactly once and the write-back must keep updating
+// the molecule — the new atom participates and no existing atom freezes.
+// Runs headlessly by mutating the live molecule under the write lock, exactly
+// as a draw stroke's addAtom would (no live GL pick required).
+void AutoOptReproTest::xtbDrawAtomDuringRunKeepsWriteBack()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+
+  Molecule *mol = new Molecule;
+  const double numbers[3] = {8.0, 1.0, 1.0};
+  const double xyz[9] = {0.0, 0.0, 0.0,
+                         0.0, 0.0, 1.3,
+                         0.0, 0.1, -0.95};
+  for (int i = 0; i < 3; ++i) {
+    Atom *a = mol->addAtom();
+    a->setAtomicNumber(static_cast<int>(numbers[i]));
+    a->setPos(Eigen::Vector3d(xyz[3 * i], xyz[3 * i + 1], xyz[3 * i + 2]));
+  }
+
+  GLWidget widget(mol, QSurfaceFormat());
+  widget.resize(640, 480);
+
+  AutoOptToolExposed tool;
+  tool.settingsWidget();
+  tool.engineCombo()->setCurrentIndex(2); // GFN2-xTB
+  if (tool.levelCombo())
+    tool.levelCombo()->setCurrentIndex(4); // Normal
+  tool.setGlw(&widget);
+  tool.enable();
+  QVERIFY(tool.running());
+
+  XtbEngine *engine = tool.xtbEngine();
+  QVERIFY(engine != nullptr);
+  QSignalSpy reestablSpy(engine, &XtbEngine::sessionReestablished);
+  QSignalSpy coordsSpy(engine, &XtbEngine::coordsReady);
+
+  // Let the initial 3-atom session evaluate a few times (the first tick is a
+  // 100 ms pacing interval plus the SCF evaluation time, so wait deterministically).
+  QTRY_VERIFY_WITH_TIMEOUT(coordsSpy.count() >= 1, 10000);
+
+  // Draw-atom edit: add a hydrogen mid-session under the write lock (the
+  // worker reads the molecule under the read lock during its tick).
+  {
+    QWriteLocker locker(mol->lock());
+    Atom *h = mol->addAtom();
+    h->setAtomicNumber(1);
+    h->setPos(Eigen::Vector3d(0.0, -1.2, 0.0));
+  }
+
+  // The new topology must re-establish exactly once and the write-back must
+  // keep publishing coords for the enlarged molecule (no atom freezes).
+  QTRY_VERIFY_WITH_TIMEOUT(reestablSpy.count() >= 1, 5000);
+  QCOMPARE(reestablSpy.count(), 1);
+  QCOMPARE(reestablSpy.first().at(0).toInt(), 4);
+
+  const int coordsAfterDraw = coordsSpy.count();
+  const int target = coordsAfterDraw + 2;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsSpy.count() >= target, 10000);
+
+  // The live molecule must reflect the write-back: the new atom participates
+  // and no atom position is NaN.
+  QCOMPARE(mol->numAtoms(), 4);
+  for (Atom *a : mol->atoms()) {
+    const Eigen::Vector3d p = *a->pos();
+    QVERIFY(qIsFinite(p.x()));
+    QVERIFY(qIsFinite(p.y()));
+    QVERIFY(qIsFinite(p.z()));
+  }
+
+  tool.disable();
+  QVERIFY(!tool.running());
+  delete mol;
+}
+
+// task 4.2 (OpenSpec 14): an erase edit during a running xTB session. Removing
+// an atom mid-session must re-establish on the reduced topology exactly once,
+// and the surviving atoms must keep publishing coords (keep moving) — no
+// survivor freezes as a result of the deletion.
+void AutoOptReproTest::xtbEraseDuringRunSurvivorsMove()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+
+  Molecule *mol = new Molecule;
+  const double numbers[3] = {8.0, 1.0, 1.0};
+  const double xyz[9] = {0.0, 0.0, 0.0,
+                         0.0, 0.0, 1.3,
+                         0.0, 0.1, -0.95};
+  for (int i = 0; i < 3; ++i) {
+    Atom *a = mol->addAtom();
+    a->setAtomicNumber(static_cast<int>(numbers[i]));
+    a->setPos(Eigen::Vector3d(xyz[3 * i], xyz[3 * i + 1], xyz[3 * i + 2]));
+  }
+
+  GLWidget widget(mol, QSurfaceFormat());
+  widget.resize(640, 480);
+
+  AutoOptToolExposed tool;
+  tool.settingsWidget();
+  tool.engineCombo()->setCurrentIndex(2); // GFN2-xTB
+  if (tool.levelCombo())
+    tool.levelCombo()->setCurrentIndex(4); // Normal
+  tool.setGlw(&widget);
+  tool.enable();
+  QVERIFY(tool.running());
+
+  XtbEngine *engine = tool.xtbEngine();
+  QVERIFY(engine != nullptr);
+  QSignalSpy reestablSpy(engine, &XtbEngine::sessionReestablished);
+  QSignalSpy coordsSpy(engine, &XtbEngine::coordsReady);
+
+  // Let the initial 3-atom session evaluate a few times (the first tick is a
+  // 100 ms pacing interval plus the SCF evaluation time, so wait deterministically).
+  QTRY_VERIFY_WITH_TIMEOUT(coordsSpy.count() >= 1, 10000);
+
+  // Erase edit: remove a hydrogen (index 1) mid-session under the write lock.
+  {
+    QWriteLocker locker(mol->lock());
+    mol->removeAtom(1);
+  }
+
+  // The reduced topology must re-establish exactly once and the survivors must
+  // keep publishing coords (no survivor freezes).
+  QTRY_VERIFY_WITH_TIMEOUT(reestablSpy.count() >= 1, 5000);
+  QCOMPARE(reestablSpy.count(), 1);
+  QCOMPARE(reestablSpy.first().at(0).toInt(), 2);
+
+  const int coordsAfterErase = coordsSpy.count();
+  const int target = coordsAfterErase + 2;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsSpy.count() >= target, 10000);
+
+  // The survivors keep publishing: the live molecule has the reduced topology
+  // and every survivor position is finite.
+  QCOMPARE(mol->numAtoms(), 2);
+  for (Atom *a : mol->atoms()) {
+    const Eigen::Vector3d p = *a->pos();
+    QVERIFY(qIsFinite(p.x()));
+    QVERIFY(qIsFinite(p.y()));
+    QVERIFY(qIsFinite(p.z()));
+  }
+
+  tool.disable();
+  QVERIFY(!tool.running());
+  delete mol;
+}
+
+// task 4.2 (OpenSpec 14): an undo/redo external position change during a
+// running xTB session. The moved positions must be adopted as the starting
+// geometry of a fresh phase and NOT reverted by subsequent write-backs (no
+// snap-back to the pre-edit geometry).
+void AutoOptReproTest::xtbUndoRedoDuringRunNoSnapBack()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+
+  Molecule *mol = new Molecule;
+  const double numbers[3] = {8.0, 1.0, 1.0};
+  const double xyz[9] = {0.0, 0.0, 0.0,
+                         0.0, 0.0, 1.3,
+                         0.0, 0.1, -0.95};
+  for (int i = 0; i < 3; ++i) {
+    Atom *a = mol->addAtom();
+    a->setAtomicNumber(static_cast<int>(numbers[i]));
+    a->setPos(Eigen::Vector3d(xyz[3 * i], xyz[3 * i + 1], xyz[3 * i + 2]));
+  }
+
+  GLWidget widget(mol, QSurfaceFormat());
+  widget.resize(640, 480);
+
+  AutoOptToolExposed tool;
+  tool.settingsWidget();
+  tool.engineCombo()->setCurrentIndex(2); // GFN2-xTB
+  if (tool.levelCombo())
+    tool.levelCombo()->setCurrentIndex(4); // Normal
+  tool.setGlw(&widget);
+  tool.enable();
+  QVERIFY(tool.running());
+
+  XtbEngine *engine = tool.xtbEngine();
+  QVERIFY(engine != nullptr);
+  QSignalSpy coordsSpy(engine, &XtbEngine::coordsReady);
+
+  // Let the initial session evaluate a few times (the first tick is a 100 ms
+  // pacing interval plus the SCF evaluation time, so wait deterministically).
+  QTRY_VERIFY_WITH_TIMEOUT(coordsSpy.count() >= 1, 10000);
+
+  // External position edit (an undo/redo of a move): pull H1 (index 1) to
+  // z = 1.5 A under the write lock. A moderate displacement is used (a 3.0 A
+  // O-H bond dissociates and fails SCF, the D4 containment path, not the D2
+  // adoption path this test verifies).
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, 1.5));
+  }
+
+  // The moved position must be adopted as the fresh phase's starting geometry:
+  // the next write-back does not snap it back toward the pre-edit equilibrium.
+  // A tight threshold (0.3 A) so a pre-fix clobber (which snapped H1 back to
+  // the ~0.967 A equilibrium, |1.5 - 0.967| = 0.53) fails decisively.
+  const int coordsAfterEdit = coordsSpy.count();
+  const int target = coordsAfterEdit + 2;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsSpy.count() >= target, 10000);
+
+  bool adopted = false;
+  for (Atom *a : mol->atoms()) {
+    if (a->atomicNumber() == 1) {
+      const Eigen::Vector3d p = *a->pos();
+      if (std::abs(p.z() - 1.5) < 0.3) {
+        adopted = true;
+        break;
+      }
+    }
+  }
+  QVERIFY(adopted);
+
+  tool.disable();
+  QVERIFY(!tool.running());
   delete mol;
 }
 

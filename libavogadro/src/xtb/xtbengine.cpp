@@ -16,8 +16,14 @@
 #include "xtbengine.h"
 
 #include "xtbparams.h"
+#include "molecule.h"
+#include "atom.h"
 
 #include <QtGlobal>
+#include <thread>
+#include <QReadWriteLock>
+#include <cmath>
+#include <limits>
 
 namespace Avogadro {
 
@@ -50,6 +56,7 @@ XtbEngine::XtbEngine(QObject* parent)
   , m_calc(nullptr)
   , m_results(nullptr)
   , m_objectsCreated(false)
+  , m_molecule(nullptr)
   , m_method(1)
   , m_level(4)
   , m_threadsSetting(0)
@@ -70,6 +77,8 @@ XtbEngine::XtbEngine(QObject* parent)
   , m_lastEvalCount(0)
   , m_coordsValid(false)
   , m_quiesced(false)
+  , m_evalFailed(false)
+  , m_setupBroken(false)
 {
 }
 
@@ -119,11 +128,19 @@ bool XtbEngine::setup(const std::vector<int>& atomicNumbers,
   m_converged = false;
   m_lastEvalCount = 0;
   m_quiesced = false;
+  // A fresh session must not inherit a failed-evaluation latch from a
+  // previous one (design D4), nor a setup-broken latch (D2/D4: a failed
+  // re-establishment in a prior session must not poison a fresh setup).
+  m_evalFailed = false;
+  m_evalFailureReason.clear();
+  m_setupBroken = false;
   // A fresh session must not inherit the stop flag from a previous one; reset
   // it here so a re-setup after quiescing starts cleanly (not immediately
   // exiting run() because the prior stop() left the flag set).
   m_stop.storeRelaxed(0);
   m_lbfgs.resetHistory();
+  // A fresh setup must not carry a stale drag index from a previous session.
+  m_draggedIndex = -1;
 
   // Neutral closed-shell, non-periodic molecule.
   m_charge = 0.0;
@@ -161,6 +178,39 @@ bool XtbEngine::setup(const std::vector<int>& atomicNumbers,
   return true;
 }
 
+bool XtbEngine::setupFromMolecule(Molecule* molecule, int method, int level,
+                                  int threadsSetting)
+{
+  if (molecule == nullptr) {
+    return false;
+  }
+
+  // Snapshot the live molecule's topology and positions (A) under the read
+  // lock, then hand the headless setup the vectors. The worker later re-reads
+  // the live molecule per tick for re-baselining (design D2).
+  std::vector<int> numbers;
+  std::vector<double> positionsAngstrom;
+  {
+    QReadLocker locker(molecule->lock());
+    const int n = molecule->numAtoms();
+    numbers.reserve(static_cast<size_t>(n));
+    positionsAngstrom.reserve(static_cast<size_t>(n) * 3);
+    foreach (const Atom* atom, molecule->atoms()) {
+      numbers.push_back(atom->atomicNumber());
+      const Eigen::Vector3d& p = *atom->pos();
+      positionsAngstrom.push_back(p.x());
+      positionsAngstrom.push_back(p.y());
+      positionsAngstrom.push_back(p.z());
+    }
+  }
+
+  if (!setup(numbers, positionsAngstrom, method, level, threadsSetting)) {
+    return false;
+  }
+  m_molecule = molecule;
+  return true;
+}
+
 void XtbEngine::stop()
 {
   m_stop.storeRelaxed(1);
@@ -179,66 +229,35 @@ void XtbEngine::requestTick()
 void XtbEngine::setDraggedAtom(int index)
 {
   QMutexLocker locker(&m_stateMutex);
-  if (m_draggedIndex != index) {
-    m_draggedIndex = index;
-    m_dragPositionBohr.clear();
-    // A change to the masked set invalidates the quasi-Newton model (D6); the
-    // worker resets the history at the start of the next tick (resetting here
-    // would race the worker's use of the L-BFGS history).
-    m_resetHistoryRequested = true;
-    // Adapt accuracy to the interaction state (D7): dragging uses reduced
-    // accuracy so the pulled structure relaxes responsively.
-    if (index >= 0) {
-      m_interactive = true;
-      m_currentAccuracy = kXtbInteractiveAccuracy;
-      // The drag path is the authority for the grabbed atom while the drag
-      // lasts (spec coordinate write-back): drop any snapshot published
-      // before the drag so a stale in-flight publish cannot regress the
-      // pulled atom.
-      m_coordsValid = false;
-      // A drag resumes an idle (converged/capped) session: the pulled
-      // geometry must be re-evaluated, not left unregistered.
+  if (m_draggedIndex == index) {
+    // No change to the masked set. A continuing drag still resumes an idle
+    // (converged) session so subsequent pointer moves keep registering.
+    if (index >= 0)
       resumeOptimizationLocked();
-    }
-    else {
-      m_interactive = false;
-      m_currentAccuracy = kXtbDefaultAccuracy;
-      // Release: see notifyDragPosition — a converged drag phase must not
-      // leave the session permanently idle after the atom is let go.
-      resumeOptimizationLocked();
-    }
+    return;
   }
-}
-
-void XtbEngine::notifyDragPosition(int index,
-                                   const std::vector<double>& positionBohr)
-{
-  QMutexLocker locker(&m_stateMutex);
-  if (m_draggedIndex != index) {
-    m_draggedIndex = index;
+  m_draggedIndex = index;
+  if (index >= 0) {
+    // Press: the drag path is the authority for this atom's position, which
+    // the worker reads from the live molecule on its per-tick re-baseline
+    // (design D3). Publish the index for gradient zeroing, write-back skip and
+    // the interactive-accuracy switch. The position itself is adopted from the
+    // molecule; a press before the first pointer move reads the atom's
+    // pre-drag position, which is the safe value the spec scenario requires.
     m_resetHistoryRequested = true;
-    if (index >= 0) {
-      m_interactive = true;
-      m_currentAccuracy = kXtbInteractiveAccuracy;
-      m_coordsValid = false;
-      resumeOptimizationLocked();
-    }
-    else {
-      m_interactive = false;
-      m_currentAccuracy = kXtbDefaultAccuracy;
-      // The release resumes covering the released atom from where the drag
-      // left it (spec "Drag ends"): if the masked drag phase converged, the
-      // latch must clear so optimization restarts from the released geometry.
-      resumeOptimizationLocked();
-    }
-  }
-  else if (index >= 0) {
-    // Repeated moves of an already-dragged atom: still resume an idle
-    // session (a drag continuing past convergence must keep registering
-    // pointer positions).
+    m_interactive = true;
+    m_currentAccuracy = kXtbInteractiveAccuracy;
+    m_coordsValid = false;
     resumeOptimizationLocked();
   }
-  m_dragPositionBohr = positionBohr;
+  else {
+    // Release: clear the mask, restore full accuracy, and resume covering the
+    // released atom from where the drag left it (spec "Drag ends").
+    m_interactive = false;
+    m_currentAccuracy = kXtbDefaultAccuracy;
+    m_resetHistoryRequested = true;
+    resumeOptimizationLocked();
+  }
 }
 
 void XtbEngine::resumeOptimizationLocked()
@@ -398,27 +417,37 @@ void XtbEngine::destroyObjects()
 double XtbEngine::evaluateOnce(const std::vector<double>& coords,
                                std::vector<double>& grad)
 {
+  // Defensive guard (D2/D4): never call into the xTB objects when they are
+  // not created. A failed mid-session re-establishment destroys them and
+  // latches m_setupBroken; if any path still reaches here (the latch is the
+  // primary gate), calling xtb_setAccuracy()/xtb_singlepoint() on a null
+  // environment is an access violation inside libxtb. Treat the tick as a
+  // contained failure instead of a crash.
+  if (!m_objectsCreated || m_env == nullptr) {
+    latchEvaluationFailure(
+      QStringLiteral("xTB objects unavailable (setup broken); restart the session"));
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+
   int di = -1;
-  std::vector<double> dragPos;
   double accuracy = kXtbDefaultAccuracy;
   int maxIter = kXtbDefaultMaxIter;
   {
     QMutexLocker locker(&m_stateMutex);
     di = m_draggedIndex;
-    if (di >= 0) {
-      dragPos = m_dragPositionBohr;
-    }
     accuracy = m_currentAccuracy;
     maxIter = m_interactive ? kXtbInteractiveMaxIter : kXtbDefaultMaxIter;
   }
 
-  // Pin the dragged atom to the pointer-authored position before the SCF.
+  // The dragged atom's working coordinate already equals the pointer position:
+  // the worker's per-tick re-baseline copies it from the live molecule (design
+  // D3), and the line-search direction for the masked atom is zero (its
+  // gradient is zeroed below), so the trial coordinates leave it where the
+  // pointer put it. There is no separate drag-position side channel to read or
+  // to guard — the molecule is the drag authority, so a press before the first
+  // pointer move evaluates the atom at its pre-drag position (the safe value
+  // the spec scenario requires) and never dereferences an empty vector.
   std::vector<double> pinned = coords;
-  if (di >= 0 && static_cast<size_t>(di * 3 + 2) < pinned.size()) {
-    for (int k = 0; k < 3; ++k) {
-      pinned[di * 3 + k] = dragPos[k];
-    }
-  }
 
   double energy = 0.0;
   {
@@ -427,8 +456,46 @@ double XtbEngine::evaluateOnce(const std::vector<double>& coords,
     XtbApi::xtb_setMaxIter()(m_env, m_calc, maxIter);
     XtbApi::xtb_updateMolecule()(m_env, m_mol, pinned.data(), nullptr);
     XtbApi::xtb_singlepoint()(m_env, m_mol, m_calc, m_results);
+
+    // Design D4: after every singlepoint, check the xTB environment. A failed
+    // SCF (for example a dissociated geometry the method cannot converge)
+    // leaves the environment in an error state; the diagnostic is surfaced and
+    // the tick is treated as failed.
+    if (XtbApi::xtb_checkEnvironment()(m_env) != 0) {
+      int bufsize = kErrorBufferSize;
+      char buffer[kErrorBufferSize];
+      XtbApi::xtb_getError()(m_env, buffer, &bufsize);
+      QString reason = QString::fromLatin1(buffer);
+      if (reason.isEmpty()) {
+        reason = QStringLiteral("xTB singlepoint failed");
+      }
+      latchEvaluationFailure(reason);
+      return std::numeric_limits<double>::quiet_NaN();
+    }
+
     XtbApi::xtb_getEnergy()(m_env, m_results, &energy);
     XtbApi::xtb_getGradient()(m_env, m_results, grad.data());
+  }
+
+  // Design D4: independently guard finiteness. A non-finite energy, gradient,
+  // or coordinate must never reach the renderer via a published snapshot.
+  {
+    bool finite = std::isfinite(energy);
+    if (finite) {
+      for (size_t i = 0; i < grad.size() && finite; ++i) {
+        finite = std::isfinite(grad[i]);
+      }
+    }
+    if (finite) {
+      for (size_t i = 0; i < pinned.size() && finite; ++i) {
+        finite = std::isfinite(pinned[i]);
+      }
+    }
+    if (!finite) {
+      latchEvaluationFailure(
+        QStringLiteral("xTB evaluation returned non-finite results"));
+      return std::numeric_limits<double>::quiet_NaN();
+    }
   }
 
   // Zero the dragged atom's gradient so the optimizer treats it as fixed.
@@ -449,32 +516,6 @@ double XtbEngine::evaluateOnce(const std::vector<double>& coords,
   return energy;
 }
 
-void XtbEngine::applyDragToWorkingCoords()
-{
-  QMutexLocker locker(&m_stateMutex);
-  if (m_draggedIndex < 0) {
-    return;
-  }
-  const int idx = m_draggedIndex;
-  const int base = idx * 3;
-  if (base + 3 > static_cast<int>(m_coordsBohr.size()) ||
-      static_cast<int>(m_dragPositionBohr.size()) < 3) {
-    return;
-  }
-  // The optimizer's working coordinate for the dragged atom always equals the
-  // pointer position, so a release resumes covering it from where the drag left
-  // it (D6) and the published coordinate is never regressed (write-back). Zero
-  // its working gradient too: the direction is computed from m_grad at the
-  // start of the step, and a stale (pre-drag) gradient would otherwise move the
-  // pinned atom off the pointer position on the first tick after the drag.
-  for (int k = 0; k < 3; ++k) {
-    m_coordsBohr[base + k] = m_dragPositionBohr[k];
-    if (base + k < static_cast<int>(m_grad.size())) {
-      m_grad[base + k] = 0.0;
-    }
-  }
-}
-
 bool XtbEngine::shouldStop(int evals) const
 {
   if (m_stop.loadRelaxed()) {
@@ -488,6 +529,88 @@ void XtbEngine::publishCoords(const std::vector<double>& coordsBohr)
   emit coordsReady(coordsBohr);
 }
 
+void XtbEngine::writeBackToMolecule()
+{
+  // Headless vector setup (tests) has no live source: nothing to keep in sync.
+  if (m_molecule == nullptr) {
+    return;
+  }
+  // Bounded-retry write acquisition, mirroring readLiveMolecule: retry for a
+  // bounded number of spins yielding, and bail on stop/quiesce so a GUI writer
+  // holding the lock never wedges the worker (and quiesce stays deadlock-free).
+  int spins = 0;
+  while (!m_molecule->lock()->tryLockForWrite()) {
+    if (m_stop.loadRelaxed()) {
+      return;
+    }
+    if (++spins > 4096) {
+      return;
+    }
+    std::this_thread::yield();
+  }
+  // Named-constructor RAII holder that takes ownership of the ALREADY-acquired
+  // lock without re-acquiring (QWriteLocker would deadlock on a non-re-entrant
+  // QReadWriteLock). An explicit constructor is used instead of aggregate init
+  // so this compiles on MSVC, which rejects aggregate-init of a class with a
+  // user-provided destructor (the Windows installer build is strict).
+  struct WriteLockGuard {
+    explicit WriteLockGuard(QReadWriteLock* l) : lock(l) {}
+    ~WriteLockGuard() { if (lock) lock->unlock(); }
+    QReadWriteLock* lock;
+  } writeLockGuard(m_molecule->lock());
+
+  // Guard against a topology change between the read and this write: if the
+  // atom count no longer matches, skip rather than writing out of bounds.
+  const int n = m_molecule->numAtoms();
+  if (n != static_cast<int>(m_coordsBohr.size() / 3)) {
+    return;
+  }
+  // The dragged atom's position is the drag path's authority (the molecule,
+  // driven by the tool's pointer interaction), not the optimizer's. Writing it
+  // back would fight the drag and, worse, race the GUI-thread writer that holds
+  // the same write lock. Skip it, exactly as the tool's write-back does.
+  int dragIndex = -1;
+  {
+    QMutexLocker stateLocker(&m_stateMutex);
+    dragIndex = m_draggedIndex;
+  }
+  // Preserve external edits (design D2): an atom whose position in the live
+  // molecule no longer matches the snapshot read at the start of this tick was
+  // changed externally (another tool, undo, a drag by another surface) after
+  // the worker read it. Writing the optimizer's working coords back would
+  // clobber that edit before the next tick could adopt it (the edit must win
+  // and start a fresh phase). Skip such atoms; the next tick's re-baseline
+  // diff (molecule vs m_coordsBohr) sees the edit and adopts it.
+  constexpr double kEditEpsilonBohr = 1e-6;
+  const bool haveSnapshot =
+    m_readSnapshotBohr.size() == m_coordsBohr.size();
+  for (int i = 0; i < n; ++i) {
+    if (i == dragIndex) {
+      continue;
+    }
+    if (haveSnapshot) {
+      bool externallyEdited = false;
+      for (int k = 0; k < 3; ++k) {
+        const double currentBohr =
+          m_molecule->atoms().at(i)->pos()->coeff(k) * kAngstromToBohr;
+        if (std::abs(currentBohr - m_readSnapshotBohr[i * 3 + k]) >
+            kEditEpsilonBohr) {
+          externallyEdited = true;
+          break;
+        }
+      }
+      if (externallyEdited) {
+        continue;
+      }
+    }
+    Eigen::Vector3d p(
+      m_coordsBohr[i * 3] * kBohrToAngstrom,
+      m_coordsBohr[i * 3 + 1] * kBohrToAngstrom,
+      m_coordsBohr[i * 3 + 2] * kBohrToAngstrom);
+    m_molecule->atoms().at(i)->setPos(p);
+  }
+}
+
 void XtbEngine::deleteObjectsOnWorker()
 {
   // Guard so the four xTB objects are deleted exactly once, even if run() is
@@ -496,8 +619,184 @@ void XtbEngine::deleteObjectsOnWorker()
     return;
   }
   m_quiesced = true;
+  // The live-molecule source (if any) must not be dereferenced after the
+  // session ends, so drop it here on the worker thread (design D2).
+  m_molecule = nullptr;
   QMutexLocker locker(&m_mutex);
   destroyObjects();
+}
+
+bool XtbEngine::isEvaluationFailedLocked() const
+{
+  return m_evalFailed;
+}
+
+void XtbEngine::latchEvaluationFailure(const QString& reason)
+{
+  // A failed singlepoint latches the phase idle-with-failure (design D4): no
+  // further evaluations for this phase, no publish, and the reason is surfaced
+  // via the evaluationFailed signal. The latch is cleared on Stop/Start (a
+  // fresh setup) or a topology re-establishment (resetPhaseForReBaseline).
+  {
+    QMutexLocker locker(&m_stateMutex);
+    m_evalFailed = true;
+    m_evalFailureReason = reason;
+    m_coordsValid = false;
+  }
+  emit evaluationFailed(reason);
+}
+
+bool XtbEngine::readLiveMolecule(std::vector<int>& numbers,
+                                 std::vector<double>& positionsBohr)
+{
+  // Headless vector setup (tests) has no live source: skip re-baselining.
+  if (m_molecule == nullptr) {
+    return false;
+  }
+
+  // Worker-side read of the live molecule holds the read lock so it cannot
+  // race GUI-thread addAtom/removeAtom/setPos during draw strokes. Acquisition
+  // is bounded (the AutoOptThread::update pattern): retry for a bounded number
+  // of spins, yielding, and bail out immediately on a stop (quiesce) or when
+  // the retry budget is exhausted. A GUI writer holding the write lock must
+  // never wedge the worker here during quiesce.
+  int spins = 0;
+  while (!m_molecule->lock()->tryLockForRead()) {
+    if (m_stop.loadRelaxed()) {
+      return false;
+    }
+    if (++spins > 4096) {
+      return false;
+    }
+    std::this_thread::yield();
+  }
+
+  // Named-constructor RAII holder that takes ownership of the ALREADY-acquired
+  // lock without re-acquiring (QReadLocker would deadlock on a non-re-entrant
+  // QReadWriteLock). An explicit constructor is used instead of aggregate init
+  // so this compiles on MSVC, which rejects aggregate-init of a class with a
+  // user-provided destructor (the Windows installer build is strict).
+  struct ReadLockGuard {
+    explicit ReadLockGuard(QReadWriteLock* l) : lock(l) {}
+    ~ReadLockGuard() { if (lock) lock->unlock(); }
+    QReadWriteLock* lock;
+  } readLockGuard(m_molecule->lock());
+
+  const int n = m_molecule->numAtoms();
+  numbers.clear();
+  numbers.reserve(static_cast<size_t>(n));
+  positionsBohr.clear();
+  positionsBohr.reserve(static_cast<size_t>(n) * 3);
+  foreach (const Atom* atom, m_molecule->atoms()) {
+    numbers.push_back(atom->atomicNumber());
+    const Eigen::Vector3d& p = *atom->pos();
+    positionsBohr.push_back(p.x() * kAngstromToBohr);
+    positionsBohr.push_back(p.y() * kAngstromToBohr);
+    positionsBohr.push_back(p.z() * kAngstromToBohr);
+  }
+  return true;
+}
+
+void XtbEngine::resetPhaseForReBaseline()
+{
+  // A topology/position change re-baselines the optimizer: drop the
+  // quasi-Newton history, clear the baseline, zero the eval counter, and clear
+  // the converged/capped idle latch so the next tick evaluates from the
+  // current geometry (design D2). Worker-thread only.
+  m_lbfgs.resetHistory();
+  m_initialEvalDone = false;
+  m_evals = 0;
+  m_resetHistoryRequested = false;
+  {
+    QMutexLocker locker(&m_stateMutex);
+    m_converged = false;
+    // A topology change or a re-established session clears a failed-evaluation
+    // latch so the new phase evaluates normally (design D4 recovery path).
+    m_evalFailed = false;
+    m_evalFailureReason.clear();
+  }
+}
+
+bool XtbEngine::reestablishForTopology(const std::vector<int>& numbers,
+                                       const std::vector<double>& positionsBohr)
+{
+  // Worker-side re-establishment (design D2): exactly one destroy/recreate of
+  // the four xTB objects per topology change, under m_mutex (the GUI thread
+  // never locks m_mutex after setup). Re-validate elements and re-load the
+  // method; a failure routes to the failed-setup latch (no per-tick retries).
+  QMutexLocker locker(&m_mutex);
+  destroyObjects();
+  m_numbers = numbers;
+  m_coordsBohr = positionsBohr;
+  m_grad.assign(m_coordsBohr.size(), 0.0);
+  // The topology changed, so the grabbed atom may no longer exist (or its
+  // index may have shifted). Drop the drag mask so the re-established session
+  // starts clean; the next pointer interaction re-arms it.
+  {
+    QMutexLocker stateLocker(&m_stateMutex);
+    m_draggedIndex = -1;
+    m_interactive = false;
+    m_currentAccuracy = kXtbDefaultAccuracy;
+  }
+  if (!validateElements()) {
+    return false;
+  }
+  if (!createObjects()) {
+    return false;
+  }
+  if (!loadMethod()) {
+    destroyObjects();
+    return false;
+  }
+  // Exactly one re-establishment: reset the optimizer phase for the new
+  // topology (history, baseline, eval counter, converged latch), and clear the
+  // setup-broken latch so a previously failed re-establishment (which left the
+  // objects destroyed) no longer idles the phase. The objects now exist and
+  // are valid, so the phase can evaluate again.
+  {
+    QMutexLocker stateLocker(&m_stateMutex);
+    m_setupBroken = false;
+  }
+  resetPhaseForReBaseline();
+  emit sessionReestablished(static_cast<int>(numbers.size()));
+  return true;
+}
+
+bool XtbEngine::adoptExternalPositions(const std::vector<double>& livePositionsBohr)
+{
+  if (livePositionsBohr.size() != m_coordsBohr.size()) {
+    return false;
+  }
+  // Read the drag index under the state mutex (excluded from the diff).
+  int dragIndex = -1;
+  {
+    QMutexLocker locker(&m_stateMutex);
+    dragIndex = m_draggedIndex;
+  }
+  // Diff against the session's working coords with an epsilon above unit
+  // round-trip noise (~1e-6 bohr), excluding the dragged atom (the drag path
+  // is the authority for that atom, so its motion is not an external edit).
+  // A position-only change authored outside the session is adopted as the
+  // starting geometry of a fresh optimization phase and is NOT reverted by
+  // subsequent write-backs (spec scenario "External position edit").
+  constexpr double kPositionEpsilonBohr = 1e-6;
+  bool changed = false;
+  for (int i = 0; i < static_cast<int>(m_coordsBohr.size()); ++i) {
+    const int atomIndex = i / 3;
+    if (atomIndex == dragIndex) {
+      continue;
+    }
+    if (std::abs(livePositionsBohr[i] - m_coordsBohr[i]) > kPositionEpsilonBohr) {
+      changed = true;
+      break;
+    }
+  }
+  if (changed) {
+    m_coordsBohr = livePositionsBohr;
+    m_grad.assign(m_coordsBohr.size(), 0.0);
+    resetPhaseForReBaseline();
+  }
+  return changed;
 }
 
 void XtbEngine::run()
@@ -523,11 +822,6 @@ void XtbEngine::run()
       m_tickPending = false;
     }
 
-    // Keep the optimizer's working coordinates in sync with the drag: the
-    // dragged atom's coordinate equals the pointer position, so a release
-    // resumes covering it from where the drag left it.
-    applyDragToWorkingCoords();
-
     // Apply any deferred L-BFGS history reset (drag start/end, interactive
     // toggle) on the worker thread, where the history is actually used.
     {
@@ -538,20 +832,101 @@ void XtbEngine::run()
       }
     }
 
+    // Design D2: re-baseline from the live molecule when a source is set. The
+    // worker reads the live molecule each tick (bounded-retry read lock) and
+    // reacts to a topology change (worker-side re-establishment) or an
+    // external position change (fresh phase). Placed BEFORE the converged
+    // latch so an external move after convergence resumes the session.
+    if (m_molecule) {
+      std::vector<int> liveNumbers;
+      std::vector<double> livePositionsBohr;
+      // A failed read (lock contention/quiesce) leaves no valid snapshot for
+      // this tick: clear it so the write-back cannot use a stale one to skip
+      // atoms it should actually update.
+      m_readSnapshotBohr.clear();
+      if (!readLiveMolecule(liveNumbers, livePositionsBohr)) {
+        // No live source was read this tick (lock not acquired within the
+        // retry budget, or a stop was requested). Proceeding to evaluate and
+        // then write back would run an UNPROTECTED write (no snapshot to skip
+        // externally-changed atoms), so skip the whole tick: do not evaluate,
+        // do not publish, do not write back. This also shortens quiesce.
+        continue;
+      }
+      {
+        // Record the read snapshot so this tick's write-back can distinguish
+        // the optimizer's own advance (no external edit: atom still matches the
+        // snapshot) from a genuine external edit made between the read and the
+        // write-back (atom changed: skip it, preserve the edit).
+        m_readSnapshotBohr = livePositionsBohr;
+        if (liveNumbers != m_numbers) {
+          if (!reestablishForTopology(liveNumbers, livePositionsBohr)) {
+            // Failed-setup latch: deterministic, no per-tick retries. The xTB
+            // objects were destroyed and could not be recreated, so the phase
+            // is BROKEN, not merely idle. Set m_setupBroken (NOT m_converged):
+            // m_converged is cleared by a drag or position edit
+            // (resumeOptimizationLocked/resetPhaseForReBaseline), which would
+            // otherwise make the next evaluateOnce() call into the destroyed
+            // (null) xTB objects and crash. m_setupBroken is cleared only by a
+            // successful setup()/setupFromMolecule() or reestablishForTopology().
+            QMutexLocker locker(&m_stateMutex);
+            m_setupBroken = true;
+            m_coordsValid = false;
+            continue;
+          }
+        }
+        else {
+          adoptExternalPositions(livePositionsBohr);
+          // Design D3: the dragged atom's position is the pointer position,
+          // which lives in the live molecule. Copy it into the working coords
+          // so the optimizer and the published snapshot track the pointer. A
+          // pure drag moves only this atom, so adoptExternalPositions' (non-
+          // dragged) change detection would not carry it; this copy is the
+          // drag path, not an external edit, so it does not reset the phase.
+          {
+            QMutexLocker locker(&m_stateMutex);
+            const int di = m_draggedIndex;
+            if (di >= 0 && di * 3 + 2 < static_cast<int>(m_coordsBohr.size()) &&
+                di * 3 + 2 < static_cast<int>(livePositionsBohr.size())) {
+              for (int k = 0; k < 3; ++k) {
+                m_coordsBohr[di * 3 + k] = livePositionsBohr[di * 3 + k];
+                // Mask the dragged atom's working gradient (worker-only state).
+                // Without this, the dragged atom's gradient would jump from its
+                // pre-grab value to zero across the step, storing a non-zero
+                // curvature pair for that atom in the L-BFGS history and
+                // continuously nudging the pinned atom off the pointer.
+                if (static_cast<size_t>(di * 3 + k) < m_grad.size()) {
+                  m_grad[di * 3 + k] = 0.0;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     // A converged (or capped) session idles: ticks are consumed without
     // evaluating, so CPU use stays at idle while the session stays open.
     // A user drag clears the latch (resumeOptimizationLocked), which both
     // re-arms the optimizer and makes the next tick re-baseline from the
-    // dragged geometry.
+    // dragged geometry. A failed-evaluation phase (D4) idles the same way. A
+    // setup-broken phase (D2/D4) also idles — and unlike the converged latch,
+    // m_setupBroken is NOT cleared by a drag/position edit, because the xTB
+    // objects are destroyed and the phase cannot evaluate without crashing.
     {
       QMutexLocker locker(&m_stateMutex);
-      if (m_converged)
+      if (m_converged || m_evalFailed || m_setupBroken)
         continue;
     }
 
     if (!m_initialEvalDone) {
       // First singlepoint: establish the energy/gradient baseline.
       m_energy = evaluateOnce(m_coordsBohr, m_grad);
+      // A failed baseline latches the phase idle-with-failure; the tick
+      // publishes nothing (evaluateOnce clears m_coordsValid) and the next
+      // loop iteration is skipped by the failure latch above.
+      if (std::isnan(m_energy)) {
+        continue;
+      }
       m_evals = 1;
       m_gnorm = m_lbfgs.gradNorm(m_grad);
       m_initialEvalDone = true;
@@ -561,6 +936,11 @@ void XtbEngine::run()
       }
       emit progress(m_evals, m_maxEvaluations, m_energy);
       publishCoords(m_coordsBohr);
+      // Keep the live molecule in sync with the working geometry (design D2) so
+      // the next tick's re-baseline comparison (molecule vs m_coordsBohr) sees
+      // no spurious change while the optimizer advances; only a genuine external
+      // edit then resets the phase. Guarded inside by m_molecule.
+      writeBackToMolecule();
 
       if (m_gnorm < m_threshold || shouldStop(m_evals)) {
         // Converged (or immediately capped) on the baseline: latch the idle
@@ -588,6 +968,16 @@ void XtbEngine::run()
       },
       [this](int evals) -> bool { return shouldStop(evals); });
 
+    // Design D4: if any trial evaluation latched a failure, the phase is
+    // idle-with-failure; publish nothing and skip the rest of this tick (the
+    // next loop iteration is skipped by the failure latch).
+    {
+      QMutexLocker locker(&m_stateMutex);
+      if (m_evalFailed) {
+        continue;
+      }
+    }
+
     bool reportConverged = false;
     {
       QMutexLocker locker(&m_stateMutex);
@@ -599,6 +989,10 @@ void XtbEngine::run()
     }
     emit progress(m_evals, m_maxEvaluations, m_energy);
     publishCoords(m_coordsBohr);
+    // Keep the live molecule in sync with the optimized working geometry so the
+    // next tick's re-baseline does not mistake the optimizer's own advance for
+    // an external edit (design D2). Guarded inside by m_molecule.
+    writeBackToMolecule();
 
     if (!cont && m_gnorm >= m_threshold && !m_stop.loadRelaxed()) {
       // step() exhausted a stop condition before reaching the threshold:

@@ -240,6 +240,7 @@ namespace Avogadro {
       double                    m_xtbEnergyHartree;   // last reported energy (HUD)
       int                       m_xtbMethod;    // active xTB method (HUD name)
       QString                   m_xtbSetupFailedReason;   // failed-setup HUD text
+      QString                   m_xtbEvalFailedReason;   // failed-evaluation HUD text
       bool                      m_xtbConverged;   // HUD: last xTB session converged
 
       std::vector<std::string>  m_forceFieldList;
@@ -303,6 +304,8 @@ namespace Avogadro {
       void handleXtbProgress(int evaluation, int maxEvaluations, double energyHartree);
       void handleXtbConverged(double finalEnergyHartree);
       void handleXtbSetupFailed(const QString& reason);
+      void handleXtbEvaluationFailed(const QString& reason);
+      void handleXtbSessionReestablished(int atomCount);
   };
 
   class AutoOptCommand : public QUndoCommand

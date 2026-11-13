@@ -5,6 +5,9 @@
 #include "xtb/xtbengine.h"
 #include "xtb/xtbparams.h"
 
+#include "molecule.h"
+#include "atom.h"
+
 #include <QSignalSpy>
 #include <QTimer>
 
@@ -13,6 +16,15 @@
 
 using Avogadro::XtbApi;
 using Avogadro::XtbEngine;
+using Avogadro::Molecule;
+using Avogadro::Atom;
+
+// Forward declarations: these helpers are defined below the tests that use
+// them (they build a live molecule the engine reads on its per-tick re-baseline).
+static Molecule* makeMoleculeFrom(const std::vector<int>& numbers,
+                                  const std::vector<double>& positionsAng);
+static Molecule* makeWaterMolecule();
+static Molecule* makeDistortedWaterMolecule();
 
 class XtbEngineTest : public QObject
 {
@@ -28,11 +40,18 @@ private slots:
   void dragAfterConvergenceResumesEvaluation();
   void draggedAtomPinnedDuringOptimization();
   void dragReleaseResumesCoverage();
+  void pressWithoutPositionDoesNotCrash();
   void interactiveTogglesAccuracy();
   void threadsEnvAutoRespectsClamp();
   void gfnffWaterSetupWhenParamsAvailable();
   void gfnffWithoutParamsFailsDeterministically();
   void immediateStopIsSafe();
+  void moleculeSourceAddAtomReestablishesOnce();
+  void moleculeSourceRemoveAtomSurvivorsPublish();
+  void moleculeSourceElementChangeEvaluated();
+  void moleculeSourceExternalMoveAdoptsFreshPhase();
+  void moleculeSourceUnsupportedElementLatchOnce();
+  void failedEvaluationPublishesNothingAndLatches();
 };
 
 // Water geometry in angstrom: O at origin, H1 at (0,0,1.0), H2 at (0,0.1,-1.0).
@@ -279,9 +298,10 @@ void XtbEngineTest::dragAfterConvergenceResumesEvaluation()
   }
   const double bohr2ang = 0.52917721092;
 
+  Molecule* mol = makeDistortedWaterMolecule();
   XtbEngine engine;
-  QVERIFY(engine.setup(waterNumbers(), waterPositionsDistortedAng(),
-                       /*method=*/1, /*level=*/4, /*threads=*/0));
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
 
   std::vector<double> lastCoords;
   bool converged = false;
@@ -309,11 +329,14 @@ void XtbEngineTest::dragAfterConvergenceResumesEvaluation()
 
   // Pull a hydrogen after convergence: the session must resume evaluating
   // (pre-fix behavior: the worker had exited and the pull was unregistered,
-  // forcing the user to restart the optimization).
+  // forcing the user to restart the optimization). Write the pointer position
+  // into the live molecule (drag authority, design D3) and mask the atom.
   const double pullZAng = 2.5;
-  const std::vector<double> pullBohr = { 0.0, 0.0, pullZAng / bohr2ang };
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, pullZAng));
+  }
   engine.setDraggedAtom(1);
-  engine.notifyDragPosition(1, pullBohr);
 
   QTRY_VERIFY_WITH_TIMEOUT(progressCount > progressAtConvergence, 15000);
 
@@ -335,6 +358,7 @@ void XtbEngineTest::dragAfterConvergenceResumesEvaluation()
   tickTimer.stop();
   engine.stop();
   engine.wait(10000);
+  delete mol;
 }
 
 void XtbEngineTest::draggedAtomPinnedDuringOptimization()
@@ -344,12 +368,11 @@ void XtbEngineTest::draggedAtomPinnedDuringOptimization()
   }
   const double bohr2ang = 0.52917721092;
   const double dragAngZ = 2.0;
-  const double dragBohrZ = dragAngZ / bohr2ang; // 2.0 A in bohr
-  std::vector<double> dragPos = { 0.0, 0.0, dragBohrZ };
 
+  Molecule* mol = makeWaterMolecule();
   XtbEngine engine;
-  QVERIFY(engine.setup(waterNumbers(), waterPositionsAng(), /*method=*/1,
-                       /*level=*/4, /*threads=*/0));
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
 
   std::vector<double> lastCoords;
   int coordsCount = 0;
@@ -365,7 +388,11 @@ void XtbEngineTest::draggedAtomPinnedDuringOptimization()
   QObject::connect(&tickTimer, &QTimer::timeout, [&]() {
     engine.requestTick();
     if (dragActive) {
-      engine.notifyDragPosition(1, dragPos);
+      // Keep the dragged atom's position in the live molecule at the pointer
+      // position (drag authority, design D3) so the worker reads it on its
+      // per-tick re-baseline.
+      QWriteLocker locker(mol->lock());
+      mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, dragAngZ));
     }
   });
   tickTimer.start(30);
@@ -376,7 +403,11 @@ void XtbEngineTest::draggedAtomPinnedDuringOptimization()
 
   dragActive = true;
   engine.setDraggedAtom(1);
-  engine.notifyDragPosition(1, dragPos);
+  // Write the pointer position into the molecule so the next tick adopts it.
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, dragAngZ));
+  }
 
   // Wait for >= 3 further evaluations under the drag.
   int target = coordsCount + 3;
@@ -402,6 +433,7 @@ void XtbEngineTest::draggedAtomPinnedDuringOptimization()
 
   engine.stop();
   engine.wait(10000);
+  delete mol;
 }
 
 void XtbEngineTest::dragReleaseResumesCoverage()
@@ -410,12 +442,12 @@ void XtbEngineTest::dragReleaseResumesCoverage()
     QSKIP("xTB runtime library not available");
   }
   const double bohr2ang = 0.52917721092;
-  const double dragBohrZ = 2.0 / bohr2ang;
-  std::vector<double> dragPos = { 0.0, 0.0, dragBohrZ };
+  const double dragAngZ = 2.0;
 
+  Molecule* mol = makeWaterMolecule();
   XtbEngine engine;
-  QVERIFY(engine.setup(waterNumbers(), waterPositionsAng(), /*method=*/1,
-                       /*level=*/4, /*threads=*/0));
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
 
   std::vector<double> lastCoords;
   int coordsCount = 0;
@@ -431,7 +463,11 @@ void XtbEngineTest::dragReleaseResumesCoverage()
   QObject::connect(&tickTimer, &QTimer::timeout, [&]() {
     engine.requestTick();
     if (dragActive) {
-      engine.notifyDragPosition(1, dragPos);
+      // Keep the dragged atom's position in the live molecule at the pointer
+      // position (drag authority, design D3) so the worker reads it on its
+      // per-tick re-baseline.
+      QWriteLocker locker(mol->lock());
+      mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, dragAngZ));
     }
   });
   tickTimer.start(30);
@@ -441,7 +477,11 @@ void XtbEngineTest::dragReleaseResumesCoverage()
   // Drag atom 1 to (0,0,2.0) A and hold it for >= 3 evaluations.
   dragActive = true;
   engine.setDraggedAtom(1);
-  engine.notifyDragPosition(1, dragPos);
+  // Write the pointer position into the molecule so the next tick adopts it.
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, dragAngZ));
+  }
   int pinnedTarget = coordsCount + 3;
   QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= pinnedTarget, 30000);
   double pinnedH1z = lastCoords[5] * bohr2ang;
@@ -460,6 +500,87 @@ void XtbEngineTest::dragReleaseResumesCoverage()
 
   engine.stop();
   engine.wait(10000);
+  delete mol;
+}
+
+// Design D1 regression: the cdb crash (evaluateOnce+0x18b, mov rax,[rbx] with
+// rbx=0) is a read through an empty std::vector's null data pointer in the pin
+// loop. It happens when a tick fires in the press->first-move window: the
+// dragged index is set but no pointer position has been authored. This test
+// reproduces that exact state (setDraggedAtom with no pointer position
+// authored) and asserts the process survives and coordinates still publish.
+void XtbEngineTest::pressWithoutPositionDoesNotCrash()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+
+  Molecule* mol = makeWaterMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  std::vector<double> lastCoords;
+  bool gotCoords = false;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>& c) {
+                     lastCoords = c;
+                     gotCoords = true;
+                   });
+
+  engine.start(QThread::LowPriority);
+
+  // Drive ticks with a timer (the worker only evaluates on requestTick).
+  QTimer tickTimer;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() { engine.requestTick(); });
+  tickTimer.start(30);
+
+  // Wait for at least one evaluation so the worker is actively ticking, then
+  // reproduce the crash precondition: an index published with NO authored
+  // position (the press->first-move window). Pre-fix, the next tick's pin loop
+  // reads element 0 of the empty m_dragPositionBohr and faults. Now the
+  // dragged atom's position comes from the live molecule, so a press before
+  // the first pointer move reads the atom's pre-drag position (the safe value)
+  // and never dereferences an empty vector.
+  QTRY_VERIFY_WITH_TIMEOUT(gotCoords, 5000);
+  engine.setDraggedAtom(0);
+
+  // Pump several ticks across the empty-position window. The process must not
+  // crash and coordinates must keep publishing (the session is not killed).
+  QSignalSpy coordsSpy(&engine, &XtbEngine::coordsReady);
+  for (int i = 0; i < 6; ++i) {
+    QTest::qWait(30);
+  }
+
+  // No crash occurred (we reached here); coords still published after the
+  // empty-position ticks.
+  QTRY_VERIFY_WITH_TIMEOUT(coordsSpy.count() >= 1, 5000);
+  QCOMPARE(static_cast<int>(lastCoords.size()), 9);
+
+  // Once a pointer position IS authored, the drag promotes and the atom pins.
+  // Use a moderate displacement (0.5 A): the extreme 2.0 A pull used by other
+  // drag tests dissociates the geometry and now legitimately triggers the D4
+  // SCF-failure containment (that behavior is covered by the containment test).
+  const double bohr2ang = 0.52917721092;
+  const double dragAngZ = 0.5;
+  // Write the pointer position into the live molecule (drag authority, design
+  // D3); the worker reads it on the next tick's re-baseline.
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(0)->setPos(Eigen::Vector3d(0.0, 0.0, dragAngZ));
+  }
+  // After the position is authored the drag promotes and the atom pins. Water
+  // converges shortly after the pin, so a modest advance (not an unbounded
+  // count) is the deterministic check.
+  int pinnedTarget = coordsSpy.count() + 2;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsSpy.count() >= pinnedTarget, 30000);
+  // Atom 0 (O) pinned at z = 0.5 A.
+  QVERIFY(std::abs(lastCoords[2] * bohr2ang - dragAngZ) < 1e-6);
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
 }
 
 void XtbEngineTest::interactiveTogglesAccuracy()
@@ -555,6 +676,404 @@ void XtbEngineTest::immediateStopIsSafe()
     QVERIFY(engine.setup(waterNumbers(), waterPositionsAng(), /*method=*/1,
                          /*level=*/4, /*threads=*/0));
   }
+}
+
+// Build a live water molecule (O at origin, H at +z, H at -z/0.1).
+// Build a live molecule from flat atomic numbers and Å positions. The engine's
+// per-tick re-baseline reads this molecule under its read lock, so the tests
+// mutate it (under the write lock) to simulate drags and external edits.
+static Molecule* makeMoleculeFrom(const std::vector<int>& numbers,
+                                  const std::vector<double>& positionsAng)
+{
+  Molecule* mol = new Molecule;
+  for (int i = 0; i < static_cast<int>(numbers.size()); ++i) {
+    Atom* a = mol->addAtom();
+    a->setAtomicNumber(numbers[i]);
+    a->setPos(Eigen::Vector3d(positionsAng[i * 3], positionsAng[i * 3 + 1],
+                              positionsAng[i * 3 + 2]));
+  }
+  return mol;
+}
+
+static Molecule* makeWaterMolecule()
+{
+  Molecule* mol = makeMoleculeFrom(waterNumbers(), waterPositionsAng());
+  mol->addBond(0, 1, 1);
+  mol->addBond(0, 2, 1);
+  return mol;
+}
+
+static Molecule* makeDistortedWaterMolecule()
+{
+  return makeMoleculeFrom(waterNumbers(), waterPositionsDistortedAng());
+}
+
+// Design D2 re-baseline: adding an atom mid-session must trigger exactly one
+// worker-side re-establishment and the new atom must join the evaluation
+// (published coords grow to include it).
+void XtbEngineTest::moleculeSourceAddAtomReestablishesOnce()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  Molecule* mol = makeWaterMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  QSignalSpy reestablSpy(&engine, &XtbEngine::sessionReestablished);
+  std::vector<double> lastCoords;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>& c) { lastCoords = c; });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() { engine.requestTick(); });
+  tickTimer.start(30);
+
+  // Let the initial 3-atom session evaluate a few times.
+  QTRY_VERIFY_WITH_TIMEOUT(lastCoords.size() == 9, 5000);
+
+  // Add a hydrogen mid-session, under the write lock (the worker reads the
+  // molecule under the read lock during its tick).
+  {
+    QWriteLocker locker(mol->lock());
+    Atom* h = mol->addAtom();
+    h->setAtomicNumber(1);
+    h->setPos(Eigen::Vector3d(0.0, -1.0, 0.0));
+  }
+
+  // The new topology must be re-established exactly once and evaluated.
+  QTRY_VERIFY_WITH_TIMEOUT(reestablSpy.count() >= 1, 5000);
+  QCOMPARE(reestablSpy.count(), 1);
+  QCOMPARE(reestablSpy.first().at(0).toInt(), 4);
+  // Published coords now carry 4 atoms (12 doubles).
+  QTRY_VERIFY_WITH_TIMEOUT(lastCoords.size() == 12, 5000);
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+// Design D2 re-baseline: removing an atom mid-session re-establishes on the
+// reduced topology exactly once, and the surviving atoms keep publishing.
+void XtbEngineTest::moleculeSourceRemoveAtomSurvivorsPublish()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  Molecule* mol = makeWaterMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  QSignalSpy reestablSpy(&engine, &XtbEngine::sessionReestablished);
+  std::vector<double> lastCoords;
+  int coordsCount = 0;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>& c) {
+                     lastCoords = c;
+                     ++coordsCount;
+                   });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() { engine.requestTick(); });
+  tickTimer.start(30);
+
+  QTRY_VERIFY_WITH_TIMEOUT(lastCoords.size() == 9, 5000);
+
+  // Remove a hydrogen (index 1).
+  {
+    QWriteLocker locker(mol->lock());
+    mol->removeAtom(1);
+  }
+
+  QTRY_VERIFY_WITH_TIMEOUT(reestablSpy.count() >= 1, 5000);
+  QCOMPARE(reestablSpy.count(), 1);
+  // Reduced topology: 2 atoms -> 6 doubles, and survivors keep publishing.
+  QTRY_VERIFY_WITH_TIMEOUT(lastCoords.size() == 6, 5000);
+  int target = coordsCount + 2;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= target, 10000);
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+// Design D2 re-baseline: changing an atom's element mid-session re-establishes
+// and the new element is evaluated (the session does not keep optimizing the
+// old element's Hamiltonian invisibly).
+void XtbEngineTest::moleculeSourceElementChangeEvaluated()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  Molecule* mol = makeWaterMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  QSignalSpy reestablSpy(&engine, &XtbEngine::sessionReestablished);
+  std::vector<double> lastCoords;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>& c) { lastCoords = c; });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() { engine.requestTick(); });
+  tickTimer.start(30);
+
+  QTRY_VERIFY_WITH_TIMEOUT(lastCoords.size() == 9, 5000);
+
+  // Change the oxygen (index 0) to carbon.
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(0)->setAtomicNumber(6);
+  }
+
+  QTRY_VERIFY_WITH_TIMEOUT(reestablSpy.count() >= 1, 5000);
+  QCOMPARE(reestablSpy.count(), 1);
+  // Same topology (3 atoms) but new element: re-establishment happens and the
+  // coords keep publishing (the session rebuilt for the new element).
+  int coordsCount = 0;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>&) { ++coordsCount; });
+  int target = coordsCount + 2;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= target, 10000);
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+// Design D2 re-baseline: an external position edit (another tool moving atoms,
+// an undo, a drag by another surface) is adopted as the starting geometry of a
+// fresh phase and is NOT reverted by subsequent write-backs — including after
+// the session had converged.
+void XtbEngineTest::moleculeSourceExternalMoveAdoptsFreshPhase()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  const double bohr2ang = 0.52917721092;
+  Molecule* mol = makeWaterMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  std::vector<double> lastCoords;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>& c) { lastCoords = c; });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() { engine.requestTick(); });
+  tickTimer.start(30);
+
+  QTRY_VERIFY_WITH_TIMEOUT(lastCoords.size() == 9, 5000);
+
+  // Pull H1 (index 1) to z = 1.5 A externally, under the write lock. A moderate
+  // displacement is used: a 3.0 A O-H bond dissociates the geometry and the
+  // baseline singlepoint fails SCF, which is the D4 containment path (covered
+  // by failedEvaluationPublishesNothingAndLatches), not the D2 adoption path
+  // this test verifies. The key behavior is that the moved position is adopted
+  // as the fresh phase's starting geometry and is NOT reverted to the pre-edit
+  // equilibrium by the next write-back.
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, 1.5));
+  }
+
+  // The moved position must be adopted as the fresh phase's starting geometry:
+  // the next write-back does not snap it back toward the pre-edit position.
+  // The threshold is tight (0.3 A) so a pre-fix clobber (which snapped H1 back
+  // to the ~0.967 A equilibrium, |1.5 - 0.967| = 0.53) fails decisively; the
+  // post-fix adoption keeps H1 near the pulled 1.5 A.
+  QTRY_VERIFY_WITH_TIMEOUT(lastCoords.size() == 9, 5000);
+  QTRY_VERIFY_WITH_TIMEOUT(std::abs(lastCoords[5] * bohr2ang - 1.5) < 0.3,
+                           10000);
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+// Design D2/D4: a topology change to an element the selected xTB method does
+// not support (Es, 99, outside GFN2's Z in [1,86]) must fail setup exactly
+// ONCE and latch deterministically — no per-tick destroy/create churn and no
+// repeated setupFailed emissions. The canonical 'Failed setup ends the session
+// deterministically' requirement forbids unbounded per-tick retries.
+void XtbEngineTest::moleculeSourceUnsupportedElementLatchOnce()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  Molecule* mol = makeWaterMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  QSignalSpy reestablSpy(&engine, &XtbEngine::sessionReestablished);
+  QSignalSpy setupFailSpy(&engine, &XtbEngine::setupFailed);
+  std::vector<double> lastCoords;
+  int coordsCount = 0;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>& c) {
+                     lastCoords = c;
+                     ++coordsCount;
+                   });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() { engine.requestTick(); });
+  tickTimer.start(30);
+
+  // Let the session evaluate normally first.
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= 1, 5000);
+
+  // Change the oxygen (index 0) to Es (99), which GFN2-xTB does not support.
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(0)->setAtomicNumber(99);
+  }
+
+  // Exactly one setup failure is emitted (validateElements() rejects the
+  // unsupported element during re-establishment) and the session latches: the
+  // re-establishment is NOT retried per tick, so no further setupFailed.
+  QTRY_VERIFY_WITH_TIMEOUT(setupFailSpy.count() >= 1, 5000);
+  QCOMPARE(setupFailSpy.count(), 1);
+  // The re-establishment attempt is the one that failed; no second one fired.
+  QCOMPARE(reestablSpy.count(), 0);
+
+  // Pump several ticks: the latched phase consumes them without evaluating and
+  // without re-attempting setup (deterministic failed-setup, no per-tick
+  // retries). The setupFailed counter must stay at exactly 1.
+  const int coordsAtFailure = coordsCount;
+  for (int i = 0; i < 10; ++i) {
+    QTest::qWait(40);
+  }
+  QCOMPARE(setupFailSpy.count(), 1);
+  QCOMPARE(reestablSpy.count(), 0);
+  // No coords published from the latched phase.
+  QCOMPARE(coordsCount, coordsAtFailure);
+
+  // Design D2/D4 P0 regression: after a failed re-establishment the xTB objects
+  // are destroyed (m_objectsCreated == false, m_env == nullptr). A position
+  // edit (another tool moving an atom) is adopted as an external change, which
+  // must NOT re-arm the optimizer into evaluating with the destroyed objects
+  // (that would call into a null xTB environment and crash). The phase stays
+  // latched (m_setupBroken), so the next tick is consumed without evaluating
+  // and no coords are published — and the process survives.
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, 1.5));
+  }
+  for (int i = 0; i < 10; ++i) {
+    QTest::qWait(40);
+  }
+  // No crash (we reached here); no coords published; setup still failed once;
+  // no re-establishment succeeded.
+  QCOMPARE(coordsCount, coordsAtFailure);
+  QCOMPARE(setupFailSpy.count(), 1);
+  QCOMPARE(reestablSpy.count(), 0);
+
+  // Drag press also must not re-arm the broken phase.
+  engine.setDraggedAtom(1);
+  for (int i = 0; i < 6; ++i) {
+    QTest::qWait(40);
+  }
+  QCOMPARE(coordsCount, coordsAtFailure);
+  QCOMPARE(setupFailSpy.count(), 1);
+  QCOMPARE(reestablSpy.count(), 0);
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+// Design D4 containment: an evaluation that fails (dissociated geometry -> SCF
+// non-convergence) publishes nothing (takeLatestCoords returns false), latches
+// the phase idle-with-failure, and recovers after Stop/Start.
+void XtbEngineTest::failedEvaluationPublishesNothingAndLatches()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  Molecule* mol = makeWaterMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  QSignalSpy failSpy(&engine, &XtbEngine::evaluationFailed);
+  std::vector<double> lastCoords;
+  int coordsCount = 0;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>& c) {
+                     lastCoords = c;
+                     ++coordsCount;
+                   });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() { engine.requestTick(); });
+  tickTimer.start(30);
+
+  // Let the session evaluate normally first.
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= 1, 5000);
+
+  // Drive a failing evaluation: push H2 to a dissociated position (6 A from
+  // O), which the worker adopts as an external position change and then fails
+  // to converge on the next singlepoint.
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(2)->setPos(Eigen::Vector3d(0.0, 0.0, 6.0));
+  }
+
+  // The failure must be surfaced and latched; the failed tick publishes
+  // nothing, so takeLatestCoords() returns false and the coords count stops
+  // advancing (the session does not keep evaluating garbage geometry).
+  QTRY_VERIFY_WITH_TIMEOUT(failSpy.count() >= 1, 10000);
+  QVERIFY(failSpy.first().at(0).toString().contains("did not converge") ||
+          !failSpy.first().at(0).toString().isEmpty());
+  int countAtFailure = coordsCount;
+  // Wait out several ticks: no further publish from the latched phase.
+  for (int i = 0; i < 15; ++i) {
+    QTest::qWait(40);
+  }
+  QCOMPARE(coordsCount, countAtFailure);
+
+  // Recovery after Stop/Start: a fresh session evaluates normally.
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  // Restore a convergible geometry before restarting.
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(2)->setPos(Eigen::Vector3d(0.0, 0.1, -1.0));
+  }
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+  QSignalSpy failSpy2(&engine, &XtbEngine::evaluationFailed);
+  std::vector<double> lastCoords2;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>& c) { lastCoords2 = c; });
+  engine.start(QThread::LowPriority);
+  QObject::connect(&tickTimer, &QTimer::timeout,
+                   [&]() { engine.requestTick(); });
+  tickTimer.start(30);
+  QTRY_VERIFY_WITH_TIMEOUT(lastCoords2.size() == 9, 5000);
+  QCOMPARE(failSpy2.count(), 0);
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
 }
 
 QTEST_MAIN(XtbEngineTest)
