@@ -37,6 +37,6 @@
 - [x] 4.1 Build and run the affected suite locally: `cmake --build build --parallel && ctest
   --test-dir build -R "xtbengineTest|autooptreproTest" --output-on-failure`; all green
 - [x] 4.2 Run the full ctest suite; no regressions in previously passing tests
-- [ ] 4.3 Push the branch and verify the Windows installer workflow compiles the new code and
+- [x] 4.3 Push the branch and verify the Windows installer workflow compiles the new code and
   the offscreen ctest leg is green (`gh workflow run 168745168 --ref <branch> --repo
   thosoo/avogadro`)
