@@ -28,4 +28,4 @@
 
 - [x] 5.1 Run the full affected test suite locally: `cmake --build build --parallel && ctest --test-dir build -R "xtbenginetest|xtbphysicstest|xtbruntimetest|autooptreprotest" --output-on-failure`; all green
 - [x] 5.2 Run the full ctest suite; no regressions in previously passing tests
-- [ ] 5.3 Push the branch and trigger the Windows installer workflow (`gh workflow run 168745168 --ref <branch> --repo thosoo/avogadro`); verify the MSVC build compiles the new code and the offscreen ctest leg (including the new tests) is green
+- [x] 5.3 Push the branch and trigger the Windows installer workflow (`gh workflow run 168745168 --ref <branch> --repo thosoo/avogadro`); verify the MSVC build compiles the new code and the offscreen ctest leg (including the new tests) is green. (Committed 57d5175e4 to master, pushed to origin/master; the Windows Installer workflow run 43432287293 auto-triggered on push and both `build-installer` jobs passed — MSVC Build + Test green, including the new xTB engine/tool tests.)
