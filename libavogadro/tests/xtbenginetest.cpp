@@ -343,7 +343,13 @@ void XtbEngineTest::dragAfterConvergenceResumesEvaluation()
   }
   engine.setDraggedAtom(1);
 
-  QTRY_VERIFY_WITH_TIMEOUT(progressCount > progressAtConvergence, 15000);
+  // 30 s (was 15 s) for each GFN2 resumption window: after a drag is released
+  // at a 2.5 A stretched O-H, the D3 elevated-budget first evaluation is
+  // worker-bound (~130-250 ms per L-BFGS step at interactive accuracy, more
+  // under CI load), so two publications can exceed 15 s on a loaded runner.
+  // Same cold-run/load-sensitive flake class the suite already widened in
+  // 2ad02639a; the assertions are unchanged, only the budget grows.
+  QTRY_VERIFY_WITH_TIMEOUT(progressCount > progressAtConvergence, 30000);
 
   // The published snapshot must register the pull: H1 pinned at the pointer
   // position (drag authority / coordinate write-back).
@@ -356,7 +362,7 @@ void XtbEngineTest::dragAfterConvergenceResumesEvaluation()
   // relaxation begins.
   engine.setDraggedAtom(-1);
   const int progressAtRelease = progressCount;
-  QTRY_VERIFY_WITH_TIMEOUT(progressCount > progressAtRelease, 15000);
+  QTRY_VERIFY_WITH_TIMEOUT(progressCount > progressAtRelease, 30000);
   QTRY_VERIFY_WITH_TIMEOUT(std::abs(lastCoords[5] * bohr2ang - pullZAng) > 1e-3,
                            15000);
 
