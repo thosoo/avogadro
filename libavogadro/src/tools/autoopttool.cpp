@@ -848,9 +848,16 @@ namespace Avogadro {
         }
 
         // Session accepted: record the active backend for the HUD, start the
-        // worker, and drive one tick per 100 ms from the timer below. Clear any
-        // stale setup-failure flag from a prior session (the FF path clears it
-        // via the setupDone signal; xTB has no such signal, so clear here).
+        // worker, and drive one tick per 30 ms from the timer below (design
+        // D1, fix-xtb-drag-latency). The faster interval is safe by
+        // construction: XtbEngine::requestTick() collapses to a pending flag
+        // (m_tickPending), so a tick requested while an evaluation is in
+        // flight neither queues work nor restarts evaluation - it only removes
+        // the idle gap between evaluations. The converged/cap latches still
+        // stop evaluation regardless of timer rate, so CPU returns to idle
+        // after convergence. Clear any stale setup-failure flag from a prior
+        // session (the FF path clears it via the setupDone signal; xTB has no
+        // such signal, so clear here).
         m_xtbMethod = method;
         m_xtbEnergyHartree = 0.0;
         m_xtbSetupFailedReason.clear();
@@ -858,7 +865,7 @@ namespace Avogadro {
         m_setupFailed = false;
         m_running = true;
         m_xtbEngine->start(QThread::LowPriority);
-        m_xtbTimerId = startTimer(100);
+        m_xtbTimerId = startTimer(30);
         m_buttonStartStop->setText(tr("Stop"));
         return;
       }
@@ -956,9 +963,9 @@ namespace Avogadro {
 
   void AutoOptTool::timerEvent(QTimerEvent* event)
   {
-    // xTB pacing timer (task 4.3): one L-BFGS iteration per 100 ms, applied via
-    // the engine's published coordinate snapshot. Dispatch on the timer id
-    // before the FF path, which runs on m_timerId.
+    // xTB pacing timer (fix-xtb-drag-latency D1): one L-BFGS iteration per
+    // 30 ms, applied via the engine's published coordinate snapshot. Dispatch
+    // on the timer id before the FF path, which runs on m_timerId.
     if (event->timerId() == m_xtbTimerId) {
       if (!m_xtbEngine || !m_running || m_xtbMethod < 0) {
         // Session ended or never started; drop the tick.
@@ -975,10 +982,10 @@ namespace Avogadro {
       // architecture, task 4.1): its snapshot-aware writeBackToMolecule writes
       // the optimizer's working coords back to the live molecule on the worker
       // thread, preserving any atom changed externally since the read. The tool
-      // must NOT write the published snapshot here — that write happens ~100 ms
-      // after the worker read, lands in a window where an external edit (undo,
-      // another tool) can be clobbered before the next tick adopts it, and is
-      // the dominant clobber path in the GUI. Keep this tick as a repaint pump
+      // must NOT write the published snapshot here — that write happens up to
+      // ~30 ms after the worker read, lands in a window where an external edit
+      // (undo, another tool) can be clobbered before the next tick adopts it,
+      // and is the dominant clobber path in the GUI. Keep this tick as a repaint pump
       // only: advance the engine, consume the snapshot for freshness, and
       // request a repaint; the engine's write-back already moved the molecule.
       m_xtbEngine->requestTick();
