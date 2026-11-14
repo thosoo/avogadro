@@ -47,5 +47,13 @@
 - [ ] 3.2 Manual feel check on a small molecule (drag responsiveness qualitatively improved vs the
   100 ms pacing) and on a mid-size molecule (no input freeze; CPU bounded by interactive accuracy;
   idle after convergence)
+  - **Interim field feedback (user, on-device):** "still quite some delay" during drags. This is
+    consistent with the D4 analysis: on GFN2 (the default xTB backend) the felt delay is
+    evaluation-cost-bound (~130–250 ms per L-BFGS step at interactive accuracy → ~5–7 steps/s
+    regardless of the timer), which this change deliberately does not touch. The pacing win is
+    measurable on timer-bound backends (GFN-FF, ~33 steps/s) and as a bounded adoption-latency
+    reduction elsewhere. Awaiting confirmation of backend/molecule used; a follow-up change for
+    drag-time evaluation cost (lower interactive accuracy/SCF budget) is the designed lever if
+    GFN2 feel remains insufficient.
 - [ ] 3.3 Push the branch and verify the Windows installer workflow compiles the change and the
   offscreen ctest leg is green (`gh workflow run 168745168 --ref <branch> --repo thosoo/avogadro`)
