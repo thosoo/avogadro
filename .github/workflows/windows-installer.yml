@@ -493,6 +493,13 @@ jobs:
           if (-not (Test-Path $paramFile)) {
             throw "GFN-FF parameter file not staged at $paramFile"
           }
+          # bsdtar marks dotfiles hidden on Windows, and NSIS "File /r" without
+          # /a skips hidden files - which silently dropped .param_gfnff.xtb
+          # from the packaged installer (the 43568131603 artifact lacks the
+          # file entirely, so GFN-FF can never start from an installed copy).
+          # Clear the attribute so plain packaging carries the data.
+          Get-ChildItem -Path $shareXtb -Recurse -Force -File |
+            ForEach-Object { attrib -h $_.FullName }
           $licPkgCount = (Get-ChildItem -Path $licDir -Directory -ErrorAction SilentlyContinue |
             Where-Object { (Get-ChildItem $_.FullName -File -Recurse -ErrorAction SilentlyContinue).Count -gt 0 }).Count
           Write-Host "xTB staging complete: param file present, $licPkgCount license dirs with files"
@@ -846,8 +853,23 @@ jobs:
           $env:QT_QPA_PLATFORM = 'offscreen'
           $env:QT_FORCE_STDERR_LOGGING = '1'
           ctest --test-dir build -C Release --output-on-failure
+          $ctestExit = $LASTEXITCODE
           Write-Host "`n=== xtbengineTest verbose (slot-level) ==="
-          & .\build\bin\xtbenginetest.exe -v2 2>&1 | Select-Object -First 80
+          # Run the verbose diagnostic to a FILE and show only its head: piping
+          # the exe into Select-Object -First N truncated the output mid-test
+          # (failures beyond the cut were invisible) and let the exe's exit
+          # code masquerade as the step result. Gate the step on the ctest
+          # result; report the verbose run separately, with its full log on
+          # failure.
+          & .\build\bin\xtbenginetest.exe -v2 *> xtbenginetest-verbose.log
+          $verboseExit = $LASTEXITCODE
+          Get-Content xtbenginetest-verbose.log -TotalCount 80 | ForEach-Object { Write-Host $_ }
+          if ($verboseExit -ne 0) {
+            Write-Host "`n=== xtbengineTest verbose run FAILED (exit $verboseExit): full log ==="
+            Get-Content xtbenginetest-verbose.log | ForEach-Object { Write-Host $_ }
+          }
+          if ($ctestExit -ne 0) { exit $ctestExit }
+          exit $verboseExit
       - name: Upload installer
         if: matrix.target == 'installer'
         uses: actions/upload-artifact@v4

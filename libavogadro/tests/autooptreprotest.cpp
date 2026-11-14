@@ -2107,9 +2107,26 @@ void AutoOptReproTest::xtbEraseDuringRunSurvivorsMove()
   QSignalSpy reestablSpy(engine, &XtbEngine::sessionReestablished);
   QSignalSpy coordsSpy(engine, &XtbEngine::coordsReady);
 
+  // Track published coordinate vectors so survivor movement can be asserted
+  // by value (a count-only assertion is fragile on backends whose small
+  // re-established session converges and latches publication after a single
+  // write).
+  std::vector<double> lastCoords;
+  // Context object = the widget (main thread): without a receiver the lambda
+  // is a DIRECT connection and mutates lastCoords on the worker thread while
+  // the main thread reads it (measured: torn vector -> SIGSEGV on the first
+  // publication). Queued execution makes the handoff thread-safe.
+  QObject::connect(engine, &XtbEngine::coordsReady,
+                   &widget, [&lastCoords](const std::vector<double> &c) { lastCoords = c; });
+
   // Let the initial 3-atom session evaluate a few times (the first tick is a
   // 100 ms pacing interval plus the SCF evaluation time, so wait deterministically).
   QTRY_VERIFY_WITH_TIMEOUT(coordsSpy.count() >= 1, 10000);
+
+  // Snapshot the survivors' published positions (bohr; O = 0-2, H2 = 6-8 of
+  // the 9-double vector) so post-erase movement can be asserted by value.
+  QVERIFY(lastCoords.size() == 9);
+  const std::vector<double> preErase(lastCoords);
 
   // Erase edit: remove a hydrogen (index 1) mid-session under the write lock.
   {
@@ -2118,14 +2135,40 @@ void AutoOptReproTest::xtbEraseDuringRunSurvivorsMove()
   }
 
   // The reduced topology must re-establish exactly once and the survivors must
-  // keep publishing coords (no survivor freezes).
+  // keep receiving optimized coordinates (no survivor freezes). Bounded
+  // value-based check: platforms whose small re-established session converges
+  // quickly stop publishing after one or two writes (converged idle; measured
+  // on Windows CI where GFN2 runs ~50 ms/step, the OH session latched before
+  // two further publications arrived). The platform-independent contract is
+  // that the re-established session's write-back MOVES the survivors.
   QTRY_VERIFY_WITH_TIMEOUT(reestablSpy.count() >= 1, 5000);
   QCOMPARE(reestablSpy.count(), 1);
   QCOMPARE(reestablSpy.first().at(0).toInt(), 2);
-
-  const int coordsAfterErase = coordsSpy.count();
-  const int target = coordsAfterErase + 2;
-  QTRY_VERIFY_WITH_TIMEOUT(coordsSpy.count() >= target, 10000);
+  QTRY_VERIFY_WITH_TIMEOUT(lastCoords.size() == 6, 10000);
+  // Recomputed by the QTRY loop each iteration: polling a pre-computed bool
+  // polls a stale value (measured: coordinates moved well past the threshold
+  // while a one-shot bool never updated).
+  auto survivorsMovedNow = [&]() {
+    for (int i = 0; i < 3; ++i) {
+      if (std::abs(lastCoords[i] - preErase[i]) > 1e-6) // O
+        return true;
+      if (std::abs(lastCoords[3 + i] - preErase[6 + i]) > 1e-6) // surviving H
+        return true;
+    }
+    return false;
+  };
+  // Poll: each publication updates lastCoords; cumulative movement crosses
+  // the (very tight) frozen-atom threshold within a few L-BFGS steps, while a
+  // genuinely frozen survivor never crosses it.
+  QTRY_VERIFY2_WITH_TIMEOUT(survivorsMovedNow(), qPrintable(QStringLiteral(
+    "survivors did not move; preErase[0..2]=%1,%2,%3 preErase[6..8]=%4,%5,%6 "
+    "lastCoords[0..2]=%7,%8,%9 lastCoords[3..5]=%10,%11,%12")
+    .arg(preErase[0], 0, 'g', 12).arg(preErase[1], 0, 'g', 12)
+    .arg(preErase[2], 0, 'g', 12).arg(preErase[6], 0, 'g', 12)
+    .arg(preErase[7], 0, 'g', 12).arg(preErase[8], 0, 'g', 12)
+    .arg(lastCoords[0], 0, 'g', 12).arg(lastCoords[1], 0, 'g', 12)
+    .arg(lastCoords[2], 0, 'g', 12).arg(lastCoords[3], 0, 'g', 12)
+    .arg(lastCoords[4], 0, 'g', 12).arg(lastCoords[5], 0, 'g', 12)), 15000);
 
   // The survivors keep publishing: the live molecule has the reduced topology
   // and every survivor position is finite.

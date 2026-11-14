@@ -255,6 +255,14 @@ Section "-Installation actions" SecInstallation
   SetOverwrite on
   # extract all files from dist/ directory (recursively)
   File /r dist\*.*
+  # The GFN-FF parameter data is a dotfile (.param_gfnff.xtb). bsdtar marks
+  # dotfiles hidden on Windows and "File /r" without /a skips hidden files,
+  # which silently dropped the parameter file from packaged installers
+  # (GFN-FF could never start from an installed copy). Force-include the
+  # directory non-recursively with /a so the data is always present.
+  SetOutPath "$INSTDIR\bin\share\xtb"
+  File /a dist\bin\share\xtb\*.*
+  SetOutPath "$INSTDIR"
   WriteRegStr SHCTX "${REGKEY}\Components" Main 1
   
   # register Avogadro

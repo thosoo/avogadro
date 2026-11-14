@@ -795,6 +795,10 @@ void XtbEngineTest::moleculeSourceRemoveAtomSurvivorsPublish()
 
   QTRY_VERIFY_WITH_TIMEOUT(lastCoords.size() == 9, 5000);
 
+  // Snapshot the survivors' published positions (bohr; O = 0-2, H2 = 6-8)
+  // before the removal so post-erase movement can be asserted by value.
+  const std::vector<double> preErase(lastCoords);
+
   // Remove a hydrogen (index 1).
   {
     QWriteLocker locker(mol->lock());
@@ -803,10 +807,26 @@ void XtbEngineTest::moleculeSourceRemoveAtomSurvivorsPublish()
 
   QTRY_VERIFY_WITH_TIMEOUT(reestablSpy.count() >= 1, 5000);
   QCOMPARE(reestablSpy.count(), 1);
-  // Reduced topology: 2 atoms -> 6 doubles, and survivors keep publishing.
-  QTRY_VERIFY_WITH_TIMEOUT(lastCoords.size() == 6, 5000);
-  int target = coordsCount + 2;
-  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= target, 10000);
+  // Reduced topology: 2 atoms -> 6 doubles; the re-established session's
+  // write-back must MOVE the survivors (no frozen atoms). Bounded value-based
+  // check: on platforms whose GFN2 is fast the small OH session converges and
+  // latches publication after one or two writes, so a "N more publications"
+  // premise is platform-fragile (measured on Windows CI).
+  QTRY_VERIFY_WITH_TIMEOUT(lastCoords.size() == 6, 10000);
+  // Recomputed by the QTRY loop each iteration (polling a pre-computed bool
+  // polls a stale value).
+  auto survivorsMovedNow = [&]() {
+    for (int i = 0; i < 3; ++i) {
+      if (std::abs(lastCoords[i] - preErase[i]) > 1e-6) // O
+        return true;
+      if (std::abs(lastCoords[3 + i] - preErase[6 + i]) > 1e-6) // surviving H
+        return true;
+    }
+    return false;
+  };
+  // Poll: cumulative movement across publications crosses the tight threshold
+  // within a few steps; a genuinely frozen survivor never does.
+  QTRY_VERIFY_WITH_TIMEOUT(survivorsMovedNow(), 15000);
 
   tickTimer.stop();
   engine.stop();
