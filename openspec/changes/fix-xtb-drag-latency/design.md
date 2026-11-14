@@ -57,17 +57,29 @@ counter advancing at the new rate on a small distorted molecule, and staying fla
 is added if the existing harness makes it cheap; otherwise code inspection plus manual feel checks.
 Full ctest + Windows installer offscreen leg per repo policy.
 
-> **D4 empirical note (verified on this machine):** the tool-level pacing-rate assertion was
-> attempted and found *not achievable on water* — not merely flaky. A GFN2-xTB water singlepoint
-> at interactive accuracy (0.2) takes ~130–250 ms per L-BFGS step (each step's line search does
-> several singlepoint trials), so the worker is the bottleneck at ~5–7 evals/s regardless of the
-> 30 ms timer. A ">15 evals/s" assertion therefore always fails, and any achievable threshold
-> (e.g. >5/s) passes identically under the old 100 ms pacing, so it cannot discriminate the change.
-> Per the task's explicit escape hatch, the rate assertion was skipped and the pacing change is
-> verified by code inspection (D1/D3: `requestTick` sets only `m_tickPending`; the faster interval
-> only removes the idle gap between evaluations and cannot queue or restart work) plus the manual
-> feel check (task 3.2). The latch/cap regression guards (`xtbenginetest`, `autooptreprotest` 35/35)
-> confirm the faster pacing does not disturb the converged-idle behavior.
+> **D4 empirical note (verified on this machine):** the tool-level pacing-rate assertion is
+> implemented as `xtbPacingRateGfnff` on the **GFN-FF** backend, where it is achievable AND
+> discriminating: GFN-FF water evaluates in ~5 ms per L-BFGS step, so the **timer** (not the
+> worker) is the bottleneck and the evaluation rate is timer-bound (~33 steps/s at 30 ms pacing,
+> ~10/s at the old 100 ms pacing). The test asserts >15 evals/s during an active drag (which also
+> drives interactive accuracy and defers the converged latch, D1/D3), then asserts the counter
+> stops after release converges. Verified discriminating in both directions: passes 5/5 at 30 ms,
+> fails 3/3 at 100 ms (measured ~9.9/s).
+>
+> On **GFN2-xTB water** the same assertion is genuinely impossible — not merely flaky: a GFN2
+> singlepoint at interactive accuracy (0.2) takes ~130–250 ms per L-BFGS step (each step's line
+> search does several singlepoint trials), so the worker is the bottleneck at ~5–7 evals/s
+> regardless of the timer. Any threshold low enough to pass there passes identically under the old
+> 100 ms pacing, so GFN2 cannot discriminate the change and is covered by the code-inspection
+> argument (D1/D3: `requestTick` sets only `m_tickPending`; the faster interval only removes the
+> idle gap and cannot queue or restart work) plus the latch/cap regression suites
+> (`xtbenginetest`, `autooptreprotest`).
+>
+> **Feel-check corollary (task 3.2):** because GFN2 is worker-bound, the 30 ms pacing cannot
+> materially shorten the *felt* drag delay on GFN2 sessions — the delay there is evaluation cost,
+> which this change deliberately does not touch (Non-Goal). The spec's follow-up levers
+> (pointer-driven ticks, cheaper drag-time evaluation) belong to a separate change if the fixed
+> interval proves insufficient in the field.
 
 ## Risks / Trade-offs
 

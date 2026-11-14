@@ -19,13 +19,27 @@
   unconverged, and stops advancing after convergence (generous tolerance for CI load; skip the test
   if it cannot be made non-flaky and rely on 1.2 inspection instead); verify with
   `ctest -R autooptreproTest`
-  - **SKIPPED via the task's escape hatch.** A pacing-rate test was prototyped and found *not
-    achievable* on water, not merely flaky: a GFN2-xTB water singlepoint at interactive accuracy
-    takes ~130–250 ms per L-BFGS step, so the worker (not the timer) is the bottleneck at ~5–7
-    evals/s regardless of the 30 ms interval. A ">15/s" assertion always fails and any achievable
-    threshold passes under the old 100 ms pacing too (no discrimination). Relied on 1.2 code
-    inspection (`requestTick` sets only `m_tickPending` → no queue/restart) plus the manual feel
-    check (task 3.2). See the D4 note in design.md. `ctest -R autooptreproTest` is green (35/35).
+  - **Implemented as `xtbPacingRateGfnff` on the GFN-FF backend**, where the rate assertion is
+    both achievable and discriminating: GFN-FF water steps cost ~5 ms, so the timer (not the
+    worker) bounds the rate — ~33 evals/s at 30 ms pacing vs ~10/s at the old 100 ms. Verified
+    discriminating in both directions (passes 5/5 at 30 ms; fails 3/3 at 100 ms with ~9.9/s
+    measured), with the drag engaged to defer the converged latch (D1/D3) and a post-release
+    counter-stop assertion for the idle latch.
+  - On **GFN2 water** the assertion remains genuinely unachievable (worker-bound at ~5–7 evals/s
+    regardless of the timer; each interactive-accuracy L-BFGS step costs ~130–250 ms), so GFN2 is
+    covered by 1.2 code inspection plus the latch/cap suites. See the D4 note in design.md.
+  - Suite-side adjustment (no assertion weakened): this test drives a GFN-FF
+    session through a drag-to-convergence lifecycle, and that lifecycle leaves
+    process-global xTB state that breaks the NEXT GFN2 topology
+    re-establishment in the same process — measured A/B: the pre-existing
+    `xtbEraseDuringRunSurvivorsMove` fails 3/5 with this test before it and
+    0/5 without (same tree); a GFN-FF session WITHOUT the drag-to-convergence
+    lifecycle does not trigger it; widening the erase test's QTRY window to
+    30 s did not help (publication stops, not slows). Fix: `xtbPacingRateGfnff`
+    is declared LAST so no session-driving test follows it. This exposes a
+    pre-existing engine-level global-state issue (GFN-FF drag-to-convergence
+    lifecycle poisoning subsequent GFN2 re-establishment in one process) —
+    out of scope for this pacing change, recorded as an engine follow-up.
 
 ## 3. Full verification
 
