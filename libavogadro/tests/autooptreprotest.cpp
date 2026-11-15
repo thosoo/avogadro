@@ -2105,12 +2105,8 @@ void AutoOptReproTest::xtbEraseDuringRunSurvivorsMove()
   XtbEngine *engine = tool.xtbEngine();
   QVERIFY(engine != nullptr);
   QSignalSpy reestablSpy(engine, &XtbEngine::sessionReestablished);
-  QSignalSpy coordsSpy(engine, &XtbEngine::coordsReady);
-
-  // Track published coordinate vectors so survivor movement can be asserted
-  // by value (a count-only assertion is fragile on backends whose small
-  // re-established session converges and latches publication after a single
-  // write).
+  // lastCoords is filled by a queued connection below; there is no separate
+  // coordsSpy because its count can lead the queued delivery (see below).
   std::vector<double> lastCoords;
   // Context object = the widget (main thread): without a receiver the lambda
   // is a DIRECT connection and mutates lastCoords on the worker thread while
@@ -2119,13 +2115,15 @@ void AutoOptReproTest::xtbEraseDuringRunSurvivorsMove()
   QObject::connect(engine, &XtbEngine::coordsReady,
                    &widget, [&lastCoords](const std::vector<double> &c) { lastCoords = c; });
 
-  // Let the initial 3-atom session evaluate a few times (the first tick is a
-  // 100 ms pacing interval plus the SCF evaluation time, so wait deterministically).
-  QTRY_VERIFY_WITH_TIMEOUT(coordsSpy.count() >= 1, 10000);
+  // Let the initial 3-atom session evaluate a few times. Wait on the QUEUED
+  // lastCoords delivery (not coordsSpy.count()): the QSignalSpy captures on the
+  // emitting worker thread, so its count can be >= 1 while the queued lambda
+  // that fills lastCoords has not yet run on the main thread (measured on
+  // Windows CI). lastCoords.size()==9 only holds once the delivery has landed.
+  QTRY_VERIFY_WITH_TIMEOUT(lastCoords.size() == 9, 10000);
 
   // Snapshot the survivors' published positions (bohr; O = 0-2, H2 = 6-8 of
   // the 9-double vector) so post-erase movement can be asserted by value.
-  QVERIFY(lastCoords.size() == 9);
   const std::vector<double> preErase(lastCoords);
 
   // Erase edit: remove a hydrogen (index 1) mid-session under the write lock.
