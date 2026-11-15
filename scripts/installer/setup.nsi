@@ -259,9 +259,10 @@ Section "-Installation actions" SecInstallation
   # dotfiles hidden on Windows and "File /r" without /a skips hidden files,
   # which silently dropped the parameter file from packaged installers
   # (GFN-FF could never start from an installed copy). Force-include the
-  # directory non-recursively with /a so the data is always present.
+  # directory with /a (include hidden) and /r (recurse) so the data is always
+  # present; use * (not *.*) so a leading-dot filename matches.
   SetOutPath "$INSTDIR\bin\share\xtb"
-  File /a dist\bin\share\xtb\*.*
+  File /a /r dist\bin\share\xtb\*
   SetOutPath "$INSTDIR"
   WriteRegStr SHCTX "${REGKEY}\Components" Main 1
   

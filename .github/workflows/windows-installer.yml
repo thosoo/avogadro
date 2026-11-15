@@ -477,8 +477,11 @@ jobs:
               Write-Host "Staged GFN-FF parameter data from $fn"
             }
 
-            # Licenses -> dist\licenses\xtb\<pkg> (only when the artifact ships
-            # license text; conda-forge ships it inconsistently across packages).
+            # Licenses -> xtb-stage\bin\licenses\xtb\<pkg> (only when the
+            # artifact ships license text; conda-forge ships it inconsistently
+            # across packages). create_installer.py copies this into
+            # dist\bin\licenses\xtb. The staged path is under bin to match
+            # how the xTB runtime and GFN-FF parameter data are staged.
             $licSrc = Join-Path $infoExt 'info\licenses'
             $licFiles = Get-ChildItem -Path $licSrc -File -Recurse -ErrorAction SilentlyContinue
             if ($licFiles.Count -gt 0) {

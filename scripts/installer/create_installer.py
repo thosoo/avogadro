@@ -569,7 +569,7 @@ def main():
         if stage_bin.exists():
             for dll in stage_bin.glob('*.dll'):
                 copy(dll, dist / 'bin' / dll.name)
-        stage_share = xtb_stage / 'share' / 'xtb'
+        stage_share = xtb_stage / 'bin' / 'share' / 'xtb'
         if stage_share.exists():
             dest_share = dist / 'bin' / 'share' / 'xtb'
             dest_share.mkdir(parents=True, exist_ok=True)
@@ -579,7 +579,17 @@ def main():
                     dest = dest_share / rel
                     dest.parent.mkdir(parents=True, exist_ok=True)
                     copy(f, dest)
-        stage_lic = xtb_stage / 'licenses' / 'xtb'
+            # The GFN-FF parameter data must land in the package: it is a
+            # dotfile (param_gfnff.xtb) that NSIS packaging can silently drop
+            # unless it is actually present in dist. Fail loudly instead of
+            # shipping an installer whose GFN-FF backend can never start.
+            staged_param = dest_share / '.param_gfnff.xtb'
+            if not staged_param.exists():
+                raise RuntimeError(
+                    "GFN-FF parameter data was not staged into the package: "
+                    f"expected {staged_param} after copying from {stage_share}"
+                )
+        stage_lic = xtb_stage / 'bin' / 'licenses' / 'xtb'
         if stage_lic.exists():
             dest_lic = dist / 'bin' / 'licenses' / 'xtb'
             for pkg in stage_lic.iterdir():
