@@ -446,15 +446,26 @@ def main():
         log(f"Copying OpenBabel data from {share} to {dest}")
         shutil.copytree(share, dest, dirs_exist_ok=True)
         patterns = ["*.txt", "*.par", "*.prm", "*.ff", "*.dat"]
-        for pat in patterns:
-            for f in share.glob(pat):
-                if f.is_file():
-                    copy(f, dist / "bin")
-        if alt_share.exists() and alt_share != share:
-            for pat in ["*.txt", "*.par", "*.prm", "*.ff", "*.dat"]:
-                for f in alt_share.glob(pat):
+        # Collect the force-field/typing data files so they land where the
+        # runtime actually looks. On MSVC, OpenBabel installs this data to
+        # bin/data (data/CMakeLists.txt), while the share/openbabel/<ver> dir
+        # only receives splash.png. Avogadro's main.cpp points BABEL_DATADIR
+        # at <app>/../share/openbabel/<ver> when that dir exists, so without
+        # the data files there OBForceField::Setup() cannot find UFF.prm and
+        # the AutoOpt force-field backend reports "Could not setup force
+        # field.". Copy the flat data files into BOTH dist/bin (fallback) and
+        # the BABEL_DATADIR destination (dist/share/openbabel/<ver>).
+        def _copy_data_files(src_dir: Path) -> None:
+            (dist / "bin").mkdir(parents=True, exist_ok=True)
+            dest.mkdir(parents=True, exist_ok=True)
+            for pat in patterns:
+                for f in src_dir.glob(pat):
                     if f.is_file():
                         copy(f, dist / "bin")
+                        copy(f, dest)
+        _copy_data_files(share)
+        if alt_share.exists() and alt_share != share:
+            _copy_data_files(alt_share)
 
     libxml = os.environ.get("LIBXML2_LIBRARY")
     if libxml:
