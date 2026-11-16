@@ -45,5 +45,36 @@ bool ensureGfnffParameters(QString* diagnostic)
   return false;
 }
 
+QString gfnffParameterPath()
+{
+  // Respect the user's environment first: if they point XTBHOME/XTBPATH at
+  // their data, resolve the parameter file from there.
+  const QStringList envDirs = {
+    qEnvironmentVariable("XTBHOME"),
+    qEnvironmentVariable("XTBPATH"),
+  };
+  for (const QString& dir : envDirs) {
+    if (dir.isEmpty())
+      continue;
+    const QFileInfo candidate(dir + QStringLiteral("/.param_gfnff.xtb"));
+    if (candidate.isFile())
+      return candidate.absoluteFilePath();
+  }
+
+  // Fall back to the bundled / distribution locations (same probes as
+  // ensureGfnffParameters).
+  const QStringList probes = {
+    QCoreApplication::applicationDirPath() + QStringLiteral("/share/xtb"),
+    QStringLiteral("/usr/share/xtb"),
+  };
+  for (const QString& dir : probes) {
+    const QFileInfo candidate(dir + QStringLiteral("/.param_gfnff.xtb"));
+    if (candidate.isFile())
+      return candidate.absoluteFilePath();
+  }
+
+  return QString();
+}
+
 } // namespace XtbParams
 } // namespace Avogadro

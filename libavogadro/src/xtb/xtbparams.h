@@ -35,6 +35,17 @@ namespace XtbParams {
  */
 A_EXPORT bool ensureGfnffParameters(QString* diagnostic = nullptr);
 
+/**
+ * Resolve the absolute path of the GFN-FF parameter file
+ * (.param_gfnff.xtb). Returns an empty QString when it cannot be located.
+ *
+ * The engine passes this path straight to xtb_loadGFNFF so xTB opens the
+ * parameter file directly, rather than searching XTBHOME/XTBPATH through its
+ * own rdpath() (whose gfortran file-inquiry crashes on the bundled MinGW
+ * runtime).
+ */
+A_EXPORT QString gfnffParameterPath();
+
 } // namespace XtbParams
 } // namespace Avogadro
 

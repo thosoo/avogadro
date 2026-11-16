@@ -391,6 +391,16 @@ bool XtbEngine::createObjects()
 
 bool XtbEngine::loadMethod()
 {
+  // GFN-FF loads its parameter file (.param_gfnff.xtb). xtb_loadGFNFF first
+  // inquires the path we pass (or, with nullptr, a CWD-relative
+  // '.param_gfnff.xtb') and only falls back to its own XTBPATH loop (rdpath)
+  // when that inquire reports the file absent. On the bundled MinGW runtime
+  // that rdpath-loop inquire fast-fails (FAST_FAIL_INVALID_ARG,
+  // get_osfhandle on an invalid descriptor), so we resolve the absolute path
+  // and pass it: the first inquire of the existing file succeeds and rdpath
+  // is never entered. The QByteArray must outlive the call, so it is declared
+  // at this scope.
+  QByteArray gfnffParam;
   switch (m_method) {
     case 0:
       XtbApi::xtb_loadGFN1xTB()(m_env, m_mol, m_calc, nullptr);
@@ -398,9 +408,21 @@ bool XtbEngine::loadMethod()
     case 1:
       XtbApi::xtb_loadGFN2xTB()(m_env, m_mol, m_calc, nullptr);
       break;
-    case 2:
-      XtbApi::xtb_loadGFNFF()(m_env, m_mol, m_calc, nullptr);
+    case 2: {
+      gfnffParam = XtbParams::gfnffParameterPath().toUtf8();
+      if (gfnffParam.isEmpty()) {
+        // No resolvable param file (e.g. a stale user XTBHOME/XTBPATH that
+        // points at a directory lacking .param_gfnff.xtb). Passing nullptr
+        // would re-enter the crash-prone rdpath loop, so fail deterministically
+        // instead (same diagnostic the setup path already surfaces).
+        emit setupFailed(
+          QStringLiteral("GFN-FF parameter data not found (probed XTBHOME,"
+                         " XTBPATH, <appdir>/share/xtb, /usr/share/xtb)"));
+        return false;
+      }
+      XtbApi::xtb_loadGFNFF()(m_env, m_mol, m_calc, gfnffParam.data());
       break;
+    }
     default:
       break;
   }
