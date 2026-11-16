@@ -25,9 +25,54 @@
 #include <cmath>
 #include <limits>
 
+#ifdef _MSC_VER
+#include <stdlib.h>
+#endif
+
 namespace Avogadro {
 
 namespace {
+
+#ifdef _MSC_VER
+// The bundled MinGW libgfortran runtime probes file descriptors via
+// _get_osfhandle during Fortran inquire/open. In a console-less Windows GUI
+// process fd 5 (the gfortran standard-input unit) is never opened, so the
+// UCRT default invalid-parameter policy fast-fails the process
+// (FAST_FAIL_INVALID_ARG / invoke_watson). Installing a returning handler lets
+// _get_osfhandle return -1 and the gfortran runtime treat the unit as not
+// open -- the documented workaround for mixed-runtime DLLs in GUI processes.
+// Every suppression is logged so genuine CRT misuse elsewhere stays visible.
+void __cdecl xtbNoopInvalidParameter(wchar_t const* expression,
+                                     wchar_t const* function,
+                                     wchar_t const* file,
+                                     unsigned int line,
+                                     uintptr_t reserved)
+{
+  Q_UNUSED(reserved);
+  const QString expr =
+    expression ? QString::fromWCharArray(expression) : QString();
+  const QString fn = function ? QString::fromWCharArray(function) : QString();
+  const QString fl = file ? QString::fromWCharArray(file) : QString();
+  qWarning("xTB: suppressed invalid_parameter (expr='%s' fn='%s' file='%s' "
+           "line=%u)",
+           qPrintable(expr), qPrintable(fn), qPrintable(fl), line);
+}
+
+// RAII guard: set the thread-local invalid-parameter handler for the scope and
+// restore the previous handler on destruction.
+class InvalidParameterGuard
+{
+public:
+  InvalidParameterGuard()
+    : m_old(_set_thread_local_invalid_parameter_handler(&xtbNoopInvalidParameter))
+  {
+  }
+  ~InvalidParameterGuard() { _set_thread_local_invalid_parameter_handler(m_old); }
+
+private:
+  _invalid_parameter_handler m_old;
+};
+#endif // _MSC_VER
 
 // Unit conversions.
 constexpr double kAngstromToBohr = 1.8897259886;
@@ -394,12 +439,22 @@ bool XtbEngine::loadMethod()
   // GFN-FF loads its parameter file (.param_gfnff.xtb). xtb_loadGFNFF first
   // inquires the path we pass (or, with nullptr, a CWD-relative
   // '.param_gfnff.xtb') and only falls back to its own XTBPATH loop (rdpath)
-  // when that inquire reports the file absent. On the bundled MinGW runtime
-  // that rdpath-loop inquire fast-fails (FAST_FAIL_INVALID_ARG,
-  // get_osfhandle on an invalid descriptor), so we resolve the absolute path
-  // and pass it: the first inquire of the existing file succeeds and rdpath
-  // is never entered. The QByteArray must outlive the call, so it is declared
-  // at this scope.
+  // when that inquire reports the file absent.
+  //
+  // On the bundled MinGW runtime the gfortran inquire itself fast-fails in a
+  // console-less GUI process: it probes a file descriptor via _get_osfhandle
+  // (fd 5, the gfortran standard-input unit, never opened in such a process)
+  // and the UCRT default invalid-parameter policy terminates the process
+  // (FAST_FAIL_INVALID_ARG / invoke_watson). This is independent of the file
+  // path, so resolving the absolute path (below) is correct hygiene but is not
+  // what prevents the crash. We additionally install a no-op
+  // invalid-parameter handler (see xtbNoopInvalidParameter) so _get_osfhandle
+  // returns -1 and the gfortran runtime completes the inquire instead of
+  // terminating. The QByteArray must outlive the call, so it is declared at
+  // this scope.
+#ifdef _MSC_VER
+  InvalidParameterGuard invalidParamGuard;
+#endif
   QByteArray gfnffParam;
   switch (m_method) {
     case 0:
@@ -412,9 +467,11 @@ bool XtbEngine::loadMethod()
       gfnffParam = XtbParams::gfnffParameterPath().toUtf8();
       if (gfnffParam.isEmpty()) {
         // No resolvable param file (e.g. a stale user XTBHOME/XTBPATH that
-        // points at a directory lacking .param_gfnff.xtb). Passing nullptr
-        // would re-enter the crash-prone rdpath loop, so fail deterministically
-        // instead (same diagnostic the setup path already surfaces).
+        // points at a directory lacking .param_gfnff.xtb). Fail
+        // deterministically instead of passing nullptr (which would leave
+        // xtb_loadGFNFF to search its own XTBPATH loop; the invalid-parameter
+        // guard above prevents that loop's inquire from terminating the
+        // process, but an explicit diagnostic is still clearer).
         emit setupFailed(
           QStringLiteral("GFN-FF parameter data not found (probed XTBHOME,"
                          " XTBPATH, <appdir>/share/xtb, /usr/share/xtb)"));
@@ -861,6 +918,12 @@ bool XtbEngine::adoptExternalPositions(const std::vector<double>& livePositionsB
 
 void XtbEngine::run()
 {
+  // The worker thread also does Fortran I/O (evaluateOnce / SCF), so the same
+  // console-less-process invalid-parameter fast-fail can fire on ticks. Install
+  // the no-op handler for the worker's lifetime (see xtbNoopInvalidParameter).
+#ifdef _MSC_VER
+  InvalidParameterGuard invalidParamGuard;
+#endif
   const int n = static_cast<int>(m_coordsBohr.size());
   m_grad.assign(n, 0.0);
   m_energy = 0.0;
