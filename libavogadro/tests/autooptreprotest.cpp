@@ -38,6 +38,7 @@
 #include <QImage>
 #include <QMetaObject>
 #include <QDeadlineTimer>
+#include <QElapsedTimer>
 
 #include <cstdlib>   // getenv, putenv
 #include <string>    // std::string
