@@ -1,4 +1,8 @@
-cmake_minimum_required (VERSION 2.8.11)
+# Newer CMake (>= 3.27) removed compatibility with CMake < 3.5, so the old
+# 2.8.11 minimum now fails at configure. Raise the minimum to 3.5 while
+# pinning the policy version to 3.20 so the vendored build keeps its
+# historical behavior rather than inheriting the latest policies.
+cmake_minimum_required (VERSION 3.5...3.20)
 
 project(libmsym C)
 
