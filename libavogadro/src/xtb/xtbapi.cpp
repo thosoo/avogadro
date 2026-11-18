@@ -19,9 +19,41 @@
 #include <QMutexLocker>
 #include <QStringList>
 
+#ifdef _MSC_VER
+#include <stdlib.h>
+#endif
+
 namespace Avogadro {
 
 namespace {
+
+#ifdef _MSC_VER
+// The bundled MinGW libgfortran runtime probes file descriptors via
+// _get_osfhandle during Fortran inquire/open. In a console-less Windows GUI
+// process fd 5 (the gfortran standard-input unit) is never opened, so the
+// UCRT default invalid-parameter policy fast-fails the process
+// (FAST_FAIL_INVALID_ARG / invoke_watson). This fires while loading the xTB
+// library at startup (XtbApi::isAvailable -> QLibrary::load) and again during
+// GFN-FF setup and worker ticks. Installing a returning handler lets
+// _get_osfhandle return -1 and the gfortran runtime treat the unit as not
+// open -- the documented workaround for mixed-runtime DLLs in GUI processes.
+// Every suppression is logged so genuine CRT misuse elsewhere stays visible.
+void __cdecl xtbNoopInvalidParameter(wchar_t const* expression,
+                                     wchar_t const* function,
+                                     wchar_t const* file,
+                                     unsigned int line,
+                                     uintptr_t reserved)
+{
+  Q_UNUSED(reserved);
+  const QString expr =
+    expression ? QString::fromWCharArray(expression) : QString();
+  const QString fn = function ? QString::fromWCharArray(function) : QString();
+  const QString fl = file ? QString::fromWCharArray(file) : QString();
+  qWarning("xTB: suppressed invalid_parameter (expr='%s' fn='%s' file='%s' "
+           "line=%u)",
+           qPrintable(expr), qPrintable(fn), qPrintable(fl), line);
+}
+#endif // _MSC_VER
 
 // Guards the one-time load.
 QMutex g_loadMutex;
@@ -73,6 +105,16 @@ bool XtbApi::isAvailable()
     return g_available;
   }
   g_tried = true;
+
+#ifdef _MSC_VER
+  // Install a process-wide no-op invalid-parameter handler BEFORE loading the
+  // library. The MinGW libgfortran runtime probes invalid file descriptors
+  // during DLL load (a console-less GUI process never opens fd 5), and the
+  // UCRT default policy would fast-fail the process (see
+  // xtbNoopInvalidParameter). A returning handler makes _get_osfhandle return
+  // -1 so the runtime completes the probe instead of terminating.
+  _set_invalid_parameter_handler(&xtbNoopInvalidParameter);
+#endif
 
   QStringList names;
 #ifdef Q_OS_WIN

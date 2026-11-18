@@ -25,54 +25,14 @@
 #include <cmath>
 #include <limits>
 
-#ifdef _MSC_VER
-#include <stdlib.h>
-#endif
+// The MinGW libgfortran invalid-parameter workaround lives in xtbapi.cpp: the
+// process-wide handler is installed in XtbApi::isAvailable() before the library
+// is loaded, so it is active for the eager load, GFN-FF setup, and worker
+// ticks (the handler covers all threads).
 
 namespace Avogadro {
 
 namespace {
-
-#ifdef _MSC_VER
-// The bundled MinGW libgfortran runtime probes file descriptors via
-// _get_osfhandle during Fortran inquire/open. In a console-less Windows GUI
-// process fd 5 (the gfortran standard-input unit) is never opened, so the
-// UCRT default invalid-parameter policy fast-fails the process
-// (FAST_FAIL_INVALID_ARG / invoke_watson). Installing a returning handler lets
-// _get_osfhandle return -1 and the gfortran runtime treat the unit as not
-// open -- the documented workaround for mixed-runtime DLLs in GUI processes.
-// Every suppression is logged so genuine CRT misuse elsewhere stays visible.
-void __cdecl xtbNoopInvalidParameter(wchar_t const* expression,
-                                     wchar_t const* function,
-                                     wchar_t const* file,
-                                     unsigned int line,
-                                     uintptr_t reserved)
-{
-  Q_UNUSED(reserved);
-  const QString expr =
-    expression ? QString::fromWCharArray(expression) : QString();
-  const QString fn = function ? QString::fromWCharArray(function) : QString();
-  const QString fl = file ? QString::fromWCharArray(file) : QString();
-  qWarning("xTB: suppressed invalid_parameter (expr='%s' fn='%s' file='%s' "
-           "line=%u)",
-           qPrintable(expr), qPrintable(fn), qPrintable(fl), line);
-}
-
-// RAII guard: set the thread-local invalid-parameter handler for the scope and
-// restore the previous handler on destruction.
-class InvalidParameterGuard
-{
-public:
-  InvalidParameterGuard()
-    : m_old(_set_thread_local_invalid_parameter_handler(&xtbNoopInvalidParameter))
-  {
-  }
-  ~InvalidParameterGuard() { _set_thread_local_invalid_parameter_handler(m_old); }
-
-private:
-  _invalid_parameter_handler m_old;
-};
-#endif // _MSC_VER
 
 // Unit conversions.
 constexpr double kAngstromToBohr = 1.8897259886;
@@ -447,14 +407,11 @@ bool XtbEngine::loadMethod()
   // and the UCRT default invalid-parameter policy terminates the process
   // (FAST_FAIL_INVALID_ARG / invoke_watson). This is independent of the file
   // path, so resolving the absolute path (below) is correct hygiene but is not
-  // what prevents the crash. We additionally install a no-op
-  // invalid-parameter handler (see xtbNoopInvalidParameter) so _get_osfhandle
-  // returns -1 and the gfortran runtime completes the inquire instead of
-  // terminating. The QByteArray must outlive the call, so it is declared at
-  // this scope.
-#ifdef _MSC_VER
-  InvalidParameterGuard invalidParamGuard;
-#endif
+  // what prevents the crash: the crash is at fd resolution inside the inquire,
+  // independent of the file path. The process-wide no-op invalid-parameter
+  // handler installed in XtbApi::isAvailable() makes _get_osfhandle return -1
+  // so the gfortran runtime completes the inquire instead of terminating. The
+  // QByteArray must outlive the call, so it is declared at this scope.
   QByteArray gfnffParam;
   switch (m_method) {
     case 0:
@@ -919,11 +876,9 @@ bool XtbEngine::adoptExternalPositions(const std::vector<double>& livePositionsB
 void XtbEngine::run()
 {
   // The worker thread also does Fortran I/O (evaluateOnce / SCF), so the same
-  // console-less-process invalid-parameter fast-fail can fire on ticks. Install
-  // the no-op handler for the worker's lifetime (see xtbNoopInvalidParameter).
-#ifdef _MSC_VER
-  InvalidParameterGuard invalidParamGuard;
-#endif
+  // console-less-process invalid-parameter fast-fail can fire on ticks. The
+  // process-wide no-op handler installed in XtbApi::isAvailable() covers this
+  // thread too.
   const int n = static_cast<int>(m_coordsBohr.size());
   m_grad.assign(n, 0.0);
   m_energy = 0.0;

@@ -9,6 +9,7 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 
 namespace Avogadro {
@@ -47,8 +48,9 @@ bool ensureGfnffParameters(QString* diagnostic)
 
 QString gfnffParameterPath()
 {
-  // Respect the user's environment first: if they point XTBHOME/XTBPATH at
-  // their data, resolve the parameter file from there.
+  // Resolve the source parameter file (environment first, then bundled /
+  // distribution locations).
+  QString source;
   const QStringList envDirs = {
     qEnvironmentVariable("XTBHOME"),
     qEnvironmentVariable("XTBPATH"),
@@ -57,23 +59,49 @@ QString gfnffParameterPath()
     if (dir.isEmpty())
       continue;
     const QFileInfo candidate(dir + QStringLiteral("/.param_gfnff.xtb"));
-    if (candidate.isFile())
-      return candidate.absoluteFilePath();
+    if (candidate.isFile()) {
+      source = candidate.absoluteFilePath();
+      break;
+    }
   }
-
-  // Fall back to the bundled / distribution locations (same probes as
-  // ensureGfnffParameters).
-  const QStringList probes = {
-    QCoreApplication::applicationDirPath() + QStringLiteral("/share/xtb"),
-    QStringLiteral("/usr/share/xtb"),
-  };
-  for (const QString& dir : probes) {
-    const QFileInfo candidate(dir + QStringLiteral("/.param_gfnff.xtb"));
-    if (candidate.isFile())
-      return candidate.absoluteFilePath();
+  if (source.isEmpty()) {
+    const QStringList probes = {
+      QCoreApplication::applicationDirPath() + QStringLiteral("/share/xtb"),
+      QStringLiteral("/usr/share/xtb"),
+    };
+    for (const QString& dir : probes) {
+      const QFileInfo candidate(dir + QStringLiteral("/.param_gfnff.xtb"));
+      if (candidate.isFile()) {
+        source = candidate.absoluteFilePath();
+        break;
+      }
+    }
   }
+  if (source.isEmpty())
+    return QString();
 
-  return QString();
+#ifdef Q_OS_WIN
+  // The bundled MinGW libgfortran runtime cannot open the parameter file when
+  // its path contains a space ("Program Files") or a leading dot
+  // (".param_gfnff.xtb"): the file probe fast-fails before the file is found.
+  // Copy the parameter data to a space-free, dot-free temp path and pass that
+  // instead. A failed copy falls back to the original source path.
+  const bool problematic = source.contains(QLatin1Char(' ')) ||
+                           QFileInfo(source).fileName().startsWith(QLatin1Char('.'));
+  if (!problematic)
+    return source;
+
+  const QString temp =
+    QDir::tempPath() + QStringLiteral("/avogadro_param_gfnff.xtb");
+  // QFile::copy does not overwrite: reuse an existing cached copy, else copy.
+  if (QFile::exists(temp))
+    return temp;
+  if (QFile::copy(source, temp))
+    return temp;
+  return source;
+#else
+  return source;
+#endif
 }
 
 } // namespace XtbParams
