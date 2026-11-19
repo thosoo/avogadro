@@ -22,6 +22,7 @@
 #include <QtGlobal>
 #include <thread>
 #include <QReadWriteLock>
+#include <QDir>
 #include <cmath>
 #include <limits>
 
@@ -434,7 +435,22 @@ bool XtbEngine::loadMethod()
                          " XTBPATH, <appdir>/share/xtb, /usr/share/xtb)"));
         return false;
       }
+#ifdef _WIN32
+      // GFN-FF writes a topology cache file 'gfnff_topo' (relative path) into
+      // the current working directory (xtb gfnff_setup.f90). The bundled MinGW
+      // gfortran runtime cannot open it when the CWD path contains a space
+      // ("Program Files") or is not writable for a standard user, and it aborts
+      // the process on the resulting I/O error (gfortran_generate_error ->
+      // common_exit -> ExitProcess). Run the calculator setup with the CWD
+      // pointed at a writable, space-free temp directory, then restore it. The
+      // cache is written once during newGFFCalculator, not per tick.
+      const QString savedCwd = QDir::currentPath();
+      QDir::setCurrent(QDir::tempPath());
       XtbApi::xtb_loadGFNFF()(m_env, m_mol, m_calc, gfnffParam.data());
+      QDir::setCurrent(savedCwd);
+#else
+      XtbApi::xtb_loadGFNFF()(m_env, m_mol, m_calc, gfnffParam.data());
+#endif
       break;
     }
     default:
