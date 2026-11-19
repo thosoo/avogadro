@@ -615,15 +615,16 @@ void XtbEngineTest::threadsEnvAutoRespectsClamp()
   if (!XtbApi::isAvailable()) {
     QSKIP("xTB runtime library not available");
   }
-  qunsetenv("OMP_NUM_THREADS");
-  {
-    XtbEngine engine;
-    QVERIFY(engine.setup(waterNumbers(), waterPositionsAng(), /*method=*/1,
-                         /*level=*/4, /*threads=*/0));
-    int autoThreads = qgetenv("OMP_NUM_THREADS").toInt();
-    QVERIFY(autoThreads >= 1 && autoThreads <= 8);
-    stopAndWait(engine);
-  }
+  // The auto thread count is applied once at library load time
+  // (XtbApi::isAvailable, D7), before the OpenMP runtime initializes its
+  // thread pool, so OMP_NUM_THREADS is already set here. Mutating the process
+  // env via qputenv from the GUI thread on every setup faults on Windows (a
+  // first-chance access violation in XtbEngine::applyOmpEnv), so the auto case
+  // no longer writes it at setup time.
+  const int autoThreads = qgetenv("OMP_NUM_THREADS").toInt();
+  QVERIFY(autoThreads >= 1 && autoThreads <= 8);
+
+  // An explicit user thread count always takes effect (the UI choice wins).
   {
     XtbEngine engine;
     QVERIFY(engine.setup(waterNumbers(), waterPositionsAng(), /*method=*/1,

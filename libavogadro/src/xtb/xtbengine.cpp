@@ -361,19 +361,20 @@ bool XtbEngine::validateElements()
 
 void XtbEngine::applyOmpEnv(int threadsSetting)
 {
-  // OMP_WAIT_POLICY=PASSIVE always when unset.
-  if (!qEnvironmentVariableIsSet("OMP_WAIT_POLICY")) {
-    qputenv("OMP_WAIT_POLICY", "PASSIVE");
-  }
-  // An explicit user thread count always takes effect (the UI choice wins).
-  // An auto request (threadsSetting == 0) is applied only when the variable is
-  // unset, so a user-set environment is respected (D7).
+  // OMP_WAIT_POLICY=PASSIVE and the auto OMP_NUM_THREADS are set once at
+  // library load time (XtbApi::isAvailable), before the OpenMP runtime
+  // initializes its thread pool. Mutating the process env via qputenv from
+  // the GUI thread on every setup faults on Windows with a first-chance
+  // access violation (the same mixed-runtime/DLL family as the
+  // invalid-parameter fast-fail suppressed there), so the auto case is already
+  // satisfied here and does NOT call qputenv. An explicit user thread count
+  // (the UI choice wins, D7) is applied only when it differs from the current
+  // value.
   if (threadsSetting > 0) {
-    qputenv("OMP_NUM_THREADS", QByteArray::number(threadsSetting));
-  }
-  else if (!qEnvironmentVariableIsSet("OMP_NUM_THREADS")) {
-    int threads = qMax(1, qMin(8, QThread::idealThreadCount() - 1));
-    qputenv("OMP_NUM_THREADS", QByteArray::number(threads));
+    const QByteArray requested = QByteArray::number(threadsSetting);
+    if (qEnvironmentVariable("OMP_NUM_THREADS") != requested) {
+      qputenv("OMP_NUM_THREADS", requested);
+    }
   }
 }
 

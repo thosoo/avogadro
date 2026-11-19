@@ -18,6 +18,8 @@
 #include <QMutex>
 #include <QMutexLocker>
 #include <QStringList>
+#include <QByteArray>
+#include <QThread>
 
 #ifdef _MSC_VER
 #include <stdlib.h>
@@ -115,6 +117,21 @@ bool XtbApi::isAvailable()
   // -1 so the runtime completes the probe instead of terminating.
   _set_invalid_parameter_handler(&xtbNoopInvalidParameter);
 #endif
+
+  // Set the OpenMP environment ONCE, before the bundled MinGW libgomp
+  // runtime initializes its thread pool. Mutating the process env via
+  // qputenv from the GUI thread on every XtbEngine::setup() faults with a
+  // first-chance access violation on Windows (the same mixed-runtime/DLL
+  // family as the invalid-parameter fast-fail suppressed above), so the env
+  // is written here at a single safe point. A user-set OMP_NUM_THREADS /
+  // OMP_WAIT_POLICY is respected (only set when unset).
+  if (!qEnvironmentVariableIsSet("OMP_WAIT_POLICY")) {
+    qputenv("OMP_WAIT_POLICY", "PASSIVE");
+  }
+  if (!qEnvironmentVariableIsSet("OMP_NUM_THREADS")) {
+    const int threads = qMax(1, qMin(8, QThread::idealThreadCount() - 1));
+    qputenv("OMP_NUM_THREADS", QByteArray::number(threads));
+  }
 
   QStringList names;
 #ifdef Q_OS_WIN
