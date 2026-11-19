@@ -293,6 +293,19 @@ namespace Avogadro {
     // masked by index (setDraggedAtom) and its coordinate is adopted from the
     // molecule. Angstrom -> bohr conversion is handled inside the engine.
 
+    // Pointer-driven tick (drag-latency follow-up, lever 1): the fixed pacing
+    // timer can leave up to a full interval between the pointer move and the
+    // worker seeing it, which is the felt latency on a timer-bound backend
+    // (GFN-FF). requestTick() collapses to a single pending flag and wakes the
+    // worker, so an extra call here cannot queue work or overrun the worker; it
+    // only removes the idle gap so a pointer-authored movement registers with
+    // the worker on the next loop pass. The pacing timer remains as the
+    // steady-state driver (it keeps a slow evaluation busy between moves) and
+    // for pointer jitter below a real movement.
+    if (xtbSessionActive()) {
+      m_xtbEngine->requestTick();
+    }
+
     m_lastDraggingPosition = event->position().toPoint();
     widget->update();
 
