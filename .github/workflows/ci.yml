@@ -6,7 +6,12 @@ concurrency:
 
 env:
   OPENBABEL_CMAKE_OPTIONS: BUILD_SHARED-ON-OB_USE_PREBUILT_BINARIES-OFF-OPENBABEL_USE_SYSTEM_INCHI-OFF-WITH_INCHI-ON-WITH_COORDGEN-ON
-  OPENBABEL_CACHE_LAYOUT: CACHE-LAYOUT-v2
+  # Bump OPENBABEL_CACHE_LAYOUT whenever the cached OpenBabel build must be
+  # invalidated (e.g. the runner's Boost version changed and the cached
+  # libmaeparser no longer resolves its boost::iostreams symbols).
+  # CACHE-LAYOUT-v3: invalidate the v2 cache that linked against a stale Boost
+  # iostreams, which broke the ASan build and forcefieldTest on the runner.
+  OPENBABEL_CACHE_LAYOUT: CACHE-LAYOUT-v3
 
 on:
   push:
