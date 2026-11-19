@@ -20,9 +20,12 @@
 #include <QStringList>
 #include <QByteArray>
 #include <QThread>
+#include <string>
+#include <cstdlib>
 
 #ifdef _MSC_VER
 #include <stdlib.h>
+#include <windows.h>
 #endif
 
 namespace Avogadro {
@@ -100,6 +103,21 @@ void* resolve(QLibrary& lib, const char* name)
 
 } // namespace
 
+void XtbApi::setEnv(const char* name, const char* value)
+{
+  // Set a process environment variable without touching the CRT _environ,
+  // which on Windows faults when a mixed MinGW runtime is present (see the
+  // OMP-env note in isAvailable). Uses the Win32 API directly; falls back to
+  // setenv on POSIX so the value is visible to the OpenMP runtime either way.
+#ifdef _MSC_VER
+  const std::wstring n = QString::fromUtf8(name).toStdWString();
+  const std::wstring v = QString::fromUtf8(value).toStdWString();
+  SetEnvironmentVariableW(n.c_str(), v.c_str());
+#else
+  ::setenv(name, value, 1);
+#endif
+}
+
 bool XtbApi::isAvailable()
 {
   QMutexLocker locker(&g_loadMutex);
@@ -126,11 +144,11 @@ bool XtbApi::isAvailable()
   // is written here at a single safe point. A user-set OMP_NUM_THREADS /
   // OMP_WAIT_POLICY is respected (only set when unset).
   if (!qEnvironmentVariableIsSet("OMP_WAIT_POLICY")) {
-    qputenv("OMP_WAIT_POLICY", "PASSIVE");
+    setEnv("OMP_WAIT_POLICY", "PASSIVE");
   }
   if (!qEnvironmentVariableIsSet("OMP_NUM_THREADS")) {
     const int threads = qMax(1, qMin(8, QThread::idealThreadCount() - 1));
-    qputenv("OMP_NUM_THREADS", QByteArray::number(threads));
+    setEnv("OMP_NUM_THREADS", QByteArray::number(threads).constData());
   }
 
   QStringList names;

@@ -77,6 +77,12 @@ public:
   /// Human-readable description of why loading failed (empty when available).
   static QString lastError();
 
+  /// Set a process environment variable without touching the CRT _environ.
+  /// On Windows this uses SetEnvironmentVariableW (the CRT _environ write
+  /// faults when a mixed MinGW runtime is present); on POSIX it uses setenv.
+  /// Kept public so the engine can reuse it for the explicit thread count.
+  static void setEnv(const char* name, const char* value);
+
   // Accessors: return the function pointer, or nullptr when unavailable.
   static XtbNewEnvironment xtb_newEnvironment();
   static XtbDelEnvironment xtb_delEnvironment();

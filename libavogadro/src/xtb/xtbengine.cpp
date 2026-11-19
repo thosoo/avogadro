@@ -373,7 +373,7 @@ void XtbEngine::applyOmpEnv(int threadsSetting)
   if (threadsSetting > 0) {
     const QByteArray requested = QByteArray::number(threadsSetting);
     if (qEnvironmentVariable("OMP_NUM_THREADS") != requested) {
-      qputenv("OMP_NUM_THREADS", requested);
+      XtbApi::setEnv("OMP_NUM_THREADS", requested.constData());
     }
   }
 }
