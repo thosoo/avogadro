@@ -50,10 +50,21 @@
   - **Interim field feedback (user, on-device):** "still quite some delay" during drags. This is
     consistent with the D4 analysis: on GFN2 (the default xTB backend) the felt delay is
     evaluation-cost-bound (~130–250 ms per L-BFGS step at interactive accuracy → ~5–7 steps/s
-    regardless of the timer), which this change deliberately does not touch. The pacing win is
-    measurable on timer-bound backends (GFN-FF, ~33 steps/s) and as a bounded adoption-latency
-    reduction elsewhere. Awaiting confirmation of backend/molecule used; a follow-up change for
-    drag-time evaluation cost (lower interactive accuracy/SCF budget) is the designed lever if
-    GFN2 feel remains insufficient.
+    regardless of the timer), which this change deliberately does not touch.
+  - **Follow-up lever 1 — pointer-driven tick requests (IMPLEMENTED, commit `8fb3e1ba5`):** the
+    fixed pacing timer can leave up to a full interval between a pointer move and the worker
+    seeing it, which is the felt latency on a timer-bound backend (GFN-FF). `AutoOptTool::mouseMoveEvent`
+    now calls `m_xtbEngine->requestTick()` so a pointer-authored movement registers with the
+    worker on the next loop pass. `requestTick()` collapses to a single pending flag and wakes
+    the worker, so it cannot queue work or overrun the worker; it only removes the idle gap.
+    Verified: `ctest -R "xtbengineTest|autooptreproTest"` green (autooptreproTest 26.5s pass,
+    xtbengineTest 30.6s pass).
+  - **Follow-up lever 2 — cheaper drag-time evaluation (REJECTED):** lowering the interactive
+    accuracy (0.2→0.1) or the interactive SCF budget (maxIter 30→20) makes the drag-time
+    gradient less accurate, so the session hits the convergence threshold prematurely at a
+    stretched drag geometry and stops evaluating — breaking the drag-resume contract.
+    Verified both directions: `dragAfterConvergenceResumesEvaluation` FAILS with accuracy 0.1
+    and with maxIter 20, and PASSES with the original 0.2/30. This lever needs a loosened
+    convergence threshold and is out of scope for this change.
 - [ ] 3.3 Push the branch and verify the Windows installer workflow compiles the change and the
   offscreen ctest leg is green (`gh workflow run 168745168 --ref <branch> --repo thosoo/avogadro`)
