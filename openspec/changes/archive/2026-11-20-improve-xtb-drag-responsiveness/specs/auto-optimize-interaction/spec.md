@@ -48,6 +48,15 @@ large enough that a single evaluation is slow.
 - **THEN** the session reaches the converged idle state as usual after release, so
   the deferred idle does not change where the session ends up
 
+#### Scenario: Pacing does not gate relaxation on a small molecule
+- **WHEN** an xTB session runs on a small molecule whose singlepoint evaluation is
+  much cheaper than the pacing interval, from a distorted geometry that has not
+  converged
+- **THEN** evaluations proceed back-to-back at the pacing rate rather than waiting
+  idle between sparse ticks: the relaxation rate is bounded by the evaluation cost,
+  not by GUI pacing, and pointer movement during a drag registers with the worker
+  within at most a couple of frames
+
 #### Scenario: Pointer move registers without waiting the pacing interval
 - **WHEN** an xTB session runs on a backend whose singlepoint evaluation is much
   cheaper than the pacing interval (a timer-bound backend) and the user moves a
@@ -55,6 +64,12 @@ large enough that a single evaluation is slow.
 - **THEN** the movement registers with the worker on the next loop pass rather than on
   the next pacing-timer tick, so the drag latency is bounded by the evaluation cost
   rather than gated by the pacing interval
+
+#### Scenario: Faster pacing leaves idle and capped sessions idle
+- **WHEN** a session reaches its convergence threshold or its evaluation cap
+- **THEN** evaluation stops and CPU use returns to idle exactly as before the pacing
+  change: collapsed tick requests neither resume a latched session nor accumulate
+  work, and a later drag resumes optimization as specified above
 
 #### Scenario: Thread setting takes effect at session start
 - **WHEN** the user configures a specific xTB thread count (or the automatic default
