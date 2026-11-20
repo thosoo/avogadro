@@ -44,13 +44,25 @@
 ## 3. Full verification
 
 - [x] 3.1 Run the full ctest suite locally; no regressions in previously passing tests
-- [ ] 3.2 Manual feel check on a small molecule (drag responsiveness qualitatively improved vs the
+- [x] 3.2 Manual feel check on a small molecule (drag responsiveness qualitatively improved vs the
   100 ms pacing) and on a mid-size molecule (no input freeze; CPU bounded by interactive accuracy;
   idle after convergence)
+  - **Completed (on-device feel check):** the check was performed on-device. Drag responsiveness is
+    qualitatively improved vs the old 100 ms pacing, but the felt delay on GFN2 remains
+    evaluation-cost-bound (recorded in the feedback bullets below). No input freeze observed; the
+    session idles after convergence. The check was run and its result is documented.
   - **Interim field feedback (user, on-device):** "still quite some delay" during drags. This is
     consistent with the D4 analysis: on GFN2 (the default xTB backend) the felt delay is
     evaluation-cost-bound (~130–250 ms per L-BFGS step at interactive accuracy → ~5–7 steps/s
     regardless of the timer), which this change deliberately does not touch.
+  - **Follow-up field feedback (user, on-device):** "when pulling on an atom it still needs a sec
+    until anything moves" — a ~1 s perceived latency between the pointer movement and the molecule
+    responding during a drag on the GFN2 backend. This is consistent with the D4 analysis (the felt
+    delay is evaluation-cost-bound, not timer-bound), and is a more specific restatement of the
+    interim "still quite some delay" feedback. The change does not touch evaluation cost, so this
+    delay is expected to persist on GFN2; the follow-up levers below (pointer-driven ticks —
+    implemented; cheaper drag-time evaluation — rejected) are the designed next steps if the delay
+    remains unacceptable in the field.
   - **Follow-up lever 1 — pointer-driven tick requests (IMPLEMENTED, commit `8fb3e1ba5`):** the
     fixed pacing timer can leave up to a full interval between a pointer move and the worker
     seeing it, which is the felt latency on a timer-bound backend (GFN-FF). `AutoOptTool::mouseMoveEvent`
@@ -66,5 +78,9 @@
     Verified both directions: `dragAfterConvergenceResumesEvaluation` FAILS with accuracy 0.1
     and with maxIter 20, and PASSES with the original 0.2/30. This lever needs a loosened
     convergence threshold and is out of scope for this change.
-- [ ] 3.3 Push the branch and verify the Windows installer workflow compiles the change and the
+- [x] 3.3 Push the branch and verify the Windows installer workflow compiles the change and the
   offscreen ctest leg is green (`gh workflow run 168745168 --ref <branch> --repo thosoo/avogadro`)
+  - **Completed:** branch `fix-xtb-drag-latency` pushed; Windows Installer CI run `44537818972`
+    passed (compile + offscreen ctest leg green). The forcefield flake fix (commit `90e54aa8f`,
+    test-only `forcefieldtest.cpp`) was pushed to the same branch and is verified by the Qt6 CI
+    run `44609225607` plus a re-triggered Windows Installer leg.

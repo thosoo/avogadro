@@ -1,0 +1,357 @@
+# touch-navigation Specification
+
+## Purpose
+
+Defines the touch-input contract of the molecule view: how touchscreen
+interaction reaches tools and the camera, so that every gesture a mouse user
+has is available to a touch user (through synthesized mouse events for tools,
+through two-finger gestures for zoom and pan), and no touch artifact — palm,
+resting finger, stray tap — can mutate the molecule or the camera outside a
+deliberate gesture.
+
+## Requirements
+
+### Requirement: Single-finger touch reaches tools as synthesized mouse events
+The application SHALL accept single-finger touch input and deliver it to the
+active tool as ordinary scaled mouse events, preserving each tool's existing
+press/move/release semantics. A touch that has not yet moved beyond a small
+slop radius SHALL be held in a pending state in which no tool receives any
+event; pointer jitter below the slop radius SHALL NOT reach any tool. A quick
+release below the slop radius SHALL be delivered to tools as a synthesized
+press-and-release pair (a click) at the touch position. Travel at or above the
+slop radius SHALL be delivered as a synthesized press at the traveled-to
+position followed by move events and a final release. Synthesized event
+positions SHALL be expressed in the canvas widget's local coordinates, so
+the pipeline is correct wherever the canvas is embedded in a window.
+
+#### Scenario: Tap on an atom behaves like a mouse click
+- **WHEN** the user taps (touch and quick release without significant travel)
+  on an atom with the draw tool active
+- **THEN** the tool performs its click semantics exactly as for a mouse click
+  (element change or click-extend), with no duplicate or phantom events
+
+#### Scenario: One-finger stroke draws a bond
+- **WHEN** the user touches an atom and drags with one finger, with the draw
+  tool active
+- **THEN** the tool receives a press followed by move events and draws a bond
+  following the finger, exactly as for a mouse drag
+
+#### Scenario: One-finger lasso erases
+- **WHEN** the user draws a freehand loop with one finger with the erase tool
+  active
+- **THEN** the erase tool receives ordinary mouse events and the lasso deletes
+  the enclosed atoms at release, exactly as for a mouse lasso
+
+#### Scenario: Resting-finger jitter is swallowed
+- **WHEN** the user rests a finger on the canvas without intending a gesture
+  and the contact point wobbles by less than the slop radius
+- **THEN** no tool receives any event and the molecule is unchanged
+
+#### Scenario: Touch session cancelled while pending
+- **WHEN** the platform cancels the touch session (a TouchCancel event)
+  while a single touch is pending
+- **THEN** no tool event is synthesized (no phantom click) and the molecule
+  is unchanged
+
+#### Scenario: Touch coordinates are consistent with the rendered frame
+- **WHEN** any single-finger gesture is performed on a display with
+  `devicePixelRatio != 1`
+- **THEN** the synthesized events land on the rendered geometry the finger is
+  over (picking, stroke placement, and lasso containment agree with what is
+  visually under the finger), per the hidpi-render-coordinates invariant
+
+#### Scenario: Canvas embedded in a window with chrome
+- **WHEN** the canvas is a child widget offset from the window origin
+  (toolbars or docks above it) and the user taps or drags on the canvas
+- **THEN** the synthesized events use the canvas widget's local coordinates:
+  picking, stroke placement, and lasso containment agree with what is
+  visually under the finger, not shifted by the window chrome
+
+### Requirement: One-finger rotate is preserved when no tool claims the gesture
+When the active tool does not claim a single-finger gesture, the fallback
+camera navigation SHALL remain available through the synthesized events: a
+one-finger drag rotates the molecule exactly as a mouse drag does today, on
+every rendering tier.
+
+#### Scenario: One-finger rotate with the navigate tool active
+- **WHEN** the user drags with one finger while the navigation tool is active
+- **THEN** the camera orbits following the finger, as with a mouse drag
+
+#### Scenario: One-finger rotate with an editing tool active on empty behavior
+- **WHEN** the active tool's press handler declines a synthesized press and
+  the user continues dragging
+- **THEN** the drag rotates the molecule via the navigation fallback, matching
+  the existing mouse-decline behavior
+
+### Requirement: Two fingers zoom and pan the camera
+A two-finger gesture SHALL zoom and pan the camera at the widget level,
+before any tool receives events: changing the distance between the two
+touch points SHALL zoom (matching the wheel zoom direction and magnitude
+convention), and moving the two-point centroid SHALL pan. Neither the zoom
+nor the pan SHALL reach any tool as input, and the gesture SHALL work
+regardless of which tool is active. The two fingers may arrive grouped into
+touch events in any way the platform chooses — a touch event already
+carrying both points, updates carrying both points, or the second finger's
+arrival delivered as its own touch-begin carrying only that point — and the
+gesture SHALL form in every grouping. While a two-finger gesture is in
+flight, the touch points that compose it SHALL be tracked by identity — the
+gesture ends when either of the two original points lifts, and the camera
+stays where the gesture left it. A single finger that has just crossed the
+slop radius (so a stroke would otherwise begin) SHALL hold its synthesized
+press for a short arming window, and — when the stroke has already committed
+(the window elapsed and the press reached the tool) but has not released — a
+second finger arriving SHALL still form the two-finger gesture: the partial
+effect of the abandoned stroke SHALL be undone so the molecule is unchanged,
+and no further tool event SHALL be delivered for the abandoned stroke — so a
+pinch never draws an atom or creates a bond through an editing tool,
+regardless of how long finger 1 moved before finger 2 landed.
+
+#### Scenario: Pinch to zoom
+- **WHEN** the user spreads two fingers apart on the canvas
+- **THEN** the camera zooms in proportionally to the spread, in the same
+  direction as mouse-wheel zoom-out-to-in, and no tool receives events
+
+#### Scenario: Pinch with an editing tool active
+- **WHEN** the user pinch-zooms or two-finger-pans while a molecule-editing
+  tool (for example the draw tool) is active
+- **THEN** the camera zooms/pans and the molecule is unchanged: the gesture
+  reaches no tool regardless of the active tool
+
+#### Scenario: Second finger arrives in its own touch-begin
+- **WHEN** one finger is pending on the canvas and the platform delivers the
+  second finger's arrival as a separate touch-begin carrying only that new
+  point, and the user then spreads or pans the two fingers
+- **THEN** the interaction is a two-finger gesture: the camera responds to
+  the spread/pan, no tool event is synthesized, and the originally pending
+  finger is not dropped or treated as a fresh touch
+
+#### Scenario: Early stroke replaced by a pinch (editing tool active)
+- **WHEN** the user places one finger on the canvas and it crosses the small
+  slop radius (so a stroke begins), the stroke commits, and a second finger
+  arrives while the stroke is still in flight (before its release) — however
+  long finger 1 moved before finger 2 landed — and the user then spreads or
+  pans the two fingers while an editing tool (for example the draw tool) is
+  active
+- **THEN** the interaction is a two-finger gesture: the camera responds to
+  the spread/pan, any partial effect of the abandoned stroke is undone (no
+  atom remains drawn, no bond is created), no further tool event is
+  synthesized for the abandoned stroke, and the molecule is unchanged
+
+#### Scenario: Two-finger pan
+- **WHEN** the user moves two fingers together across the canvas without
+  changing their separation
+- **THEN** the camera pans following the centroid movement, and no tool
+  receives events
+
+#### Scenario: Mixed pinch-and-drag
+- **WHEN** the user spreads two fingers while moving them in one continuous
+  gesture
+- **THEN** zoom and pan respond together smoothly, without camera jumps
+
+#### Scenario: Gesture end leaves the camera
+- **WHEN** either finger of an in-flight two-finger gesture lifts
+- **THEN** the gesture ends, the camera stays at the pose the gesture left,
+  and lifting does not produce any tool event
+
+#### Scenario: Touch session cancelled mid-gesture
+- **WHEN** the platform cancels the touch session (a TouchCancel event)
+  while a two-finger gesture is in flight
+- **THEN** the gesture ends, the camera stays where the gesture left it, and
+  no tool receives any event
+
+#### Scenario: Camera navigation during an auto-optimization session
+- **WHEN** a two-finger gesture drives the camera while an auto-optimization
+  session ticks
+- **THEN** the display remains continuously visible (no cleared frames), per
+  the existing no-blank-frame requirement
+
+### Requirement: Extra fingers are second-class
+Only a fresh touch may start a single-finger interaction. Any touch point
+that arrives while a stroke is in flight SHALL be ignored until it lifts,
+and SHALL NEVER be promoted to a new interaction, including after the stroke
+ends. Two exceptions preserve camera gestures: the second touch point
+arriving while a single touch is merely pending (no tool event sent yet), or
+inside the stroke's arming window before the press commits, SHALL form a
+two-finger gesture with the first point — however the platform groups the
+points into touch events — rather than be treated as second-class (and the
+committed-stroke recovery of the two-finger requirement applies when the
+second point arrives after the press has committed); and a third touch point
+arriving while a two-finger gesture is in flight SHALL promote that gesture
+to the three-finger orbit rather than be ignored — unless the three-finger
+orbit has been disabled in settings (see the settings requirement), in which
+case the promotion exception does not apply. Beyond those exceptions,
+every further point SHALL be ignored until it lifts, a touch event that
+begins with more than one point SHALL go directly to a camera gesture (two
+points to the pinch/pan gesture, three or more to the three-finger orbit),
+and a broken pinch pair SHALL NOT be replenished: a third finger present
+when one of the pair lifts SHALL NOT substitute into the gesture or start a
+new one.
+
+#### Scenario: Palm lands mid-stroke
+- **WHEN** the user's palm (or any extra finger) touches the canvas while a
+  drawing stroke is in flight, and that contact is not the second touch point
+  that forms the camera gesture (a palm landing as the second point is governed
+  by the committed-stroke recovery of the two-finger requirement)
+- **THEN** the stroke continues unaffected and the extra contact produces no
+  event in any tool
+
+#### Scenario: Resting finger never wakes up as a new touch
+- **WHEN** a finger rests on the canvas while the user finishes a stroke with
+  another finger, and then the resting finger lifts
+- **THEN** nothing happens: no atom is placed, no click is synthesized, no
+  camera motion occurs
+
+#### Scenario: Both fingers land together
+- **WHEN** a touch event begins with two contact points already present
+- **THEN** the interaction is a two-finger gesture from the start, with no
+  pending single-touch state and no synthesized tool events
+
+#### Scenario: Third finger does not substitute into a pinch
+- **WHEN** one finger of a two-finger gesture lifts while a third finger is
+  already resting on the canvas
+- **THEN** the gesture ends and the third finger remains ignored until it
+  lifts (a third finger that arrives while the two-finger gesture is still
+  in flight is governed by the three-finger orbit requirement, not this one)
+
+### Requirement: Three fingers orbit the camera
+A three-finger gesture SHALL rotate (orbit) the camera at the widget level,
+before any tool receives events: moving the centroid of the three touch
+points SHALL rotate the view with the same mapping as the navigate tool's
+one-finger drag (horizontal centroid movement yaws, vertical movement
+pitches), and the rotation SHALL work regardless of which tool is active.
+Unless the user has disabled the three-finger orbit in settings (see the
+settings requirement), the gesture SHALL form when a touch event begins with
+three or more points,
+and when a third point arrives while a two-finger gesture is in flight (the
+pinch/pan gesture then becomes an orbit; its zoom/pan deltas stop). The
+three points SHALL be tracked by identity — the gesture ends when any of
+the three original points lifts, the camera stays where the gesture left
+it, and no lifting point produces any tool event. A third point arriving
+while a single-finger stroke is in flight remains second-class (palm
+rejection on the destructive path is unchanged), and neither the orbit nor
+any camera gesture reaches any tool as input. This requirement applies
+wherever the platform delivers three-finger touch to the application; on
+Windows 11 with the OS 'Three- and four-finger touch gestures' setting
+enabled (its default), the operating system delivers three- and four-finger
+touches to the shell instead and no orbit is possible until the user sets it
+Off (see the settings requirement's platform guidance).
+
+#### Scenario: Three fingers land together
+- **WHEN** a touch event begins with three contact points already present
+- **THEN** the camera orbits following the three-point centroid movement,
+  with no pending single-touch state and no synthesized tool events
+
+#### Scenario: Third finger promotes a pinch to an orbit
+- **WHEN** a two-finger gesture is in flight and a third finger touches the
+  canvas
+- **THEN** the gesture becomes a three-finger orbit: moving the three
+  fingers rotates the camera, the two-finger zoom/pan stops, and no tool
+  receives events
+
+#### Scenario: Orbit with an editing tool active
+- **WHEN** the user rotates three fingers while the draw tool is active
+- **THEN** the camera orbits and the molecule is unchanged: no atom is
+  drawn and no tool event is synthesized
+
+#### Scenario: One finger of an orbit lifts
+- **WHEN** any one of the three fingers lifts while the orbit gesture is in
+  flight
+- **THEN** the gesture ends, the camera stays at the pose the orbit left,
+  and no tool event is produced
+
+#### Scenario: Extra finger during a stroke neither orbits nor draws
+- **WHEN** a palm (or any extra finger) touches the canvas while a
+  single-finger drawing stroke is in flight
+- **THEN** no camera gesture forms, the stroke continues unaffected, and
+  the extra contact produces no event in any tool
+
+### Requirement: Touch interaction is adjustable in settings
+The application SHALL provide a settings panel that adjusts touch interaction
+without modifying any tool. It SHALL expose exactly three controls that
+change touch behavior: the
+stroke-arming window duration in milliseconds (default `kTouchStrokeArmMs`,
+range 50–1000), the slop radius in logical pixels (default
+`kTouchSlopLogicalPx`, range 4–40), and whether the three-finger orbit is
+enabled (default enabled). Every setting SHALL persist across restarts, SHALL
+apply to the touch pipeline without restarting the application, and SHALL be
+clamped to a documented in-range value when an out-of-range value is entered;
+a reset control SHALL restore the shipped defaults. On platforms whose
+operating system can preempt multi-finger touch (Windows 11 routes three- and
+four-finger touches to the shell unless its 'Three- and four-finger touch
+gestures' setting is Off), the panel SHALL additionally present guidance for
+that platform setting, including a direct way to open the platform's touch
+settings page; such guidance does not change the application's touch behavior
+and is not counted among the three behavior controls. With the orbit disabled,
+a third touch point SHALL follow the second-class rule instead of promoting a
+gesture to an orbit. The single-finger synthesis, two-finger, three-finger,
+second-class, and mouse-regression requirements SHALL hold for every in-range
+setting value; shortening the arming window below the shipped default trades
+pinch robustness for less stroke-start delay and relies on the
+committed-stroke recovery contract, which SHALL hold regardless of the
+configured window.
+
+#### Scenario: Arming window change takes effect immediately
+- **WHEN** the user changes the stroke-arming window in the settings panel
+  and then performs a pinch with an editing tool active
+- **THEN** the gesture follows the newly configured window without restarting
+  the application
+
+#### Scenario: Out-of-range value is clamped
+- **WHEN** the user enters an arming window or slop radius outside the
+  documented range
+- **THEN** the value is clamped into the range and the touch pipeline
+  receives a valid value
+
+#### Scenario: Orbit disabled
+- **WHEN** the three-finger orbit is disabled in settings and a third finger
+  touches during a two-finger gesture (or a touch begins with three points)
+- **THEN** no orbit rotation occurs, the two-finger pinch/pan continues from
+  the first two points, and the third point is second-class (ignored until it
+  lifts)
+
+#### Scenario: Defaults restore shipped behavior
+- **WHEN** the user activates the panel's reset control
+- **THEN** the arming window, slop radius, and orbit setting return to the
+  shipped constants and the pipeline behaves as shipped
+
+#### Scenario: Settings persist across restart
+- **WHEN** the user changes the settings, closes the application, and starts
+  it again
+- **THEN** the changed values are still in effect
+
+#### Scenario: Platform gesture guidance on Windows
+- **WHEN** the user opens the touch settings panel on a platform whose OS can
+  preempt multi-finger touch (Windows)
+- **THEN** the panel shows guidance naming the OS 'Three- and four-finger
+  touch gestures' setting and offers a direct way to open the platform's
+  touch settings page (ms-settings:devices-touch), without changing any
+  application touch behavior
+
+### Requirement: Touch interaction does not depend on hover
+No touch gesture SHALL require a prior hover state: every tool gesture and
+camera navigation reachable with a mouse press SHALL be reachable with a
+fresh touch on a display where no pointer hover precedes the touch, with
+identical results.
+
+#### Scenario: Fresh tap without hover
+- **WHEN** the user taps an atom without any prior pointer position over it
+  (no hover has ever occurred at that location)
+- **THEN** the gesture behaves identically to the same gesture performed
+  after hovering
+
+### Requirement: Mouse, wheel, and keyboard input are unchanged
+Adding touch input SHALL NOT alter the behavior of mouse, wheel, or keyboard
+input for any tool or camera navigation: all existing interaction
+requirements (draw-tool, erase-tool, molecule-sketching, auto-optimize
+interaction) SHALL hold verbatim when the input arrives from a mouse.
+
+#### Scenario: Mouse regression guard
+- **WHEN** the same molecule operations are performed with a mouse before and
+  after the touch pipeline is added
+- **THEN** tool behavior, undo grouping, picking, and camera navigation are
+  unchanged
+
+#### Scenario: Existing tool test suites still pass
+- **WHEN** the full ctest suite (draw, erase, select, autoopt, hidpi viewport
+  tests) runs on the touch-enabled build
+- **THEN** every previously passing test still passes
