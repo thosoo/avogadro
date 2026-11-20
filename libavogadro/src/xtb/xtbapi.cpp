@@ -103,16 +103,37 @@ void* resolve(QLibrary& lib, const char* name)
 
 } // namespace
 
+#ifdef _MSC_VER
+// The CRT _environ write (_putenv_s) can fault with a first-chance access
+// violation when a mixed MinGW runtime is present (the same DLL family as the
+// invalid-parameter fast-fail suppressed in isAvailable). The Win32 process
+// env (set by the caller via SetEnvironmentVariableW) is the authoritative
+// source for the OpenMP runtime, so a CRT-cache write failure is non-fatal:
+// guard it so qgetenv/getenv_s (which read the CRT cache) stay consistent
+// when the write succeeds, and the process never crashes when it faults.
+void __cdecl xtbSafePutEnv(const char* name, const char* value)
+{
+  __try {
+    _putenv_s(name, value);
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    // Swallow: the Win32 env is authoritative; the CRT cache is best-effort.
+  }
+}
+#endif
+
 void XtbApi::setEnv(const char* name, const char* value)
 {
-  // Set a process environment variable without touching the CRT _environ,
-  // which on Windows faults when a mixed MinGW runtime is present (see the
-  // OMP-env note in isAvailable). Uses the Win32 API directly; falls back to
-  // setenv on POSIX so the value is visible to the OpenMP runtime either way.
+  // Set the process environment variable so the OpenMP runtime sees it, and
+  // keep the CRT _environ cache consistent so qgetenv (getenv_s on MSVC)
+  // observes the same value. On Windows the CRT write can fault with a mixed
+  // MinGW runtime, so the Win32 API is the authoritative path and the CRT
+  // cache write is best-effort (guarded in xtbSafePutEnv). Falls back to
+  // setenv on POSIX, which updates the CRT cache in place.
 #ifdef _MSC_VER
   const std::wstring n = QString::fromUtf8(name).toStdWString();
   const std::wstring v = QString::fromUtf8(value).toStdWString();
   SetEnvironmentVariableW(n.c_str(), v.c_str());
+  xtbSafePutEnv(name, value);
 #else
   ::setenv(name, value, 1);
 #endif

@@ -77,9 +77,12 @@ public:
   /// Human-readable description of why loading failed (empty when available).
   static QString lastError();
 
-  /// Set a process environment variable without touching the CRT _environ.
-  /// On Windows this uses SetEnvironmentVariableW (the CRT _environ write
-  /// faults when a mixed MinGW runtime is present); on POSIX it uses setenv.
+  /// Set a process environment variable so both the OpenMP runtime and
+  /// qgetenv observe it. On Windows this writes the Win32 process env via
+  /// SetEnvironmentVariableW and keeps the CRT _environ cache consistent via
+  /// _putenv_s (guarded: the CRT write can fault with a mixed MinGW runtime,
+  /// and a fault is non-fatal because the Win32 env is authoritative); on
+  /// POSIX it uses setenv, which updates the CRT cache in place.
   /// Kept public so the engine can reuse it for the explicit thread count.
   static void setEnv(const char* name, const char* value);
 
