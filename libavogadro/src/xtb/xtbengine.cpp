@@ -18,6 +18,8 @@
 #include "xtbparams.h"
 #include "molecule.h"
 #include "atom.h"
+#include "bond.h"
+#include <openbabel/elements.h>
 
 #include <QtGlobal>
 #include <thread>
@@ -56,6 +58,21 @@ constexpr int kXtbDefaultMaxIter = 100;
 // session instead of latching an evaluation failure. Bounded, deterministic.
 constexpr int kXtbReleaseMaxIter = 2 * kXtbDefaultMaxIter;
 
+// Design D4: tether force constant for the drag bond-preservation restraint
+// (kJ/mol/A^2 -> Hartree/bohr^2). 1 Ha = 2625.4996 kJ/mol, 1 A = 1.8897259886
+// bohr. This is the single tuning knob (see design.md D4).
+constexpr double kKJmolPerHartree = 2625.4996;
+constexpr double kXtbTetherForceKJmolA2 = 1000.0;
+constexpr double kXtbTetherForce =
+  kXtbTetherForceKJmolA2 / (kKJmolPerHartree * kAngstromToBohr * kAngstromToBohr);
+// Design D3: repair-cap threshold (1.3x the covalent-radii sum, the same
+// convention bondStrainText uses). When the press length exceeds this, the
+// tether target is capped at the covalent-radii sum so grabbing a previously
+// broken bond pulls it back together rather than holding the broken distance.
+constexpr double kXtbTetherRepairThreshold = 1.3;
+// Degenerate-bond guard: bonds shorter than this (bohr) at press are skipped.
+constexpr double kXtbTetherMinLengthBohr = 1e-6;
+
 constexpr int kErrorBufferSize = 1024;
 
 } // namespace
@@ -80,6 +97,7 @@ XtbEngine::XtbEngine(QObject* parent)
   , m_tickPending(false)
   , m_stop(0)
   , m_draggedIndex(-1)
+  , m_prevDragIndex(-1)
   , m_interactive(false)
   , m_converged(false)
   , m_resetHistoryRequested(false)
@@ -151,10 +169,14 @@ bool XtbEngine::setup(const std::vector<int>& atomicNumbers,
   // exiting run() because the prior stop() left the flag set).
   m_stop.storeRelaxed(0);
   m_lbfgs.resetHistory();
-  // A fresh setup must not carry a stale drag index or release-elevation flag
-  // from a previous session.
+  // A fresh setup must not carry a stale drag index, release-elevation flag,
+  // or tether state from a previous session.
   m_draggedIndex = -1;
   m_releaseElevatedIter = false;
+  m_tetherPartner.clear();
+  m_tetherTargetBohr.clear();
+  m_prevDragIndex = -1;
+  m_bondPairs.clear();
 
   // Neutral closed-shell, non-periodic molecule.
   m_charge = 0.0;
@@ -204,11 +226,13 @@ bool XtbEngine::setupFromMolecule(Molecule* molecule, int method, int level,
   // the live molecule per tick for re-baselining (design D2).
   std::vector<int> numbers;
   std::vector<double> positionsAngstrom;
+  std::vector<int> bondPairs;
   {
     QReadLocker locker(molecule->lock());
     const int n = molecule->numAtoms();
     numbers.reserve(static_cast<size_t>(n));
     positionsAngstrom.reserve(static_cast<size_t>(n) * 3);
+    bondPairs.reserve(static_cast<size_t>(molecule->numBonds()) * 2);
     foreach (const Atom* atom, molecule->atoms()) {
       numbers.push_back(atom->atomicNumber());
       const Eigen::Vector3d& p = *atom->pos();
@@ -216,12 +240,30 @@ bool XtbEngine::setupFromMolecule(Molecule* molecule, int method, int level,
       positionsAngstrom.push_back(p.y());
       positionsAngstrom.push_back(p.z());
     }
+    // Capture the initial bond graph so the first tick's comparison does not
+    // spuriously re-establish (design D2/D5): the session's m_bondPairs must
+    // match the live molecule's bonds until a real change occurs.
+    foreach (const Bond* bond, molecule->bonds()) {
+      if (bond == nullptr)
+        continue;
+      const Atom* beginAtom = bond->beginAtom();
+      const Atom* endAtom = bond->endAtom();
+      if (beginAtom == nullptr || endAtom == nullptr)
+        continue;
+      const int bi = static_cast<int>(beginAtom->index());
+      const int ei = static_cast<int>(endAtom->index());
+      if (bi < 0 || bi >= n || ei < 0 || ei >= n)
+        continue;
+      bondPairs.push_back(bi);
+      bondPairs.push_back(ei);
+    }
   }
 
   if (!setup(numbers, positionsAngstrom, method, level, threadsSetting)) {
     return false;
   }
   m_molecule = molecule;
+  m_bondPairs = bondPairs;
   return true;
 }
 
@@ -591,6 +633,38 @@ double XtbEngine::evaluateOnce(const std::vector<double>& coords,
     }
   }
 
+  // Design D1: external tether for the dragged atom's bonds (bond-honoring
+  // drag). For each incident bond with partner p and target d0 (bohr), add a
+  // harmonic term to the session's own energy/gradient:
+  //   E += 0.5*k*(|r_di - r_p| - d0)^2
+  //   grad_p += k*(|r_di - r_p| - d0) * (r_p - r_di)/|r_di - r_p|
+  // The dragged atom's gradient is zeroed above, so the tether acts only on
+  // the partners; E and grad stay mutually consistent (valid L-BFGS curvature
+  // pairs). Guard the degenerate (zero-distance) case. Tether state is
+  // worker-owned and stable within this call, so no lock is taken.
+  if (di >= 0 && !m_tetherPartner.empty()) {
+    for (size_t t = 0; t < m_tetherPartner.size(); ++t) {
+      const int p = m_tetherPartner[t];
+      const double d0 = m_tetherTargetBohr[t];
+      if (p < 0 || p * 3 + 2 >= static_cast<int>(pinned.size())) {
+        continue;
+      }
+      const double dx = pinned[di * 3] - pinned[p * 3];
+      const double dy = pinned[di * 3 + 1] - pinned[p * 3 + 1];
+      const double dz = pinned[di * 3 + 2] - pinned[p * 3 + 2];
+      const double dist = std::sqrt(dx * dx + dy * dy + dz * dz);
+      if (dist < kXtbTetherMinLengthBohr) {
+        continue;
+      }
+      const double stretch = dist - d0;
+      const double factor = kXtbTetherForce * stretch / dist;
+      energy += 0.5 * kXtbTetherForce * stretch * stretch;
+      grad[p * 3] += factor * (-dx);
+      grad[p * 3 + 1] += factor * (-dy);
+      grad[p * 3 + 2] += factor * (-dz);
+    }
+  }
+
   {
     QMutexLocker locker(&m_stateMutex);
     m_lastEnergy = energy;
@@ -708,6 +782,11 @@ void XtbEngine::deleteObjectsOnWorker()
   // The live-molecule source (if any) must not be dereferenced after the
   // session ends, so drop it here on the worker thread (design D2).
   m_molecule = nullptr;
+  // Clear tether state on quiesce (design D5): no stale tether may survive
+  // into a later session on the same engine object.
+  m_tetherPartner.clear();
+  m_tetherTargetBohr.clear();
+  m_prevDragIndex = -1;
   QMutexLocker locker(&m_mutex);
   destroyObjects();
 }
@@ -738,7 +817,8 @@ void XtbEngine::latchEvaluationFailure(const QString& reason)
 }
 
 bool XtbEngine::readLiveMolecule(std::vector<int>& numbers,
-                                 std::vector<double>& positionsBohr)
+                                 std::vector<double>& positionsBohr,
+                                 std::vector<int>& bondPairs)
 {
   // Headless vector setup (tests) has no live source: skip re-baselining.
   if (m_molecule == nullptr) {
@@ -785,7 +865,133 @@ bool XtbEngine::readLiveMolecule(std::vector<int>& numbers,
     positionsBohr.push_back(p.y() * kAngstromToBohr);
     positionsBohr.push_back(p.z() * kAngstromToBohr);
   }
+  // Copy the bond list (flat begin/end atom-index pairs) under the same read
+  // lock, so the tether capture and the topology scan see a consistent bond
+  // graph (design D2). Bonds whose endpoint atom index is out of range (a torn
+  // read) are skipped rather than trusted.
+  bondPairs.clear();
+  bondPairs.reserve(static_cast<size_t>(m_molecule->numBonds()) * 2);
+  foreach (const Bond* bond, m_molecule->bonds()) {
+    if (bond == nullptr) {
+      continue;
+    }
+    const Atom* beginAtom = bond->beginAtom();
+    const Atom* endAtom = bond->endAtom();
+    if (beginAtom == nullptr || endAtom == nullptr) {
+      continue;
+    }
+    const int beginIndex = static_cast<int>(beginAtom->index());
+    const int endIndex = static_cast<int>(endAtom->index());
+    if (beginIndex < 0 || beginIndex >= n || endIndex < 0 || endIndex >= n) {
+      continue;
+    }
+    bondPairs.push_back(beginIndex);
+    bondPairs.push_back(endIndex);
+  }
   return true;
+}
+
+// static
+void XtbEngine::computeTetherTargets(int dragIndex,
+                                     const std::vector<int>& numbers,
+                                     const std::vector<int>& bondPairs,
+                                     const std::vector<double>& positionsBohr,
+                                     std::vector<int>& partnerOut,
+                                     std::vector<double>& targetOut)
+{
+  partnerOut.clear();
+  targetOut.clear();
+  const int n = static_cast<int>(numbers.size());
+  if (dragIndex < 0 || dragIndex >= n) {
+    return;
+  }
+  if (positionsBohr.size() < static_cast<size_t>(dragIndex * 3 + 3)) {
+    return;
+  }
+  // Degenerate input: an invalid dragged element gets no tether.
+  if (numbers[dragIndex] <= 0) {
+    return;
+  }
+  // Walk the bond graph, collecting the bonds incident to the dragged atom.
+  for (size_t b = 0; b + 1 < bondPairs.size(); b += 2) {
+    const int a = bondPairs[b];
+    const int c = bondPairs[b + 1];
+    int partner = -1;
+    if (a == dragIndex) {
+      partner = c;
+    }
+    else if (c == dragIndex) {
+      partner = a;
+    }
+    if (partner < 0 || partner >= n) {
+      continue;
+    }
+    // Degenerate input: an invalid partner element gets no tether.
+    if (numbers[partner] <= 0) {
+      continue;
+    }
+    // Press length in bohr (the bond as it stands when grabbed).
+    const double dx = positionsBohr[dragIndex * 3] - positionsBohr[partner * 3];
+    const double dy =
+      positionsBohr[dragIndex * 3 + 1] - positionsBohr[partner * 3 + 1];
+    const double dz =
+      positionsBohr[dragIndex * 3 + 2] - positionsBohr[partner * 3 + 2];
+    const double pressLength = std::sqrt(dx * dx + dy * dy + dz * dz);
+    // Skip degenerate (near-zero-length) bonds at press.
+    if (pressLength < kXtbTetherMinLengthBohr) {
+      continue;
+    }
+    // Repair cap (design D3): covalent-radii sum in bohr, from the OpenBabel
+    // element table already linked into libavogadro. When the press length
+    // exceeds the strain threshold, the target is capped at the sum so a
+    // previously broken bond is pulled back together rather than held broken.
+    const double covSumBohr =
+      (OpenBabel::OBElements::GetCovalentRad(static_cast<unsigned int>(numbers[dragIndex])) +
+       OpenBabel::OBElements::GetCovalentRad(static_cast<unsigned int>(numbers[partner]))) *
+      kAngstromToBohr;
+    // Degenerate radii (an element the table does not know): skip the bond.
+    if (covSumBohr <= kXtbTetherMinLengthBohr) {
+      continue;
+    }
+    double d0 = pressLength;
+    if (pressLength > kXtbTetherRepairThreshold * covSumBohr) {
+      d0 = covSumBohr;
+    }
+    partnerOut.push_back(partner);
+    targetOut.push_back(d0);
+  }
+}
+
+void XtbEngine::updateTetherForDrag(const std::vector<int>& numbers,
+                                    const std::vector<int>& bondPairs,
+                                    const std::vector<double>& positionsBohr)
+{
+  // Read the current drag index (the drag lifecycle flags flow GUI->worker
+  // through setDraggedAtom). Tether state is worker-owned, so no lock guards
+  // it; the drag index is read under m_stateMutex because the GUI thread writes
+  // it.
+  int currentDrag = -1;
+  {
+    QMutexLocker locker(&m_stateMutex);
+    currentDrag = m_draggedIndex;
+  }
+  if (currentDrag < 0) {
+    // Release (or no drag): clear the tether (design D5). The drag mask is
+    // already off, so evaluateOnce will not apply a stale tether even before
+    // this clears (it guards on di >= 0).
+    m_tetherPartner.clear();
+    m_tetherTargetBohr.clear();
+  }
+  else if (m_prevDragIndex != currentDrag) {
+    // Press, or the dragged atom changed between ticks: capture the tether
+    // targets from the live bond graph (design D2). Deterministic for
+    // identical molecule state (design D3). The != comparison (rather than a
+    // -1 -> >=0 test) catches a release+re-press that the worker observed as
+    // a single index change (a busy tick can miss the intermediate -1).
+    computeTetherTargets(currentDrag, numbers, bondPairs, positionsBohr,
+                         m_tetherPartner, m_tetherTargetBohr);
+  }
+  m_prevDragIndex = currentDrag;
 }
 
 void XtbEngine::resetPhaseForReBaseline()
@@ -809,7 +1015,8 @@ void XtbEngine::resetPhaseForReBaseline()
 }
 
 bool XtbEngine::reestablishForTopology(const std::vector<int>& numbers,
-                                       const std::vector<double>& positionsBohr)
+                                       const std::vector<double>& positionsBohr,
+                                       const std::vector<int>& bondPairs)
 {
   // Worker-side re-establishment (design D2): exactly one destroy/recreate of
   // the four xTB objects per topology change, under m_mutex (the GUI thread
@@ -818,6 +1025,7 @@ bool XtbEngine::reestablishForTopology(const std::vector<int>& numbers,
   QMutexLocker locker(&m_mutex);
   destroyObjects();
   m_numbers = numbers;
+  m_bondPairs = bondPairs;
   m_coordsBohr = positionsBohr;
   m_grad.assign(m_coordsBohr.size(), 0.0);
   // The topology changed, so the grabbed atom may no longer exist (or its
@@ -829,6 +1037,12 @@ bool XtbEngine::reestablishForTopology(const std::vector<int>& numbers,
     m_interactive = false;
     m_currentAccuracy = kXtbDefaultAccuracy;
   }
+  // The bond graph may have changed (design D5): clear the tether so no
+  // removed bond stays tethered. The next press re-captures it. Tether state
+  // is worker-owned, so no lock guards it; this runs on the worker thread.
+  m_tetherPartner.clear();
+  m_tetherTargetBohr.clear();
+  m_prevDragIndex = -1;
   if (!validateElements()) {
     return false;
   }
@@ -935,11 +1149,12 @@ void XtbEngine::run()
     if (m_molecule) {
       std::vector<int> liveNumbers;
       std::vector<double> livePositionsBohr;
+      std::vector<int> liveBondPairs;
       // A failed read (lock contention/quiesce) leaves no valid snapshot for
       // this tick: clear it so the write-back cannot use a stale one to skip
       // atoms it should actually update.
       m_readSnapshotBohr.clear();
-      if (!readLiveMolecule(liveNumbers, livePositionsBohr)) {
+      if (!readLiveMolecule(liveNumbers, livePositionsBohr, liveBondPairs)) {
         // No live source was read this tick (lock not acquired within the
         // retry budget, or a stop was requested). Proceeding to evaluate and
         // then write back would run an UNPROTECTED write (no snapshot to skip
@@ -953,8 +1168,14 @@ void XtbEngine::run()
         // snapshot) from a genuine external edit made between the read and the
         // write-back (atom changed: skip it, preserve the edit).
         m_readSnapshotBohr = livePositionsBohr;
-        if (liveNumbers != m_numbers) {
-          if (!reestablishForTopology(liveNumbers, livePositionsBohr)) {
+        // Design D2/D5: re-establish on any topology change — an atom
+        // added/removed (numbers differ) OR a bond added/removed (bond graph
+        // differs, even though the atom numbers are unchanged). The bond-graph
+        // comparison is what makes a bond removed mid-drag clear the tether
+        // (no stale tether on a removed bond).
+        if (liveNumbers != m_numbers || liveBondPairs != m_bondPairs) {
+          if (!reestablishForTopology(liveNumbers, livePositionsBohr,
+                                      liveBondPairs)) {
             // Failed-setup latch: deterministic, no per-tick retries. The xTB
             // objects were destroyed and could not be recreated, so the phase
             // is BROKEN, not merely idle. Set m_setupBroken (NOT m_converged):
@@ -1017,6 +1238,11 @@ void XtbEngine::run()
           }
         }
       }
+      // Design D2/D3: tether lifecycle at the drag transition. The tether is
+      // captured on press (from the bond graph just read) and cleared on
+      // release; a topology re-establishment (above) already cleared/rebuilds
+      // it via reestablishForTopology. No-op when no drag transitioned.
+      updateTetherForDrag(liveNumbers, liveBondPairs, livePositionsBohr);
     }
 
     // A converged (or capped) session idles: ticks are consumed without

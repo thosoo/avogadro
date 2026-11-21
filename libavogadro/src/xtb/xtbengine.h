@@ -105,6 +105,23 @@ public:
   /// when nothing new is available; consumes the "new" flag on success.
   bool takeLatestCoords(std::vector<double>& out);
 
+  /// Computes the tether targets for the dragged atom from a live bond graph
+  /// and positions (design D2/D3). Pure: no engine state, so it is callable
+  /// from a headless test. @p bondPairs is a flat vector of atom-index pairs
+  /// (begin,end per bond) as read from the live molecule; @p numbers carries
+  /// the per-atom atomic numbers (for the repair-cap covalent radii);
+  /// @p positionsBohr carries the per-atom positions in bohr. Fills
+  /// @p partnerOut with partner atom indices and @p targetOut with the tether
+  /// target lengths (bohr). Skips degenerate (near-zero-length or invalid
+  /// element) bonds and caps the target at the covalent-radii sum when the
+  /// press length exceeds the repair-cap threshold.
+  static void computeTetherTargets(int dragIndex,
+                                   const std::vector<int>& numbers,
+                                   const std::vector<int>& bondPairs,
+                                   const std::vector<double>& positionsBohr,
+                                   std::vector<int>& partnerOut,
+                                   std::vector<double>& targetOut);
+
 Q_SIGNALS:
   void progress(int evaluation, int maxEvaluations, double energyHartree);
   void coordsReady(const std::vector<double>& coordsBohr);
@@ -139,12 +156,23 @@ private:
   // must hold m_stateMutex.
   bool isEvaluationFailedLocked() const;
   // Reads the live molecule (when a source is set) under a bounded-retry read
-  // lock, copying the current topology fingerprint (atomic numbers) and the
-  // per-atom positions (A->bohr). Returns true when the read completed, false
-  // when no source is set, the lock was not acquired within the retry budget,
-  // or a stop was requested. Never dereferences a null/destroyed molecule.
+  // lock, copying the current topology fingerprint (atomic numbers), the
+  // per-atom positions (A->bohr), and the bond list (flat begin/end atom-index
+  // pairs) for the tether capture (design D2). Returns true when the read
+  // completed, false when no source is set, the lock was not acquired within
+  // the retry budget, or a stop was requested. Never dereferences a
+  // null/destroyed molecule.
   bool readLiveMolecule(std::vector<int>& numbers,
-                        std::vector<double>& positionsBohr);
+                        std::vector<double>& positionsBohr,
+                        std::vector<int>& bondPairs);
+  // Worker-side tether lifecycle at the drag transition (design D2/D3/D5):
+  // reads m_draggedIndex, compares it to m_prevDragIndex, captures the tether
+  // targets on a press (drag index -1 -> >=0) and clears them on a release
+  // (>=0 -> -1), then records the current index for the next tick. Worker
+  // thread only; tether state is worker-owned (no cross-thread access).
+  void updateTetherForDrag(const std::vector<int>& numbers,
+                           const std::vector<int>& bondPairs,
+                           const std::vector<double>& positionsBohr);
   // Resets the quasi-Newton phase (history, eval counter, baseline, converged
   // latch) so the next tick re-baselines from the current working geometry.
   // Worker-thread only; caller must not hold m_stateMutex.
@@ -153,9 +181,11 @@ private:
   // recreate the four xTB objects under m_mutex, adopt the new numbers/positions,
   // re-validate elements, and reset the optimizer phase. Failure routes to the
   // failed-setup latch (deterministic, no per-tick retries). Returns true on
-  // success.
+  // success. @p bondPairs is the flat begin/end atom-index bond graph, stored
+  // as the session's current topology (design D2/D5).
   bool reestablishForTopology(const std::vector<int>& numbers,
-                              const std::vector<double>& positionsBohr);
+                              const std::vector<double>& positionsBohr,
+                              const std::vector<int>& bondPairs);
   // Adopts externally-authored positions when they differ from the working
   // geometry beyond epsilon (excluding the dragged atom), starting a fresh
   // optimization phase. Returns true when adopted.
@@ -191,6 +221,12 @@ private:
 
   // Setup parameters (worker-owned working state).
   std::vector<int> m_numbers;
+  // The session's current bond graph, as flat begin/end atom-index pairs
+  // (worker-owned). Compared against the live read each tick so a bond
+  // addition/removal (which does not change atom numbers) still triggers the
+  // one-time topology re-establishment (design D2/D5), which clears the tether
+  // so a removed bond leaves no stale tether.
+  std::vector<int> m_bondPairs;
   std::vector<double> m_coordsBohr;
   std::vector<double> m_grad;
   // Read snapshot of the live molecule at the start of the current tick
@@ -233,6 +269,16 @@ private:
   bool m_tickPending;
   QAtomicInt m_stop;
   int m_draggedIndex;
+  // Tether state (design D2/D3/D5): worker-owned. m_tetherPartner holds the
+  // partner atom index of each bond incident to the dragged atom and
+  // m_tetherTargetBohr holds the corresponding target length in bohr. Cleared
+  // on drag end, topology re-establishment, quiesce, and setup().
+  // m_prevDragIndex is the previous tick's drag index, used to detect the
+  // drag-start/end transition. All touched only on the worker thread (except
+  // setup(), which runs before the thread starts), so no mutex guards them.
+  std::vector<int> m_tetherPartner;
+  std::vector<double> m_tetherTargetBohr;
+  int m_prevDragIndex;
   bool m_interactive;
   bool m_converged;
   bool m_resetHistoryRequested;

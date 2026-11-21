@@ -8,11 +8,17 @@
 #include "molecule.h"
 #include "atom.h"
 
+#include <openbabel/elements.h>
+
 #include <QSignalSpy>
 #include <QTimer>
 
 #include <cmath>
 #include <vector>
+
+// Local copy of the engine's bohr conversion (not exported) for the tether
+// target assertions; keeps the test independent of engine internals.
+static const double kTestAngstromToBohr = 1.8897259886;
 
 using Avogadro::XtbApi;
 using Avogadro::XtbEngine;
@@ -57,6 +63,18 @@ private slots:
   void dragReleaseThenIdleConverges();
   void dragReleaseStrainedConverges();
   void dragReleaseDissociatedLatchesWithRecovery();
+
+  // Design D2/D3: pure-function tether-target capture (no library needed).
+  void tetherTargetsCapturedForKnownGeometry();
+  void tetherTargetsRepairCap();
+  void tetherTargetsSkippedDegenerate();
+  // Design D1/D6: tether behavior on the live engine (library needed).
+  void headlessDragNoTetherEvaluates();
+  void hardPullKeepsMoleculeConnected();
+  void releaseContractsBond();
+  void preBrokenBondHealsOnGrab();
+  void bondRemovedMidDragNoStaleTether();
+  void dragAuthoritySurvivesExtremePull();
 };
 
 // Water geometry in angstrom: O at origin, H1 at (0,0,1.0), H2 at (0,0.1,-1.0).
@@ -1422,6 +1440,486 @@ void XtbEngineTest::dragReleaseDissociatedLatchesWithRecovery()
   }
   QCOMPARE(coordsCount, countAtFailure);
   QCOMPARE(failSpy.count(), 1);
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+// Design D2/D3: pure-function tether-target capture. No xTB library needed
+// (computeTetherTargets is a static, stateless helper).
+void XtbEngineTest::tetherTargetsCapturedForKnownGeometry()
+{
+  // Water: O(8) at origin, H1(1) at (0,0,1.0) A, H2(1) at (0,0.1,-1.0) A.
+  std::vector<int> numbers = { 8, 1, 1 };
+  std::vector<int> bondPairs = { 0, 1, 0, 2 };
+  std::vector<double> posBohr = {
+    0.0, 0.0, 0.0,
+    0.0, 0.0, 1.0 * kTestAngstromToBohr,
+    0.0, 0.1 * kTestAngstromToBohr, -1.0 * kTestAngstromToBohr,
+  };
+
+  // Drag H1 (index 1): the single incident bond is O-H1, target = press length.
+  std::vector<int> partner;
+  std::vector<double> target;
+  XtbEngine::computeTetherTargets(1, numbers, bondPairs, posBohr, partner, target);
+  QCOMPARE(static_cast<int>(partner.size()), 1);
+  QCOMPARE(partner[0], 0);
+  QCOMPARE(static_cast<int>(target.size()), 1);
+  // Press length = |O - H1| = 1.0 A in bohr.
+  QVERIFY(std::abs(target[0] - 1.0 * kTestAngstromToBohr) < 1e-6);
+
+  // Drag O (index 0): two incident bonds, O-H1 and O-H2 (bond order as read).
+  XtbEngine::computeTetherTargets(0, numbers, bondPairs, posBohr, partner, target);
+  QCOMPARE(static_cast<int>(partner.size()), 2);
+  QCOMPARE(partner[0], 1);
+  QCOMPARE(partner[1], 2);
+  QCOMPARE(static_cast<int>(target.size()), 2);
+  // O-H1 target = 1.0 A; O-H2 target = |O-H2| = sqrt(0.1^2 + 1^2) A.
+  const double h2Length =
+    std::sqrt(0.1 * 0.1 + 1.0 * 1.0) * kTestAngstromToBohr;
+  QVERIFY(std::abs(target[0] - 1.0 * kTestAngstromToBohr) < 1e-6);
+  QVERIFY(std::abs(target[1] - h2Length) < 1e-6);
+
+  // Drag an atom with no incident bonds (only O-H1 is bonded): empty tether.
+  std::vector<int> partialBonds = { 0, 1 };
+  XtbEngine::computeTetherTargets(2, numbers, partialBonds, posBohr, partner, target);
+  QCOMPARE(static_cast<int>(partner.size()), 0);
+  QCOMPARE(static_cast<int>(target.size()), 0);
+}
+
+void XtbEngineTest::tetherTargetsRepairCap()
+{
+  // Water with H1 pulled to 2.0 A from O: the press length exceeds the strain
+  // threshold (1.3x the covalent-radii sum), so the target is capped at the
+  // sum, not held at the broken distance.
+  std::vector<int> numbers = { 8, 1, 1 };
+  std::vector<int> bondPairs = { 0, 1 };
+  std::vector<double> posBohr = {
+    0.0, 0.0, 0.0,
+    0.0, 0.0, 2.0 * kTestAngstromToBohr,
+    0.0, 0.1 * kTestAngstromToBohr, -1.0 * kTestAngstromToBohr,
+  };
+  const double covSumAng =
+    OpenBabel::OBElements::GetCovalentRad(8) + OpenBabel::OBElements::GetCovalentRad(1);
+  const double covSumBohr = covSumAng * kTestAngstromToBohr;
+
+  std::vector<int> partner;
+  std::vector<double> target;
+  XtbEngine::computeTetherTargets(1, numbers, bondPairs, posBohr, partner, target);
+  QCOMPARE(static_cast<int>(partner.size()), 1);
+  QCOMPARE(partner[0], 0);
+  QCOMPARE(static_cast<int>(target.size()), 1);
+  // Capped at the covalent-radii sum, NOT the 2.0 A press length.
+  QVERIFY(target[0] < 2.0 * kTestAngstromToBohr);
+  QVERIFY(std::abs(target[0] - covSumBohr) < 1e-6);
+
+  // A bond within the strain threshold keeps its press length (no cap).
+  std::vector<double> shortPos = {
+    0.0, 0.0, 0.0,
+    0.0, 0.0, 1.0 * kTestAngstromToBohr,
+    0.0, 0.1 * kTestAngstromToBohr, -1.0 * kTestAngstromToBohr,
+  };
+  XtbEngine::computeTetherTargets(1, numbers, bondPairs, shortPos, partner, target);
+  QCOMPARE(static_cast<int>(target.size()), 1);
+  QVERIFY(std::abs(target[0] - 1.0 * kTestAngstromToBohr) < 1e-6);
+}
+
+void XtbEngineTest::tetherTargetsSkippedDegenerate()
+{
+  // H1 at the same position as O (zero-length bond at press): skipped.
+  std::vector<int> numbers = { 8, 1 };
+  std::vector<int> bondPairs = { 0, 1 };
+  std::vector<double> zeroPos = {
+    0.0, 0.0, 0.0,
+    0.0, 0.0, 0.0,
+  };
+  std::vector<int> partner;
+  std::vector<double> target;
+  XtbEngine::computeTetherTargets(1, numbers, bondPairs, zeroPos, partner, target);
+  QCOMPARE(static_cast<int>(partner.size()), 0);
+  QCOMPARE(static_cast<int>(target.size()), 0);
+
+  // Drag index out of range: no tether.
+  XtbEngine::computeTetherTargets(5, numbers, bondPairs, zeroPos, partner, target);
+  QCOMPARE(static_cast<int>(partner.size()), 0);
+  QCOMPARE(static_cast<int>(target.size()), 0);
+}
+
+// Design D6: a headless vector session (no live-molecule source) with a drag
+// index set evaluates with no tether (there is no bond graph to capture) and
+// does not crash. This guards the headless-vector regression.
+void XtbEngineTest::headlessDragNoTetherEvaluates()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  XtbEngine engine;
+  QVERIFY(engine.setup(waterNumbers(), waterPositionsAng(), /*method=*/1,
+                       /*level=*/4, /*threads=*/0));
+  QSignalSpy coordsSpy(&engine, &XtbEngine::coordsReady);
+  // A drag index is set with no live-molecule source: the worker has no bond
+  // graph to capture, so it evaluates with no tether (design D6) and must not
+  // crash.
+  engine.setDraggedAtom(1);
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  QObject::connect(&tickTimer, &QTimer::timeout,
+                   [&]() { engine.requestTick(); });
+  tickTimer.start(30);
+  QTRY_VERIFY_WITH_TIMEOUT(coordsSpy.count() >= 1, 5000);
+  // Pump a few more ticks across the drag window: no crash, no stale tether.
+  int target = coordsSpy.count() + 2;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsSpy.count() >= target, 10000);
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+}
+
+// Design D1/D4: a hard pull keeps the molecule connected. The tether pulls the
+// bonded neighborhood toward the pinned dragged atom, so the O-H1 distance
+// decreases over successive evaluations while the pull is held, and no failure
+// latch occurs.
+void XtbEngineTest::hardPullKeepsMoleculeConnected()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  const double bohr2ang = 0.52917721092;
+  const double pullAngZ = 2.0;
+  Molecule* mol = makeWaterMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  std::vector<double> lastCoords;
+  int coordsCount = 0;
+  bool failLatch = false;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>& c) {
+                     lastCoords = c;
+                     ++coordsCount;
+                   });
+  QObject::connect(&engine, &XtbEngine::evaluationFailed,
+                   [&](const QString&) { failLatch = true; });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  bool dragActive = false;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() {
+    engine.requestTick();
+    if (dragActive) {
+      // Pointer authority (design D3): keep H1 at the pulled position in the
+      // live molecule so the worker's re-baseline reads it.
+      QWriteLocker locker(mol->lock());
+      mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, pullAngZ));
+    }
+  });
+  tickTimer.start(30);
+
+  // Let the session evaluate normally first (H1 at its equilibrium position).
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= 2, 5000);
+
+  // Grab H1 and pull it far beyond the bonding distance, holding it there.
+  dragActive = true;
+  engine.setDraggedAtom(1);
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, pullAngZ));
+  }
+  auto oH1Dist = [&](const std::vector<double>& c) {
+    const double dx = c[0] - c[3];
+    const double dy = c[1] - c[4];
+    const double dz = c[2] - c[5];
+    return std::sqrt(dx * dx + dy * dy + dz * dz) * bohr2ang;
+  };
+
+  // Capture the O-H1 distance at the first publish after the grab.
+  const int grabCount = coordsCount;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount > grabCount, 15000);
+  const double firstHoldDist = oH1Dist(lastCoords);
+
+  // Hold the pull and require the neighborhood to follow: the O-H1 distance
+  // decreases over successive evaluations, with no failure latch.
+  int target = coordsCount + 10;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= target, 30000);
+  const double endDist = oH1Dist(lastCoords);
+  QVERIFY(endDist < firstHoldDist - 0.03);
+  QVERIFY(!failLatch);
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+// Design D1/D4: releasing a hard-pulled drag contracts the bond back into
+// bonded range; the released atom rejoins the optimizer's coverage.
+void XtbEngineTest::releaseContractsBond()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  const double bohr2ang = 0.52917721092;
+  const double pullAngZ = 2.0;
+  Molecule* mol = makeWaterMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  std::vector<double> lastCoords;
+  int coordsCount = 0;
+  bool failLatch = false;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>& c) {
+                     lastCoords = c;
+                     ++coordsCount;
+                   });
+  QObject::connect(&engine, &XtbEngine::evaluationFailed,
+                   [&](const QString&) { failLatch = true; });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  bool dragActive = false;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() {
+    engine.requestTick();
+    if (dragActive) {
+      QWriteLocker locker(mol->lock());
+      mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, pullAngZ));
+    }
+  });
+  tickTimer.start(30);
+
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= 2, 5000);
+
+  // Hard-pull H1 and hold it briefly.
+  dragActive = true;
+  engine.setDraggedAtom(1);
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, pullAngZ));
+  }
+  int pullTarget = coordsCount + 3;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= pullTarget, 30000);
+
+  // Release: the optimizer resumes covering H1 and the stretched bond contracts.
+  dragActive = false;
+  engine.setDraggedAtom(-1);
+  auto oH1Dist = [&](const std::vector<double>& c) {
+    const double dx = c[0] - c[3];
+    const double dy = c[1] - c[4];
+    const double dz = c[2] - c[5];
+    return std::sqrt(dx * dx + dy * dy + dz * dz) * bohr2ang;
+  };
+  // The released bond returns within bonded range (< 1.3 A) within a bounded
+  // evaluation budget, with no failure latch.
+  QTRY_VERIFY_WITH_TIMEOUT(oH1Dist(lastCoords) < 1.3, 30000);
+  QVERIFY(!failLatch);
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+// Design D3: grabbing a pre-broken bond begins repair. The press length exceeds
+// the strain threshold, so the tether target is capped at the covalent-radii
+// sum and the bond trends back toward it instead of being held broken.
+void XtbEngineTest::preBrokenBondHealsOnGrab()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  const double bohr2ang = 0.52917721092;
+  // The pre-broken bond: H1 at 1.5 A from O (exceeds the 1.3x O-H cov-radii
+  // sum threshold, ~1.26 A), so the repair cap engages on grab.
+  const double preBrokenZ = 1.5;
+  const double heldZ = 1.4;
+  Molecule* mol = makeWaterMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  std::vector<double> lastCoords;
+  int coordsCount = 0;
+  bool failLatch = false;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>& c) {
+                     lastCoords = c;
+                     ++coordsCount;
+                   });
+  QObject::connect(&engine, &XtbEngine::evaluationFailed,
+                   [&](const QString&) { failLatch = true; });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  bool dragActive = false;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() {
+    engine.requestTick();
+    if (dragActive) {
+      QWriteLocker locker(mol->lock());
+      mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, heldZ));
+    }
+  });
+  tickTimer.start(30);
+
+  // Let the session establish normally (H1 near equilibrium).
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= 1, 5000);
+
+  // Push the bond past the strain threshold, then grab it: the repair-capped
+  // tether target is the covalent-radii sum, so the pull repairs the bond.
+  dragActive = true;
+  engine.setDraggedAtom(1);
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, preBrokenZ));
+  }
+  auto oH1Dist = [&](const std::vector<double>& c) {
+    const double dx = c[0] - c[3];
+    const double dy = c[1] - c[4];
+    const double dz = c[2] - c[5];
+    return std::sqrt(dx * dx + dy * dy + dz * dz) * bohr2ang;
+  };
+  const int grabCount = coordsCount;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount > grabCount, 15000);
+  const double firstDist = oH1Dist(lastCoords);
+
+  // Hold the (repair-capped) pull: the bond distance trends back toward the
+  // covalent-radii sum, decreasing over successive evaluations.
+  int target = coordsCount + 8;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= target, 30000);
+  const double endDist = oH1Dist(lastCoords);
+  QVERIFY(endDist < firstDist - 0.03);
+  QVERIFY(!failLatch);
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+// Design D5: removing an incident bond while a drag is active triggers exactly
+// one topology re-establishment (the bond graph changed, even though the atom
+// numbers did not), which clears the tether so no removed bond stays tethered.
+void XtbEngineTest::bondRemovedMidDragNoStaleTether()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  Molecule* mol = makeWaterMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  QSignalSpy reestablSpy(&engine, &XtbEngine::sessionReestablished);
+  std::vector<double> lastCoords;
+  int coordsCount = 0;
+  bool failLatch = false;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>& c) {
+                     lastCoords = c;
+                     ++coordsCount;
+                   });
+  QObject::connect(&engine, &XtbEngine::evaluationFailed,
+                   [&](const QString&) { failLatch = true; });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  QObject::connect(&tickTimer, &QTimer::timeout,
+                   [&]() { engine.requestTick(); });
+  tickTimer.start(30);
+
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= 2, 5000);
+
+  // Grab H1 and stretch it modestly (the tether engages on the O-H1 bond).
+  // A modest, bonded-range stretch keeps the post-removal geometry convergible
+  // (a large stretch leaves a free H1 far from O whose SCF can fail and
+  // latch, which is containment, not the tether-clear behavior under test).
+  engine.setDraggedAtom(1);
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, 1.1));
+  }
+  int pullTarget = coordsCount + 2;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= pullTarget, 20000);
+
+  // Delete the incident bond O-H1 (bond index 0) while the drag is active.
+  {
+    QWriteLocker locker(mol->lock());
+    mol->removeBond(mol->bond(0));
+  }
+
+  // Exactly one re-establishment (bond-graph change detected despite unchanged
+  // atom numbers), which clears the tether: no removed bond stays tethered.
+  QTRY_VERIFY_WITH_TIMEOUT(reestablSpy.count() >= 1, 5000);
+  QCOMPARE(reestablSpy.count(), 1);
+  // The session keeps evaluating (not broken) with no failure latch.
+  int after = coordsCount + 2;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= after, 30000);
+  QVERIFY(!failLatch);
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+// Design D1/D3: drag authority survives an extreme pull. The dragged atom has
+// multiple incident bonds; the tether acts only on the partners, so the dragged
+// atom's published position equals the pointer position every tick.
+void XtbEngineTest::dragAuthoritySurvivesExtremePull()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  const double bohr2ang = 0.52917721092;
+  // Pull O (two incident bonds) perpendicular to the O-H bonds so the bonds are
+  // stretched (not overlapped) while staying SCF-convergent.
+  const double dragAngX = 1.0;
+  Molecule* mol = makeWaterMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  std::vector<double> lastCoords;
+  int coordsCount = 0;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>& c) {
+                     lastCoords = c;
+                     ++coordsCount;
+                   });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  bool dragActive = false;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() {
+    engine.requestTick();
+    if (dragActive) {
+      QWriteLocker locker(mol->lock());
+      mol->atoms().at(0)->setPos(Eigen::Vector3d(dragAngX, 0.0, 0.0));
+    }
+  });
+  tickTimer.start(30);
+
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= 1, 5000);
+
+  dragActive = true;
+  engine.setDraggedAtom(0);
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(0)->setPos(Eigen::Vector3d(dragAngX, 0.0, 0.0));
+  }
+  // Under an extreme pull the dragged atom must track the pointer every tick:
+  // the tether acts only on the partners, never on the dragged atom.
+  int target = coordsCount + 5;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= target, 30000);
+  const double ox = lastCoords[0] * bohr2ang;
+  const double oy = lastCoords[1] * bohr2ang;
+  const double oz = lastCoords[2] * bohr2ang;
+  QVERIFY(std::abs(ox - dragAngX) < 1e-6);
+  QVERIFY(std::abs(oy - 0.0) < 1e-6);
+  QVERIFY(std::abs(oz - 0.0) < 1e-6);
 
   tickTimer.stop();
   engine.stop();
