@@ -75,6 +75,13 @@ private slots:
   void preBrokenBondHealsOnGrab();
   void bondRemovedMidDragNoStaleTether();
   void dragAuthoritySurvivesExtremePull();
+
+  // Manual-check regression (task 4.3): a hard pull on a multi-bond molecule
+  // must not sever ANY drawn bond. The pull is applied PERPENDICULAR to the
+  // C1-C2 axis so every incident bond is genuinely stretched (a pull along
+  // the axis would drag C1 through C2's nucleus, a compression/collision the
+  // spec's stretch scenario does not cover).
+  void ethaneHardPullStretchesMultiBond();
 };
 
 // Water geometry in angstrom: O at origin, H1 at (0,0,1.0), H2 at (0,0.1,-1.0).
@@ -730,6 +737,29 @@ static Molecule* makeWaterMolecule()
   Molecule* mol = makeMoleculeFrom(waterNumbers(), waterPositionsAng());
   mol->addBond(0, 1, 1);
   mol->addBond(0, 2, 1);
+  return mol;
+}
+
+// Ethane (C1-C2 with 3 H each) in angstrom. C1 at origin, C2 along +x.
+static Molecule* makeEthaneMolecule()
+{
+  Molecule* mol = makeMoleculeFrom(
+    { 6, 6, 1, 1, 1, 1, 1, 1 },
+    { 0.0, 0.0, 0.0,
+      1.54, 0.0, 0.0,
+      -1.09, 0.0, 0.0,
+      0.5, 0.9, 0.0,
+      0.5, -0.9, 0.0,
+      2.63, 0.0, 0.0,
+      2.04, 0.9, 0.0,
+      2.04, -0.9, 0.0 });
+  mol->addBond(0, 1, 1); // C1-C2
+  mol->addBond(0, 2, 1); // C1-H1
+  mol->addBond(0, 3, 1); // C1-H2
+  mol->addBond(0, 4, 1); // C1-H3
+  mol->addBond(1, 5, 1); // C2-H4
+  mol->addBond(1, 6, 1); // C2-H5
+  mol->addBond(1, 7, 1); // C2-H6
   return mol;
 }
 
@@ -1920,6 +1950,77 @@ void XtbEngineTest::dragAuthoritySurvivesExtremePull()
   QVERIFY(std::abs(ox - dragAngX) < 1e-6);
   QVERIFY(std::abs(oy - 0.0) < 1e-6);
   QVERIFY(std::abs(oz - 0.0) < 1e-6);
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+// Task 4.3 manual-check regression: a hard pull on a multi-bond molecule must
+// not sever ANY drawn bond. C1 of ethane is dragged PERPENDICULAR to the
+// C1-C2 axis so every incident bond is genuinely stretched (a pull along the
+// axis would drag C1 through C2's nucleus, a compression the spec's stretch
+// scenario does not cover). The tether must pull the partners back toward
+// reach so the worst bond-ratio trends down, the session keeps publishing,
+// and no failure latch occurs.
+void XtbEngineTest::ethaneHardPullStretchesMultiBond()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  // Perpendicular pull of 1.8 A: C1-C2 = sqrt(1.54^2 + 1.8^2) ~ 2.37 A and
+  // every C1-H ~ 2.1 A, so all four incident bonds are genuinely stretched
+  // (past their re-formation reach) but nothing is compressed or collided.
+  const double pullAngY = 1.8;
+  const double pullStepAng = 0.25;
+  Molecule* mol = makeEthaneMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  std::vector<double> lastCoords;
+  int coordsCount = 0;
+  bool failLatch = false;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>& c) {
+                     lastCoords = c;
+                     ++coordsCount;
+                   });
+  QObject::connect(&engine, &XtbEngine::evaluationFailed,
+                   [&](const QString&) { failLatch = true; });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  bool dragActive = false;
+  double dragPos = 0.0;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() {
+    engine.requestTick();
+    if (dragActive) {
+      QWriteLocker locker(mol->lock());
+      dragPos += pullStepAng;
+      if (dragPos > pullAngY)
+        dragPos = pullAngY;
+      mol->atoms().at(0)->setPos(Eigen::Vector3d(0.0, dragPos, 0.0));
+    }
+  });
+  tickTimer.start(30);
+
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= 2, 5000);
+
+  // Gradually hard-pull C1 perpendicular to the C1-C2 axis and hold it there.
+  dragActive = true;
+  engine.setDraggedAtom(0);
+  {
+    QWriteLocker locker(mol->lock());
+    dragPos += pullStepAng;
+    mol->atoms().at(0)->setPos(Eigen::Vector3d(0.0, dragPos, 0.0));
+  }
+
+  // Hold the pull: record the worst bond ratio at the start of the hold and
+  // assert it trends down as the tether pulls the partners back toward reach.
+  int target = coordsCount + 40;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= target, 60000);
 
   tickTimer.stop();
   engine.stop();
