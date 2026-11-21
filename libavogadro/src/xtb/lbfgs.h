@@ -25,6 +25,10 @@
 namespace Avogadro {
 namespace Xtb {
 
+/// Angstrom -> bohr conversion shared by the step-size trust cap (the LBfgs is
+/// deliberately Qt/Eigen-free; the literal matches the engine's conversion).
+constexpr double kBohrPerAngstrom = 1.8897259886;
+
 /**
  * @class LBfgs
  * @brief Limited-memory BFGS (L-BFGS) minimizer over a flat coordinate array.
@@ -187,8 +191,27 @@ public:
     std::vector<double> s(n, 0.0);
     std::vector<double> y(n, 0.0);
 
+    // Trust-radius cap on the trial step (design D8 hardening): a quasi-Newton
+    // direction accumulated during a stiff phase (for example a repair-capped
+    // tether pulling hard) can propose a trial geometry with near-coincident
+    // atoms, which the backend singlepoint cannot evaluate (Coulomb/lattice
+    // failures) and which D4 containment would latch. Cap the first-trial
+    // displacement norm so every evaluated trial geometry stays within a
+    // physically sane neighborhood of the accepted point; Armijo backtracking
+    // then only ever shrinks the step further. Near convergence the cap is
+    // inactive (steps are far below it), so convergence behavior is unchanged.
+    double dirNorm = 0.0;
+    for (int j = 0; j < n; ++j) {
+      dirNorm += dir[j] * dir[j];
+    }
+    dirNorm = std::sqrt(dirNorm);
+    constexpr double kMaxTrialStepBohr = 0.25 * kBohrPerAngstrom;
+
     // Backtracking Armijo line search.
     double step = 1.0;
+    if (dirNorm > kMaxTrialStepBohr) {
+      step = kMaxTrialStepBohr / dirNorm;
+    }
     double energyNew = energy;
     bool accepted = false;
     for (int trial = 0; trial < kMaxShrink; ++trial) {

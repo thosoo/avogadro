@@ -50,6 +50,14 @@ public:
   XtbEngine(QObject* parent = nullptr);
   ~XtbEngine();
 
+  /// Test seam for the floors-load-bearing regression (design D8): scales the
+  /// non-bonded floor force constant. 1.0 is the shipped behavior; 0.0
+  /// disables the floor restraints. Not a user setting; call before start().
+  void setTetherFloorForceScale(double scale)
+  {
+    m_tetherFloorForceScale = scale;
+  }
+
   /**
    * Configure the session. Returns false (and does not start the thread) when
    * the xTB library is unavailable or setup fails. On a setup failure the
@@ -105,22 +113,37 @@ public:
   /// when nothing new is available; consumes the "new" flag on success.
   bool takeLatestCoords(std::vector<double>& out);
 
-  /// Computes the tether targets for the dragged atom from a live bond graph
-  /// and positions (design D2/D3). Pure: no engine state, so it is callable
+  /// Computes the tether targets for EVERY drawn bond from a live bond graph
+  /// and positions (design D2/D3/D7). Pure: no engine state, so it is callable
   /// from a headless test. @p bondPairs is a flat vector of atom-index pairs
   /// (begin,end per bond) as read from the live molecule; @p numbers carries
   /// the per-atom atomic numbers (for the repair-cap covalent radii);
   /// @p positionsBohr carries the per-atom positions in bohr. Fills
-  /// @p partnerOut with partner atom indices and @p targetOut with the tether
-  /// target lengths (bohr). Skips degenerate (near-zero-length or invalid
-  /// element) bonds and caps the target at the covalent-radii sum when the
-  /// press length exceeds the repair-cap threshold.
+  /// @p partnerOut with flat atom-index pairs (two entries per tethered bond)
+  /// and @p targetOut with the tether target lengths (one per bond, bohr).
+  /// The repair cap applies only to bonds incident to @p dragIndex so a drag
+  /// does not silently relax the rest of the molecule (design D7). Skips
+  /// degenerate (near-zero-length or invalid element) bonds.
   static void computeTetherTargets(int dragIndex,
                                    const std::vector<int>& numbers,
                                    const std::vector<int>& bondPairs,
                                    const std::vector<double>& positionsBohr,
                                    std::vector<int>& partnerOut,
                                    std::vector<double>& targetOut);
+  /// Computes the non-bonded floor restraints (design D8). Pure: no engine
+  /// state, callable from a headless test. Captures every atom pair with
+  /// graph separation >= 2 (not directly bonded) whose press distance is
+  /// below the 3.0 A capture cutoff; the floor distance is
+  /// kXtbTetherFloorFactor x the covalent-radii sum (bohr). The pair set is
+  /// capped; overflow keeps pairs within 3 graph bonds of @p dragIndex
+  /// (BFS), then truncates in scan order. @p pairsOut receives two index
+  /// entries per floor pair; @p floorsOut one floor distance (bohr) per pair.
+  static void computeFloorPairs(int dragIndex,
+                                const std::vector<int>& numbers,
+                                const std::vector<int>& bondPairs,
+                                const std::vector<double>& positionsBohr,
+                                std::vector<int>& pairsOut,
+                                std::vector<double>& floorsOut);
 
 Q_SIGNALS:
   void progress(int evaluation, int maxEvaluations, double energyHartree);
@@ -269,15 +292,32 @@ private:
   bool m_tickPending;
   QAtomicInt m_stop;
   int m_draggedIndex;
-  // Tether state (design D2/D3/D5): worker-owned. m_tetherPartner holds the
-  // partner atom index of each bond incident to the dragged atom and
-  // m_tetherTargetBohr holds the corresponding target length in bohr. Cleared
-  // on drag end, topology re-establishment, quiesce, and setup().
-  // m_prevDragIndex is the previous tick's drag index, used to detect the
-  // drag-start/end transition. All touched only on the worker thread (except
-  // setup(), which runs before the thread starts), so no mutex guards them.
-  std::vector<int> m_tetherPartner;
+  // Tether state (design D2/D3/D5/D7): worker-owned. m_tetherBondIndices
+  // holds the flat atom-index pairs of every drawn bond (two entries per
+  // bond) and m_tetherTargetBohr holds the corresponding target length in
+  // bohr (one per bond). Cleared on drag end, topology re-establishment,
+  // quiesce, and setup(). m_prevDragIndex is the previous tick's drag index,
+  // used to detect the drag-start/end transition. All touched only on the
+  // worker thread (except setup(), which runs before the thread starts), so
+  // no mutex guards them.
+  std::vector<int> m_tetherBondIndices;
   std::vector<double> m_tetherTargetBohr;
+  // Non-bonded floor state (design D8): worker-owned, same lifecycle as the
+  // tether. m_floorPairIndices holds flat atom-index pairs (two entries per
+  // floor pair); m_floorDistancesBohr holds one floor distance (bohr) per
+  // pair (1.5x the covalent-radii sum at press). Cleared and re-captured
+  // with the tether state.
+  std::vector<int> m_floorPairIndices;
+  std::vector<double> m_floorDistancesBohr;
+  // Test seam for the floors-load-bearing regression (design D8): scales the
+  // floor force constant (1.0 = shipped behavior, 0.0 = floors disabled).
+  // Not a user setting; set before start().
+  double m_tetherFloorForceScale = 1.0;
+  // Worker-owned floor-engagement edge state: true while any captured floor
+  // pair is inside its floor distance. The off->on edge drops the optimizer's
+  // quasi-Newton history — it describes the pre-engagement landscape and
+  // otherwise overshoots through the newly engaged wall (design D8).
+  bool m_floorEngaged = false;
   int m_prevDragIndex;
   bool m_interactive;
   bool m_converged;

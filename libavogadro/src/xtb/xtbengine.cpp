@@ -27,6 +27,7 @@
 #include <QDir>
 #include <cmath>
 #include <limits>
+#include <unordered_set>
 
 // The MinGW libgfortran invalid-parameter workaround lives in xtbapi.cpp: the
 // process-wide handler is installed in XtbApi::isAvailable() before the library
@@ -72,6 +73,39 @@ constexpr double kXtbTetherForce =
 constexpr double kXtbTetherRepairThreshold = 1.3;
 // Degenerate-bond guard: bonds shorter than this (bohr) at press are skipped.
 constexpr double kXtbTetherMinLengthBohr = 1e-6;
+// Design D8: non-bonded floor engagement threshold as a factor of the
+// covalent-radii sum. Distinct from the 1.3 repair/strain threshold: for H-H
+// the floor is 0.93 A, fully above the H2 bond (0.74 A), so new-bond
+// character is suppressed while legitimate contacts (H...H on one carbon
+// ~1.78 A, hydrogen bonds 1.8-2.0 A) are untouched.
+constexpr double kXtbTetherFloorFactor = 1.5;
+// Design D8: hydrogen-pair floor factor. The H covalent-radius sum (0.62 A)
+// badly undershoots where the H-H repulsion wall sits: the xTB SCF's own
+// H...H attraction equilibrium for a collapsed H-C-H geometry is ~1.0 A, so a
+// 1.5x floor (0.93 A) engages only AFTER the pair has fallen into bonding
+// range. Hydrogen-hydrogen pairs therefore get a 2.0x floor (1.24 A), which
+// preempts the collapse while staying well below legitimate H...H contacts
+// (geminal ~1.78 A, hydrogen bonds 1.8-2.4 A).
+constexpr double kXtbTetherFloorFactorHydrogenPair = 2.0;
+// Design D8: hydrogen-pair wall stiffness. The H-H wall engages at 1.24 A,
+// but the drag-phase driving forces (tether geometry plus the SCF H...H
+// attraction) still transiently overshoot a wall at the base floor stiffness;
+// hydrogen pairs get twice the stiffness so the held-pull invariant holds
+// without transient dips into bonding range.
+constexpr double kXtbTetherFloorForceHydrogenPairScale = 2.0;
+// Design D8: floor force constant, twice the bond tether (2000 kJ/mol/A^2 in
+// Hartree/bohr^2), so H2 penetration from the floor down to the H2 bond meets
+// ~380 kJ/(mol*A) of resistance.
+constexpr double kXtbTetherFloorForce = 2.0 * kXtbTetherForce;
+// Design D8 capture bounds: a generous press-distance cutoff (3.0 A) because
+// the pairs that later swap partners are typically far apart at press and
+// only approach during the drag (a cutoff at the engagement threshold would
+// capture nothing useful); a bounded pair set (4096) keeps the per-evaluation
+// cost at one distance check per captured pair; overflow keeps pairs within
+// 3 graph bonds of the dragged atom.
+constexpr double kXtbFloorCaptureMaxDistBohr = 3.0 * kAngstromToBohr;
+constexpr size_t kXtbFloorMaxPairs = 4096;
+constexpr int kXtbFloorOverflowGraphDepth = 3;
 
 constexpr int kErrorBufferSize = 1024;
 
@@ -170,11 +204,14 @@ bool XtbEngine::setup(const std::vector<int>& atomicNumbers,
   m_stop.storeRelaxed(0);
   m_lbfgs.resetHistory();
   // A fresh setup must not carry a stale drag index, release-elevation flag,
-  // or tether state from a previous session.
+  // tether state, or floor state from a previous session.
   m_draggedIndex = -1;
   m_releaseElevatedIter = false;
-  m_tetherPartner.clear();
+  m_tetherBondIndices.clear();
   m_tetherTargetBohr.clear();
+  m_floorPairIndices.clear();
+  m_floorDistancesBohr.clear();
+  m_floorEngaged = false;
   m_prevDragIndex = -1;
   m_bondPairs.clear();
 
@@ -590,15 +627,38 @@ double XtbEngine::evaluateOnce(const std::vector<double>& coords,
     // leaves the environment in an error state; the diagnostic is surfaced and
     // the tick is treated as failed.
     if (XtbApi::xtb_checkEnvironment()(m_env) != 0) {
-      int bufsize = kErrorBufferSize;
-      char buffer[kErrorBufferSize];
-      XtbApi::xtb_getError()(m_env, buffer, &bufsize);
-      QString reason = QString::fromLatin1(buffer);
-      if (reason.isEmpty()) {
-        reason = QStringLiteral("xTB singlepoint failed");
+      // Design D8 drag-phase containment refinement: the tether dynamics can
+      // visit legitimate but SCF-awkward geometries within a drag (for
+      // example a quasi-linear small molecule the tethers straighten). Before
+      // latching, retry once at the release-elevation settings (full accuracy,
+      // 2x the steady-state iteration budget) — the same bounded, deterministic
+      // elevation the drag-release first evaluation gets. A fatal xTB error
+      // leaves the environment in a state the C API cannot clear (calling the
+      // library again on it corrupts its heap), so the retry runs on freshly
+      // created objects — the same worker-side destroy/recreate discipline as
+      // the D2 topology re-establishment. During an active drag only; a retry
+      // that also fails (or a non-drag failure) takes the D4 containment latch
+      // unchanged.
+      if (di >= 0 && maxIter < kXtbReleaseMaxIter) {
+        destroyObjects();
+        if (createObjects() && loadMethod()) {
+          XtbApi::xtb_setAccuracy()(m_env, m_calc, kXtbDefaultAccuracy);
+          XtbApi::xtb_setMaxIter()(m_env, m_calc, kXtbReleaseMaxIter);
+          XtbApi::xtb_updateMolecule()(m_env, m_mol, pinned.data(), nullptr);
+          XtbApi::xtb_singlepoint()(m_env, m_mol, m_calc, m_results);
+        }
       }
-      latchEvaluationFailure(reason);
-      return std::numeric_limits<double>::quiet_NaN();
+      if (XtbApi::xtb_checkEnvironment()(m_env) != 0) {
+        int bufsize = kErrorBufferSize;
+        char buffer[kErrorBufferSize];
+        XtbApi::xtb_getError()(m_env, buffer, &bufsize);
+        QString reason = QString::fromLatin1(buffer);
+        if (reason.isEmpty()) {
+          reason = QStringLiteral("xTB singlepoint failed");
+        }
+        latchEvaluationFailure(reason);
+        return std::numeric_limits<double>::quiet_NaN();
+      }
     }
 
     XtbApi::xtb_getEnergy()(m_env, m_results, &energy);
@@ -633,35 +693,122 @@ double XtbEngine::evaluateOnce(const std::vector<double>& coords,
     }
   }
 
-  // Design D1: external tether for the dragged atom's bonds (bond-honoring
-  // drag). For each incident bond with partner p and target d0 (bohr), add a
-  // harmonic term to the session's own energy/gradient:
-  //   E += 0.5*k*(|r_di - r_p| - d0)^2
-  //   grad_p += k*(|r_di - r_p| - d0) * (r_p - r_di)/|r_di - r_p|
-  // The dragged atom's gradient is zeroed above, so the tether acts only on
-  // the partners; E and grad stay mutually consistent (valid L-BFGS curvature
+  // Design D1/D7: external tether for EVERY drawn bond (bond-graph
+  // invariance). For each tethered bond with ends (a, c) and target d0
+  // (bohr), add a harmonic term to the session's own energy/gradient:
+  //   E += 0.5*k*(|r_a - r_c| - d0)^2
+  //   grad_end += k*(|r_a - r_c| - d0) * (r_end - r_other)/|r_a - r_c|
+  // Ends equal to the dragged atom are skipped (its gradient was zeroed above
+  // and its position is pointer-pinned), so the tether acts only on the other
+  // atoms. E and grad stay mutually consistent (valid L-BFGS curvature
   // pairs). Guard the degenerate (zero-distance) case. Tether state is
   // worker-owned and stable within this call, so no lock is taken.
-  if (di >= 0 && !m_tetherPartner.empty()) {
-    for (size_t t = 0; t < m_tetherPartner.size(); ++t) {
-      const int p = m_tetherPartner[t];
-      const double d0 = m_tetherTargetBohr[t];
-      if (p < 0 || p * 3 + 2 >= static_cast<int>(pinned.size())) {
-        continue;
+  if (di >= 0) {
+    const int n3 = static_cast<int>(pinned.size());
+    // Design D1/D7: external tether for EVERY drawn bond (bond-graph
+    // invariance). For each tethered bond with ends (a, c) and target d0
+    // (bohr), add a harmonic term to the session's own energy/gradient:
+    //   E += 0.5*k*(|r_a - r_c| - d0)^2
+    //   grad_end += k*(|r_a - r_c| - d0) * (r_end - r_other)/|r_a - r_c|
+    // Ends equal to the dragged atom are skipped (its gradient was zeroed
+    // above and its position is pointer-pinned), so the tether acts only on
+    // the other atoms. E and grad stay mutually consistent (valid L-BFGS
+    // curvature pairs). Guard the degenerate (zero-distance) case. Tether
+    // state is worker-owned and stable within this call, so no lock is taken.
+    if (!m_tetherBondIndices.empty()) {
+      for (size_t t = 0; t + 1 < m_tetherBondIndices.size(); t += 2) {
+        const int a = m_tetherBondIndices[t];
+        const int c = m_tetherBondIndices[t + 1];
+        if (t / 2 >= m_tetherTargetBohr.size()) {
+          continue;
+        }
+        const double d0 = m_tetherTargetBohr[t / 2];
+        if (a < 0 || a * 3 + 2 >= n3 || c < 0 || c * 3 + 2 >= n3) {
+          continue;
+        }
+        const double dx = pinned[a * 3] - pinned[c * 3];
+        const double dy = pinned[a * 3 + 1] - pinned[c * 3 + 1];
+        const double dz = pinned[a * 3 + 2] - pinned[c * 3 + 2];
+        const double dist = std::sqrt(dx * dx + dy * dy + dz * dz);
+        if (dist < kXtbTetherMinLengthBohr) {
+          continue;
+        }
+        const double stretch = dist - d0;
+        const double factor = kXtbTetherForce * stretch / dist;
+        if (a != di) {
+          grad[a * 3] += factor * dx;
+          grad[a * 3 + 1] += factor * dy;
+          grad[a * 3 + 2] += factor * dz;
+        }
+        if (c != di) {
+          grad[c * 3] += factor * (-dx);
+          grad[c * 3 + 1] += factor * (-dy);
+          grad[c * 3 + 2] += factor * (-dz);
+        }
+        energy += 0.5 * kXtbTetherForce * stretch * stretch;
       }
-      const double dx = pinned[di * 3] - pinned[p * 3];
-      const double dy = pinned[di * 3 + 1] - pinned[p * 3 + 1];
-      const double dz = pinned[di * 3 + 2] - pinned[p * 3 + 2];
-      const double dist = std::sqrt(dx * dx + dy * dy + dz * dz);
-      if (dist < kXtbTetherMinLengthBohr) {
-        continue;
+    }
+    // Design D8: repulsive non-bonded floors beside the bond tether — no new
+    // bond can form. Independent of the bond tether: an atom with no drawn
+    // bonds still gets floor protection. Engage only below the captured floor
+    // distance (kXtbTetherFloorFactor x the covalent-radii sum at press);
+    // guard the degenerate (zero-distance) case. Ends equal to the dragged
+    // atom are skipped as above.
+    if (!m_floorPairIndices.empty()) {
+      bool anyEngaged = false;
+      for (size_t t = 0; t + 1 < m_floorPairIndices.size(); t += 2) {
+        const int a = m_floorPairIndices[t];
+        const int c = m_floorPairIndices[t + 1];
+        if (t / 2 >= m_floorDistancesBohr.size()) {
+          continue;
+        }
+        const double rmin = m_floorDistancesBohr[t / 2];
+        if (a < 0 || a * 3 + 2 >= n3 || c < 0 || c * 3 + 2 >= n3) {
+          continue;
+        }
+        const double dx = pinned[a * 3] - pinned[c * 3];
+        const double dy = pinned[a * 3 + 1] - pinned[c * 3 + 1];
+        const double dz = pinned[a * 3 + 2] - pinned[c * 3 + 2];
+        const double dist = std::sqrt(dx * dx + dy * dy + dz * dz);
+        if (dist < kXtbTetherMinLengthBohr || dist >= rmin) {
+          continue;
+        }
+        anyEngaged = true;
+        const double penetration = rmin - dist;
+        // Hydrogen-hydrogen pairs get the stiffer wall (design D8): their
+        // drag-phase approach forces are large enough to overshoot the base
+        // stiffness. m_numbers is worker-owned session state.
+        const double pairScale =
+          (m_numbers[static_cast<size_t>(a)] == 1 &&
+           m_numbers[static_cast<size_t>(c)] == 1)
+            ? kXtbTetherFloorForceHydrogenPairScale
+            : 1.0;
+        const double floorForce =
+          kXtbTetherFloorForce * pairScale * m_tetherFloorForceScale;
+        energy += 0.5 * floorForce * penetration * penetration;
+        const double factor = floorForce * penetration / dist;
+        // Push the ends apart (grad consistent with the energy above):
+        // descent along -grad must move a away from c and c away from a.
+        if (a != di) {
+          grad[a * 3] += factor * (-dx);
+          grad[a * 3 + 1] += factor * (-dy);
+          grad[a * 3 + 2] += factor * (-dz);
+        }
+        if (c != di) {
+          grad[c * 3] += factor * dx;
+          grad[c * 3 + 1] += factor * dy;
+          grad[c * 3 + 2] += factor * dz;
+        }
       }
-      const double stretch = dist - d0;
-      const double factor = kXtbTetherForce * stretch / dist;
-      energy += 0.5 * kXtbTetherForce * stretch * stretch;
-      grad[p * 3] += factor * (-dx);
-      grad[p * 3 + 1] += factor * (-dy);
-      grad[p * 3 + 2] += factor * (-dz);
+      // Design D8: the off->on engagement edge drops the optimizer's
+      // quasi-Newton history. The stored curvature pairs describe the
+      // pre-engagement landscape (the SCF pulling the pair together); without
+      // the drop the next steps overshoot straight through the newly engaged
+      // wall into new-bond range. Consumed at the top of the next loop pass.
+      if (anyEngaged && !m_floorEngaged) {
+        m_resetHistoryRequested = true;
+      }
+      m_floorEngaged = anyEngaged;
     }
   }
 
@@ -782,10 +929,13 @@ void XtbEngine::deleteObjectsOnWorker()
   // The live-molecule source (if any) must not be dereferenced after the
   // session ends, so drop it here on the worker thread (design D2).
   m_molecule = nullptr;
-  // Clear tether state on quiesce (design D5): no stale tether may survive
-  // into a later session on the same engine object.
-  m_tetherPartner.clear();
+  // Clear tether and floor state on quiesce (design D5/D8): no stale
+  // restraint may survive into a later session on the same engine object.
+  m_tetherBondIndices.clear();
   m_tetherTargetBohr.clear();
+  m_floorPairIndices.clear();
+  m_floorDistancesBohr.clear();
+  m_floorEngaged = false;
   m_prevDragIndex = -1;
   QMutexLocker locker(&m_mutex);
   destroyObjects();
@@ -905,61 +1055,218 @@ void XtbEngine::computeTetherTargets(int dragIndex,
   if (dragIndex < 0 || dragIndex >= n) {
     return;
   }
-  if (positionsBohr.size() < static_cast<size_t>(dragIndex * 3 + 3)) {
+  if (positionsBohr.size() < static_cast<size_t>(n * 3)) {
     return;
   }
   // Degenerate input: an invalid dragged element gets no tether.
   if (numbers[dragIndex] <= 0) {
     return;
   }
-  // Walk the bond graph, collecting the bonds incident to the dragged atom.
+  // Design D7: every drawn bond is tethered to its press length so the drawn
+  // bond graph is an invariant of the drag-phase optimization. The repair cap
+  // (D3) stays scoped to the bonds incident to the dragged atom so the drag
+  // does not silently relax the rest of the molecule. partnerOut receives
+  // flat atom-index pairs (two entries per bond); evaluateOnce applies the
+  // restraint to both ends (ends equal to the dragged atom are skipped there:
+  // its gradient is zeroed and its position is pointer-pinned).
   for (size_t b = 0; b + 1 < bondPairs.size(); b += 2) {
     const int a = bondPairs[b];
     const int c = bondPairs[b + 1];
-    int partner = -1;
-    if (a == dragIndex) {
-      partner = c;
-    }
-    else if (c == dragIndex) {
-      partner = a;
-    }
-    if (partner < 0 || partner >= n) {
+    if (a < 0 || a >= n || c < 0 || c >= n || a == c) {
       continue;
     }
-    // Degenerate input: an invalid partner element gets no tether.
-    if (numbers[partner] <= 0) {
+    // Degenerate input: an invalid element gets no tether.
+    if (numbers[a] <= 0 || numbers[c] <= 0) {
       continue;
     }
     // Press length in bohr (the bond as it stands when grabbed).
-    const double dx = positionsBohr[dragIndex * 3] - positionsBohr[partner * 3];
-    const double dy =
-      positionsBohr[dragIndex * 3 + 1] - positionsBohr[partner * 3 + 1];
-    const double dz =
-      positionsBohr[dragIndex * 3 + 2] - positionsBohr[partner * 3 + 2];
+    const double dx = positionsBohr[a * 3] - positionsBohr[c * 3];
+    const double dy = positionsBohr[a * 3 + 1] - positionsBohr[c * 3 + 1];
+    const double dz = positionsBohr[a * 3 + 2] - positionsBohr[c * 3 + 2];
     const double pressLength = std::sqrt(dx * dx + dy * dy + dz * dz);
     // Skip degenerate (near-zero-length) bonds at press.
     if (pressLength < kXtbTetherMinLengthBohr) {
       continue;
     }
-    // Repair cap (design D3): covalent-radii sum in bohr, from the OpenBabel
-    // element table already linked into libavogadro. When the press length
-    // exceeds the strain threshold, the target is capped at the sum so a
-    // previously broken bond is pulled back together rather than held broken.
+    // Covalent-radii sum in bohr, from the OpenBabel element table already
+    // linked into libavogadro (repair-cap bound and degeneracy guard).
     const double covSumBohr =
-      (OpenBabel::OBElements::GetCovalentRad(static_cast<unsigned int>(numbers[dragIndex])) +
-       OpenBabel::OBElements::GetCovalentRad(static_cast<unsigned int>(numbers[partner]))) *
+      (OpenBabel::OBElements::GetCovalentRad(static_cast<unsigned int>(numbers[a])) +
+       OpenBabel::OBElements::GetCovalentRad(static_cast<unsigned int>(numbers[c]))) *
       kAngstromToBohr;
     // Degenerate radii (an element the table does not know): skip the bond.
     if (covSumBohr <= kXtbTetherMinLengthBohr) {
       continue;
     }
     double d0 = pressLength;
-    if (pressLength > kXtbTetherRepairThreshold * covSumBohr) {
+    if ((a == dragIndex || c == dragIndex) &&
+        pressLength > kXtbTetherRepairThreshold * covSumBohr) {
       d0 = covSumBohr;
     }
-    partnerOut.push_back(partner);
+    partnerOut.push_back(a);
+    partnerOut.push_back(c);
     targetOut.push_back(d0);
   }
+}
+
+void XtbEngine::computeFloorPairs(int dragIndex,
+                                  const std::vector<int>& numbers,
+                                  const std::vector<int>& bondPairs,
+                                  const std::vector<double>& positionsBohr,
+                                  std::vector<int>& pairsOut,
+                                  std::vector<double>& floorsOut)
+{
+  pairsOut.clear();
+  floorsOut.clear();
+  const int n = static_cast<int>(numbers.size());
+  if (dragIndex < 0 || dragIndex >= n) {
+    return;
+  }
+  if (n < 2 || positionsBohr.size() < static_cast<size_t>(n * 3)) {
+    return;
+  }
+
+  // Bonded-pair lookup: encoded (min,max) index pairs in a hash set.
+  std::unordered_set<uint64_t> bonded;
+  bonded.reserve(bondPairs.size() * 2 + 8);
+  for (size_t b = 0; b + 1 < bondPairs.size(); b += 2) {
+    const int a = bondPairs[b];
+    const int c = bondPairs[b + 1];
+    if (a < 0 || a >= n || c < 0 || c >= n || a == c) {
+      continue;
+    }
+    const int lo = std::min(a, c);
+    const int hi = std::max(a, c);
+    bonded.insert(static_cast<uint64_t>(static_cast<uint32_t>(lo)) *
+                    static_cast<uint64_t>(static_cast<uint32_t>(n)) +
+                  static_cast<uint64_t>(static_cast<uint32_t>(hi)));
+  }
+
+  // BFS depth from the dragged atom, bounded at the overflow-restriction
+  // depth (design D8): depth 0 is the dragged atom itself; unreached atoms
+  // keep depth -1.
+  std::vector<int> depth(n, -1);
+  std::vector<size_t> offset(static_cast<size_t>(n) + 1, 0);
+  std::vector<int> adj;
+  {
+    std::vector<size_t> degree(static_cast<size_t>(n), 0);
+    for (size_t b = 0; b + 1 < bondPairs.size(); b += 2) {
+      const int a = bondPairs[b];
+      const int c = bondPairs[b + 1];
+      if (a >= 0 && a < n && c >= 0 && c < n && a != c) {
+        ++degree[static_cast<size_t>(a)];
+        ++degree[static_cast<size_t>(c)];
+      }
+    }
+    for (int i = 0; i < n; ++i) {
+      offset[static_cast<size_t>(i) + 1] =
+        offset[static_cast<size_t>(i)] + degree[static_cast<size_t>(i)];
+    }
+    adj.resize(offset.back());
+    std::vector<size_t> fill(offset.begin(), offset.end() - 1);
+    for (size_t b = 0; b + 1 < bondPairs.size(); b += 2) {
+      const int a = bondPairs[b];
+      const int c = bondPairs[b + 1];
+      if (a >= 0 && a < n && c >= 0 && c < n && a != c) {
+        adj[fill[static_cast<size_t>(a)]++] = c;
+        adj[fill[static_cast<size_t>(c)]++] = a;
+      }
+    }
+    depth[static_cast<size_t>(dragIndex)] = 0;
+    std::vector<int> frontier;
+    frontier.push_back(dragIndex);
+    for (int d = 1;
+         d <= kXtbFloorOverflowGraphDepth && !frontier.empty(); ++d) {
+      std::vector<int> next;
+      for (int atom : frontier) {
+        for (size_t k = offset[static_cast<size_t>(atom)];
+             k < offset[static_cast<size_t>(atom) + 1]; ++k) {
+          const int nb = adj[k];
+          if (depth[static_cast<size_t>(nb)] < 0) {
+            depth[static_cast<size_t>(nb)] = d;
+            next.push_back(nb);
+          }
+        }
+      }
+      frontier.swap(next);
+    }
+  }
+
+  // Candidate scan (one-time O(N^2) press-time work): squared-distance
+  // early-out before the hash lookup and sqrt so the hot loop stays cheap.
+  const double captureCutoff2 = kXtbFloorCaptureMaxDistBohr * kXtbFloorCaptureMaxDistBohr;
+  std::vector<int> candidatePairs;
+  std::vector<double> candidateFloors;
+  candidatePairs.reserve(64);
+  candidateFloors.reserve(64);
+  for (int i = 0; i < n; ++i) {
+    if (numbers[static_cast<size_t>(i)] <= 0) {
+      continue;
+    }
+    for (int j = i + 1; j < n; ++j) {
+      if (numbers[static_cast<size_t>(j)] <= 0) {
+        continue;
+      }
+      const double dx = positionsBohr[static_cast<size_t>(i) * 3] -
+                        positionsBohr[static_cast<size_t>(j) * 3];
+      const double dy = positionsBohr[static_cast<size_t>(i) * 3 + 1] -
+                        positionsBohr[static_cast<size_t>(j) * 3 + 1];
+      const double dz = positionsBohr[static_cast<size_t>(i) * 3 + 2] -
+                        positionsBohr[static_cast<size_t>(j) * 3 + 2];
+      const double dist2 = dx * dx + dy * dy + dz * dz;
+      if (dist2 >= captureCutoff2) {
+        continue;
+      }
+      const uint64_t key = static_cast<uint64_t>(static_cast<uint32_t>(i)) *
+                             static_cast<uint64_t>(static_cast<uint32_t>(n)) +
+                           static_cast<uint64_t>(static_cast<uint32_t>(j));
+      if (bonded.count(key) != 0) {
+        continue;
+      }
+      const double covSumBohr =
+        (OpenBabel::OBElements::GetCovalentRad(static_cast<unsigned int>(numbers[static_cast<size_t>(i)])) +
+         OpenBabel::OBElements::GetCovalentRad(static_cast<unsigned int>(numbers[static_cast<size_t>(j)]))) *
+        kAngstromToBohr;
+      // Degenerate radii (an element the table does not know): no floor.
+      if (covSumBohr <= kXtbTetherMinLengthBohr) {
+        continue;
+      }
+      // Hydrogen-hydrogen pairs use the higher floor factor (design D8): the
+      // covalent-radius sum undershoots the H-H repulsion range.
+      const bool hydrogenPair = numbers[static_cast<size_t>(i)] == 1 &&
+                                numbers[static_cast<size_t>(j)] == 1;
+      candidatePairs.push_back(i);
+      candidatePairs.push_back(j);
+      candidateFloors.push_back((hydrogenPair ? kXtbTetherFloorFactorHydrogenPair
+                                              : kXtbTetherFloorFactor) *
+                                covSumBohr);
+    }
+  }
+
+  // Overflow restriction (design D8): keep only pairs near the dragged atom,
+  // then truncate in scan order so the set stays bounded and deterministic.
+  if (candidateFloors.size() > kXtbFloorMaxPairs) {
+    std::vector<int> nearPairs;
+    std::vector<double> nearFloors;
+    nearPairs.reserve(candidatePairs.size());
+    nearFloors.reserve(candidateFloors.size());
+    for (size_t t = 0; t + 1 < candidatePairs.size(); t += 2) {
+      if (depth[static_cast<size_t>(candidatePairs[t])] >= 0 &&
+          depth[static_cast<size_t>(candidatePairs[t + 1])] >= 0) {
+        nearPairs.push_back(candidatePairs[t]);
+        nearPairs.push_back(candidatePairs[t + 1]);
+        nearFloors.push_back(candidateFloors[t / 2]);
+      }
+    }
+    if (nearFloors.size() > kXtbFloorMaxPairs) {
+      nearFloors.resize(kXtbFloorMaxPairs);
+      nearPairs.resize(kXtbFloorMaxPairs * 2);
+    }
+    candidatePairs.swap(nearPairs);
+    candidateFloors.swap(nearFloors);
+  }
+  pairsOut.swap(candidatePairs);
+  floorsOut.swap(candidateFloors);
 }
 
 void XtbEngine::updateTetherForDrag(const std::vector<int>& numbers,
@@ -976,20 +1283,26 @@ void XtbEngine::updateTetherForDrag(const std::vector<int>& numbers,
     currentDrag = m_draggedIndex;
   }
   if (currentDrag < 0) {
-    // Release (or no drag): clear the tether (design D5). The drag mask is
-    // already off, so evaluateOnce will not apply a stale tether even before
-    // this clears (it guards on di >= 0).
-    m_tetherPartner.clear();
+    // Release (or no drag): clear the tether and floors (design D5/D8). The
+    // drag mask is already off, so evaluateOnce will not apply a stale
+    // restraint even before this clears (it guards on di >= 0).
+    m_tetherBondIndices.clear();
     m_tetherTargetBohr.clear();
+    m_floorPairIndices.clear();
+    m_floorDistancesBohr.clear();
+    m_floorEngaged = false;
   }
   else if (m_prevDragIndex != currentDrag) {
     // Press, or the dragged atom changed between ticks: capture the tether
-    // targets from the live bond graph (design D2). Deterministic for
-    // identical molecule state (design D3). The != comparison (rather than a
-    // -1 -> >=0 test) catches a release+re-press that the worker observed as
-    // a single index change (a busy tick can miss the intermediate -1).
+    // targets and floor pairs from the live bond graph (design D2/D7/D8).
+    // Deterministic for identical molecule state (design D3). The !=
+    // comparison (rather than a -1 -> >=0 test) catches a release+re-press
+    // that the worker observed as a single index change (a busy tick can miss
+    // the intermediate -1).
     computeTetherTargets(currentDrag, numbers, bondPairs, positionsBohr,
-                         m_tetherPartner, m_tetherTargetBohr);
+                         m_tetherBondIndices, m_tetherTargetBohr);
+    computeFloorPairs(currentDrag, numbers, bondPairs, positionsBohr,
+                      m_floorPairIndices, m_floorDistancesBohr);
   }
   m_prevDragIndex = currentDrag;
 }
@@ -1037,11 +1350,16 @@ bool XtbEngine::reestablishForTopology(const std::vector<int>& numbers,
     m_interactive = false;
     m_currentAccuracy = kXtbDefaultAccuracy;
   }
-  // The bond graph may have changed (design D5): clear the tether so no
-  // removed bond stays tethered. The next press re-captures it. Tether state
-  // is worker-owned, so no lock guards it; this runs on the worker thread.
-  m_tetherPartner.clear();
+  // The bond graph may have changed (design D5/D8): clear the tether and
+  // floor state so no removed bond stays tethered and no stale floor pair
+  // survives a changed non-bonded set. The next press re-captures both from
+  // the new graph. Restraint state is worker-owned, so no lock guards it;
+  // this runs on the worker thread.
+  m_tetherBondIndices.clear();
   m_tetherTargetBohr.clear();
+  m_floorPairIndices.clear();
+  m_floorDistancesBohr.clear();
+  m_floorEngaged = false;
   m_prevDragIndex = -1;
   if (!validateElements()) {
     return false;

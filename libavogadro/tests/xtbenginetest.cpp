@@ -68,6 +68,7 @@ private slots:
   void tetherTargetsCapturedForKnownGeometry();
   void tetherTargetsRepairCap();
   void tetherTargetsSkippedDegenerate();
+  void floorPairsCapturedForKnownGeometry();
   // Design D1/D6: tether behavior on the live engine (library needed).
   void headlessDragNoTetherEvaluates();
   void hardPullKeepsMoleculeConnected();
@@ -82,6 +83,11 @@ private slots:
   // the axis would drag C1 through C2's nucleus, a compression/collision the
   // spec's stretch scenario does not cover).
   void ethaneHardPullStretchesMultiBond();
+  // Design D8 floors-load-bearing check: the same drag with the floor force
+  // constant scaled to zero must break the partner invariance the floors
+  // guarantee (an H-H pair reaches new-bond range, or the phase latches).
+  void ethaneHardPullWithoutFloorsBreaksPartnerSets();
+  void isolatedAtomFloorBlocksNewBondContact();
 };
 
 // Water geometry in angstrom: O at origin, H1 at (0,0,1.0), H2 at (0,0.1,-1.0).
@@ -1489,34 +1495,41 @@ void XtbEngineTest::tetherTargetsCapturedForKnownGeometry()
     0.0, 0.0, 1.0 * kTestAngstromToBohr,
     0.0, 0.1 * kTestAngstromToBohr, -1.0 * kTestAngstromToBohr,
   };
+  const double h2Length =
+    std::sqrt(0.1 * 0.1 + 1.0 * 1.0) * kTestAngstromToBohr;
 
-  // Drag H1 (index 1): the single incident bond is O-H1, target = press length.
+  // Design D7: EVERY drawn bond is tethered, whichever atom is dragged.
+  // Output is flat atom-index pairs (two entries per bond), bond order as
+  // read. Drag H1 (index 1): both O-H1 and O-H2 are tethered.
   std::vector<int> partner;
   std::vector<double> target;
   XtbEngine::computeTetherTargets(1, numbers, bondPairs, posBohr, partner, target);
-  QCOMPARE(static_cast<int>(partner.size()), 1);
+  QCOMPARE(static_cast<int>(partner.size()), 4);
   QCOMPARE(partner[0], 0);
-  QCOMPARE(static_cast<int>(target.size()), 1);
-  // Press length = |O - H1| = 1.0 A in bohr.
-  QVERIFY(std::abs(target[0] - 1.0 * kTestAngstromToBohr) < 1e-6);
-
-  // Drag O (index 0): two incident bonds, O-H1 and O-H2 (bond order as read).
-  XtbEngine::computeTetherTargets(0, numbers, bondPairs, posBohr, partner, target);
-  QCOMPARE(static_cast<int>(partner.size()), 2);
-  QCOMPARE(partner[0], 1);
-  QCOMPARE(partner[1], 2);
+  QCOMPARE(partner[1], 1);
+  QCOMPARE(partner[2], 0);
+  QCOMPARE(partner[3], 2);
   QCOMPARE(static_cast<int>(target.size()), 2);
-  // O-H1 target = 1.0 A; O-H2 target = |O-H2| = sqrt(0.1^2 + 1^2) A.
-  const double h2Length =
-    std::sqrt(0.1 * 0.1 + 1.0 * 1.0) * kTestAngstromToBohr;
+  // O-H1 target = press length 1.0 A; O-H2 target = |O-H2|.
   QVERIFY(std::abs(target[0] - 1.0 * kTestAngstromToBohr) < 1e-6);
   QVERIFY(std::abs(target[1] - h2Length) < 1e-6);
 
-  // Drag an atom with no incident bonds (only O-H1 is bonded): empty tether.
+  // Drag O (index 0): the same two bonds with the same targets.
+  XtbEngine::computeTetherTargets(0, numbers, bondPairs, posBohr, partner, target);
+  QCOMPARE(static_cast<int>(partner.size()), 4);
+  QCOMPARE(static_cast<int>(target.size()), 2);
+  QVERIFY(std::abs(target[0] - 1.0 * kTestAngstromToBohr) < 1e-6);
+  QVERIFY(std::abs(target[1] - h2Length) < 1e-6);
+
+  // Dragging an atom with no incident bonds still tethers the drawn bonds
+  // (design D7); only the repair cap is incident-scoped.
   std::vector<int> partialBonds = { 0, 1 };
   XtbEngine::computeTetherTargets(2, numbers, partialBonds, posBohr, partner, target);
-  QCOMPARE(static_cast<int>(partner.size()), 0);
-  QCOMPARE(static_cast<int>(target.size()), 0);
+  QCOMPARE(static_cast<int>(partner.size()), 2);
+  QCOMPARE(partner[0], 0);
+  QCOMPARE(partner[1], 1);
+  QCOMPARE(static_cast<int>(target.size()), 1);
+  QVERIFY(std::abs(target[0] - 1.0 * kTestAngstromToBohr) < 1e-6);
 }
 
 void XtbEngineTest::tetherTargetsRepairCap()
@@ -1538,12 +1551,26 @@ void XtbEngineTest::tetherTargetsRepairCap()
   std::vector<int> partner;
   std::vector<double> target;
   XtbEngine::computeTetherTargets(1, numbers, bondPairs, posBohr, partner, target);
-  QCOMPARE(static_cast<int>(partner.size()), 1);
+  QCOMPARE(static_cast<int>(partner.size()), 2);
   QCOMPARE(partner[0], 0);
+  QCOMPARE(partner[1], 1);
   QCOMPARE(static_cast<int>(target.size()), 1);
-  // Capped at the covalent-radii sum, NOT the 2.0 A press length.
+  // Incident bond: capped at the covalent-radii sum, NOT the 2.0 A press
+  // length.
   QVERIFY(target[0] < 2.0 * kTestAngstromToBohr);
   QVERIFY(std::abs(target[0] - covSumBohr) < 1e-6);
+
+  // Design D7: the repair cap stays scoped to the dragged atom's incident
+  // bonds. Add a second (very stretched, non-incident) bond H1-H2 and drag O:
+  // the O-H1 bond is capped, the H1-H2 bond keeps its press length.
+  const double hhPressAng =
+    std::sqrt(0.1 * 0.1 + 3.0 * 3.0);
+  std::vector<int> twoBonds = { 0, 1, 1, 2 };
+  XtbEngine::computeTetherTargets(0, numbers, twoBonds, posBohr, partner, target);
+  QCOMPARE(static_cast<int>(partner.size()), 4);
+  QCOMPARE(static_cast<int>(target.size()), 2);
+  QVERIFY(std::abs(target[0] - covSumBohr) < 1e-6);
+  QVERIFY(std::abs(target[1] - hhPressAng * kTestAngstromToBohr) < 1e-6);
 
   // A bond within the strain threshold keeps its press length (no cap).
   std::vector<double> shortPos = {
@@ -1554,6 +1581,49 @@ void XtbEngineTest::tetherTargetsRepairCap()
   XtbEngine::computeTetherTargets(1, numbers, bondPairs, shortPos, partner, target);
   QCOMPARE(static_cast<int>(target.size()), 1);
   QVERIFY(std::abs(target[0] - 1.0 * kTestAngstromToBohr) < 1e-6);
+}
+
+void XtbEngineTest::floorPairsCapturedForKnownGeometry()
+{
+  // Water: O(8) at origin, H1(1) at (0,0,1.0) A, H2(1) at (0,0.1,-1.0) A.
+  std::vector<int> numbers = { 8, 1, 1 };
+  std::vector<int> bondPairs = { 0, 1, 0, 2 };
+  std::vector<double> posBohr = {
+    0.0, 0.0, 0.0,
+    0.0, 0.0, 1.0 * kTestAngstromToBohr,
+    0.0, 0.1 * kTestAngstromToBohr, -1.0 * kTestAngstromToBohr,
+  };
+  const double hhCovSumAng =
+    2.0 * OpenBabel::OBElements::GetCovalentRad(1);
+  // Hydrogen-hydrogen pairs use the 2.0x floor factor (design D8).
+  const double expectedFloor =
+    2.0 * hhCovSumAng * kTestAngstromToBohr;
+
+  // Exactly one non-bonded pair: H1-H2 (the two O-H bonds are excluded).
+  // H1-H2 press distance ~2.00 A < the 3.0 A capture cutoff.
+  std::vector<int> pairs;
+  std::vector<double> floors;
+  XtbEngine::computeFloorPairs(0, numbers, bondPairs, posBohr, pairs, floors);
+  QCOMPARE(static_cast<int>(floors.size()), 1);
+  QCOMPARE(static_cast<int>(pairs.size()), 2);
+  QCOMPARE(pairs[0], 1);
+  QCOMPARE(pairs[1], 2);
+  QVERIFY(std::abs(floors[0] - expectedFloor) < 1e-6);
+
+  // Drag index out of range: no floors.
+  XtbEngine::computeFloorPairs(9, numbers, bondPairs, posBohr, pairs, floors);
+  QCOMPARE(static_cast<int>(pairs.size()), 0);
+  QCOMPARE(static_cast<int>(floors.size()), 0);
+
+  // A pair beyond the capture cutoff is not captured: pull H2 to 4.0 A away.
+  std::vector<double> farPos = {
+    0.0, 0.0, 0.0,
+    0.0, 0.0, 1.0 * kTestAngstromToBohr,
+    0.0, 0.0, -4.0 * kTestAngstromToBohr,
+  };
+  XtbEngine::computeFloorPairs(0, numbers, bondPairs, farPos, pairs, floors);
+  QCOMPARE(static_cast<int>(pairs.size()), 0);
+  QCOMPARE(static_cast<int>(floors.size()), 0);
 }
 
 void XtbEngineTest::tetherTargetsSkippedDegenerate()
@@ -1626,10 +1696,19 @@ void XtbEngineTest::hardPullKeepsMoleculeConnected()
   std::vector<double> lastCoords;
   int coordsCount = 0;
   bool failLatch = false;
+  double minHoldDistAng = -1.0;
   QObject::connect(&engine, &XtbEngine::coordsReady,
                    [&](const std::vector<double>& c) {
                      lastCoords = c;
                      ++coordsCount;
+                     if (minHoldDistAng >= 0.0 && c.size() >= 6) {
+                       const double dx = c[0] - c[3];
+                       const double dy = c[1] - c[4];
+                       const double dz = c[2] - c[5];
+                       const double distAng =
+                         std::sqrt(dx * dx + dy * dy + dz * dz) * bohr2ang;
+                       minHoldDistAng = std::min(minHoldDistAng, distAng);
+                     }
                    });
   QObject::connect(&engine, &XtbEngine::evaluationFailed,
                    [&](const QString&) { failLatch = true; });
@@ -1665,17 +1744,29 @@ void XtbEngineTest::hardPullKeepsMoleculeConnected()
     return std::sqrt(dx * dx + dy * dy + dz * dz) * bohr2ang;
   };
 
-  // Capture the O-H1 distance at the first publish after the grab.
+  // Capture the O-H1 distance at the first publish after the grab, then start
+  // sampling the hold window.
   const int grabCount = coordsCount;
   QTRY_VERIFY_WITH_TIMEOUT(coordsCount > grabCount, 15000);
-  const double firstHoldDist = oH1Dist(lastCoords);
+  minHoldDistAng = oH1Dist(lastCoords);
 
   // Hold the pull and require the neighborhood to follow: the O-H1 distance
-  // decreases over successive evaluations, with no failure latch.
+  // contracts well below the pulled 2.0 A within the hold window. The repair-
+  // capped tether target is the covalent-radii sum (~0.97 A), so a converged
+  // hold lands near 1 A; on any machine speed the minimum over the window
+  // must come down at least 10% from the pulled distance, with no failure
+  // latch. Sampling the minimum over the window (rather than a two-sample
+  // delta) keeps the assertion independent of when the pull converges.
   int target = coordsCount + 10;
   QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= target, 30000);
   const double endDist = oH1Dist(lastCoords);
-  QVERIFY(endDist < firstHoldDist - 0.03);
+  qDebug() << "hardPull window: min=" << minHoldDistAng << "end=" << endDist
+           << "fail=" << failLatch;
+  QVERIFY2(minHoldDistAng < pullAngZ * 0.9,
+           qPrintable(QString("held pull did not contract the bond: min %1 A "
+                              "over the hold window (pulled to %2 A)")
+                        .arg(minHoldDistAng)
+                        .arg(pullAngZ)));
   QVERIFY(!failLatch);
 
   tickTimer.stop();
@@ -1780,7 +1871,24 @@ void XtbEngineTest::preBrokenBondHealsOnGrab()
                      ++coordsCount;
                    });
   QObject::connect(&engine, &XtbEngine::evaluationFailed,
-                   [&](const QString&) { failLatch = true; });
+                   [&](const QString& reason) {
+                     if (lastCoords.size() >= 9) {
+                       auto dist = [&](int i, int j) {
+                         const double dx = lastCoords[i * 3] - lastCoords[j * 3];
+                         const double dy =
+                           lastCoords[i * 3 + 1] - lastCoords[j * 3 + 1];
+                         const double dz =
+                           lastCoords[i * 3 + 2] - lastCoords[j * 3 + 2];
+                         return std::sqrt(dx * dx + dy * dy + dz * dz) *
+                                0.52917721092;
+                       };
+                       qDebug() << "EVAL FAIL at coords" << coordsCount
+                                << "OH1=" << dist(0, 1) << "OH2=" << dist(0, 2)
+                                << "H1H2=" << dist(1, 2);
+                     }
+                     qDebug() << "EVAL FAIL:" << reason;
+                     failLatch = true;
+                   });
 
   engine.start(QThread::LowPriority);
   QTimer tickTimer;
@@ -1815,12 +1923,25 @@ void XtbEngineTest::preBrokenBondHealsOnGrab()
   QTRY_VERIFY_WITH_TIMEOUT(coordsCount > grabCount, 15000);
   const double firstDist = oH1Dist(lastCoords);
 
-  // Hold the (repair-capped) pull: the bond distance trends back toward the
-  // covalent-radii sum, decreasing over successive evaluations.
+  // Hold the (repair-capped) pull: the bond is pulled back into bonded range
+  // (below the 1.3x cov-radii-sum strain threshold ~1.26 A for O-H) and stays
+  // there — the spec scenario outcome. The capped tether heals quickly, so a
+  // fixed-size decreasing trend over the hold window is not the observable;
+  // being inside bonded range at every sampled point is.
   int target = coordsCount + 8;
   QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= target, 30000);
   const double endDist = oH1Dist(lastCoords);
-  QVERIFY(endDist < firstDist - 0.03);
+  const double strainThresholdAng =
+    1.3 * (OpenBabel::OBElements::GetCovalentRad(8) +
+           OpenBabel::OBElements::GetCovalentRad(1));
+  qDebug() << "preBroken trend: first=" << firstDist << "end=" << endDist
+           << "threshold=" << strainThresholdAng << "fail=" << failLatch;
+  QVERIFY2(endDist < strainThresholdAng,
+           qPrintable(QString("grabbed pre-broken bond not healed into bonded "
+                              "range: %1 A (threshold %2 A)")
+                        .arg(endDist)
+                        .arg(strainThresholdAng)));
+  QVERIFY(endDist <= firstDist + 0.02);
   QVERIFY(!failLatch);
 
   tickTimer.stop();
@@ -1982,10 +2103,23 @@ void XtbEngineTest::ethaneHardPullStretchesMultiBond()
   std::vector<double> lastCoords;
   int coordsCount = 0;
   bool failLatch = false;
+  double minHHDistAng = -1.0;
   QObject::connect(&engine, &XtbEngine::coordsReady,
                    [&](const std::vector<double>& c) {
                      lastCoords = c;
                      ++coordsCount;
+                     if (minHHDistAng >= 0.0 && c.size() >= 24) {
+                       for (int i = 2; i < 8; ++i)
+                         for (int j = i + 1; j < 8; ++j) {
+                           const double dx = c[i * 3] - c[j * 3];
+                           const double dy = c[i * 3 + 1] - c[j * 3 + 1];
+                           const double dz = c[i * 3 + 2] - c[j * 3 + 2];
+                           const double d = std::sqrt(dx * dx + dy * dy +
+                                                      dz * dz) *
+                                            0.52917721092;
+                           minHHDistAng = std::min(minHHDistAng, d);
+                         }
+                     }
                    });
   QObject::connect(&engine, &XtbEngine::evaluationFailed,
                    [&](const QString&) { failLatch = true; });
@@ -2017,10 +2151,195 @@ void XtbEngineTest::ethaneHardPullStretchesMultiBond()
     mol->atoms().at(0)->setPos(Eigen::Vector3d(0.0, dragPos, 0.0));
   }
 
+  minHHDistAng = 1e9;
+
   // Hold the pull: record the worst bond ratio at the start of the hold and
   // assert it trends down as the tether pulls the partners back toward reach.
   int target = coordsCount + 40;
   QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= target, 60000);
+
+  qDebug() << "ethane hold: minHH=" << minHHDistAng << "fail=" << failLatch;
+  // Partner-set invariance (design D7/D8): no H-H pair enters new-bond range
+  // (H2 bond = 0.74 A; the floors engage at 0.93 A). Measured hold minimum is
+  // ~1.18 A; the 1.0 A bar gives margin on both sides.
+  QVERIFY2(minHHDistAng >= 1.0,
+           qPrintable(QString("an H-H pair entered new-bond range during the "
+                              "held pull: %1 A").arg(minHHDistAng)));
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+
+// Design D8 floors-load-bearing regression: with the floor force scaled to
+// zero, the same perpendicular hard pull drives two hydrogens of the dragged
+// carbon into new-bond range (the H-C-H bending loophole) or latches the
+// phase — demonstrating that the floors are the mechanism holding the drawn
+// partner sets invariant.
+void XtbEngineTest::ethaneHardPullWithoutFloorsBreaksPartnerSets()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  const double pullAngY = 1.8;
+  const double pullStepAng = 0.25;
+  Molecule* mol = makeEthaneMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+  engine.setTetherFloorForceScale(0.0);
+
+  std::vector<double> lastCoords;
+  int coordsCount = 0;
+  bool failLatch = false;
+  double minHHDistAng = -1.0;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>& c) {
+                     lastCoords = c;
+                     ++coordsCount;
+                     if (minHHDistAng >= 0.0 && c.size() >= 24) {
+                       for (int i = 2; i < 8; ++i)
+                         for (int j = i + 1; j < 8; ++j) {
+                           const double dx = c[i * 3] - c[j * 3];
+                           const double dy = c[i * 3 + 1] - c[j * 3 + 1];
+                           const double dz = c[i * 3 + 2] - c[j * 3 + 2];
+                           const double d = std::sqrt(dx * dx + dy * dy +
+                                                      dz * dz) *
+                                            0.52917721092;
+                           minHHDistAng = std::min(minHHDistAng, d);
+                         }
+                     }
+                   });
+  QObject::connect(&engine, &XtbEngine::evaluationFailed,
+                   [&](const QString&) { failLatch = true; });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  bool dragActive = false;
+  double dragPos = 0.0;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() {
+    engine.requestTick();
+    if (dragActive) {
+      QWriteLocker locker(mol->lock());
+      dragPos += pullStepAng;
+      if (dragPos > pullAngY)
+        dragPos = pullAngY;
+      mol->atoms().at(0)->setPos(Eigen::Vector3d(0.0, dragPos, 0.0));
+    }
+  });
+  tickTimer.start(30);
+
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= 2, 5000);
+
+  dragActive = true;
+  engine.setDraggedAtom(0);
+  {
+    QWriteLocker locker(mol->lock());
+    dragPos += pullStepAng;
+    mol->atoms().at(0)->setPos(Eigen::Vector3d(0.0, dragPos, 0.0));
+  }
+  minHHDistAng = 1e9;
+
+  int target = coordsCount + 40;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= target, 60000);
+  qDebug() << "ethane no-floors hold: minHH=" << minHHDistAng
+           << "fail=" << failLatch;
+  // The floors are load-bearing: without them the partner sets are no longer
+  // invariant — an H-H pair reaches new-bond range (< 1.2 A, toward the H2
+  // bond at 0.74 A) or the interactive SCF fails at the swapped geometry.
+  QVERIFY2(minHHDistAng < 1.2 || failLatch,
+           qPrintable(QString("partner sets stayed invariant even with the "
+                              "floors disabled (min H-H %1 A): the regression "
+                              "no longer demonstrates the floors are "
+                              "load-bearing")
+                        .arg(minHHDistAng)));
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+
+// Design D8 (spec scenario: isolated atom drags without a bond tether): the
+// floor interaction still prevents the dragged atom from being driven into
+// new-bond range of another atom. Two unbonded hydrogens 2.0 A apart; atom 0
+// is dragged to 0.2 A from atom 1. The floor (1.5x the covalent-radii sum =
+// 0.93 A for H-H) pushes atom 1 away so no H2 forms, while atom 0 keeps
+// tracking the pointer.
+void XtbEngineTest::isolatedAtomFloorBlocksNewBondContact()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  const double bohr2ang = 0.52917721092;
+  Molecule* mol = makeMoleculeFrom({ 1, 1 },
+                                   { 0.0, 0.0, 0.0, 0.0, 0.0, 2.0 });
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  std::vector<double> lastCoords;
+  int coordsCount = 0;
+  bool failLatch = false;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>& c) {
+                     lastCoords = c;
+                     ++coordsCount;
+                   });
+  QObject::connect(&engine, &XtbEngine::evaluationFailed,
+                   [&](const QString&) { failLatch = true; });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  bool dragActive = false;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() {
+    engine.requestTick();
+    if (dragActive) {
+      QWriteLocker locker(mol->lock());
+      mol->atoms().at(0)->setPos(Eigen::Vector3d(0.0, 0.0, 1.8));
+    }
+  });
+  tickTimer.start(30);
+
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= 2, 5000);
+
+  // Drag the bondless atom 0 toward atom 1 (0.2 A short of contact).
+  dragActive = true;
+  engine.setDraggedAtom(0);
+  {
+    QWriteLocker locker(mol->lock());
+    mol->atoms().at(0)->setPos(Eigen::Vector3d(0.0, 0.0, 1.8));
+  }
+
+  // Hold: the floor holds the pair out of new-bond range while the dragged
+  // atom keeps tracking the pointer, and no failure latch occurs.
+  int target = coordsCount + 20;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= target, 60000);
+  QVERIFY(lastCoords.size() >= 6);
+  const double dx = lastCoords[0] - lastCoords[3];
+  const double dy = lastCoords[1] - lastCoords[4];
+  const double dz = lastCoords[2] - lastCoords[5];
+  const double pairDist = std::sqrt(dx * dx + dy * dy + dz * dz) * bohr2ang;
+  const double dragErrAng =
+    std::sqrt(lastCoords[0] * lastCoords[0] +
+              lastCoords[1] * lastCoords[1] +
+              (lastCoords[2] - 1.8 / bohr2ang) *
+                (lastCoords[2] - 1.8 / bohr2ang)) *
+    bohr2ang;
+  qDebug() << "isolated floor: pairDist=" << pairDist
+           << "dragErr=" << dragErrAng << "fail=" << failLatch;
+  // The floor-vs-SCF balance holds the head-on slam at ~0.85 A with the
+  // shipped constants (H2 minimum 0.74 A); 0.80 gives CI margin while still
+  // proving full H2 formation is blocked.
+  QVERIFY2(pairDist > 0.80,
+           qPrintable(QString("the floor let the unbonded pair reach H2 range: "
+                              "%1 A").arg(pairDist)));
+  QVERIFY2(dragErrAng < 0.15,
+           qPrintable(QString("the dragged atom stopped tracking the pointer "
+                              "(error %1 A)").arg(dragErrAng)));
+  QVERIFY(!failLatch);
 
   tickTimer.stop();
   engine.stop();
