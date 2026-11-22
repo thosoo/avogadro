@@ -78,7 +78,7 @@ insufficient against sustained drags, releases, and no-drag relaxation)
   projection prevents new-bond range contact while the atom keeps tracking the pointer; plus a
   no-drag session test proving plain relaxation cannot collapse an unbonded H-H pair into H2;
   verify with new `xtbenginetest` cases
-- [ ] 5.6 Full verification: `ctest -R "xtb"` green, full ctest suite green (xvfb; offscreen breaks
+- [x] 5.6 Full verification: `ctest -R "xtb"` green, full ctest suite green (xvfb; offscreen breaks
   GL-context tests), `autooptreprotest` green; push branch and verify the Windows installer
   workflow compiles the change with the offscreen ctest leg green
 - [ ] 5.7 Manual check (extends 4.3): on GFN2-xTB an xTB drag feels like a force-field drag —
