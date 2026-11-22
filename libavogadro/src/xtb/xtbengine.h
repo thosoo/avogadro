@@ -50,12 +50,12 @@ public:
   XtbEngine(QObject* parent = nullptr);
   ~XtbEngine();
 
-  /// Test seam for the floors-load-bearing regression (design D8): scales the
-  /// non-bonded floor force constant. 1.0 is the shipped behavior; 0.0
-  /// disables the floor restraints. Not a user setting; call before start().
-  void setTetherFloorForceScale(double scale)
+  /// Test seam for the projection load-bearing regression (design D8):
+  /// disables the bond-graph projection so a test can demonstrate that the
+  /// drawn-graph invariant is enforced by the projection. Call before start().
+  void setBondGraphProjectionForTesting(bool enabled)
   {
-    m_tetherFloorForceScale = scale;
+    m_projectionEnabled = enabled;
   }
 
   /**
@@ -68,10 +68,15 @@ public:
    * @param method 0=GFN1-xTB, 1=GFN2-xTB, 2=GFN-FF.
    * @param level 0..7 (crude..extreme).
    * @param threadsSetting 0 = auto, otherwise the OMP thread count.
+   * @param bondPairs the drawn bond graph (flat begin/end atom-index pairs).
+   * The bond-graph projection (design D8) needs it to distinguish drawn
+   * bonds (clamped into re-formation reach) from pairs that must stay out of
+   * new-bond range; a bondless session enforces no drawn-graph constraints.
    */
   bool setup(const std::vector<int>& atomicNumbers,
              const std::vector<double>& positionsAngstrom, int method, int level,
-             int threadsSetting);
+             int threadsSetting,
+             const std::vector<int>& bondPairs = std::vector<int>());
 
   /**
    * Configure the session from a live molecule (design D2). Equivalent to
@@ -130,20 +135,17 @@ public:
                                    const std::vector<double>& positionsBohr,
                                    std::vector<int>& partnerOut,
                                    std::vector<double>& targetOut);
-  /// Computes the non-bonded floor restraints (design D8). Pure: no engine
-  /// state, callable from a headless test. Captures every atom pair with
-  /// graph separation >= 2 (not directly bonded) whose press distance is
-  /// below the 3.0 A capture cutoff; the floor distance is
-  /// kXtbTetherFloorFactor x the covalent-radii sum (bohr). The pair set is
-  /// capped; overflow keeps pairs within 3 graph bonds of @p dragIndex
-  /// (BFS), then truncates in scan order. @p pairsOut receives two index
-  /// entries per floor pair; @p floorsOut one floor distance (bohr) per pair.
-  static void computeFloorPairs(int dragIndex,
-                                const std::vector<int>& numbers,
-                                const std::vector<int>& bondPairs,
-                                const std::vector<double>& positionsBohr,
-                                std::vector<int>& pairsOut,
-                                std::vector<double>& floorsOut);
+  /// Projects a geometry onto the drawn-bond-graph manifold (design D8,
+  /// bond-centric enforcement): every drawn bond is clamped inside its
+  /// re-formation reach (1.3x the covalent-radii sum) and every non-bonded
+  /// pair is pushed out of new-bond range (1.5x the covalent-radii sum, 2.0x
+  /// for hydrogen-hydrogen pairs). SHAKE-style: corrections move only the
+  /// non-dragged atoms (the dragged atom keeps pointer authority), so after
+  /// the projection the backend never evaluates a geometry that violates the
+  /// drawn bond graph. Two correction sweeps; deterministic for identical
+  /// input. Reads worker-owned session state (m_numbers, m_bondPairs,
+  /// m_draggedIndex). @p coordsBohr is modified in place (bohr).
+  void projectBondGraph(std::vector<double>& coordsBohr) const;
 
 Q_SIGNALS:
   void progress(int evaluation, int maxEvaluations, double energyHartree);
@@ -302,22 +304,11 @@ private:
   // no mutex guards them.
   std::vector<int> m_tetherBondIndices;
   std::vector<double> m_tetherTargetBohr;
-  // Non-bonded floor state (design D8): worker-owned, same lifecycle as the
-  // tether. m_floorPairIndices holds flat atom-index pairs (two entries per
-  // floor pair); m_floorDistancesBohr holds one floor distance (bohr) per
-  // pair (1.5x the covalent-radii sum at press). Cleared and re-captured
-  // with the tether state.
-  std::vector<int> m_floorPairIndices;
-  std::vector<double> m_floorDistancesBohr;
-  // Test seam for the floors-load-bearing regression (design D8): scales the
-  // floor force constant (1.0 = shipped behavior, 0.0 = floors disabled).
-  // Not a user setting; set before start().
-  double m_tetherFloorForceScale = 1.0;
-  // Worker-owned floor-engagement edge state: true while any captured floor
-  // pair is inside its floor distance. The off->on edge drops the optimizer's
-  // quasi-Newton history — it describes the pre-engagement landscape and
-  // otherwise overshoots through the newly engaged wall (design D8).
-  bool m_floorEngaged = false;
+  // Bond-graph projection (design D8): true (the shipped behavior) while the
+  // projector clamps drawn bonds into re-formation reach and pushes
+  // non-bonded pairs out of new-bond range on every optimizer trial. Test
+  // seam only; set before start(). Worker reads it in the projector.
+  bool m_projectionEnabled = true;
   int m_prevDragIndex;
   bool m_interactive;
   bool m_converged;

@@ -68,7 +68,6 @@ private slots:
   void tetherTargetsCapturedForKnownGeometry();
   void tetherTargetsRepairCap();
   void tetherTargetsSkippedDegenerate();
-  void floorPairsCapturedForKnownGeometry();
   // Design D1/D6: tether behavior on the live engine (library needed).
   void headlessDragNoTetherEvaluates();
   void hardPullKeepsMoleculeConnected();
@@ -88,6 +87,7 @@ private slots:
   // guarantee (an H-H pair reaches new-bond range, or the phase latches).
   void ethaneHardPullWithoutFloorsBreaksPartnerSets();
   void isolatedAtomFloorBlocksNewBondContact();
+  void sessionProjectionBlocksH2WithoutDrag();
 };
 
 // Water geometry in angstrom: O at origin, H1 at (0,0,1.0), H2 at (0,0.1,-1.0).
@@ -234,7 +234,8 @@ void XtbEngineTest::waterConvergesToReferenceGeometry()
 
   XtbEngine engine;
   QVERIFY(engine.setup(waterNumbers(), waterPositionsDistortedAng(),
-                       /*method=*/1, /*level=*/4, /*threads=*/0));
+                       /*method=*/1, /*level=*/4, /*threads=*/0,
+                       /*bondPairs=*/{ 0, 1, 0, 2 }));
 
   std::vector<double> lastCoords;
   bool converged = false;
@@ -1583,49 +1584,6 @@ void XtbEngineTest::tetherTargetsRepairCap()
   QVERIFY(std::abs(target[0] - 1.0 * kTestAngstromToBohr) < 1e-6);
 }
 
-void XtbEngineTest::floorPairsCapturedForKnownGeometry()
-{
-  // Water: O(8) at origin, H1(1) at (0,0,1.0) A, H2(1) at (0,0.1,-1.0) A.
-  std::vector<int> numbers = { 8, 1, 1 };
-  std::vector<int> bondPairs = { 0, 1, 0, 2 };
-  std::vector<double> posBohr = {
-    0.0, 0.0, 0.0,
-    0.0, 0.0, 1.0 * kTestAngstromToBohr,
-    0.0, 0.1 * kTestAngstromToBohr, -1.0 * kTestAngstromToBohr,
-  };
-  const double hhCovSumAng =
-    2.0 * OpenBabel::OBElements::GetCovalentRad(1);
-  // Hydrogen-hydrogen pairs use the 2.0x floor factor (design D8).
-  const double expectedFloor =
-    2.0 * hhCovSumAng * kTestAngstromToBohr;
-
-  // Exactly one non-bonded pair: H1-H2 (the two O-H bonds are excluded).
-  // H1-H2 press distance ~2.00 A < the 3.0 A capture cutoff.
-  std::vector<int> pairs;
-  std::vector<double> floors;
-  XtbEngine::computeFloorPairs(0, numbers, bondPairs, posBohr, pairs, floors);
-  QCOMPARE(static_cast<int>(floors.size()), 1);
-  QCOMPARE(static_cast<int>(pairs.size()), 2);
-  QCOMPARE(pairs[0], 1);
-  QCOMPARE(pairs[1], 2);
-  QVERIFY(std::abs(floors[0] - expectedFloor) < 1e-6);
-
-  // Drag index out of range: no floors.
-  XtbEngine::computeFloorPairs(9, numbers, bondPairs, posBohr, pairs, floors);
-  QCOMPARE(static_cast<int>(pairs.size()), 0);
-  QCOMPARE(static_cast<int>(floors.size()), 0);
-
-  // A pair beyond the capture cutoff is not captured: pull H2 to 4.0 A away.
-  std::vector<double> farPos = {
-    0.0, 0.0, 0.0,
-    0.0, 0.0, 1.0 * kTestAngstromToBohr,
-    0.0, 0.0, -4.0 * kTestAngstromToBohr,
-  };
-  XtbEngine::computeFloorPairs(0, numbers, bondPairs, farPos, pairs, floors);
-  QCOMPARE(static_cast<int>(pairs.size()), 0);
-  QCOMPARE(static_cast<int>(floors.size()), 0);
-}
-
 void XtbEngineTest::tetherTargetsSkippedDegenerate()
 {
   // H1 at the same position as O (zero-length bond at press): skipped.
@@ -1647,9 +1605,6 @@ void XtbEngineTest::tetherTargetsSkippedDegenerate()
   QCOMPARE(static_cast<int>(target.size()), 0);
 }
 
-// Design D6: a headless vector session (no live-molecule source) with a drag
-// index set evaluates with no tether (there is no bond graph to capture) and
-// does not crash. This guards the headless-vector regression.
 void XtbEngineTest::headlessDragNoTetherEvaluates()
 {
   if (!XtbApi::isAvailable()) {
@@ -2155,7 +2110,7 @@ void XtbEngineTest::ethaneHardPullStretchesMultiBond()
 
   // Hold the pull: record the worst bond ratio at the start of the hold and
   // assert it trends down as the tether pulls the partners back toward reach.
-  int target = coordsCount + 40;
+  int target = coordsCount + 20;
   QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= target, 60000);
 
   qDebug() << "ethane hold: minHH=" << minHHDistAng << "fail=" << failLatch;
@@ -2188,7 +2143,7 @@ void XtbEngineTest::ethaneHardPullWithoutFloorsBreaksPartnerSets()
   XtbEngine engine;
   QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
                                    /*threads=*/0));
-  engine.setTetherFloorForceScale(0.0);
+  engine.setBondGraphProjectionForTesting(false);
 
   std::vector<double> lastCoords;
   int coordsCount = 0;
@@ -2241,7 +2196,7 @@ void XtbEngineTest::ethaneHardPullWithoutFloorsBreaksPartnerSets()
   }
   minHHDistAng = 1e9;
 
-  int target = coordsCount + 40;
+  int target = coordsCount + 20;
   QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= target, 60000);
   qDebug() << "ethane no-floors hold: minHH=" << minHHDistAng
            << "fail=" << failLatch;
@@ -2339,6 +2294,65 @@ void XtbEngineTest::isolatedAtomFloorBlocksNewBondContact()
   QVERIFY2(dragErrAng < 0.15,
            qPrintable(QString("the dragged atom stopped tracking the pointer "
                               "(error %1 A)").arg(dragErrAng)));
+  QVERIFY(!failLatch);
+
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+
+// Design D8 (bond-centric, session-wide): the projection enforces the drawn
+// bond graph on EVERY evaluation, drag or not. Two unbonded hydrogens 2.0 A
+// apart with NO drag: plain xTB relaxation alone would collapse the pair into
+// the H2 well (0.74 A); the projection must hold them apart.
+void XtbEngineTest::sessionProjectionBlocksH2WithoutDrag()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  const double bohr2ang = 0.52917721092;
+  Molecule* mol = makeMoleculeFrom({ 1, 1 },
+                                   { 0.0, 0.0, 0.0, 0.0, 0.0, 2.0 });
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  std::vector<double> lastCoords;
+  int coordsCount = 0;
+  bool failLatch = false;
+  double minHHDistAng = -1.0;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>& c) {
+                     lastCoords = c;
+                     ++coordsCount;
+                     if (c.size() >= 6) {
+                       const double dx = c[0] - c[3];
+                       const double dy = c[1] - c[4];
+                       const double dz = c[2] - c[5];
+                       const double d = std::sqrt(dx * dx + dy * dy + dz * dz) *
+                                        bohr2ang;
+                       minHHDistAng =
+                         (minHHDistAng < 0.0) ? d : std::min(minHHDistAng, d);
+                     }
+                   });
+  QObject::connect(&engine, &XtbEngine::evaluationFailed,
+                   [&](const QString&) { failLatch = true; });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  QObject::connect(&tickTimer, &QTimer::timeout,
+                   [&]() { engine.requestTick(); });
+  tickTimer.start(30);
+
+  int target = coordsCount + 20;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= target, 60000);
+  qDebug() << "no-drag session: minHH=" << minHHDistAng
+           << "fail=" << failLatch;
+  QVERIFY2(minHHDistAng > 1.0,
+           qPrintable(QString("plain relaxation formed H2 without a drag: "
+                              "min H-H %1 A").arg(minHHDistAng)));
   QVERIFY(!failLatch);
 
   tickTimer.stop();

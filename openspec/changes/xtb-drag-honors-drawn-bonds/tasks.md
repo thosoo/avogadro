@@ -53,28 +53,31 @@
 - [x] 4.4 Push the branch and verify the Windows installer workflow compiles the change and the
   offscreen ctest leg is green (`gh workflow run 168745168 --ref <branch> --repo thosoo/avogadro`)
 
-## 5. Bond-graph invariance (design D7/D8 — partner invariance, FF drag feel)
+## 5. Bond-graph invariance (design D7/D8 — partner invariance, FF drag feel;
+implemented as a SHAKE-style bond-graph projection after the floors-only design measured
+insufficient against sustained drags, releases, and no-drag relaxation)
 
-- [ ] 5.1 Extend drag-start capture (same bounded-retry read-lock pass): tether targets for every
-  drawn bond (press length; repair cap stays scoped to the dragged atom's incident bonds) plus the
-  non-bonded floor-pair scan (graph separation >= 2, press distance < 3.0 A, pair set capped at
-  4096 with overflow restricted to pairs within 3 graph bonds of the dragged atom); worker-owned
-  plain vectors; verify by build
-- [ ] 5.2 Add the floor constants to the `kXtb*` block (`kXtbTetherFloorFactor` = 1.5,
-  `kXtbTetherFloorForce` = 2x the bond tether) and apply the floor energy/gradient in
-  `evaluateOnce()` beside the bond tether (engage only below the floor distance; guard the
-  degenerate zero-distance case); verify by build
-- [ ] 5.3 Floor lifecycle: floors captured/cleared with tether state on drag start/end/quiesce/
-  `setup()` AND re-captured on topology re-establishment (a new bond changes the non-bonded set);
-  verify by build + existing engine tests green
-- [ ] 5.4 H2 split-off regression: ethane hard pull (perpendicular/far drag), assert minimum H–H
-  distance stays well above new-bond range, partner-set invariance (each atom's nearest neighbors
-  remain its drawn partners), session keeps publishing, no failure latch; floors load-bearing:
-  the same scenario with the floor force constant zeroed must fail; verify with new `xtbenginetest`
-  cases (skip-without-library convention)
-- [ ] 5.5 Isolated-atom floor: drag an unbonded atom into another atom and assert the floor prevents
-  new-bond range contact while the atom keeps tracking the pointer; verify with a new
-  `xtbenginetest` case
+- [x] 5.1 Extend drag-start capture (same bounded-retry read-lock pass): tether targets for every
+  drawn bond (press length; repair cap stays scoped to the dragged atom's incident bonds);
+  verify by build
+- [x] 5.2 Add the projection: a SHAKE-style `projectBondGraph` on the optimizer's line search
+  (projector hook in `LBfgs`) that clamps every drawn bond into [0.5, 1.3]x the covalent-radii
+  sum and pushes every non-bonded pair out of new-bond range (1.5x cov-sum, 2.0x H-H pairs),
+  moving only non-dragged atoms; gradient sign consistency verified by the isolated-contact
+  guard test catching the wrong-sign pull; verify by build
+- [x] 5.3 Projection lifecycle: session-wide (every evaluation, drag or not), reading the
+  current numbers/bond graph (setup/re-establishment update it immediately); tether stays
+  drag-scoped; verify by build + existing engine tests green (including the headless `setup()`
+  path gaining the bond list parameter)
+- [x] 5.4 H2 split-off regression: ethane hard pull (perpendicular/far drag), assert minimum H–H
+  distance stays well above new-bond range, partner-set invariance, session keeps publishing,
+  no failure latch; projection load-bearing: the same scenario with the projection disabled must
+  break the invariant (or latch); verify with new `xtbenginetest` cases (skip-without-library
+  convention)
+- [x] 5.5 Isolated-atom projection: drag an unbonded atom into another atom and assert the
+  projection prevents new-bond range contact while the atom keeps tracking the pointer; plus a
+  no-drag session test proving plain relaxation cannot collapse an unbonded H-H pair into H2;
+  verify with new `xtbenginetest` cases
 - [ ] 5.6 Full verification: `ctest -R "xtb"` green, full ctest suite green (xvfb; offscreen breaks
   GL-context tests), `autooptreprotest` green; push branch and verify the Windows installer
   workflow compiles the change with the offscreen ctest leg green

@@ -19,6 +19,7 @@
 
 #include <avogadro/global.h>
 
+#include <functional>
 #include <vector>
 #include <cmath>
 
@@ -56,6 +57,19 @@ public:
 
   /// Discard all stored history (used when the masked variables change).
   void resetHistory();
+
+  /// Set the geometry projection applied to every trial and accepted point
+  /// before it is evaluated (bond-graph-centric enforcement, design D8): the
+  /// projector clamps drawn bonds into their re-formation reach and pushes
+  /// non-bonded pairs out of new-bond range, so the backend never evaluates a
+  /// geometry that violates the drawn bond graph. Called on each trial
+  /// coordinate set inside the line search; the accepted point is the
+  /// projected one, so the (s, y) curvature pairs stay consistent with the
+  /// evaluated energies.
+  void setProjector(std::function<void(std::vector<double>&)> projector)
+  {
+    m_projector = std::move(projector);
+  }
 
   /// Result of a minimize() run.
   struct Result
@@ -218,6 +232,9 @@ public:
       for (int j = 0; j < n; ++j) {
         newCoords[j] = coords[j] + step * dir[j];
       }
+      if (m_projector) {
+        m_projector(newCoords);
+      }
       energyNew = evaluate(newCoords, newGrad);
       ++evals;
       if (shouldStop(evals)) {
@@ -240,6 +257,9 @@ public:
       step = 1e-3 * invNorm;
       for (int j = 0; j < n; ++j) {
         newCoords[j] = coords[j] + step * dir[j];
+      }
+      if (m_projector) {
+        m_projector(newCoords);
       }
       energyNew = evaluate(newCoords, newGrad);
       ++evals;
@@ -299,6 +319,9 @@ private:
   std::vector<std::vector<double>> m_y; // gradient differences
   std::vector<double> m_rho;            // 1 / (s^T y)
   std::vector<double> m_alpha;          // scratch for two-loop recursion
+  // Geometry projection applied to every trial/accepted point (see
+  // setProjector). Empty = no projection.
+  std::function<void(std::vector<double>&)> m_projector;
 };
 
 } // namespace Xtb

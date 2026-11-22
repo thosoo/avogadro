@@ -24,15 +24,16 @@ and a pull should bend the molecule to honor it, not be allowed to contradict it
 - **Force-field parity**: the tether gives the xTB drag path the same contract the OpenBabel force
   field path already has — FF bond terms are harmonic and unbreakable, so FF drags can never
   dissociate a bond. After this change, no backend lets a drag break a drawn bond.
-- **Non-bonded floors (partner invariance)**: holding drawn bond *lengths* cannot stop two atoms
-  that share a bonded neighbor from swinging together through an angle change — the measured H₂
-  split-off pathway (radial constraints never see the H–C–H bend, and the xTB SCF genuinely
-  favors forming the new H–H bond). During a drag, the worker additionally applies a repulsive
-  harmonic floor to captured non-bonded pairs (graph separation ≥ 2, press distance < 3.0 Å,
-  engaging below 1.5× the covalent-radii sum — 2× for hydrogen–hydrogen pairs — at twice the
-  tether stiffness, twice that for hydrogen pairs), so no new bond can form: each atom's bond
-  partners are exactly its drawn partners while the drag lasts, and an xTB drag feels like a
-  force-field drag.
+- **Bond-graph projection (partner invariance)**: distance-based walls cannot stop a
+  coordinate-centric SCF from changing partners — the measured H₂ split-off pathway (the
+  H–C–H bend reaches the H–H well at zero wall cost; sustained drags push through any finite
+  restraint; releases and no-drag relaxation leave walls behind). The worker therefore projects
+  every evaluated geometry onto the drawn bond graph (SHAKE-style, on the optimizer's line
+  search): drawn bonds are clamped into re-formation reach (1.3× the covalent-radii sum) and
+  every non-bonded pair is pushed out of new-bond range (1.5× the covalent-radii sum, 2× for
+  hydrogen–hydrogen pairs), on every evaluation, for the session lifetime. No new bond can
+  form and no drawn bond severs through any optimization path: each atom's bond partners are
+  exactly its drawn partners, and an xTB drag feels like a force-field drag.
 - **Unreachable failure modes via drags**: because the release geometry always has partners at
   tethered distances and non-partners outside new-bond range, neither the dissociated-basin
   failure mode (`dragReleaseDissociatedLatchesWithRecovery` via the drag path) nor a partner swap

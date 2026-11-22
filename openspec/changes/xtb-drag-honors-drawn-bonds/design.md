@@ -73,7 +73,9 @@ bohr targets) and floor state (non-bonded pair indices + floor distances) are wo
 captured on drag start, cleared on drag end (`setDraggedAtom(-1)`), cleared and re-captured on
 topology re-establishment (`reestablishForTopology` — the bond graph may have changed, and a new
 bond changes the non-bonded set), cleared on quiesce and on `setup()`. The re-establishment path
-already rebuilds exactly once per topology change, which the "no stale tether" scenario requires.
+already rebuilds exactly once per topology change, which the "no stale tether" scenario
+requires. The bond-graph projection (D8) has no drag lifecycle: it reads the session's current
+numbers/bond graph and enforces the graph on every evaluation for the session lifetime.
 
 **D6 — Convergence and idle semantics unchanged.** The tether contributes to partner gradients, so
 the masked gradient norm cannot reach the convergence threshold "for free" during a held pull; the
@@ -95,33 +97,26 @@ backend's harmonic bond terms and produces the same drag feel (taffy pull, hold,
 structurally guarantees invariance but changes mid-drag physics, adds an FF typing failure mode
 mid-session, and breaks the identical-interaction-per-backend symmetry.
 
-**D8 — Non-bonded floor restraints: no new bond can form.** Holding drawn bond *lengths* is not
-sufficient for partner invariance — the bending loophole shows atoms can approach without
-stretching any drawn bond. During a drag, the session therefore also applies a repulsive harmonic
-floor to captured non-bonded pairs: `E += ½k_f·max(0, r_min − r)²` engaging only when a pair falls
-below its floor distance. Capture policy (same drag-start read-lock pass as D2): all pairs with
-craph separation ≥ 2 and press distance < 3.0 Å — a generous cutoff is essential because the
-pairs that later swap partners are typically far apart at press and only approach *during* the
-drag (a press-distance filter at the engagement threshold would capture nothing useful); the
-captured set is capped (4096 pairs, overflow keeps only pairs within 3 graph bonds of the dragged
-atom) so per-evaluation cost stays bounded at one distance check per captured pair. Engagement
-threshold `r_min = 1.5×` the covalent-radii sum (new constant `kXtbTetherFloorFactor`, distinct
-from the 1.3 repair/strain threshold), except hydrogen–hydrogen pairs which engage at
-`kXtbTetherFloorFactorHydrogenPair = 2.0×` (1.24 Å): the H covalent-radius sum badly
-undershoots where the H–H repulsion wall sits — the SCF's own H···H attraction equilibrium for
-a collapsed H–C–H geometry is ~1.0 Å, so a 0.93 Å floor engages only after the pair has
-fallen into bonding range — while legitimate H···H contacts (geminal ~1.78 Å, hydrogen
-bonds 1.8–2.4 Å) stay untouched. Floor force constant
-`kXtbTetherFloorForce = 2×kXtbTetherForce` (2000 kJ/mol/Å²), doubled for hydrogen–hydrogen
-pairs (their drag-phase approach forces overshoot the base stiffness). When a floor first
-engages during a drag, the session drops the optimizer's quasi-Newton history (off→on edge):
-the stored curvature pairs describe the pre-engagement landscape and otherwise overshoot
-straight through the newly engaged wall into new-bond range (measured: 0.75 Å dips without
-the drop, ~1.1–1.2 Å with it). Floors share the tether lifecycle (D5) including
-re-capture on topology re-establishment (a new bond changes the non-bonded set). *Alternative
-rejected:* engaging floors only for pairs close at press (captures nothing useful); xtb constraint
-API (see D1).
-
+**D8 — Bond-graph projection: the drawn graph is enforced geometrically, not energetically.
+** Radial restraints cannot express "these two atoms must never bond": finite walls lose to the
+SCF's bond wells under sustained pulling, pairwise capture sets miss pairs, and any drag-scoped,
+energy-only mechanism leaves the post-release and no-drag relaxation paths uncovered (each
+measured in implementation). The optimizer therefore projects every trial and accepted geometry
+onto the drawn-bond-graph manifold before the backend evaluates it (SHAKE-style, a projector
+hook on the client-side L-BFGS line search): every drawn bond is clamped into
+[0.5, 1.3]× the covalent-radii sum (re-formation reach, the D3 convention) and every
+non-bonded pair is pushed out of new-bond range (1.5× the covalent-radii sum, 2.0× for
+hydrogen–hydrogen pairs — the H covalent-radius sum badly undershoots the H–H repulsion
+wall; the SCF's own H···H equilibrium for a collapsed H–C–H geometry is ~1.0 Å).
+Corrections move only non-dragged atoms (drag authority is exact: the pinned atom is never
+moved, and a constraint touching it is satisfied entirely by moving the other end). Two
+correction sweeps resolve overlapping constraints. The projection is deterministic for
+identical input and runs for the session lifetime — drags, releases, and plain relaxation all
+evaluate projected geometry, so no partner change is reachable through any optimization path.
+The O(N²) pair sweep per evaluation is negligible next to the SCF at interactive scales.
+*Alternatives rejected:* repulsive floor restraints (measured: equilibrium inside the H₂ well
+under sustained drag, transient dips through the wall, and the uncaptured-pair and post-release
+loopholes); xtb constraint API (D1); hybrid FF-drag (D7).
 
 **D9 — Drag-phase evaluation resilience.** Two bounded, deterministic hardenings added during
 implementation (both measured necessary): (a) the L-BFGS line search caps its first trial-step
@@ -147,10 +142,10 @@ destroy/recreate discipline; a retry that also fails takes the D4 containment la
 - **Floor vs legitimate close contacts** — floors engage only below 1.5× the covalent-radii sum;
   the worst legitimate engagement is a strained-ring 1–3 contact penetrating ~0.01–0.05 Å
   (forces of tens of kJ/(mol·Å)) — negligible deformation, but the manual check must eyeball a
-  ring system. A deliberate head-on drag (drag authority is absolute) can compress a pair past
-  the floor's balance point — for H–H the shipped constants balance at ~0.85 Å (the H₂ minimum
-  is 0.74 Å), so the floor blocks full H₂ formation but a determined slam still holds partial
-  close-contact character; the manual check (5.7) tunes the two constants if that feels wrong.
+  ring system. A deliberate head-on drag (drag authority is absolute) can compress a pair to the
+  projection floor exactly (for H–H ~1.24 Å with the shipped constants; the H₂ minimum is
+  0.74 Å) — partial close-contact character, but no H₂ forms and the graph never changes;
+  the manual check (5.7) tunes the factors if that feels wrong.
 - **Violent flicks can still latch a failure** — containment semantics are unchanged; the
   difference is that the frozen geometry is now a *bonded* geometry (the graph invariant held
   until the latch), so recovery never has to repair a partner swap.

@@ -1,12 +1,15 @@
 ## ADDED Requirements
 
 ### Requirement: A drag cannot change the drawn bond graph
-While an optimization session runs on an xTB backend (GFN1-xTB, GFN2-xTB, or GFN-FF) and the user
-drags an atom, the molecule's drawn bond graph SHALL be an invariant of the drag-phase
-optimization: every drawn bond SHALL be held by a restoring interaction anchored to the bond as
-drawn (pulling its two atoms toward the drawn length with a force that grows with stretch), and
-every pair of atoms that is NOT bonded SHALL be kept from entering new-bond range by a repulsive
-floor interaction, both for the duration of the drag and both removed when the drag ends. No drawn
+While an optimization session runs on an xTB backend (GFN1-xTB, GFN2-xTB, or GFN-FF), the
+molecule's drawn bond graph SHALL be an invariant of the optimization: every pair of atoms that
+is NOT bonded SHALL be kept from entering new-bond range and every drawn bond SHALL be kept
+within its re-formation reach by a hard geometric projection of the optimizer's geometry onto
+the drawn bond graph, applied on every evaluated geometry for the lifetime of the session (so
+neither a drag, a release, nor plain relaxation can change the graph). While the user drags an
+atom, every drawn bond SHALL additionally be held by a restoring interaction anchored to the
+bond as drawn (pulling its two atoms toward the drawn length with a force that grows with
+stretch), for the duration of the drag and removed when the drag ends. No drawn
 bond SHALL be severed and no new bond SHALL form: each atom's set of bond partners SHALL remain
 exactly its drawn partner set while the drag lasts, so atoms never change bond partners through a
 drag. The interactions SHALL act only through the session's own optimization — the dragged atom
