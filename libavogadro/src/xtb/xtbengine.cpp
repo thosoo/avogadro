@@ -1370,6 +1370,7 @@ void XtbEngine::run()
     // reacts to a topology change (worker-side re-establishment) or an
     // external position change (fresh phase). Placed BEFORE the converged
     // latch so an external move after convergence resumes the session.
+    bool latchedDragMoved = false;
     if (m_molecule) {
       std::vector<int> liveNumbers;
       std::vector<double> livePositionsBohr;
@@ -1446,6 +1447,18 @@ void XtbEngine::run()
               }
               if (pointerMoved) {
                 m_evals = 0;
+                // Design D9 recovery: a pointer-authored move while the phase
+                // is latched-with-failure arms one bounded recovery attempt
+                // (recreated xTB objects + elevated budget at the failure
+                // gate below) — the user retreating the pull is the natural
+                // recovery gesture, and the fresh geometry deserves a fresh
+                // SCF guess. (A failed evaluation can leave the calculator's
+                // internal state poisoned: every re-evaluation on it then
+                // fails regardless of geometry — "restarts failing" that no
+                // retreat could fix.)
+                if (m_evalFailed) {
+                  latchedDragMoved = true;
+                }
               }
               for (int k = 0; k < 3; ++k) {
                 m_coordsBohr[di * 3 + k] = livePositionsBohr[di * 3 + k];
@@ -1481,10 +1494,46 @@ void XtbEngine::run()
       QMutexLocker locker(&m_stateMutex);
       // Design D1: the converged/capped idle is deferred while a drag is in
       // flight (a drag may be in flight across a latch set just before the
-      // press cleared it). The failed-evaluation and setup-broken latches still
-      // skip — a failed or broken phase is contained regardless of drag.
-      if ((m_converged && m_draggedIndex < 0) || m_evalFailed || m_setupBroken)
+      // press cleared it). The failed-evaluation and setup-broken latches
+      // still skip — a failed or broken phase is contained regardless of
+      // drag — unless a pointer-authored move during the latched drag armed
+      // the D9 recovery below.
+      if ((m_converged && m_draggedIndex < 0) || m_setupBroken)
         continue;
+      if (m_evalFailed && !latchedDragMoved)
+        continue;
+    }
+
+    // Design D9 recovery: the pointer moved during a latched drag. Recreate
+    // the four xTB objects (the failed evaluation can leave the calculator's
+    // internal state poisoned — the C API has no error-clear call, so every
+    // re-evaluation on them fails regardless of geometry) and reset the
+    // phase, then fall through: this pass re-evaluates the retreated
+    // geometry at the elevated budget. One bounded attempt per pointer move;
+    // a recovery that fails latches again until the next move.
+    if (latchedDragMoved) {
+      {
+        QMutexLocker locker(&m_stateMutex);
+        if (!m_evalFailed) {
+          latchedDragMoved = false;
+        }
+      }
+      if (latchedDragMoved) {
+        {
+          QMutexLocker objLocker(&m_mutex);
+          destroyObjects();
+          if (!createObjects() || !loadMethod()) {
+            QMutexLocker stateLocker(&m_stateMutex);
+            m_setupBroken = true;
+            m_coordsValid = false;
+            continue;
+          }
+        }
+        resetPhaseForReBaseline();
+        QMutexLocker relock(&m_stateMutex);
+        m_releaseElevatedIter = true;
+        latchedDragMoved = false;
+      }
     }
 
     if (!m_initialEvalDone) {

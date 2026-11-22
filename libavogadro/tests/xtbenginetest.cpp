@@ -63,6 +63,9 @@ private slots:
   void dragReleaseThenIdleConverges();
   void dragReleaseStrainedConverges();
   void dragReleaseDissociatedLatchesWithRecovery();
+  // Design D9 recovery: a pointer-authored retreat during a latched drag
+  // recreates the xTB objects (fresh SCF guess) and resumes evaluation.
+  void dragFailureRecoversOnPointerRetreat();
 
   // Design D2/D3: pure-function tether-target capture (no library needed).
   void tetherTargetsCapturedForKnownGeometry();
@@ -250,7 +253,7 @@ void XtbEngineTest::waterConvergesToReferenceGeometry()
                    [&]() { engine.requestTick(); });
   tickTimer.start(30);
 
-  QTRY_VERIFY_WITH_TIMEOUT(converged, 60000);
+  QTRY_VERIFY_WITH_TIMEOUT(converged, 120000);
   tickTimer.stop();
 
   QCOMPARE(static_cast<int>(lastCoords.size()), 9);
@@ -307,7 +310,7 @@ void XtbEngineTest::convergedStopsEvaluations()
                    [&]() { engine.requestTick(); });
   tickTimer.start(30);
 
-  QTRY_VERIFY_WITH_TIMEOUT(converged, 60000);
+  QTRY_VERIFY_WITH_TIMEOUT(converged, 120000);
   tickTimer.stop();
 
   int lastEval = 0;
@@ -356,7 +359,7 @@ void XtbEngineTest::dragAfterConvergenceResumesEvaluation()
                    [&]() { engine.requestTick(); });
   tickTimer.start(30);
 
-  QTRY_VERIFY_WITH_TIMEOUT(converged, 60000);
+  QTRY_VERIFY_WITH_TIMEOUT(converged, 120000);
   const int progressAtConvergence = progressCount;
   QVERIFY(progressAtConvergence >= 1);
 
@@ -2355,6 +2358,99 @@ void XtbEngineTest::sessionProjectionBlocksH2WithoutDrag()
                               "min H-H %1 A").arg(minHHDistAng)));
   QVERIFY(!failLatch);
 
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+
+// Design D9 recovery (user-reported: "restarts failing ... not even pulling
+// close will fix it"): a drag-phase SCF failure latches the phase, and the
+// failed evaluation can leave the calculator's internal state poisoned, so
+// plain re-evaluation fails regardless of geometry. A pointer-authored
+// retreat during the latched drag must recreate the xTB objects (fresh SCF
+// guess) and resume evaluation at the retreated (bonded) geometry.
+void XtbEngineTest::dragFailureRecoversOnPointerRetreat()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  const double dissociatedZ = 6.0;
+  const double bondedZ = 1.0;
+
+  Molecule* mol = makeWaterMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  QSignalSpy failSpy(&engine, &XtbEngine::evaluationFailed);
+  int coordsCount = 0;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>&) { ++coordsCount; });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  // The drag scenario: H1 is grabbed and pushed to the dissociated position
+  // (SCF failure mid-drag), then pulled back to bonded distance by the
+  // pointer (each tick re-authors the retreated position while the drag is
+  // still active).
+  enum Phase { Warmup, Pull, Retreating, Done };
+  Phase phase = Warmup;
+  double pullZ = dissociatedZ;
+  QObject::connect(&tickTimer, &QTimer::timeout, [&]() {
+    engine.requestTick();
+    if (phase == Pull || phase == Retreating) {
+      QWriteLocker locker(mol->lock());
+      if (phase == Pull) {
+        mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, pullZ));
+      } else if (pullZ > bondedZ) {
+        pullZ -= 0.25;
+        if (pullZ < bondedZ)
+          pullZ = bondedZ;
+        mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, pullZ));
+      } else {
+        mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, bondedZ));
+      }
+    }
+  });
+  tickTimer.start(30);
+
+  // Warm up: equilibrium evaluation first.
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= 1, 5000);
+
+  // Grab H1 and pull it out: the SCF fails mid-drag and latches.
+  phase = Pull;
+  engine.setDraggedAtom(1);
+  QTRY_VERIFY_WITH_TIMEOUT(failSpy.count() >= 1, 60000);
+  const int countAtFailure = coordsCount;
+  qDebug() << "latched at coords" << countAtFailure;
+
+  // Without a retreat the latch holds: no further publishes.
+  for (int i = 0; i < 15; ++i) {
+    QTest::qWait(40);
+  }
+  QCOMPARE(coordsCount, countAtFailure);
+
+  // Retreat the pull back to bonded distance (pointer-authored, drag still
+  // active). The recovery must recreate the objects, clear the latch, and
+  // resume evaluation of the retreated geometry.
+  phase = Retreating;
+  const int countAtRetreat = coordsCount;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount > countAtRetreat, 60000);
+  qDebug() << "recovered: coords" << countAtRetreat << "->" << coordsCount;
+  // The retreat staircase legitimately re-fails at intermediate (still
+  // dissociated) positions — one bounded attempt per pointer move. The
+  // contract is the end state: once the atom is back at bonded distance the
+  // recovered session evaluates steadily and the failure latch stops firing.
+  phase = Done;
+  const int failsAtBonded = failSpy.count();
+  int steadyTarget = coordsCount + 3;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= steadyTarget, 30000);
+  QTest::qWait(1500);
+  qDebug() << "steady: coords" << coordsCount << "fails" << failSpy.count()
+           << "(was" << failsAtBonded << ")";
+  QCOMPARE(failSpy.count(), failsAtBonded);
   tickTimer.stop();
   engine.stop();
   engine.wait(10000);

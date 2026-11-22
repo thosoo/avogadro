@@ -126,7 +126,15 @@ otherwise proposes trial geometries with near-coincident atoms that the backend 
 fails at the steady-state budget, the session retries it once at the release-elevation settings
 (full accuracy, 2× iterations) on freshly created xTB objects — the C API cannot clear a fatal
 error state (calling the library again on it corrupts its heap), so the retry reuses the D2
-destroy/recreate discipline; a retry that also fails takes the D4 containment latch unchanged.
+destroy/recreate discipline; a retry that also fails takes the D4 containment latch unchanged;
+(c) a pointer-authored move of the dragged atom during a latched drag — the user retreating the
+pull — arms one bounded recovery attempt: the four xTB objects are recreated (the failed
+evaluation can leave the calculator's internal state poisoned, so re-evaluation on them fails
+regardless of geometry — user-reported as "restarts failing ... not even pulling close will
+fix it"), the latch clears, and the retreated geometry re-evaluates at the elevated budget;
+intermediate retreat positions may legitimately re-fail (one attempt per pointer move), and a
+retreat that reaches a geometry the backend can converge resumes the session without a
+Stop/Start cycle.
 ## Risks / Trade-offs
 
 - **Flick-release transients can still latch a failure.** A violent flick released instantly can
