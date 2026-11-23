@@ -640,7 +640,9 @@ void XtbEngineTest::interactiveTogglesAccuracy()
                        /*level=*/4, /*threads=*/0));
   QCOMPARE(engine.currentAccuracy(), 1.0);
   engine.setInteractive(true);
-  QCOMPARE(engine.currentAccuracy(), 0.2);
+  // The tuned interactive budget (task 5.7): loose and short for drag
+  // responsiveness; the toggle contract is the switch itself and the restore.
+  QCOMPARE(engine.currentAccuracy(), 0.1);
   engine.setInteractive(false);
   QCOMPARE(engine.currentAccuracy(), 1.0);
   stopAndWait(engine);

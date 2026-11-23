@@ -49,8 +49,8 @@ constexpr double kXtbLevelThresholds[8] = { 5e-3, 1e-3, 8e-4, 5e-4,
 constexpr int kXtbMaxEvaluations = 500;
 
 // Interactive accuracy adaptation (tunable).
-constexpr double kXtbInteractiveAccuracy = 0.2;
-constexpr int kXtbInteractiveMaxIter = 30;
+constexpr double kXtbInteractiveAccuracy = 0.1;
+constexpr int kXtbInteractiveMaxIter = 20;
 constexpr double kXtbDefaultAccuracy = 1.0;
 constexpr int kXtbDefaultMaxIter = 100;
 // Design D3: the fresh phase's first evaluation after a drag release is
