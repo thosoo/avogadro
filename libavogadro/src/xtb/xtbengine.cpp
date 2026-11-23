@@ -535,6 +535,13 @@ bool XtbEngine::loadMethod()
     int bufsize = kErrorBufferSize;
     char buffer[kErrorBufferSize];
     XtbApi::xtb_getError()(m_env, buffer, &bufsize);
+    // xtb_getError does not reliably null-terminate the assembled error chain
+    // within the buffer; terminate defensively so no uninitialized stack
+    // bytes leak into the surfaced diagnostic.
+    buffer[kErrorBufferSize - 1] = '\0';
+    if (bufsize > 0 && bufsize <= kErrorBufferSize) {
+      buffer[bufsize - 1] = '\0';
+    }
     emit setupFailed(QString::fromLatin1(buffer));
     return false;
   }
@@ -646,7 +653,32 @@ double XtbEngine::evaluateOnce(const std::vector<double>& coords,
         int bufsize = kErrorBufferSize;
         char buffer[kErrorBufferSize];
         XtbApi::xtb_getError()(m_env, buffer, &bufsize);
+        // Defensive termination: see the loadMethod() error path (the error
+        // chain is not reliably null-terminated by the C API).
+        buffer[kErrorBufferSize - 1] = '\0';
+        if (bufsize > 0 && bufsize <= kErrorBufferSize) {
+          buffer[bufsize - 1] = '\0';
+        }
         QString reason = QString::fromLatin1(buffer);
+        // The library's error-chain assembly can splice non-printable
+        // fragments into the message; strip them so the surfaced diagnostic
+        // (HUD + log stream) stays clean.
+        // xtb diagnostics are pure ASCII; the library's error-chain assembly
+        // can splice binary fragments (with embedded ASCII bytes) after the
+        // real message, so truncate at the first non-ASCII byte and trim the
+        // tail. A clean message is unaffected.
+        int cut = reason.size();
+        for (int i = 0; i < reason.size(); ++i) {
+          const char16_t u = reason[i].unicode();
+          if (u >= 0x7F || (u < 0x20 && u != '\n')) {
+            cut = i;
+            break;
+          }
+        }
+        reason = reason.left(cut);
+        while (reason.endsWith('\n') || reason.endsWith(' ')) {
+          reason.chop(1);
+        }
         if (reason.isEmpty()) {
           reason = QStringLiteral("xTB singlepoint failed");
         }
@@ -887,6 +919,10 @@ void XtbEngine::latchEvaluationFailure(const QString& reason)
   const QString withRecovery =
     reason + QStringLiteral("; restart the session (Stop/Start) or edit the "
                             "molecule to re-establish it");
+  // Surface the failure in the debug/log stream as well as the HUD: the HUD
+  // line is transient paint state, so a captured debug log (or a debugger)
+  // would otherwise show nothing when a session errors out.
+  qWarning() << "AutoOpt xTB evaluation failed:" << withRecovery;
   {
     QMutexLocker locker(&m_stateMutex);
     m_evalFailed = true;
@@ -1519,6 +1555,8 @@ void XtbEngine::run()
         }
       }
       if (latchedDragMoved) {
+        qWarning() << "AutoOpt xTB: latched-drag recovery: recreating xTB "
+                      "objects for the retreated geometry";
         {
           QMutexLocker objLocker(&m_mutex);
           destroyObjects();
@@ -1526,6 +1564,8 @@ void XtbEngine::run()
             QMutexLocker stateLocker(&m_stateMutex);
             m_setupBroken = true;
             m_coordsValid = false;
+            qWarning() << "AutoOpt xTB: latched-drag recovery failed to "
+                          "recreate the xTB objects; session is setup-broken";
             continue;
           }
         }

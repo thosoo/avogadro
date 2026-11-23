@@ -91,6 +91,7 @@ private slots:
   void ethaneHardPullWithoutFloorsBreaksPartnerSets();
   void isolatedAtomFloorBlocksNewBondContact();
   void sessionProjectionBlocksH2WithoutDrag();
+  void convergedSessionResumesOnAtomAddition();
 };
 
 // Water geometry in angstrom: O at origin, H1 at (0,0,1.0), H2 at (0,0.1,-1.0).
@@ -2451,6 +2452,108 @@ void XtbEngineTest::dragFailureRecoversOnPointerRetreat()
   qDebug() << "steady: coords" << coordsCount << "fails" << failSpy.count()
            << "(was" << failsAtBonded << ")";
   QCOMPARE(failSpy.count(), failsAtBonded);
+  tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+
+// DEBUG repro (user report: "while keep adding atoms while autoopt with xtb
+// is running, the autoopt will say it is converged, but it clearly is not"):
+// converge a session, then add atoms one by one; the session must
+// re-establish, resume evaluation, and NOT latch converged while the new
+// atoms' structure still relaxes.
+void XtbEngineTest::convergedSessionResumesOnAtomAddition()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  Molecule* mol = makeWaterMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  QSignalSpy reestablSpy(&engine, &XtbEngine::sessionReestablished);
+  QSignalSpy convergedSpy(&engine, &XtbEngine::converged);
+  QSignalSpy failSpy(&engine, &XtbEngine::evaluationFailed);
+  int coordsCount = 0;
+  QObject::connect(&engine, &XtbEngine::coordsReady,
+                   [&](const std::vector<double>&) { ++coordsCount; });
+
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  QObject::connect(&tickTimer, &QTimer::timeout,
+                   [&]() { engine.requestTick(); });
+  tickTimer.start(30);
+
+  // Converge the initial session.
+  QTRY_VERIFY_WITH_TIMEOUT(convergedSpy.count() >= 1, 60000);
+  qDebug() << "initial converged at coords" << coordsCount;
+  const int convergedCount1 = convergedSpy.count();
+
+  // Add atom #4 mid-session (displaced, so forces are real).
+  {
+    QWriteLocker locker(mol->lock());
+    Atom* h = mol->addAtom();
+    h->setAtomicNumber(1);
+    h->setPos(Eigen::Vector3d(0.0, -1.5, 0.0));
+  }
+  QTRY_VERIFY_WITH_TIMEOUT(reestablSpy.count() >= 1, 5000);
+
+  // The re-established phase must evaluate (publish) and must NOT report
+  // converged again while the new structure still relaxes: watch for a
+  // second converged emission within a bounded budget.
+  int coordsAtAdd = coordsCount;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount > coordsAtAdd, 15000);
+  QTest::qWait(2000);
+  qDebug() << "after add#1: coords" << coordsCount
+           << "converged emissions" << convergedSpy.count()
+           << "fails" << failSpy.count();
+
+  // Add two more atoms in quick succession, BONDED like the draw tool's
+  // click-extend (C bonded to O-region H, H bonded to that C), at pace.
+  {
+    QWriteLocker locker(mol->lock());
+    Atom* c = mol->addAtom();
+    c->setAtomicNumber(6);
+    c->setPos(Eigen::Vector3d(0.0, 0.0, -2.2));
+    mol->addBond(mol->atom(0), c, 1);
+    Atom* h = mol->addAtom();
+    h->setAtomicNumber(1);
+    h->setPos(Eigen::Vector3d(0.9, 0.0, -2.2));
+    mol->addBond(c, h, 1);
+  }
+  int coordsAtAdd2 = coordsCount;
+  QTRY_VERIFY_WITH_TIMEOUT(coordsCount > coordsAtAdd2, 15000);
+  QTest::qWait(3000);
+  qDebug() << "after add#2+3: coords" << coordsCount
+           << "converged emissions" << convergedSpy.count()
+           << "reestablish" << reestablSpy.count()
+           << "fails" << failSpy.count();
+
+  // Keep adding: three more rapid bonded additions at ~300 ms pace (the
+  // user's "keep adding atoms" pattern).
+  for (int k = 0; k < 3; ++k) {
+    QTest::qWait(300);
+    QWriteLocker locker(mol->lock());
+    Atom* h = mol->addAtom();
+    h->setAtomicNumber(1);
+    Eigen::Vector3d pos(1.2 + 0.4 * k, 0.9, -1.1 - 0.4 * k);
+    h->setPos(pos);
+    mol->addBond(mol->atom(0), h, 1);
+    locker.unlock();
+    int before = coordsCount;
+    QTRY_VERIFY_WITH_TIMEOUT(coordsCount > before, 15000);
+  }
+  QTest::qWait(3000);
+  qDebug() << "after rapid adds: coords" << coordsCount
+           << "converged emissions" << convergedSpy.count()
+           << "reestablish" << reestablSpy.count()
+           << "fails" << failSpy.count()
+           << "converged emissions over additions:"
+           << (convergedSpy.count() - convergedCount1);
+
   tickTimer.stop();
   engine.stop();
   engine.wait(10000);
