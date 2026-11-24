@@ -96,9 +96,11 @@ constexpr double kXtbTetherFloorFactorHydrogenPair = 2.0;
 // least half of it (nuclear collision guard) by the bond-graph projection.
 constexpr double kXtbBondMaxLengthFactor = kXtbTetherRepairThreshold;
 constexpr double kXtbBondMinLengthFactor = 0.5;
-// Design D8 projection: correction sweeps per trial geometry. Two sweeps
-// resolve overlapping constraints to well within chemical tolerances.
-constexpr int kXtbProjectionSweeps = 2;
+// Design D8 projection: correction sweeps per trial geometry. Under fast
+// drag stress many constraints violate simultaneously and two sweeps left
+// measurable residuals (H-H down to ~1.11 A against a 1.24 A floor); six
+// sweeps converge the overlaps (cost is trivial next to the SCF).
+constexpr int kXtbProjectionSweeps = 6;
 
 constexpr int kErrorBufferSize = 1024;
 

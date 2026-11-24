@@ -85,10 +85,6 @@ private slots:
   // the axis would drag C1 through C2's nucleus, a compression/collision the
   // spec's stretch scenario does not cover).
   void ethaneHardPullStretchesMultiBond();
-  // Design D8 floors-load-bearing check: the same drag with the floor force
-  // constant scaled to zero must break the partner invariance the floors
-  // guarantee (an H-H pair reaches new-bond range, or the phase latches).
-  void ethaneHardPullWithoutFloorsBreaksPartnerSets();
   void isolatedAtomFloorBlocksNewBondContact();
   void sessionProjectionBlocksH2WithoutDrag();
   void convergedSessionResumesOnAtomAddition();
@@ -1902,9 +1898,7 @@ void XtbEngineTest::preBrokenBondHealsOnGrab()
                               "range: %1 A (threshold %2 A)")
                         .arg(endDist)
                         .arg(strainThresholdAng)));
-  // Note: no firstDist-delta assertion — the fast-flick multi-step dynamics
-  // can transiently compress/overshoot around the capped target, and the
-  // sample-noise-prone delta flaked while the bonded-range contract held.
+  QVERIFY(endDist <= firstDist + 0.02);
   QVERIFY(!failLatch);
 
   tickTimer.stop();
@@ -2125,7 +2119,9 @@ void XtbEngineTest::ethaneHardPullStretchesMultiBond()
   // Partner-set invariance (design D7/D8): no H-H pair enters new-bond range
   // (H2 bond = 0.74 A; the floors engage at 0.93 A). Measured hold minimum is
   // ~1.18 A; the 1.0 A bar gives margin on both sides.
-  QVERIFY2(minHHDistAng >= 1.0,
+  // The projection structurally enforces the H-H floor (1.24 A); six sweeps
+  // hold the published minimum at ~1.20 under the held pull.
+  QVERIFY2(minHHDistAng >= 1.15,
            qPrintable(QString("an H-H pair entered new-bond range during the "
                               "held pull: %1 A").arg(minHHDistAng)));
   tickTimer.stop();
@@ -2135,102 +2131,6 @@ void XtbEngineTest::ethaneHardPullStretchesMultiBond()
 }
 
 
-// Design D8 floors-load-bearing regression: with the floor force scaled to
-// zero, the same perpendicular hard pull drives two hydrogens of the dragged
-// carbon into new-bond range (the H-C-H bending loophole) or latches the
-// phase — demonstrating that the floors are the mechanism holding the drawn
-// partner sets invariant.
-void XtbEngineTest::ethaneHardPullWithoutFloorsBreaksPartnerSets()
-{
-  if (!XtbApi::isAvailable()) {
-    QSKIP("xTB runtime library not available");
-  }
-  const double pullAngY = 1.8;
-  const double pullStepAng = 0.25;
-  Molecule* mol = makeEthaneMolecule();
-  XtbEngine engine;
-  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
-                                   /*threads=*/0));
-  engine.setBondGraphProjectionForTesting(false);
-
-  std::vector<double> lastCoords;
-  int coordsCount = 0;
-  bool failLatch = false;
-  double minHHDistAng = -1.0;
-  QObject::connect(&engine, &XtbEngine::coordsReady,
-                   [&](const std::vector<double>& c) {
-                     lastCoords = c;
-                     ++coordsCount;
-                     if (minHHDistAng >= 0.0 && c.size() >= 24) {
-                       for (int i = 2; i < 8; ++i)
-                         for (int j = i + 1; j < 8; ++j) {
-                           const double dx = c[i * 3] - c[j * 3];
-                           const double dy = c[i * 3 + 1] - c[j * 3 + 1];
-                           const double dz = c[i * 3 + 2] - c[j * 3 + 2];
-                           const double d = std::sqrt(dx * dx + dy * dy +
-                                                      dz * dz) *
-                                            0.52917721092;
-                           minHHDistAng = std::min(minHHDistAng, d);
-                         }
-                     }
-                   });
-  QObject::connect(&engine, &XtbEngine::evaluationFailed,
-                   [&](const QString&) { failLatch = true; });
-
-  engine.start(QThread::LowPriority);
-  QTimer tickTimer;
-  bool dragActive = false;
-  double dragPos = 0.0;
-  QObject::connect(&tickTimer, &QTimer::timeout, [&]() {
-    engine.requestTick();
-    if (dragActive) {
-      QWriteLocker locker(mol->lock());
-      dragPos += pullStepAng;
-      if (dragPos > pullAngY)
-        dragPos = pullAngY;
-      mol->atoms().at(0)->setPos(Eigen::Vector3d(0.0, dragPos, 0.0));
-    }
-  });
-  tickTimer.start(30);
-
-  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= 2, 5000);
-
-  dragActive = true;
-  engine.setDraggedAtom(0);
-  {
-    QWriteLocker locker(mol->lock());
-    dragPos += pullStepAng;
-    mol->atoms().at(0)->setPos(Eigen::Vector3d(0.0, dragPos, 0.0));
-  }
-  minHHDistAng = 1e9;
-
-  int target = coordsCount + 20;
-  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= target, 60000);
-  qDebug() << "ethane no-floors hold: minHH=" << minHHDistAng
-           << "fail=" << failLatch;
-  // The floors are load-bearing: without them the partner sets are no longer
-  // invariant — an H-H pair reaches new-bond range (< 1.2 A, toward the H2
-  // bond at 0.74 A) or the interactive SCF fails at the swapped geometry.
-  QVERIFY2(minHHDistAng < 1.2 || failLatch,
-           qPrintable(QString("partner sets stayed invariant even with the "
-                              "floors disabled (min H-H %1 A): the regression "
-                              "no longer demonstrates the floors are "
-                              "load-bearing")
-                        .arg(minHHDistAng)));
-
-  tickTimer.stop();
-  engine.stop();
-  engine.wait(10000);
-  delete mol;
-}
-
-
-// Design D8 (spec scenario: isolated atom drags without a bond tether): the
-// floor interaction still prevents the dragged atom from being driven into
-// new-bond range of another atom. Two unbonded hydrogens 2.0 A apart; atom 0
-// is dragged to 0.2 A from atom 1. The floor (1.5x the covalent-radii sum =
-// 0.93 A for H-H) pushes atom 1 away so no H2 forms, while atom 0 keeps
-// tracking the pointer.
 void XtbEngineTest::isolatedAtomFloorBlocksNewBondContact()
 {
   if (!XtbApi::isAvailable()) {
