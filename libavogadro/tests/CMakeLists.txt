@@ -358,7 +358,7 @@ foreach (test ${tests})
     # The drag recovery tests run expensive bounded recovery attempts (full
     # xTB object recreation + an elevated-budget SCF per retreat step), which
     # can exceed Qt's 300 s default per-function timeout on slower runners.
-    list(APPEND _test_env "QTEST_FUNCTION_TIMEOUT=900")
+    list(APPEND _test_env "QTEST_FUNCTION_TIMEOUT=900000")
   endif()
   # The parity binaries drive a real GLWidget for the legacy tier, which
   # QOpenGLWidget does not support on the offscreen platform: they need a
