@@ -51,6 +51,10 @@ constexpr int kXtbMaxEvaluations = 500;
 // Interactive accuracy adaptation (tunable).
 constexpr double kXtbInteractiveAccuracy = 0.1;
 constexpr int kXtbInteractiveMaxIter = 20;
+// Design D6 (task 5.7 tuning): during an active drag, a tick may run up to
+// this many L-BFGS iterations (each at the interactive SCF budget) so the
+// constrained structure keeps pace with fast pointer motion.
+constexpr int kDragStepsPerTick = 4;
 constexpr double kXtbDefaultAccuracy = 1.0;
 constexpr int kXtbDefaultMaxIter = 100;
 // Design D3: the fresh phase's first evaluation after a drag release is
@@ -1407,6 +1411,7 @@ void XtbEngine::run()
     // external position change (fresh phase). Placed BEFORE the converged
     // latch so an external move after convergence resumes the session.
     bool latchedDragMoved = false;
+    bool pointerMovedThisPass = false;
     if (m_molecule) {
       std::vector<int> liveNumbers;
       std::vector<double> livePositionsBohr;
@@ -1483,6 +1488,7 @@ void XtbEngine::run()
               }
               if (pointerMoved) {
                 m_evals = 0;
+                pointerMovedThisPass = true;
                 // Design D9 recovery: a pointer-authored move while the phase
                 // is latched-with-failure arms one bounded recovery attempt
                 // (recreated xTB objects + elevated budget at the failure
@@ -1621,18 +1627,41 @@ void XtbEngine::run()
       continue;
     }
 
-    // One L-BFGS iteration (its line search calls evaluateOnce per trial).
+    // L-BFGS iterations (each line search calls evaluateOnce per trial).
+    // Design D6 responsiveness (task 5.7 tuning): during an active drag the
+    // tick runs up to kDragStepsPerTick iterations instead of one, so the
+    // constrained structure keeps up with a fast pointer between updates —
+    // a pinned atom that teleports a full angstrom per tick otherwise leaves
+    // the neighbors strained at the projection clamps, which is exactly the
+    // geometry class that trips the interactive SCF. Each iteration still
+    // runs at the interactive budget; the counter/cap semantics are
+    // unchanged (shouldStop and the eval cap bound the loop).
     // Note: the optimizer state (m_coordsBohr/m_energy/m_grad/m_evals/m_gnorm
     // and m_initialEvalDone below) is worker-owned; the m_stateMutex acquire
     // in the converged-skip block above is the happens-before edge that makes
     // resumeOptimizationLocked()'s GUI-thread writes (m_initialEvalDone,
     // m_evals) visible here — keep that block ahead of these reads.
-    bool cont = m_lbfgs.step(
-      m_coordsBohr, m_energy, m_grad, m_evals, m_gnorm,
-      [this](const std::vector<double>& c, std::vector<double>& g) -> double {
-        return evaluateOnce(c, g);
-      },
-      [this](int evals) -> bool { return shouldStop(evals); });
+    int dragSteps = 0;
+    bool cont = true;
+    do {
+      cont = m_lbfgs.step(
+        m_coordsBohr, m_energy, m_grad, m_evals, m_gnorm,
+        [this](const std::vector<double>& c, std::vector<double>& g) -> double {
+          return evaluateOnce(c, g);
+        },
+        [this](int evals) -> bool { return shouldStop(evals); });
+      if (m_evalFailed || std::isnan(m_energy)) {
+        break;
+      }
+      ++dragSteps;
+      if (m_draggedIndex < 0 || !pointerMovedThisPass) {
+        // Multi-step is the fast-flick catch-up budget: it applies only to
+        // the pass that observed a pointer move. A held-still pull relaxes
+        // one calm iteration per tick, so the evaluation cap and the
+        // constrained-geometry cost stay at the held-pull semantics.
+        break;
+      }
+    } while (cont && dragSteps < kDragStepsPerTick);
 
     // Design D4: if any trial evaluation latched a failure, the phase is
     // idle-with-failure; publish nothing and skip the rest of this tick (the
