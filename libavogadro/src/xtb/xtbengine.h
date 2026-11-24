@@ -329,6 +329,15 @@ private:
   // ticks are consumed without evaluating. Guarded by m_stateMutex.
   bool m_evalFailed;
   QString m_evalFailureReason;
+  // Design D9 (deferred-latch): consecutive failed drag ticks. During an
+  // active drag a failed evaluation is surfaced but does not latch immediately
+  // (a hard pull visits SCF-awkward geometries the backend sometimes cannot
+  // converge, and the spec scenario forbids a latch from the pull alone). The
+  // counter increments once per failed tick and resets on a successful tick or
+  // a pointer-authored move; the D4 latch engages only when the drag is held
+  // fixed on a genuinely unconvergeable geometry (the counter reaches the
+  // threshold). Guarded by m_stateMutex.
+  int m_dragFailCount;
   // D2/D4 setup-broken latch: set when a live-molecule topology re-establishment
   // fails (destroyed the xTB objects and could not recreate them). Unlike
   // m_converged, this must NOT be cleared by resumeOptimizationLocked() or

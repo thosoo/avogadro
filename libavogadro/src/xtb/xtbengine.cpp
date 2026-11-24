@@ -62,6 +62,13 @@ constexpr int kXtbDefaultMaxIter = 100;
 // budget) so a strained-but-recoverable released geometry converges into the
 // session instead of latching an evaluation failure. Bounded, deterministic.
 constexpr int kXtbReleaseMaxIter = 2 * kXtbDefaultMaxIter;
+// Design D9 (deferred-latch): after this many consecutive failed drag ticks
+// the drag is held fixed on a geometry the backend genuinely cannot evaluate;
+// then (and only then) the D4 containment latch engages. Bounded, so a held
+// unconvergeable drag still idles with a named failure instead of burning CPU
+// forever, while a moving (or held-but-recoverable) drag never latches from
+// the pull alone (spec "no failure latch from the pull alone").
+constexpr int kXtbDragFailLatchThreshold = 4;
 
 // Design D4: tether force constant for the drag bond-preservation restraint
 // (kJ/mol/A^2 -> Hartree/bohr^2). 1 Ha = 2625.4996 kJ/mol, 1 A = 1.8897259886
@@ -98,9 +105,9 @@ constexpr double kXtbBondMaxLengthFactor = kXtbTetherRepairThreshold;
 constexpr double kXtbBondMinLengthFactor = 0.5;
 // Design D8 projection: correction sweeps per trial geometry. Under fast
 // drag stress many constraints violate simultaneously and two sweeps left
-// measurable residuals (H-H down to ~1.11 A against a 1.24 A floor); six
+// measurable residuals (H-H down to ~1.11 A against a 1.24 A floor); ten
 // sweeps converge the overlaps (cost is trivial next to the SCF).
-constexpr int kXtbProjectionSweeps = 6;
+constexpr int kXtbProjectionSweeps = 10;
 
 constexpr int kErrorBufferSize = 1024;
 
@@ -137,6 +144,7 @@ XtbEngine::XtbEngine(QObject* parent)
   , m_coordsValid(false)
   , m_quiesced(false)
   , m_evalFailed(false)
+  , m_dragFailCount(0)
   , m_setupBroken(false)
 {
 }
@@ -345,6 +353,8 @@ void XtbEngine::setDraggedAtom(int index)
     // SCF budget left by a prior release (design D3 is scoped to the release's
     // first evaluation only).
     m_releaseElevatedIter = false;
+    // Design D9 (deferred-latch): a fresh press starts a fresh failure streak.
+    m_dragFailCount = 0;
     resumeOptimizationLocked();
   }
   else {
@@ -357,6 +367,9 @@ void XtbEngine::setDraggedAtom(int index)
     m_currentAccuracy = kXtbDefaultAccuracy;
     m_resetHistoryRequested = true;
     m_releaseElevatedIter = true;
+    // Design D9 (deferred-latch): a release ends the failure streak; the
+    // release-path evaluation latches immediately on failure (D4 unchanged).
+    m_dragFailCount = 0;
     resetPhaseLocked();
   }
 }
@@ -688,6 +701,22 @@ double XtbEngine::evaluateOnce(const std::vector<double>& coords,
         if (reason.isEmpty()) {
           reason = QStringLiteral("xTB singlepoint failed");
         }
+        // Design D9 (deferred-latch): during an active drag a failed
+        // evaluation is surfaced but does not latch immediately — a hard pull
+        // visits SCF-awkward geometries the backend sometimes cannot converge
+        // (design D8 residual), and the spec scenario forbids a latch from the
+        // pull alone. Record the raw reason and return NaN; the worker tick
+        // loop counts consecutive failed ticks and engages the D4 latch only
+        // when the drag is held fixed on a genuinely unconvergeable geometry.
+        // Non-drag and drag-release failures latch immediately (D4 unchanged).
+        {
+          QMutexLocker locker(&m_stateMutex);
+          m_evalFailureReason = reason;
+        }
+        if (di >= 0) {
+          qWarning() << "AutoOpt xTB evaluation failed:" << reason;
+          return std::numeric_limits<double>::quiet_NaN();
+        }
         latchEvaluationFailure(reason);
         return std::numeric_limits<double>::quiet_NaN();
       }
@@ -712,8 +741,20 @@ double XtbEngine::evaluateOnce(const std::vector<double>& coords,
       }
     }
     if (!finite) {
-      latchEvaluationFailure(
-        QStringLiteral("xTB evaluation returned non-finite results"));
+      const QString reason =
+        QStringLiteral("xTB evaluation returned non-finite results");
+      // Design D9 (deferred-latch): a non-finite result during an active drag
+      // defers the latch exactly like an SCF failure (see above); the tick
+      // loop counts consecutive failed ticks.
+      {
+        QMutexLocker locker(&m_stateMutex);
+        m_evalFailureReason = reason;
+      }
+      if (di >= 0) {
+        qWarning() << "AutoOpt xTB evaluation failed:" << reason;
+        return std::numeric_limits<double>::quiet_NaN();
+      }
+      latchEvaluationFailure(reason);
       return std::numeric_limits<double>::quiet_NaN();
     }
   }
@@ -1491,6 +1532,10 @@ void XtbEngine::run()
               if (pointerMoved) {
                 m_evals = 0;
                 pointerMovedThisPass = true;
+                // Design D9 (deferred-latch): a pointer-authored move is the
+                // user's recovery gesture; reset the consecutive-failure
+                // counter so a moving drag never latches from the pull alone.
+                m_dragFailCount = 0;
                 // Design D9 recovery: a pointer-authored move while the phase
                 // is latched-with-failure arms one bounded recovery attempt
                 // (recreated xTB objects + elevated budget at the failure
@@ -1665,12 +1710,48 @@ void XtbEngine::run()
       }
     } while (cont && dragSteps < kDragStepsPerTick);
 
-    // Design D4: if any trial evaluation latched a failure, the phase is
-    // idle-with-failure; publish nothing and skip the rest of this tick (the
-    // next loop iteration is skipped by the failure latch).
+    // Design D4/D9: a latched failure (non-drag, or a drag held past the
+    // deferred-latch threshold) idles the phase; publish nothing and skip the
+    // rest of this tick (the next loop iteration is skipped by the failure
+    // latch). A deferred drag failure (evaluateOnce returned NaN without
+    // latching) is surfaced, counted, and latched only when the drag has been
+    // held fixed on a genuinely unconvergeable geometry for the threshold
+    // number of consecutive ticks — a moving or held-but-recoverable drag
+    // never latches from the pull alone (spec scenario). A successful tick
+    // resets the counter.
     {
-      QMutexLocker locker(&m_stateMutex);
-      if (m_evalFailed) {
+      QString surfaceReason;
+      bool skipTick = false;
+      {
+        QMutexLocker locker(&m_stateMutex);
+        if (m_evalFailed) {
+          skipTick = true;
+        }
+        else if (std::isnan(m_energy)) {
+          ++m_dragFailCount;
+          if (m_dragFailCount < kXtbDragFailLatchThreshold) {
+            // Deferred: surface the raw diagnostic, keep evaluating.
+            surfaceReason = m_evalFailureReason;
+          }
+          else {
+            // Held long enough: engage the D4 latch with the recovery path.
+            m_evalFailed = true;
+            m_coordsValid = false;
+            m_evalFailureReason += QStringLiteral(
+              "; restart the session (Stop/Start) or edit the molecule to "
+              "re-establish it");
+            surfaceReason = m_evalFailureReason;
+          }
+          skipTick = true;
+        }
+        else {
+          m_dragFailCount = 0;
+        }
+      }
+      if (skipTick) {
+        if (!surfaceReason.isEmpty()) {
+          emit evaluationFailed(surfaceReason);
+        }
         continue;
       }
     }

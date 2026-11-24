@@ -66,7 +66,6 @@ private slots:
   // Design D9 recovery: a pointer-authored retreat during a latched drag
   // recreates the xTB objects (fresh SCF guess) and resumes evaluation.
   void dragFailureRecoversOnPointerRetreat();
-
   // Design D2/D3: pure-function tether-target capture (no library needed).
   void tetherTargetsCapturedForKnownGeometry();
   void tetherTargetsRepairCap();
@@ -2377,7 +2376,6 @@ void XtbEngineTest::dragFailureRecoversOnPointerRetreat()
   engine.wait(10000);
   delete mol;
 }
-
 
 // DEBUG repro (user report: "while keep adding atoms while autoopt with xtb
 // is running, the autoopt will say it is converged, but it clearly is not"):

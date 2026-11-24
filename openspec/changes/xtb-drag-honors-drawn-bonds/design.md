@@ -81,6 +81,9 @@ numbers/bond graph and enforces the graph on every evaluation for the session li
 the masked gradient norm cannot reach the convergence threshold "for free" during a held pull; the
 existing rules stay authoritative: converged idle is deferred while dragging, the evaluation cap is
 refreshed by pointer movement, and failed-evaluation containment latches regardless of drag.
+(The D9(d) deferred-latch below is the one drag-phase exception: a drag-phase evaluation failure
+is surfaced but does not latch until the drag is held fixed on a genuinely unconvergeable
+geometry.)
 
 **D7 — Bond-graph invariance: the tether scope extends from the dragged atom's incident bonds to
 every drawn bond.** The incident-only tether has a loophole: radial (distance) constraints never
@@ -109,8 +112,12 @@ non-bonded pair is pushed out of new-bond range (1.5× the covalent-radii sum, 2
 hydrogen–hydrogen pairs — the H covalent-radius sum badly undershoots the H–H repulsion
 wall; the SCF's own H···H equilibrium for a collapsed H–C–H geometry is ~1.0 Å).
 Corrections move only non-dragged atoms (drag authority is exact: the pinned atom is never
-moved, and a constraint touching it is satisfied entirely by moving the other end). Two
-correction sweeps resolve overlapping constraints. The projection is deterministic for
+moved, and a constraint touching it is satisfied entirely by moving the other end). Ten
+correction sweeps resolve overlapping constraints (measured: the 6-sweep build left an H–H
+pair at ~1.05 Å against the 1.24 Å floor under a sustained ethane hard pull — the bond clamp
+that pulls a hydrogen back to reach fights the non-bonded push that keeps it off its neighbor,
+so more sweeps are needed to converge the overlap; the cost is trivial next to the SCF). The
+projection is deterministic for
 identical input and runs for the session lifetime — drags, releases, and plain relaxation all
 evaluate projected geometry, so no partner change is reachable through any optimization path.
 The O(N²) pair sweep per evaluation is negligible next to the SCF at interactive scales.
@@ -134,7 +141,17 @@ regardless of geometry — user-reported as "restarts failing ... not even pulli
 fix it"), the latch clears, and the retreated geometry re-evaluates at the elevated budget;
 intermediate retreat positions may legitimately re-fail (one attempt per pointer move), and a
 retreat that reaches a geometry the backend can converge resumes the session without a
-Stop/Start cycle.
+Stop/Start cycle; (d) **deferred-latch during a drag** — the projector's constraint-conflict
+residuals (a pinned far drag can leave a bond compressed to `minLen` while another stretches to
+`maxLen`, a geometry the SCF sometimes cannot converge at any iteration budget) mean a hard pull
+can visit SCF-unconvergeable trial geometries, and the spec scenario forbids a latch from the pull
+alone. A drag-phase failure (after the (b) retry also fails) is therefore surfaced but does **not**
+latch immediately: the worker counts *consecutive failed drag ticks*, resetting on any successful
+tick or a pointer-authored move of the dragged atom, and engages the D4 containment latch only
+when the count reaches `kXtbDragFailLatchThreshold` (4) — i.e. only when the drag is held fixed on
+a geometry the backend genuinely cannot evaluate (bounded CPU, still idles with a named failure).
+Release-path and non-drag failures latch immediately as before (D4 unchanged); the release
+elevated evaluation and its containment semantics are untouched.
 ## Risks / Trade-offs
 
 - **Flick-release transients can still latch a failure.** A violent flick released instantly can
