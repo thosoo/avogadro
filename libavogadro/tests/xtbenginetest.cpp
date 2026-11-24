@@ -2321,7 +2321,10 @@ void XtbEngineTest::dragFailureRecoversOnPointerRetreat()
       if (phase == Pull) {
         mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, pullZ));
       } else if (pullZ > bondedZ) {
-        pullZ -= 0.25;
+        // Fewer, larger retreat steps: each pointer move arms one bounded
+        // recovery attempt (object recreation + an elevated-budget SCF), so
+        // a 20-step staircase costs 20 recovery cycles on slower runners.
+        pullZ -= 1.0;
         if (pullZ < bondedZ)
           pullZ = bondedZ;
         mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, pullZ));
