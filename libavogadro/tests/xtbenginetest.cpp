@@ -87,6 +87,7 @@ private slots:
   void isolatedAtomFloorBlocksNewBondContact();
   void sessionProjectionBlocksH2WithoutDrag();
   void convergedSessionResumesOnAtomAddition();
+  void restartAfterConvergenceConverges();
 };
 
 // Water geometry in angstrom: O at origin, H1 at (0,0,1.0), H2 at (0,0.1,-1.0).
@@ -782,6 +783,34 @@ static Molecule* makeEthaneMolecule()
 static Molecule* makeDistortedWaterMolecule()
 {
   return makeMoleculeFrom(waterNumbers(), waterPositionsDistortedAng());
+}
+
+// A metal-centered complex standing in for the user's Ir(ppy)3 use case: an
+// octahedral metal center (Fe) with six N ligands. This exercises a
+// metal-containing with-bonds molecule at the user's scale (larger than
+// water, metal-ligand bonds) so the restart-convergence behavior is tested
+// where it matters. N-N bonds are unusual, so the optimizer does not drive
+// the non-bonded N pairs together; every non-bonded pair stays well above the
+// projection floor, so the projection is a no-op and the gradient is free to
+// converge.
+static Molecule* makeMetalComplexMolecule()
+{
+  // Fe at origin, six N at octahedral positions (2.0 A).
+  std::vector<int> numbers = { 26, 7, 7, 7, 7, 7, 7 };
+  std::vector<double> pos = {
+    0.0, 0.0, 0.0,
+    2.0, 0.0, 0.0,
+    -2.0, 0.0, 0.0,
+    0.0, 2.0, 0.0,
+    0.0, -2.0, 0.0,
+    0.0, 0.0, 2.0,
+    0.0, 0.0, -2.0,
+  };
+  Molecule* mol = makeMoleculeFrom(numbers, pos);
+  for (int i = 1; i <= 6; ++i) {
+    mol->addBond(0, i, 1);
+  }
+  return mol;
 }
 
 // Design D2 re-baseline: adding an atom mid-session must trigger exactly one
@@ -2507,6 +2536,61 @@ void XtbEngineTest::convergedSessionResumesOnAtomAddition()
            << (convergedSpy.count() - convergedCount1);
 
   tickTimer.stop();
+  engine.stop();
+  engine.wait(10000);
+  delete mol;
+}
+
+// Regression: a GFN2-xTB session that converges, is stopped, and restarted
+// (the tool's Stop/Start path) must report converged again — the restarted
+// session starts from the live molecule geometry, which the first session
+// wrote back at its minimum. This reproduces the user report "restarting the
+// optimization says not converged, continues to optimize": the first session
+// only idled at the evaluation cap because the L2 gradient norm (size-
+// dependent) could not reach the threshold on a metal-containing molecule,
+// so the write-back published a non-minimum geometry and the restart kept
+// optimizing. Convergence is judged against the size-invariant RMS-per-atom
+// gradient (rmsGradientNorm), so both sessions converge by gradient.
+void XtbEngineTest::restartAfterConvergenceConverges()
+{
+  if (!XtbApi::isAvailable()) {
+    QSKIP("xTB runtime library not available");
+  }
+  // Metal-complex (octahedral FeN6, larger than water and metal-containing),
+  // standing in for the user's Ir(ppy)3 use case: the restart must converge
+  // from the written-back geometry.
+  Molecule* mol = makeMetalComplexMolecule();
+  XtbEngine engine;
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+
+  QSignalSpy convergedSpy(&engine, &XtbEngine::converged);
+
+  // First session: run to convergence.
+  engine.start(QThread::LowPriority);
+  QTimer tickTimer;
+  QObject::connect(&tickTimer, &QTimer::timeout,
+                   [&]() { engine.requestTick(); });
+  tickTimer.start(30);
+  QTRY_VERIFY_WITH_TIMEOUT(convergedSpy.count() >= 1, 60000);
+  tickTimer.stop();
+
+  // Stop.
+  engine.stop();
+  engine.wait(10000);
+
+  // Restart the session from the live molecule (the tool's Stop/Start path).
+  convergedSpy.clear();
+  QVERIFY(engine.setupFromMolecule(mol, /*method=*/1, /*level=*/4,
+                                   /*threads=*/0));
+  engine.start(QThread::LowPriority);
+  tickTimer.start(30);
+
+  // The restarted session starts from a geometry the first session already
+  // minimized; it must report converged (and not keep optimizing).
+  QTRY_VERIFY_WITH_TIMEOUT(convergedSpy.count() >= 1, 60000);
+  tickTimer.stop();
+
   engine.stop();
   engine.wait(10000);
   delete mol;

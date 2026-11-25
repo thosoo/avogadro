@@ -238,6 +238,14 @@ private:
   // stale. Caller must hold m_stateMutex.
   void resetPhaseLocked();
   bool shouldStop(int evals) const;
+  // Size-invariant convergence metric: the root-mean-square gradient per atom
+  // (Eh/bohr), equal to the L2 gradient norm divided by sqrt(3 * natoms). The
+  // raw L2 norm scales with sqrt(N), so a fixed L2 threshold is unattainable on
+  // large molecules (an Ir(ppy)3-scale session can never reach the L2 threshold
+  // and only idles at the evaluation cap). Convergence is judged against this
+  // RMS metric, matching the standard xTB/geometry-optimization convention.
+  // Worker-thread only.
+  double rmsGradientNorm() const;
   void publishCoords(const std::vector<double>& coordsBohr);
   // Writes the optimizer's working coordinates (bohr->A) back to the live
   // molecule under a bounded-retry write lock (design D2). Keeps the molecule

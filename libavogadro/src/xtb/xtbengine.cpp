@@ -853,6 +853,16 @@ bool XtbEngine::shouldStop(int evals) const
   return evals >= m_maxEvaluations;
 }
 
+double XtbEngine::rmsGradientNorm() const
+{
+  const int natoms = static_cast<int>(m_coordsBohr.size() / 3);
+  if (natoms <= 0) {
+    return m_gnorm;
+  }
+  // L2 norm over 3N components -> RMS per atom: divide by sqrt(3N).
+  return m_gnorm / std::sqrt(3.0 * static_cast<double>(natoms));
+}
+
 void XtbEngine::publishCoords(const std::vector<double>& coordsBohr)
 {
   emit coordsReady(coordsBohr);
@@ -1710,7 +1720,7 @@ void XtbEngine::run()
       // edit then resets the phase. Guarded inside by m_molecule.
       writeBackToMolecule();
 
-      if (m_gnorm < m_threshold || shouldStop(m_evals)) {
+      if (rmsGradientNorm() < m_threshold || shouldStop(m_evals)) {
         // Converged (or immediately capped) on the baseline: latch the idle
         // state but keep the session (worker + xTB objects) alive so a later
         // drag resumes optimization instead of requiring a restart. Design D1:
@@ -1822,7 +1832,7 @@ void XtbEngine::run()
       // Design D1: do not latch the converged idle while a drag is in flight;
       // the masked gradient reaching threshold under a held pull must not
       // freeze relaxation. The latch engages on release.
-      if (m_draggedIndex < 0 && m_gnorm < m_threshold && !m_converged) {
+      if (m_draggedIndex < 0 && rmsGradientNorm() < m_threshold && !m_converged) {
         m_converged = true;
         reportConverged = true;
       }
@@ -1834,7 +1844,7 @@ void XtbEngine::run()
     // an external edit (design D2). Guarded inside by m_molecule.
     writeBackToMolecule();
 
-    if (!cont && m_gnorm >= m_threshold && !m_stop.loadRelaxed()) {
+    if (!cont && rmsGradientNorm() >= m_threshold && !m_stop.loadRelaxed()) {
       // step() exhausted a stop condition before reaching the threshold:
       // either the evaluation cap or LBfgs' internal step cap. The spec says
       // a capped session reports its last energy and stops evaluating (cap
