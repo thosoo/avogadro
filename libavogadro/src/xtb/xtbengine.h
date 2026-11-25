@@ -108,6 +108,18 @@ public:
   /// from the live molecule on its per-tick re-baseline (design D3).
   void setDraggedAtom(int index);
 
+  /// Test-only failure-injection seam (design D9d). When @p failingTicks is
+  /// non-empty, the next worker tick whose 0-based tick index appears in the
+  /// list is treated as a failed evaluation: the tick sets the non-finite
+  /// path (m_energy = NaN, a named diagnostic) WITHOUT touching the xTB
+  /// library, so the deferred-latch / D4 containment machinery is driven
+  /// deterministically from a test without needing a geometry the SCF
+  /// rejects. Resets the tick counter to 0. Empty (the default) restores
+  /// production behavior: no injection, the counter is inert. The pattern is
+  /// consumed by tick index, so after the last listed tick the session
+  /// evaluates normally (the recovery path can be exercised).
+  void setTestFailurePattern(const std::vector<int>& failingTicks);
+
   /// Toggle interactive (drag) accuracy adaptation.
   void setInteractive(bool interactive);
 
@@ -338,6 +350,16 @@ private:
   // fixed on a genuinely unconvergeable geometry (the counter reaches the
   // threshold). Guarded by m_stateMutex.
   int m_dragFailCount;
+  // Test-only failure-injection seam (design D9d): m_testFailingTicks lists
+  // the 0-based worker tick indices treated as failed evaluations, and
+  // m_testTickCounter is the running tick count. m_testInjectFail is set for
+  // the current tick when its index is in the pattern (the worker skips the
+  // real evaluation and routes the NaN energy into the deferred-latch).
+  // Default empty -> production behavior untouched. Worker-owned, no mutex
+  // (set before start()).
+  std::vector<int> m_testFailingTicks;
+  int m_testTickCounter = 0;
+  bool m_testInjectFail = false;
   // D2/D4 setup-broken latch: set when a live-molecule topology re-establishment
   // fails (destroyed the xTB objects and could not recreate them). Unlike
   // m_converged, this must NOT be cleared by resumeOptimizationLocked() or

@@ -374,6 +374,16 @@ void XtbEngine::setDraggedAtom(int index)
   }
 }
 
+void XtbEngine::setTestFailurePattern(const std::vector<int>& failingTicks)
+{
+  // Test-only seam (design D9d): install a deterministic set of worker tick
+  // indices that are treated as failed evaluations (NaN energy) without
+  // touching the xTB library. Resets the counter so the pattern is indexed
+  // from the next tick. An empty pattern restores production behavior.
+  m_testFailingTicks = failingTicks;
+  m_testTickCounter = 0;
+}
+
 void XtbEngine::resetPhaseLocked()
 {
   // Start a fresh optimization phase from the current working geometry:
@@ -1177,6 +1187,7 @@ void XtbEngine::projectBondGraph(std::vector<double>& coordsBohr) const
   };
 
   for (int sweep = 0; sweep < kXtbProjectionSweeps; ++sweep) {
+    bool changed = false;
     // Drawn bonds: clamp into [min, max] x covSum so no drawn bond is
     // severed past its re-formation reach and none collapses.
     for (size_t b = 0; b + 1 < m_bondPairs.size(); b += 2) {
@@ -1215,6 +1226,7 @@ void XtbEngine::projectBondGraph(std::vector<double>& coordsBohr) const
         coordsBohr[static_cast<size_t>(a) * 3 + k] += shiftA * unit;
         coordsBohr[static_cast<size_t>(c) * 3 + k] -= shiftC * unit;
       }
+      changed = true;
     }
     // Non-bonded pairs: push out of new-bond range.
     for (int i = 0; i < n; ++i) {
@@ -1259,7 +1271,16 @@ void XtbEngine::projectBondGraph(std::vector<double>& coordsBohr) const
           coordsBohr[static_cast<size_t>(i) * 3 + k] += shiftI * unit;
           coordsBohr[static_cast<size_t>(j) * 3 + k] -= shiftJ * unit;
         }
+        changed = true;
       }
+    }
+    // Early-exit (design D8 hardening): once a full sweep applies no
+    // correction, every constraint is satisfied; the sweep count is a cap,
+    // not a fixed depth, so the residual (for example the thin ethane H-H
+    // margin) never depends on running the full count. Cost is trivial next
+    // to the SCF.
+    if (!changed) {
+      break;
     }
   }
 }
@@ -1436,6 +1457,22 @@ void XtbEngine::run()
         break;
       }
       m_tickPending = false;
+      // Test-only failure-injection seam (design D9d): if this tick's index is
+      // in the test pattern, treat the tick as a failed evaluation without
+      // touching the xTB library — set the non-finite path (NaN energy +
+      // diagnostic) and skip the real evaluation so the deferred-latch / D4
+      // containment machinery is driven deterministically. Production behavior
+      // is untouched when the pattern is empty.
+      m_testInjectFail = false;
+      {
+        const int idx = m_testTickCounter++;
+        for (size_t i = 0; i < m_testFailingTicks.size(); ++i) {
+          if (m_testFailingTicks[i] == idx) {
+            m_testInjectFail = true;
+            break;
+          }
+        }
+      }
     }
 
     // Apply any deferred L-BFGS history reset (drag start/end, interactive
@@ -1629,7 +1666,19 @@ void XtbEngine::run()
       }
     }
 
-    if (!m_initialEvalDone) {
+    if (m_testInjectFail) {
+      // Injected failure tick (design D9d): skip the real evaluation and route
+      // NaN into the deferred-latch / D4 containment machinery below. Mark the
+      // baseline done so the baseline block is skipped; the L-BFGS block below
+      // is likewise skipped (m_testInjectFail), leaving m_energy NaN for the
+      // deferred-latch to count.
+      QMutexLocker locker(&m_stateMutex);
+      m_energy = std::numeric_limits<double>::quiet_NaN();
+      m_evalFailureReason = QStringLiteral("test-injected SCF failure");
+      m_coordsValid = false;
+      m_initialEvalDone = true;
+    }
+    else if (!m_initialEvalDone) {
       // First singlepoint: establish the energy/gradient baseline.
       m_energy = evaluateOnce(m_coordsBohr, m_grad);
       // A failed baseline latches the phase idle-with-failure; the tick
@@ -1690,25 +1739,27 @@ void XtbEngine::run()
     // m_evals) visible here — keep that block ahead of these reads.
     int dragSteps = 0;
     bool cont = true;
-    do {
-      cont = m_lbfgs.step(
-        m_coordsBohr, m_energy, m_grad, m_evals, m_gnorm,
-        [this](const std::vector<double>& c, std::vector<double>& g) -> double {
-          return evaluateOnce(c, g);
-        },
-        [this](int evals) -> bool { return shouldStop(evals); });
-      if (m_evalFailed || std::isnan(m_energy)) {
-        break;
-      }
-      ++dragSteps;
-      if (m_draggedIndex < 0 || !pointerMovedThisPass) {
-        // Multi-step is the fast-flick catch-up budget: it applies only to
-        // the pass that observed a pointer move. A held-still pull relaxes
-        // one calm iteration per tick, so the evaluation cap and the
-        // constrained-geometry cost stay at the held-pull semantics.
-        break;
-      }
-    } while (cont && dragSteps < kDragStepsPerTick);
+    if (!m_testInjectFail) {
+      do {
+        cont = m_lbfgs.step(
+          m_coordsBohr, m_energy, m_grad, m_evals, m_gnorm,
+          [this](const std::vector<double>& c, std::vector<double>& g) -> double {
+            return evaluateOnce(c, g);
+          },
+          [this](int evals) -> bool { return shouldStop(evals); });
+        if (m_evalFailed || std::isnan(m_energy)) {
+          break;
+        }
+        ++dragSteps;
+        if (m_draggedIndex < 0 || !pointerMovedThisPass) {
+          // Multi-step is the fast-flick catch-up budget: it applies only to
+          // the pass that observed a pointer move. A held-still pull relaxes
+          // one calm iteration per tick, so the evaluation cap and the
+          // constrained-geometry cost stay at the held-pull semantics.
+          break;
+        }
+      } while (cont && dragSteps < kDragStepsPerTick);
+    }
 
     // Design D4/D9: a latched failure (non-drag, or a drag held past the
     // deferred-latch threshold) idles the phase; publish nothing and skip the

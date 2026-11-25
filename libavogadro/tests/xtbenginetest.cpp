@@ -2300,6 +2300,7 @@ void XtbEngineTest::dragFailureRecoversOnPointerRetreat()
                                    /*threads=*/0));
 
   QSignalSpy failSpy(&engine, &XtbEngine::evaluationFailed);
+  QSignalSpy convergedSpy(&engine, &XtbEngine::converged);
   int coordsCount = 0;
   QObject::connect(&engine, &XtbEngine::coordsReady,
                    [&](const std::vector<double>&) { ++coordsCount; });
@@ -2319,15 +2320,13 @@ void XtbEngineTest::dragFailureRecoversOnPointerRetreat()
       QWriteLocker locker(mol->lock());
       if (phase == Pull) {
         mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, pullZ));
-      } else if (pullZ > bondedZ) {
-        // Fewer, larger retreat steps: each pointer move arms one bounded
-        // recovery attempt (object recreation + an elevated-budget SCF), so
-        // a 20-step staircase costs 20 recovery cycles on slower runners.
-        pullZ -= 1.0;
-        if (pullZ < bondedZ)
-          pullZ = bondedZ;
-        mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, pullZ));
       } else {
+        // Retreat the pull straight back to the bonded position. The failure
+        // is injected by the test seam, so the recovery only needs to
+        // re-baseline from a geometry the SCF can converge; one pointer move
+        // arms one bounded recovery attempt (object recreation + an
+        // elevated-budget SCF). A staircase of intermediate (still-dissociated)
+        // positions would each re-fail the SCF and re-latch under load.
         mol->atoms().at(1)->setPos(Eigen::Vector3d(0.0, 0.0, bondedZ));
       }
     }
@@ -2337,10 +2336,25 @@ void XtbEngineTest::dragFailureRecoversOnPointerRetreat()
   // Warm up: equilibrium evaluation first.
   QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= 1, 5000);
 
-  // Grab H1 and pull it out: the SCF fails mid-drag and latches.
+  // Grab H1 and pull it out: the SCF fails mid-drag and latches. The
+  // failure is injected deterministically via the test seam (design D9d) so
+  // the containment machinery is exercised without depending on a geometry
+  // the SCF rejects (the strong bond-graph projection clamps drags into
+  // bonded range, so a 6 A pull converges instead of failing). The pattern
+  // is set after the drag starts; the counter resets so the listed indices
+  // are the worker TICK indices that follow. The pattern starts at tick 0 so
+  // the injected ticks skip the real evaluation from the very first drag
+  // tick — otherwise the pre-injection drag ticks evaluate the 6 A geometry,
+  // the strong projection clamps it into bonded range, the SCF converges and
+  // the write-back moves O to the clamped position, so the retreat's recovery
+  // re-baselines from a geometry the SCF cannot converge. Ticks 0-2 fail and
+  // are deferred (surfaced, not latched), tick 3 reaches the deferred-latch
+  // threshold and latches; after the pointer retreat tick 4+ evaluates
+  // normally, so the recovery succeeds in one attempt.
   phase = Pull;
   engine.setDraggedAtom(1);
-  QTRY_VERIFY_WITH_TIMEOUT(failSpy.count() >= 1, 60000);
+  engine.setTestFailurePattern({ 0, 1, 2, 3 });
+  QTRY_VERIFY_WITH_TIMEOUT(failSpy.count() >= 1, 15000);
   const int countAtFailure = coordsCount;
   qDebug() << "latched at coords" << countAtFailure;
 
@@ -2364,13 +2378,17 @@ void XtbEngineTest::dragFailureRecoversOnPointerRetreat()
   // contract is the end state: once the atom is back at bonded distance the
   // recovered session evaluates steadily and the failure latch stops firing.
   phase = Done;
-  int steadyTarget = coordsCount + 3;
-  QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= steadyTarget, 30000);
-  qDebug() << "steady: coords" << coordsCount << "fails" << failSpy.count();
-  // The recovery contract is the resumed publication stream at the retreated
-  // geometry (asserted above). Under a heavily loaded machine the interactive
-  // SCF can still fail transiently while re-relaxing; those re-latch and
-  // recover on the next pointer move, which is not a recovery-loop defect.
+  // The recovery re-baselines from the retreated (bonded) geometry, which the
+  // water system converges; a converged idle after the recovery is the normal
+  // end state, not a defect. The recovery contract is that the session
+  // resumed publishing (asserted above) and no longer latches a failure:
+  // after a bounded settle window the failure latch does not keep firing.
+  int failsAtRecovery = failSpy.count();
+  QTest::qWait(2000);
+  qDebug() << "post-recovery: coords" << coordsCount
+           << "fails" << failSpy.count()
+           << "converged" << convergedSpy.count();
+  QVERIFY(failSpy.count() <= failsAtRecovery + 1);
   tickTimer.stop();
   engine.stop();
   engine.wait(10000);
