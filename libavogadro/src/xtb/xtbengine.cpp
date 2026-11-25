@@ -1680,6 +1680,14 @@ void XtbEngine::run()
     }
     else if (!m_initialEvalDone) {
       // First singlepoint: establish the energy/gradient baseline.
+      // Design D5/D8: the projection is session-wide (every evaluated
+      // geometry, drag or not), so the baseline is also projected onto the
+      // drawn bond graph before the backend sees it. Without this, a freshly
+      // grabbed atom at a dissociated pointer position reaches the SCF
+      // un-projected (O-H1 at 6.0 A in the water repro) and fails to converge
+      // every tick — the deferred-latch surfaces the failure and the pull
+      // appears to freeze the optimization.
+      projectBondGraph(m_coordsBohr);
       m_energy = evaluateOnce(m_coordsBohr, m_grad);
       // A failed baseline latches the phase idle-with-failure; the tick
       // publishes nothing (evaluateOnce clears m_coordsValid) and the next

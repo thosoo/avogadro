@@ -2309,17 +2309,28 @@ void AutoOptReproTest::xtbEvaluationFailedSurfacedAndCleared()
   QTRY_VERIFY_WITH_TIMEOUT(coordsSpy.count() >= 1, 10000);
 
   // Drive a failing evaluation: push H2 (atom 2) to a dissociated position
-  // (6 A from O). The worker adopts it as an external position change and
-  // then fails to converge on the next singlepoint.
+  // (6 A from O). The session-wide bond-graph projection (design D8) clamps
+  // this into bonded range on the baseline, so the natural SCF now converges;
+  // the failure is injected deterministically via the test seam so the D4
+  // containment + surfaced-reason machinery is still exercised. The pattern
+  // resets the tick counter, so ticks 0-3 (the re-baseline ticks after the
+  // position change) are the injected failures.
+  engine->setTestFailurePattern({ 0, 1, 2, 3 });
   {
     QWriteLocker locker(mol->lock());
     mol->atoms().at(2)->setPos(Eigen::Vector3d(0.0, 0.0, 6.0));
   }
 
   // The engine surfaces the failure with a non-empty reason; the tool must
-  // latch that reason text so paint() can render it.
-  QVERIFY(failSpy.wait(20000));
+  // latch that reason text so paint() can render it. The injected ticks defer
+  // (surfaced, not latched) for the first three and latch on the fourth, so
+  // wait for the latch before disabling — otherwise a deferred (still
+  // evaluating) failure keeps re-emitting after stopEngine() clears it.
+  QTRY_VERIFY_WITH_TIMEOUT(failSpy.count() >= 4, 20000);
   QVERIFY(!failSpy.first().at(0).toString().isEmpty());
+  // The engine's evaluationFailed() is delivered to the tool via a queued
+  // (cross-thread) connection; the latch reason is already set by the time the
+  // signal spy observed the emit, so check it directly.
   QVERIFY(!tool.evalFailedReason().isEmpty());
 
   // Let any in-flight publish settle, then confirm the latched phase
@@ -2335,10 +2346,12 @@ void AutoOptReproTest::xtbEvaluationFailedSurfacedAndCleared()
 
   // Recovery path 1 (spec: Stop/Start clears it): the reason is already
   // latched from the injection above, so stop directly. stopEngine() must
-  // clear the latched reason.
+  // clear the latched reason. The session is stopped, so the seam can be
+  // cleared without a tick racing it.
   tool.disable();
   QVERIFY(!tool.running());
   QVERIFY(tool.evalFailedReason().isEmpty()); // stopEngine() clears it
+  engine->setTestFailurePattern({});
 
   // Start a fresh session on a convergible geometry: the reason stays clear
   // and the session resumes evaluating (proving setup() recovered the latch).
@@ -2356,12 +2369,21 @@ void AutoOptReproTest::xtbEvaluationFailedSurfacedAndCleared()
   // Recovery path 2 (spec: topology re-establishment clears it): re-latch the
   // failure on the 3-atom water again, then add an atom mid-session. The
   // session re-establishes exactly once and clears the latched
-  // evaluation-failure reason.
+  // evaluation-failure reason. Restart the session on the dissociated geometry
+  // so the injected failure actually fires (the converged-idle session from the
+  // recovery path 1 does not evaluate a position-only change).
+  tool.disable();
+  engine->setTestFailurePattern({ 0, 1, 2, 3 });
   {
     QWriteLocker locker(mol->lock());
     mol->atoms().at(2)->setPos(Eigen::Vector3d(0.0, 0.0, 6.0));
   }
-  QVERIFY(failSpy.wait(15000));
+  tool.enable();
+  QVERIFY(tool.running());
+  // The fresh session resets the failure-injection tick counter to 0, so the
+  // injected ticks 0-3 fire again (bringing the total to 8) and re-latch the
+  // HUD reason. Wait for that second latch to land before checking it.
+  QTRY_VERIFY_WITH_TIMEOUT(failSpy.count() >= 8, 15000);
   QVERIFY(!tool.evalFailedReason().isEmpty());
 
   QSignalSpy reestablSpy(engine, &XtbEngine::sessionReestablished);

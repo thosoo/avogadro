@@ -1123,13 +1123,23 @@ void XtbEngineTest::failedEvaluationPublishesNothingAndLatches()
   // Let the session evaluate normally first.
   QTRY_VERIFY_WITH_TIMEOUT(coordsCount >= 1, 5000);
 
+  // Stop the timer so no tick races the injection below: the worker must see
+  // the position change and the injected failure together.
+  tickTimer.stop();
+
   // Drive a failing evaluation: push H2 to a dissociated position (6 A from
-  // O), which the worker adopts as an external position change and then fails
-  // to converge on the next singlepoint.
+  // O). The session-wide bond-graph projection (design D8) clamps this into
+  // bonded range on the baseline, so the natural SCF now converges; the
+  // failure is injected deterministically via the test seam so the D4
+  // containment machinery is still exercised. The pattern resets the tick
+  // counter, so ticks 0-3 (the re-baseline ticks after the position change)
+  // are the injected failures.
+  engine.setTestFailurePattern({ 0, 1, 2, 3 });
   {
     QWriteLocker locker(mol->lock());
     mol->atoms().at(2)->setPos(Eigen::Vector3d(0.0, 0.0, 6.0));
   }
+  tickTimer.start(30);
 
   // The failure must be surfaced and latched; the failed tick publishes
   // nothing, so takeLatestCoords() returns false and the coords count stops
@@ -1468,24 +1478,30 @@ void XtbEngineTest::dragReleaseDissociatedLatchesWithRecovery()
   engine.setDraggedAtom(-1);
 
   // Resume ticking so the worker processes the fresh phase from the released
-  // (dissociated) geometry.
+  // (dissociated) geometry. The session-wide projection (design D8) clamps the
+  // released geometry into bonded range on the baseline, so the natural SCF
+  // now converges; the failure is injected deterministically via the test seam
+  // so the D4 release-path containment is still exercised. The pattern resets
+  // the tick counter, so ticks 0-3 (the release re-baseline ticks) are the
+  // injected failures.
+  engine.setTestFailurePattern({ 0, 1, 2, 3 });
   tickTimer.start(30);
 
-  // The dissociated release latches exactly once; the diagnostic names the
-  // recovery path; and no coordinates are published from the failed phase. A
-  // generous timeout: the fresh phase's first evaluation runs at the elevated
-  // SCF budget, so a dissociated baseline can take tens of seconds to exhaust
-  // it before latching.
-  QTRY_VERIFY_WITH_TIMEOUT(failSpy.count() >= 1, 60000);
-  QCOMPARE(failSpy.count(), 1);
-  QString msg = failSpy.first().at(0).toString();
+  // The injected release ticks defer (surfaced, not latched) for the first
+  // three failures and latch on the fourth; the latch diagnostic names the
+  // recovery path. No coordinates are published from the failed phase. The
+  // elevated SCF budget is not exercised here because the seam bypasses the
+  // real evaluation; the D4 release-path containment is still exercised.
+  QTRY_VERIFY_WITH_TIMEOUT(failSpy.count() >= 4, 60000);
+  QCOMPARE(failSpy.count(), 4);
+  QString msg = failSpy.last().at(0).toString();
   QVERIFY(msg.contains("restart the session") || msg.contains("re-establish"));
   const int countAtFailure = coordsCount;
   for (int i = 0; i < 15; ++i) {
     QTest::qWait(40);
   }
   QCOMPARE(coordsCount, countAtFailure);
-  QCOMPARE(failSpy.count(), 1);
+  QCOMPARE(failSpy.count(), 4);
 
   tickTimer.stop();
   engine.stop();
