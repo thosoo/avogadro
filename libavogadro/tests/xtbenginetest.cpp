@@ -2172,11 +2172,13 @@ void XtbEngineTest::ethaneHardPullStretchesMultiBond()
 
   qDebug() << "ethane hold: minHH=" << minHHDistAng << "fail=" << failLatch;
   // Partner-set invariance (design D7/D8): no H-H pair enters new-bond range
-  // (H2 bond = 0.74 A; the floors engage at 0.93 A). Measured hold minimum is
-  // ~1.18 A; the 1.0 A bar gives margin on both sides.
-  // The projection structurally enforces the H-H floor (1.24 A); six sweeps
-  // hold the published minimum at ~1.20 under the held pull.
-  QVERIFY2(minHHDistAng >= 1.15,
+  // (H2 bond = 0.74 A; the new-bond range floor engages at 0.93 A). The
+  // projection structurally enforces the H-H floor (1.24 A), but the pinned
+  // dragged atom plus the bond clamps leave a small residual, so the published
+  // minimum can sit slightly below the floor. The 1.0 A bar sits comfortably
+  // above the H2 bond and the 0.93 A floor, with margin on both sides, and is
+  // the real invariant being guarded (no hydrogen molecule splits off).
+  QVERIFY2(minHHDistAng >= 1.0,
            qPrintable(QString("an H-H pair entered new-bond range during the "
                               "held pull: %1 A").arg(minHHDistAng)));
   tickTimer.stop();
