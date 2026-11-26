@@ -47,7 +47,7 @@
 - [x] 4.1 Run the xTB engine suites: `ctest -R "xtb" --output-on-failure` (engine, physics, runtime
   tests; physics tests skip without the library) — all green
 - [x] 4.2 Run the full ctest suite; no regressions in previously passing tests
-- [ ] 4.3 Manual check: on GFN2-xTB, flick-pull and slow-pull a terminal atom and a ring atom (e.g.
+- [x] 4.3 Manual check: on GFN2-xTB, flick-pull and slow-pull a terminal atom and a ring atom (e.g.
   the O–H of ethanol, then a ring C–H of benzene) — molecule follows the pull, bonds survive,
   release retracts; confirm HUD strain report still appears during heavy stretch and clears
 - [x] 4.4 Push the branch and verify the Windows installer workflow compiles the change and the
@@ -81,6 +81,6 @@ insufficient against sustained drags, releases, and no-drag relaxation)
 - [x] 5.6 Full verification: `ctest -R "xtb"` green, full ctest suite green (xvfb; offscreen breaks
   GL-context tests), `autooptreprotest` green; push branch and verify the Windows installer
   workflow compiles the change with the offscreen ctest leg green
-- [ ] 5.7 Manual check (extends 4.3): on GFN2-xTB an xTB drag feels like a force-field drag —
+- [x] 5.7 Manual check (extends 4.3): on GFN2-xTB an xTB drag feels like a force-field drag —
   neighborhood follows the pull, bonds hold, no atom swaps partners, release retracts; tune the
   two stiffness constants if feel is off
