@@ -50,6 +50,7 @@ set(tests
   compatibility
   geometry
   modernrenderer
+  benzenerender
   modernpick
   drawcommand
   glselectoverflow
@@ -210,7 +211,7 @@ foreach (test ${tests})
     # pattern in this file is reserved for NON-exported sources such as
     # glpainter_p.cpp / geometry.cpp).
   endif()
-  if (${test} STREQUAL "modernrenderer")
+  if (${test} STREQUAL "modernrenderer" OR ${test} STREQUAL "benzenerender")
     # Compile the real ball-and-stick engine so the parity test (task 3.1)
     # can render a molecule through the modern backend's instanced path.
     list(APPEND test_SRCS ../src/engines/bsdyengine.cpp)

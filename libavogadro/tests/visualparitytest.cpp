@@ -74,6 +74,35 @@ Molecule *makeReferenceMolecule()
   return mol;
 }
 
+//! Benzene with alternating double bonds, rotated to a genuinely arbitrary
+//! orientation (ring plane normal along (1,1,1)) so the ring is NOT aligned
+//! with any world coordinate plane — the case the pre-change spread got wrong.
+//! The ring is built in the world xy plane (normal +Z) then rotated by the
+//! quaternion that maps +Z onto (1,1,1)/sqrt(3).
+Molecule *makeBenzeneMolecule()
+{
+  Molecule *mol = new Molecule;
+  const double R = 1.4;
+  const double twoPi = 2.0 * std::acos(-1.0); // avoid M_PI (not defined on MSVC)
+  QVector<Atom *> ring;
+  for (int i = 0; i < 6; ++i) {
+    const double a = twoPi * i / 6.0;
+    Eigen::Vector3d p(R * std::cos(a), R * std::sin(a), 0.0);
+    // Rotate +Z to (1,1,1)/sqrt(3).
+    const Eigen::Vector3d from(0.0, 0.0, 1.0);
+    const Eigen::Vector3d to(1.0, 1.0, 1.0);
+    const Eigen::Vector3d axis = from.cross(to).normalized();
+    const double angle = std::acos(std::min(1.0, from.dot(to)));
+    const Eigen::AngleAxisd q(angle, axis);
+    p = q * p;
+    ring.append(mol->addAtom(6, p));
+  }
+  // Alternating single/double bonds around the ring.
+  for (int i = 0; i < 6; ++i)
+    mol->addBond(ring[i]->id(), ring[(i + 1) % 6]->id(), (i % 2 == 0) ? 2 : 1);
+  return mol;
+}
+
 //! A GL 3.3 COMPATIBILITY context on an offscreen surface: required by the
 //! legacy tier (fixed function) and accepted by the modern tier.
 QOpenGLContext *makeCompatContext(QOffscreenSurface **surface)
@@ -281,6 +310,7 @@ private Q_SLOTS:
   void initTestCase();
   void opaqueParity();
   void transparencyClassParity();
+  void benzeneDoubleBondParity();
 
 private:
   QOpenGLContext *m_ctx = nullptr;
@@ -450,6 +480,114 @@ void VisualParityTest::opaqueParity()
   m_gl->glDeleteTextures(1, &texL);
   m_gl->glDeleteRenderbuffers(1, &rbM);
   m_gl->glDeleteRenderbuffers(1, &rbL);
+}
+
+//! Render a benzene ring (alternating double bonds) at a genuinely arbitrary
+//! orientation on BOTH tiers and compare coverage — the double bonds must draw
+//! on the modern tier and the legacy tier in the same plane, so the frames
+//! must agree. Also writes the frames to /tmp/benzene_{modern,legacy}.png for
+//! inspection (fix-double-bond-offset-plane task 4.3 manual check).
+void VisualParityTest::benzeneDoubleBondParity()
+{
+  // Re-establish the context (the previous test's cleanup may have released it).
+  if (!m_ctx || !m_ctx->makeCurrent(m_off))
+    QSKIP("No GL 3.3 compatibility context on this runner", SkipAll);
+
+  Molecule *benzene = makeBenzeneMolecule();
+  Color *map = new Color;
+
+  // --- modern tier: engine emission -> SceneBuilder -> instanced backend
+  GLuint fboM = 0, texM = 0, rbM = 0;
+  fboM = makeFbo(*m_gl, &texM, &rbM);
+  QVERIFY(fboM != 0);
+
+  Avogadro::rendering::SceneBuilder builder;
+  EmitterDevice device(&builder, benzene, map);
+  BSDYEngine engine;
+  engine.setColorMap(map);
+  engine.setMolecule(benzene);
+  engine.setPainterDevice(&device);
+  engine.setEnabled(true);
+
+  builder.begin();
+  builder.clearStores();
+  engine.renderOpaque(&device);
+  builder.end();
+  QVERIFY(builder.bonds().size() >= 6u);
+
+  Avogadro::rendering::ModernRendererBackend backend;
+  backend.initialize();
+  QVERIFY(backend.isInitialized());
+
+  m_gl->glBindFramebuffer(GL_FRAMEBUFFER, fboM);
+  m_gl->glViewport(0, 0, kW, kH);
+  QMatrix4x4 mvp;
+  setSharedView(*m_gl, mvp);
+  m_gl->glClearColor(kBackground, kBackground, kBackground, 1.0f);
+  m_gl->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  m_gl->glEnable(GL_DEPTH_TEST);
+  m_gl->glDepthFunc(GL_LEQUAL);
+
+  backend.beginFrame(nullptr, QRect(0, 0, kW, kH), 0);
+  backend.setModelViewProjection(mvp);
+  backend.setModelView(mvpModelView());
+  backend.pushSpheres(builder.spheres());
+  backend.pushBonds(builder.bonds());
+  backend.pushLines(builder.lines());
+  backend.endFrame();
+  m_gl->glFlush();
+  const QImage modernImg = readPixels(*m_gl);
+  modernImg.save(QStringLiteral("/tmp/benzene_modern.png"));
+  const double modernCoverage = coverage(modernImg);
+  qInfo() << "benzene modern coverage:" << modernCoverage
+          << "bond instances:" << builder.bonds().size();
+
+  // --- legacy tier: the same engine through GLPainter (frozen tier 0)
+  GLuint fboL = 0, texL = 0, rbL = 0;
+  fboL = makeFbo(*m_gl, &texL, &rbL);
+  QVERIFY(fboL != 0);
+
+  GLWidget widget; // metadata only
+  Avogadro::GLPainter painter;
+  LegacyPainterDevice legacyPd(&painter, benzene, map);
+  painter.begin(&widget);
+
+  m_gl->glBindFramebuffer(GL_FRAMEBUFFER, fboL);
+  m_gl->glViewport(0, 0, kW, kH);
+  setSharedView(*m_gl, mvp);
+  m_gl->glEnable(GL_LIGHTING);
+  m_gl->glEnable(GL_LIGHT0);
+  m_gl->glEnable(GL_LIGHT1);
+  setFixedFunctionLights(*m_gl);
+  m_gl->glClearColor(kBackground, kBackground, kBackground, 1.0f);
+  m_gl->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+  m_gl->glEnable(GL_DEPTH_TEST);
+
+  engine.setPainterDevice(&legacyPd);
+  engine.renderOpaque(&legacyPd);
+  painter.end();
+  m_gl->glFlush();
+  const QImage legacyImg = readPixels(*m_gl);
+  legacyImg.save(QStringLiteral("/tmp/benzene_legacy.png"));
+  const double legacyCoverage = coverage(legacyImg);
+  qInfo() << "benzene legacy coverage:" << legacyCoverage;
+
+  QVERIFY2(modernCoverage > 0.02, "modern benzene tier drew nothing");
+  QVERIFY2(legacyCoverage > 0.02, "legacy benzene tier drew nothing");
+  QVERIFY2(std::abs(modernCoverage - legacyCoverage) < 0.10,
+           qPrintable(QString("benzene coverage mismatch: modern %1 vs legacy %2")
+                        .arg(modernCoverage)
+                        .arg(legacyCoverage)));
+
+  m_gl->glDeleteFramebuffers(1, &fboM);
+  m_gl->glDeleteFramebuffers(1, &fboL);
+  m_gl->glDeleteTextures(1, &texM);
+  m_gl->glDeleteTextures(1, &texL);
+  m_gl->glDeleteRenderbuffers(1, &rbM);
+  m_gl->glDeleteRenderbuffers(1, &rbL);
+
+  delete benzene;
+  delete map;
 }
 
 void VisualParityTest::transparencyClassParity()
