@@ -45,5 +45,5 @@
 - [x] 4.2 Run the full ctest suite; no regressions in previously passing tests
 - [x] 4.3 Manual check: benzene displayed at an arbitrary orientation shows double bonds in the ring
   plane on the default tier, and `AVOGADRO_RENDERER=legacy` shows the same spread plane (tiers agree)
-- [ ] 4.4 Push the branch and verify the Windows installer workflow compiles the change and the
+- [x] 4.4 Push the branch and verify the Windows installer workflow compiles the change and the
   offscreen ctest leg is green (`gh workflow run 168745168 --ref <branch> --repo thosoo/avogadro`)
