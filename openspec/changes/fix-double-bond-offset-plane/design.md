@@ -45,14 +45,20 @@ via a defaulted overload so the binding and any external callers stay source-com
 
 ## Decisions
 
-**D1 — Shared helper: substituent cross-product normal.** One function, e.g.
-`bondSpreadNormal(bondBeginPos, bondEndPos, neighborPositions)` returning a unit vector in the sp2
-plane perpendicular to the bond axis: for each substituent position *p* (neighbors of either bonded
+**D1 — Shared helper: substituent cross-product plane normal.** One function, e.g.
+`bondSpreadNormal(bondBeginPos, bondEndPos, neighborPositions)` returning the bond's local sp2
+PLANE NORMAL — the unit vector perpendicular to the sp2 plane (and therefore perpendicular to the
+bond axis, which lies in that plane): for each substituent position *p* (neighbors of either bonded
 atom, excluding the partner), accumulate `normalize(p - atomPos) × axis`; normalize the sum. Using
 the *cross product with the axis* (rather than fitting a plane to substituents) keeps the result
-perpendicular to the axis by construction. Location: a small header alongside the rendering code
-(e.g., `libavogadro/src/rendering/bondspread.h`) so both the rendering path and the engines can
-include it without new link dependencies.
+perpendicular to the axis by construction. The in-plane spread direction the callers actually offset
+the parallel cylinders by is `axis × planeNormal`, computed identically by the modern emitter
+(`SceneBuilder::appendBond`) and the legacy `Cylinder::drawMulti`, so the tiers agree by
+construction. Each cross term is sign-aligned to the running sum so symmetric sp2 substituents
+(e.g. a benzene carbon that also carries a hydrogen) reinforce rather than cancel — otherwise a
+±120° substituent pair cancels to the zero sentinel and falls back to the old behaviour. Location:
+a small header alongside the rendering code (e.g., `libavogadro/src/rendering/bondspread.h`) so both
+the rendering path and the engines can include it without new link dependencies.
 
 **D2 — Fallback chain.** No substituents at all (isolated multiple-bonded diatomic): fall back to
 today's behavior (`unitOrthogonal` on the modern tier; the existing widget normal on the legacy tier
@@ -68,7 +74,12 @@ substituents collinear with the axis): fall through the same fallback. All fallb
   (default: current behavior of fetching the widget's molecule normal, so existing callers — qtaim,
   python bindings — are untouched). `Cylinder::drawMulti` already receives the normal; it simply gets
   the caller's value instead of the widget's global one. `bsdyengine` and `wireengine` compute the
-  per-bond normal from live molecule positions via the shared helper and pass it down.
+  per-bond normal from live molecule positions via the shared helper and pass it down. Because the
+  export painters (`POVPainter`, `VRMLPainter`) are driven by the same engines, they receive the
+  caller-supplied normal and prefer it over their own widget-normal fallback (`povpainter.cpp`,
+  `vrmlpainter.cpp`), so exported multi-bond geometry matches the on-screen local plane — an intended
+  consequence of the engines passing the normal down, not a change to the export painters' own
+  defaults (their default-zero path is unchanged for callers that pass no normal).
 
 **D4 — Determinism.** The helper is pure floating-point math on positions; same input → same output.
 No iteration-order dependence: the sum over substituents is order-insensitive up to floating-point

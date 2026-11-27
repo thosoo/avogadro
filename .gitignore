@@ -14,3 +14,7 @@ cmake_install*
 cmake_uninstall*
 doc/api
 kwaak.local.toml
+
+# xTB/GFN-FF test-generated files (written by xtbengine/xtbphysics tests)
+gfnff_adjacency
+gfnff_topo

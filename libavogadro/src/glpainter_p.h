@@ -159,7 +159,9 @@ namespace Avogadro
      *              In other words this influences the total width of multiple bonds.
      */
     void drawMultiCylinder(const Eigen::Vector3d &end1, const Eigen::Vector3d &end2,
-                           double radius, int order, double shift);
+                           double radius, int order, double shift,
+                           const Eigen::Vector3d &planeNormalVector =
+                               Eigen::Vector3d(0, 0, 0));
 
     /**
      * Draws a cone between the tip and the base with the base radius given.
@@ -194,7 +196,9 @@ namespace Avogadro
      * sa drawMultiCylinder
      */
     void drawMultiLine(const Eigen::Vector3d &start, const Eigen::Vector3d &end,
-                       double lineWidth, int order, short stipple);
+                       double lineWidth, int order, short stipple,
+                       const Eigen::Vector3d &planeNormalVector =
+                           Eigen::Vector3d(0, 0, 0));
 
     /**
      * Draws a triangle with vertives on the three given points. This function

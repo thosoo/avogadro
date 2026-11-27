@@ -67,7 +67,9 @@ namespace Avogadro
 
 
 		void drawMultiCylinder(const Vector3d &end1, const Vector3d &end2,
-			double radius, int order, double shift);
+			double radius, int order, double shift,
+			const Eigen::Vector3d &planeNormalVector =
+			    Eigen::Vector3d(0, 0, 0));
 
 
 		void drawCone(const Eigen::Vector3d &, const Eigen::Vector3d &,
@@ -79,7 +81,8 @@ namespace Avogadro
 
 
 		void drawMultiLine(const Eigen::Vector3d &, const Eigen::Vector3d &,
-			double, int, short) { }
+			double, int, short,
+			const Eigen::Vector3d & = Eigen::Vector3d(0, 0, 0)) { }
 
 
 		void drawTriangle(const Eigen::Vector3d &, const Eigen::Vector3d &,

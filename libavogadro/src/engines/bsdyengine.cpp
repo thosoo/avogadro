@@ -33,6 +33,8 @@
 #include <avogadro/bond.h>
 #include <avogadro/molecule.h>
 
+#include "rendering/bondspread.h"
+
 #include <QOpenGLWidget> // for OpenGL bits
 #include <QDebug>
 
@@ -44,6 +46,51 @@ using namespace Eigen;
 
 namespace Avogadro
 {
+
+namespace {
+
+//! Compute the local sp2 spread normal for a live molecule bond.
+//!
+//! Gathers the substituent positions of both bonded atoms (excluding the
+//! partner) from the live Molecule and asks the shared bondSpreadNormal
+//! helper, so the fixed-function tier spreads each multiple bond in its own
+//! local plane rather than the molecule's global best-fit plane
+//! (fix-double-bond-offset-plane, design D1/D3). Returns a zero vector for
+//! degenerate bonds so the painter falls back to its current behaviour.
+Vector3d bondSpreadNormalFromMolecule(const Molecule *mol, const Bond *bond)
+{
+  if (!mol || !bond)
+    return Vector3d(0.0, 0.0, 0.0);
+
+  const Atom *a1 = mol->atomById(bond->beginAtomId());
+  const Atom *a2 = mol->atomById(bond->endAtomId());
+  if (!a1 || !a2)
+    return Vector3d(0.0, 0.0, 0.0);
+
+  const Vector3d p1(*a1->pos());
+  const Vector3d p2(*a2->pos());
+
+  QVector<Vector3d> n1;
+  QVector<Vector3d> n2;
+  const QList<unsigned long> nbrs1 = a1->neighbors();
+  for (unsigned long nid : nbrs1) {
+    if (nid == bond->endAtomId())
+      continue;
+    if (const Atom *n = mol->atomById(nid))
+      n1.append(*n->pos());
+  }
+  const QList<unsigned long> nbrs2 = a2->neighbors();
+  for (unsigned long nid : nbrs2) {
+    if (nid == bond->beginAtomId())
+      continue;
+    if (const Atom *n = mol->atomById(nid))
+      n2.append(*n->pos());
+  }
+
+  return rendering::bondSpreadNormal(p1, p2, n1, n2);
+}
+
+} // namespace
 
 // our sort function
 /*  Camera *camera = 0;
@@ -160,6 +207,10 @@ namespace Avogadro
       int order = 1;
       if (m_showMulti) order = b->order();
 
+      // Local sp2 spread plane for this multiple bond (design D1/D3).
+      const Vector3d spreadNormal =
+        bondSpreadNormalFromMolecule(pd->molecule(), b);
+
       // Pick name: name this bond before its two half-segments so BOTH resolve
       // to this bond's index (fix-modern-tier-pick-and-axes, design D1). The
       // modern pick pass reads the per-instance pickId from the record the
@@ -172,14 +223,16 @@ namespace Avogadro
         pd->painter()->setColor( map );
       else
         pd->painter()->setColor(atom1->customColorName());
-      pd->painter()->drawMultiCylinder( v1, v3, m_bondRadius, order, shift );
+      pd->painter()->drawMultiCylinder( v1, v3, m_bondRadius, order, shift,
+                                        spreadNormal );
 
       map->setFromPrimitive(atom2);
       if (atom2->customColorName().isEmpty())
         pd->painter()->setColor( map );
       else
         pd->painter()->setColor(atom2->customColorName());
-      pd->painter()->drawMultiCylinder( v3, v2, m_bondRadius, order, shift );
+      pd->painter()->drawMultiCylinder( v3, v2, m_bondRadius, order, shift,
+                                        spreadNormal );
     }
 
     glDisable( GL_NORMALIZE );
@@ -320,6 +373,10 @@ namespace Avogadro
       int order = 1;
       if (m_showMulti) order = b->order();
 
+      // Local sp2 spread plane for this multiple bond (design D1/D3).
+      const Vector3d spreadNormal =
+        bondSpreadNormalFromMolecule(pd->molecule(), b);
+
       // Pick name: name this bond before its translucent halves and selected
       // halo so every half-segment resolves to this bond's index (design D1).
       pd->painter()->setName(b);
@@ -336,7 +393,8 @@ namespace Avogadro
           customColor.setAlphaF(m_alpha);
           pd->painter()->setColor(&customColor);
         }
-        pd->painter()->drawMultiCylinder( v1, v3, m_bondRadius, order, shift );
+        pd->painter()->drawMultiCylinder( v1, v3, m_bondRadius, order, shift,
+                                          spreadNormal );
 
         if (atom2->customColorName().isEmpty()) {
           map->setFromPrimitive(atom2);
@@ -348,14 +406,16 @@ namespace Avogadro
           customColor.setAlphaF(m_alpha);
           pd->painter()->setColor(&customColor);
         }
-        pd->painter()->drawMultiCylinder( v3, v2, m_bondRadius, order, shift );
+        pd->painter()->drawMultiCylinder( v3, v2, m_bondRadius, order, shift,
+                                          spreadNormal );
       }
 
       // Render the selected bond.
       if (pd->isSelected(b)) {
         pd->painter()->setColor(&selectionMap);
         pd->painter()->drawMultiCylinder( v1, v2,
-                           SEL_BOND_EXTRA_RADIUS + m_bondRadius, order, shift );
+                           SEL_BOND_EXTRA_RADIUS + m_bondRadius, order, shift,
+                           spreadNormal );
       }
     }
     return true;
@@ -382,19 +442,26 @@ namespace Avogadro
       int order = 1;
       if (m_showMulti) order = b->order();
 
+      // Local sp2 spread plane for this multiple bond (design D1/D3).
+      const Vector3d spreadNormal =
+        bondSpreadNormalFromMolecule(pd->molecule(), b);
+
       if (pd->isSelected(b)) {
         pd->painter()->setColor(&cSel);
         pd->painter()->drawMultiCylinder(v1, v2, SEL_BOND_EXTRA_RADIUS +
-                                         m_bondRadius, order, shift);
+                                         m_bondRadius, order, shift,
+                                         spreadNormal);
       }
       else {
         map->setFromPrimitive(atom1);
         pd->painter()->setColor(map);
-        pd->painter()->drawMultiCylinder(v1, v3, m_bondRadius, order, shift);
+        pd->painter()->drawMultiCylinder(v1, v3, m_bondRadius, order, shift,
+                                         spreadNormal);
 
         map->setFromPrimitive( atom2 );
         pd->painter()->setColor(map);
-        pd->painter()->drawMultiCylinder(v3, v2, m_bondRadius, order, shift);
+        pd->painter()->drawMultiCylinder(v3, v2, m_bondRadius, order, shift,
+                                         spreadNormal);
       }
     }
 

@@ -171,10 +171,17 @@ namespace Avogadro
      *              drawCylinder().
      * @param shift how far away from the central axis the cylinders are shifted.
      *              In other words this influences the total width of multiple bonds.
+     * @param planeNormalVector the local plane normal in which the parallel
+     *              cylinders are spread (perpendicular to the bond axis). When
+     *              empty (the default, a zero vector) the painter falls back to
+     *              its own plane reference (e.g. the widget's best-fit plane
+     *              normal).
      */
     virtual void drawMultiCylinder(const Eigen::Vector3d &end1,
                                    const Eigen::Vector3d &end2,
-                                   double radius, int order, double shift) = 0;
+                                   double radius, int order, double shift,
+                                   const Eigen::Vector3d &planeNormalVector =
+                                       Eigen::Vector3d(0, 0, 0)) = 0;
 
     /**
      * Draws a cone between the tip and the base with the base radius given.
@@ -208,11 +215,17 @@ namespace Avogadro
      * @param order the order of the bond, e.g. 2 for a double bond.
      * @param stipple The stipple parameter for the bond, can be used to
      * draw aromatic bonds etc.
+     * @param planeNormalVector the local plane normal in which the parallel
+     * lines are spread (perpendicular to the bond axis). When empty (the
+     * default, a zero vector) the painter falls back to its own plane
+     * reference.
      * sa drawMultiCylinder
      */
     virtual void drawMultiLine(const Eigen::Vector3d &start,
                                const Eigen::Vector3d &end, double lineWidth,
-                               int order, short stipple) = 0;
+                               int order, short stipple,
+                               const Eigen::Vector3d &planeNormalVector =
+                                   Eigen::Vector3d(0, 0, 0)) = 0;
 
     /**
      * Draws a triangle with vertives on the three given points. This function

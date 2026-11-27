@@ -61,6 +61,7 @@ set(tests
   consumerparity
   threadedparity
   builderpool
+  bondspread
   renderertier
   placement
   erasetool
@@ -101,6 +102,12 @@ foreach (test ${tests})
     # builderpooltest also calls snapshotTessellateBSDY (no A_EXPORT, not
     # dllexported on Windows -> LNK2001), so compile the snapshot tessellator
     # directly into the test as well.
+    list(APPEND test_SRCS ../src/rendering/snapshottessellator.cpp)
+  endif()
+  if (${test} STREQUAL "bondspread")
+    # bondspreadtest calls snapshotTessellateBSDY (no A_EXPORT, not dllexported
+    # on Windows -> LNK2001), so compile the snapshot tessellator directly into
+    # the test, as for builderpool above.
     list(APPEND test_SRCS ../src/rendering/snapshottessellator.cpp)
   endif()
   if (${test} STREQUAL "autooptrepro" OR ${test} STREQUAL "energyhud")

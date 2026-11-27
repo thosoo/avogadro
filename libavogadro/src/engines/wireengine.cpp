@@ -29,6 +29,8 @@
 #include <avogadro/bond.h>
 #include <avogadro/molecule.h>
 #include <avogadro/color.h>
+
+#include "rendering/bondspread.h"
 #include <avogadro/glwidget.h>
 #include <avogadro/camera.h>
 #include <avogadro/painterdevice.h>
@@ -43,6 +45,42 @@ using namespace std;
 using namespace Eigen;
 
 namespace Avogadro {
+
+namespace {
+
+//! Compute the local sp2 spread normal for a live molecule bond, so the wire
+//! tier spreads each multiple bond in its own local plane rather than the
+//! molecule's global best-fit plane (fix-double-bond-offset-plane, D1/D3).
+//! Returns a zero vector for degenerate bonds so the painter falls back to its
+//! current behaviour.
+Vector3d wireSpreadNormal(const Molecule *mol, const Bond *bond)
+{
+  if (!mol || !bond)
+    return Vector3d(0.0, 0.0, 0.0);
+  const Atom *a1 = mol->atomById(bond->beginAtomId());
+  const Atom *a2 = mol->atomById(bond->endAtomId());
+  if (!a1 || !a2)
+    return Vector3d(0.0, 0.0, 0.0);
+
+  const Vector3d p1(*a1->pos());
+  const Vector3d p2(*a2->pos());
+  QVector<Vector3d> n1, n2;
+  for (unsigned long nid : a1->neighbors()) {
+    if (nid == bond->endAtomId())
+      continue;
+    if (const Atom *n = mol->atomById(nid))
+      n1.append(*n->pos());
+  }
+  for (unsigned long nid : a2->neighbors()) {
+    if (nid == bond->beginAtomId())
+      continue;
+    if (const Atom *n = mol->atomById(nid))
+      n2.append(*n->pos());
+  }
+  return rendering::bondSpreadNormal(p1, p2, n1, n2);
+}
+
+} // namespace
 
   WireEngine::WireEngine(QObject *parent) : Engine(parent), m_settingsWidget(NULL),
                                             m_showMulti(0), m_showDots(2)
@@ -214,24 +252,29 @@ namespace Avogadro {
       }
     }
 
+    // Local sp2 spread plane for this multiple bond (design D1/D3).
+    const Vector3d spreadNormal = wireSpreadNormal(pd->molecule(), b);
+
     map->setFromPrimitive(atom1);
     pd->painter()->setColor(map);
     // if have two of the same atoms, just draw one line
     if (atom1->atomicNumber() == atom2->atomicNumber()) {
-      if (order != 1) pd->painter()->drawMultiLine(v1, v2, width, order, stipple);
-      else pd->painter()->drawLine(v1, v2, width);
+      if (order != 1)
+        pd->painter()->drawMultiLine(v1, v2, width, order, stipple, spreadNormal);
+      else
+        pd->painter()->drawLine(v1, v2, width);
       return true;
     }
     // otherwise, we draw a line to the "transition point", change color, etc.
     if (order != 1)
-      pd->painter()->drawMultiLine(v1, v3, width, order, stipple);
+      pd->painter()->drawMultiLine(v1, v3, width, order, stipple, spreadNormal);
     else
       pd->painter()->drawLine(v1, v3, width);
 
     map->setFromPrimitive(atom2);
     pd->painter()->setColor(map);
     if (order != 1)
-      pd->painter()->drawMultiLine(v3, v2, width, order, stipple);
+      pd->painter()->drawMultiLine(v3, v2, width, order, stipple, spreadNormal);
     else
       pd->painter()->drawLine(v3, v2, width);
 

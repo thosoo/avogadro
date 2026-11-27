@@ -9,9 +9,12 @@ whole-molecule best-fit plane. The computed spread SHALL be deterministic for
 identical molecule state: the same geometry produces the same spread direction on
 every invocation. Bonds whose atoms have no substituent neighbors (or only degenerate
 geometry) SHALL fall back to a deterministic direction without crashing. The spread
-plane SHALL be consistent across rendering tiers: the modern tier and the fixed-
-function tiers SHALL spread the same multiple bond into the same plane, so a scene
-renders with the same multi-bond geometry regardless of the active tier. The
+plane SHALL be consistent across rendering tiers: for double bonds (order 2), the
+modern tier and the fixed-function tiers SHALL spread the same bond into the same
+plane, so a scene renders with the same double-bond geometry regardless of the
+active tier. (The pre-existing angular-vs-collinear arrangement divergence for
+order ≥ 3 triple/quadruple bonds is a documented non-goal, unchanged by this
+requirement.) The
 arrangement of the cylinders (the symmetric ±shift straddle for double bonds) SHALL
 be unchanged by this requirement.
 
@@ -28,10 +31,10 @@ be unchanged by this requirement.
 - **THEN** the cylinder pair lies in the plane defined by the substituted atom's
   neighbors and the bond axis
 
-#### Scenario: Tiers agree on the spread plane
-- **WHEN** the same molecule with multiple bonds is rendered once on the modern tier
-  and once on a fixed-function tier with the same camera
-- **THEN** each multiple bond's second cylinder appears in the same plane relative to
+#### Scenario: Tiers agree on the spread plane for double bonds
+- **WHEN** the same molecule with double bonds (order 2) is rendered once on the
+  modern tier and once on a fixed-function tier with the same camera
+- **THEN** each double bond's second cylinder appears in the same plane relative to
   the molecule on both tiers
 
 #### Scenario: Deterministic spread for identical input

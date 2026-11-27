@@ -149,9 +149,10 @@ void SceneBuilder::drawCylinder(const Eigen::Vector3d &end1,
 
 void SceneBuilder::drawMultiCylinder(const Eigen::Vector3d &end1,
                                      const Eigen::Vector3d &end2, double radius,
-                                     int order, double shift)
+                                     int order, double shift,
+                                     const Eigen::Vector3d &spreadNormal)
 {
-  appendBond(end1, end2, radius, order, shift);
+  appendBond(end1, end2, radius, order, shift, spreadNormal);
 }
 
 void SceneBuilder::drawLine(const Eigen::Vector3d &start,
@@ -162,9 +163,10 @@ void SceneBuilder::drawLine(const Eigen::Vector3d &start,
 
 void SceneBuilder::drawMultiLine(const Eigen::Vector3d &start,
                                  const Eigen::Vector3d &end, double lineWidth,
-                                 int order, short stipple)
+                                 int order, short stipple,
+                                 const Eigen::Vector3d &spreadNormal)
 {
-  appendLine(start, end, lineWidth, order, stipple);
+  appendLine(start, end, lineWidth, order, stipple, spreadNormal);
 }
 
 void SceneBuilder::drawMesh(const Mesh &mesh, int mode)
@@ -470,17 +472,32 @@ void SceneBuilder::clearStores()
 }
 
 void SceneBuilder::appendBond(const Eigen::Vector3d &end1, const Eigen::Vector3d &end2,
-                              double radius, int order, double shift)
+                              double radius, int order, double shift,
+                              const Eigen::Vector3d &spreadNormal)
 {
   if (order < 1)
     order = 1;
 
   // A perpendicular reference direction for spreading multi-bond cylinders.
+  // A caller-supplied local plane normal (from bondSpreadNormal) yields the
+  // in-plane spread direction axis x planeNormal, so the pair lies in the
+  // bond's local sp2 plane; an empty/zero normal falls back to the world-frame
+  // unitOrthogonal, preserving the pre-change behaviour for degenerate
+  // geometry (design D2/D3).
   Eigen::Vector3d axis = end2 - end1;
   double len = axis.norm();
   Eigen::Vector3d ortho;
-  if (len > 1e-9)
-    ortho = axis.normalized().unitOrthogonal() * qAbs(shift);
+  if (len > 1e-9) {
+    if (spreadNormal.squaredNorm() > 1e-12) {
+      Eigen::Vector3d inPlane = axis.normalized().cross(spreadNormal);
+      if (inPlane.norm() > 1e-9)
+        ortho = inPlane.normalized() * qAbs(shift);
+      else
+        ortho = axis.normalized().unitOrthogonal() * qAbs(shift);
+    }
+    else
+      ortho = axis.normalized().unitOrthogonal() * qAbs(shift);
+  }
   else
     ortho = Eigen::Vector3d(0, 0, 0);
 
@@ -530,7 +547,8 @@ void SceneBuilder::appendBond(const Eigen::Vector3d &end1, const Eigen::Vector3d
 }
 
 void SceneBuilder::appendLine(const Eigen::Vector3d &start, const Eigen::Vector3d &end,
-                              double width, int order, short stipple)
+                              double width, int order, short stipple,
+                              const Eigen::Vector3d &spreadNormal)
 {
   if (order < 1)
     order = 1;
@@ -538,8 +556,20 @@ void SceneBuilder::appendLine(const Eigen::Vector3d &start, const Eigen::Vector3
   Eigen::Vector3d axis = end - start;
   double len = axis.norm();
   Eigen::Vector3d ortho;
-  if (len > 1e-9)
-    ortho = axis.normalized().unitOrthogonal() * width;
+  if (len > 1e-9) {
+    // Same spread-plane rule as appendBond: the caller-supplied local plane
+    // normal yields axis x planeNormal (in-plane spread); empty/zero falls
+    // back to the world-frame unitOrthogonal (design D3).
+    if (spreadNormal.squaredNorm() > 1e-12) {
+      Eigen::Vector3d inPlane = axis.normalized().cross(spreadNormal);
+      if (inPlane.norm() > 1e-9)
+        ortho = inPlane.normalized() * width;
+      else
+        ortho = axis.normalized().unitOrthogonal() * width;
+    }
+    else
+      ortho = axis.normalized().unitOrthogonal() * width;
+  }
   else
     ortho = Eigen::Vector3d(0, 0, 0);
 

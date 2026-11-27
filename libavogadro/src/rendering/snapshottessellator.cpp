@@ -14,6 +14,7 @@
 #include <avogadro/global.h>
 
 #include "scenebuilder.h"
+#include "bondspread.h"
 
 namespace Avogadro {
 namespace rendering {
@@ -26,13 +27,61 @@ inline Eigen::Vector3d posOf(const SceneSnapshot &snapshot, unsigned int id)
   return Eigen::Vector3d(a.pos[0], a.pos[1], a.pos[2]);
 }
 
+//! Build the per-bond local sp2 spread normal for every bond in the snapshot.
+//!
+//! The multi-bond spread direction is a chemistry question: the parallel
+//! cylinders of a multiple bond should lie in the bond's local sp2 plane,
+//! perpendicular to the bond axis, rather than in a world-frame or global
+//! best-fit-plane direction (fix-double-bond-offset-plane, design D1/D3). A
+//! single adjacency pass over the snapshot bonds collects each bonded atom's
+//! neighbors (excluding the bond partner), and the shared bondSpreadNormal
+//! helper turns them into the unit spread vector. Degenerate bonds (no
+//! substituents / collinear) yield a zero vector, so the emitter falls back to
+//! its pre-change behaviour (design D2).
+QVector<Eigen::Vector3d> buildBondSpreadNormals(const SceneSnapshot &snapshot)
+{
+  const int nAtoms = snapshot.atoms.size();
+  QVector<QVector<int>> neighbors(nAtoms);
+  for (const auto &b : snapshot.bonds) {
+    // Guard the adjacency index (operator[] is UB on an out-of-range index)
+    // the same way posOf() tolerates a missing atom; app-built snapshots always
+    // resolve, but a malformed snapshot must not fault.
+    if (b.begin < nAtoms && b.end < nAtoms) {
+      neighbors[static_cast<int>(b.begin)].append(static_cast<int>(b.end));
+      neighbors[static_cast<int>(b.end)].append(static_cast<int>(b.begin));
+    }
+  }
+
+  QVector<Eigen::Vector3d> normals;
+  normals.reserve(snapshot.bonds.size());
+  for (const auto &b : snapshot.bonds) {
+    const int begin = static_cast<int>(b.begin);
+    const int end = static_cast<int>(b.end);
+    QVector<Eigen::Vector3d> beginNbrs;
+    QVector<Eigen::Vector3d> endNbrs;
+    for (int nb : neighbors[begin])
+      if (nb != end)
+        beginNbrs.append(posOf(snapshot, static_cast<unsigned int>(nb)));
+    for (int nb : neighbors[end])
+      if (nb != begin)
+        endNbrs.append(posOf(snapshot, static_cast<unsigned int>(nb)));
+    normals.append(bondSpreadNormal(posOf(snapshot, b.begin),
+                                    posOf(snapshot, b.end), beginNbrs,
+                                    endNbrs));
+  }
+  return normals;
+}
+
 //! Append the opaque bonds: each bond is two halves meeting at the radius
 //! bisector point v3, exactly as BSDYEngine::renderOpaque emits them.
 void emitOpaqueBonds(SceneBuilder &builder, const SceneSnapshot &snapshot,
-                     const JobParams &p)
+                     const JobParams &p,
+                     const QVector<Eigen::Vector3d> &spreadNormals)
 {
   const TessellatorSettings &s = p.settings;
-  for (const auto &b : snapshot.bonds) {
+  for (int bi = 0; bi < snapshot.bonds.size(); ++bi) {
+    const SnapshotBond &b = snapshot.bonds[bi];
+    const Eigen::Vector3d spreadNormal = spreadNormals[bi];
     const Eigen::Vector3d v1 = posOf(snapshot, b.begin);
     const Eigen::Vector3d v2 = posOf(snapshot, b.end);
     Eigen::Vector3d dir = v2 - v1;
@@ -52,11 +101,11 @@ void emitOpaqueBonds(SceneBuilder &builder, const SceneSnapshot &snapshot,
 
     const CapturedAtom &c1 = p.atoms.value(b.begin);
     builder.setColor(c1.rgba[0], c1.rgba[1], c1.rgba[2], c1.rgba[3]);
-    builder.drawMultiCylinder(v1, v3, s.bondRadius, order, s.shift);
+    builder.drawMultiCylinder(v1, v3, s.bondRadius, order, s.shift, spreadNormal);
 
     const CapturedAtom &c2 = p.atoms.value(b.end);
     builder.setColor(c2.rgba[0], c2.rgba[1], c2.rgba[2], c2.rgba[3]);
-    builder.drawMultiCylinder(v3, v2, s.bondRadius, order, s.shift);
+    builder.drawMultiCylinder(v3, v2, s.bondRadius, order, s.shift, spreadNormal);
   }
 }
 
@@ -107,13 +156,15 @@ void emitTransparentAtoms(SceneBuilder &builder, const SceneSnapshot &snapshot,
 //! Append the transparent bonds: translucent halves when 0<alpha<1, plus the
 //! selected-bond halo for selected bonds.
 void emitTransparentBonds(SceneBuilder &builder, const SceneSnapshot &snapshot,
-                          const JobParams &p)
+                          const JobParams &p,
+                          const QVector<Eigen::Vector3d> &spreadNormals)
 {
   const TessellatorSettings &s = p.settings;
   const QColor selection = QColor::fromRgbF(0.1f, 0.8f, 0.9f, 1.0f);
-  int bondIndex = 0;
-  for (const auto &b : snapshot.bonds) {
-    const bool selected = p.selectedBonds.contains(bondIndex);
+  for (int bi = 0; bi < snapshot.bonds.size(); ++bi) {
+    const SnapshotBond &b = snapshot.bonds[bi];
+    const Eigen::Vector3d spreadNormal = spreadNormals[bi];
+    const bool selected = p.selectedBonds.contains(bi);
     if (!selected && s.alpha > 0.999)
       continue;
 
@@ -136,20 +187,19 @@ void emitTransparentBonds(SceneBuilder &builder, const SceneSnapshot &snapshot,
     if (s.alpha > 0.001 && s.alpha < 0.999) {
       const CapturedAtom &c1 = p.atoms.value(b.begin);
       builder.setColor(c1.rgba[0], c1.rgba[1], c1.rgba[2], s.alpha);
-      builder.drawMultiCylinder(v1, v3, s.bondRadius, order, s.shift);
+      builder.drawMultiCylinder(v1, v3, s.bondRadius, order, s.shift, spreadNormal);
 
       const CapturedAtom &c2 = p.atoms.value(b.end);
       builder.setColor(c2.rgba[0], c2.rgba[1], c2.rgba[2], s.alpha);
-      builder.drawMultiCylinder(v3, v2, s.bondRadius, order, s.shift);
+      builder.drawMultiCylinder(v3, v2, s.bondRadius, order, s.shift, spreadNormal);
     }
 
     if (selected) {
       builder.setColor(selection.redF(), selection.greenF(),
                        selection.blueF(), selection.alphaF());
       builder.drawMultiCylinder(v1, v2, SEL_BOND_EXTRA_RADIUS + s.bondRadius,
-                                order, s.shift);
+                                order, s.shift, spreadNormal);
     }
-    ++bondIndex;
   }
 }
 
@@ -164,15 +214,20 @@ TessellationResult snapshotTessellateBSDY(const SceneSnapshot &snapshot,
   builder.begin();
   builder.clearStores();
 
+  // Per-build neighbor pass: compute each multiple bond's local sp2 spread
+  // normal once, so the modern tier follows the bond's substituent geometry
+  // instead of the world frame (fix-double-bond-offset-plane, design D1/D3).
+  const QVector<Eigen::Vector3d> spreadNormals = buildBondSpreadNormals(snapshot);
+
   // Opaque pass (engine returns early when the molecule is translucent).
   if (params.settings.alpha > 0.999) {
-    emitOpaqueBonds(builder, snapshot, params);
+    emitOpaqueBonds(builder, snapshot, params, spreadNormals);
     emitOpaqueAtoms(builder, snapshot, params);
   }
 
   // Transparent pass (translucent atoms, selection halos, selected bonds).
   emitTransparentAtoms(builder, snapshot, params);
-  emitTransparentBonds(builder, snapshot, params);
+  emitTransparentBonds(builder, snapshot, params, spreadNormals);
 
   builder.end();
 

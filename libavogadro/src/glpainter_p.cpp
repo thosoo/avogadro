@@ -672,7 +672,8 @@ class GLPainterPrivate
   }
 
   void GLPainter::drawMultiCylinder ( const Eigen::Vector3d &end1, const Eigen::Vector3d &end2,
-                                      double radius, int order, double shift )
+                                      double radius, int order, double shift,
+                                      const Eigen::Vector3d &planeNormalVector )
   {
     if(!d->isValid()) { return; }
 
@@ -699,8 +700,15 @@ class GLPainterPrivate
 
     d->color.applyAsMaterials();
     pushName();
+    // A caller-supplied local plane normal (e.g. from bondSpreadNormal) places
+    // the pair in the bond's sp2 plane; an empty/zero normal falls back to the
+    // widget's molecule best-fit plane normal, preserving the pre-change
+    // behaviour for degenerate geometry (design D2/D3).
     d->cylinders[detailLevel]->drawMulti ( end1, end2, radius, order,
-                                           shift, d->widget->normalVector() );
+                                           shift,
+                                           planeNormalVector.squaredNorm() > 1e-12
+                                             ? planeNormalVector
+                                             : d->widget->normalVector() );
     popName();
   }
 
@@ -788,7 +796,8 @@ class GLPainterPrivate
 
   void GLPainter::drawMultiLine(const Eigen::Vector3d &end1,
                                 const Eigen::Vector3d &end2,
-                                double lineWidth, int order, short stipple)
+                                double lineWidth, int order, short stipple,
+                                const Eigen::Vector3d &planeNormalVector)
   {
     // Draw multiple lines between two points of the specified thickness
     if(!d->isValid()) { return; }
@@ -810,7 +819,12 @@ class GLPainterPrivate
     // like single bonds from the default point of view.
     Eigen::Vector3d axisNormalized = matrix.block<3,1>(0,2).normalized();
     Eigen::Block<Eigen::Matrix4d, 3, 1> ortho1(matrix, 0, 0);
-    ortho1 = axisNormalized.cross(d->widget->normalVector());
+    // Caller-supplied local plane normal wins; empty/zero falls back to the
+    // widget's molecule best-fit plane normal (design D2/D3).
+    const Eigen::Vector3d planeRef = planeNormalVector.squaredNorm() > 1e-12
+                                       ? planeNormalVector
+                                       : d->widget->normalVector();
+    ortho1 = axisNormalized.cross(planeRef);
     double ortho1Norm = ortho1.norm();
     if( ortho1Norm > 0.001 ) ortho1 = ortho1.normalized() * lineWidth;
     else ortho1 = axisNormalized.unitOrthogonal() * lineWidth;

@@ -170,7 +170,8 @@ namespace Avogadro
 	}
 
 	void VRMLPainter::drawMultiCylinder(const Vector3d &end1, const Vector3d &end2,
-		double radius, int order, double)
+		double radius, int order, double,
+		const Eigen::Vector3d &planeNormalVector)
 	{
 		if (order == 1)
 			drawCylinder(end1, end2, radius);
@@ -183,8 +184,12 @@ namespace Avogadro
 			if (axisNorm < 1.0e-5) return;
 			Vector3d axisNormalized = axis / axisNorm;
 
-			// Use the plane normal vector for the molecule to draw multicylinders along
-			Vector3d ortho1 = axisNormalized.cross(d->planeNormalVector);
+			// Use the caller-supplied local plane normal, or the molecule's plane
+			// normal when empty (design D3).
+			const Vector3d planeRef = planeNormalVector.squaredNorm() > 1e-12
+			                          ? planeNormalVector
+			                          : d->planeNormalVector;
+			Vector3d ortho1 = axisNormalized.cross(planeRef);
 			double ortho1Norm = ortho1.norm();
 			if (ortho1Norm > 0.001) ortho1 /= ortho1Norm;
 			else ortho1 = axisNormalized.unitOrthogonal();

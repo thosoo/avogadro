@@ -78,11 +78,15 @@ public:
   void drawCylinder(const Eigen::Vector3d &end1, const Eigen::Vector3d &end2,
                     double radius) override;
   void drawMultiCylinder(const Eigen::Vector3d &end1, const Eigen::Vector3d &end2,
-                         double radius, int order, double shift) override;
+                         double radius, int order, double shift,
+                         const Eigen::Vector3d &spreadNormal =
+                             Eigen::Vector3d(0, 0, 0)) override;
   void drawLine(const Eigen::Vector3d &start, const Eigen::Vector3d &end,
                 double lineWidth) override;
   void drawMultiLine(const Eigen::Vector3d &start, const Eigen::Vector3d &end,
-                     double lineWidth, int order, short stipple) override;
+                     double lineWidth, int order, short stipple,
+                     const Eigen::Vector3d &spreadNormal =
+                         Eigen::Vector3d(0, 0, 0)) override;
   void drawMesh(const Mesh &mesh, int mode = 0) override;
   void drawColorMesh(const Mesh &mesh, int mode = 0) override;
 
@@ -150,9 +154,11 @@ public:
 
 private:
   void appendBond(const Eigen::Vector3d &end1, const Eigen::Vector3d &end2,
-                  double radius, int order, double shift);
+                  double radius, int order, double shift,
+                  const Eigen::Vector3d &spreadNormal = Eigen::Vector3d(0, 0, 0));
   void appendLine(const Eigen::Vector3d &start, const Eigen::Vector3d &end,
-                  double width, int order = 1, short stipple = 0);
+                  double width, int order = 1, short stipple = 0,
+                  const Eigen::Vector3d &spreadNormal = Eigen::Vector3d(0, 0, 0));
 
   ChunkStore<SphereInstance> m_spheres;
   ChunkStore<BondInstance> m_bonds;

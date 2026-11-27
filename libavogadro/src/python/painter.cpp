@@ -20,6 +20,24 @@ void drawCone(Painter &self, const Eigen::Vector3d &base, const Eigen::Vector3d 
   self.drawCone(base, cap, baseRadius);
 }
 
+void drawMultiCylinder(Painter &self, const Eigen::Vector3d &end1,
+                       const Eigen::Vector3d &end2, double radius,
+                       int order, double shift)
+{
+  // Preserve the pre-change 5-argument Python interface: the optional plane
+  // normal (design D3) defaults to empty, so the painter falls back to its
+  // own plane reference.
+  self.drawMultiCylinder(end1, end2, radius, order, shift);
+}
+
+void drawMultiLine(Painter &self, const Eigen::Vector3d &start,
+                   const Eigen::Vector3d &end, double lineWidth,
+                   int order, short stipple)
+{
+  // Preserve the pre-change 5-argument Python interface (see drawMultiCylinder).
+  self.drawMultiLine(start, end, lineWidth, order, stipple);
+}
+
 void drawShadedSector(Painter &self, const Eigen::Vector3d &origin, const Eigen::Vector3d &dir1,
     const Eigen::Vector3d &dir2, double radius)
 {
@@ -96,7 +114,7 @@ void export_Painter()
         "apparent radius (ratio of radius over distance) and the global quality setting.")
 
     .def("drawMultiCylinder", 
-        &Painter::drawMultiCylinder, 
+        drawMultiCylinder, 
         "Draws a multiple cylinder (see below), leaving the Painter choose the appropriate "
         " detail level based on the apparent radius (ratio of radius over distance) and the "
         "global quality setting.")
@@ -113,7 +131,7 @@ void export_Painter()
         "Draws a line between the given points of the given width.")
 
     .def("drawMultiLine", 
-        &Painter::drawMultiLine, 
+        drawMultiLine, 
         "Draws a multiple line between the given points. This function is the "
         "line equivalent to the drawMultiCylinder function and performs the "
         "same basic operations using simpler and quicker lines.")
